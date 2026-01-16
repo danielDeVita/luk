@@ -9,7 +9,7 @@ import { PayoutsService } from '../payouts/payouts.service';
 @Injectable()
 export class RaffleTasksService {
   private readonly logger = new Logger(RaffleTasksService.name);
-  private readonly MIN_SALE_THRESHOLD = 0.70; // 70%
+  private readonly MIN_SALE_THRESHOLD = 0.7; // 70%
   private readonly cronEnabled: boolean;
 
   constructor(
@@ -19,7 +19,8 @@ export class RaffleTasksService {
     private payoutsService: PayoutsService,
     private configService: ConfigService,
   ) {
-    this.cronEnabled = this.configService.get<string>('ENABLE_CRON_JOBS') !== 'false';
+    this.cronEnabled =
+      this.configService.get<string>('ENABLE_CRON_JOBS') !== 'false';
   }
 
   /**
@@ -30,9 +31,9 @@ export class RaffleTasksService {
   @Cron(CronExpression.EVERY_5_MINUTES)
   async processExpiredRaffles() {
     if (!this.cronEnabled) return;
-    
+
     this.logger.log('Starting: Process expired raffles');
-    
+
     try {
       const expiredRaffles = await this.prisma.raffle.findMany({
         where: {
@@ -47,11 +48,11 @@ export class RaffleTasksService {
       });
 
       for (const raffle of expiredRaffles) {
-        const paidTickets = raffle.tickets.filter(t => t.estado === 'PAGADO');
+        const paidTickets = raffle.tickets.filter((t) => t.estado === 'PAGADO');
         const percentSold = paidTickets.length / raffle.totalTickets;
 
         this.logger.log(
-          `Raffle ${raffle.id}: ${(percentSold * 100).toFixed(1)}% sold (${paidTickets.length}/${raffle.totalTickets})`
+          `Raffle ${raffle.id}: ${(percentSold * 100).toFixed(1)}% sold (${paidTickets.length}/${raffle.totalTickets})`,
         );
 
         if (percentSold >= this.MIN_SALE_THRESHOLD) {
@@ -61,9 +62,14 @@ export class RaffleTasksService {
         }
       }
 
-      this.logger.log(`Finished: Processed ${expiredRaffles.length} expired raffles`);
+      this.logger.log(
+        `Finished: Processed ${expiredRaffles.length} expired raffles`,
+      );
     } catch (error) {
-      this.logger.error('Error processing expired raffles:', error instanceof Error ? error.stack : error);
+      this.logger.error(
+        'Error processing expired raffles:',
+        error instanceof Error ? error.stack : error,
+      );
     }
   }
 
@@ -73,7 +79,7 @@ export class RaffleTasksService {
   @Cron(CronExpression.EVERY_HOUR)
   async processRemindersAndReleases() {
     if (!this.cronEnabled) return;
-    
+
     this.logger.log('Starting: Process reminders and releases');
 
     try {
@@ -88,7 +94,10 @@ export class RaffleTasksService {
 
       this.logger.log('Finished: Process reminders and releases');
     } catch (error) {
-      this.logger.error('Error in reminders/releases:', error instanceof Error ? error.stack : error);
+      this.logger.error(
+        'Error in reminders/releases:',
+        error instanceof Error ? error.stack : error,
+      );
     }
   }
 
@@ -151,7 +160,7 @@ export class RaffleTasksService {
         updatedRaffle.winner.id,
         'WIN',
         '🎉 ¡Has ganado un sorteo!',
-        `¡Felicidades! Ganaste la rifa "${updatedRaffle.titulo}". Contacta al vendedor para coordinar la entrega.`
+        `¡Felicidades! Ganaste la rifa "${updatedRaffle.titulo}". Contacta al vendedor para coordinar la entrega.`,
       );
 
       // Email Seller
@@ -168,7 +177,7 @@ export class RaffleTasksService {
         updatedRaffle.seller.id,
         'INFO',
         'Tu rifa tiene ganador',
-        `La rifa "${updatedRaffle.titulo}" ha finalizado. Tienes 48hs para contactar al ganador.`
+        `La rifa "${updatedRaffle.titulo}" ha finalizado. Tienes 48hs para contactar al ganador.`,
       );
     }
 
@@ -178,16 +187,20 @@ export class RaffleTasksService {
       this.logger.log(`Payout created for raffle ${raffleId}`);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
-      this.logger.error(`Failed to create payout for raffle ${raffleId}: ${message}`);
+      this.logger.error(
+        `Failed to create payout for raffle ${raffleId}: ${message}`,
+      );
     }
   }
 
   private async cancelAndRefundRaffle(raffleId: string, percentSold: number) {
-    this.logger.log(`Cancelling raffle ${raffleId} (only ${(percentSold * 100).toFixed(1)}% sold)`);
+    this.logger.log(
+      `Cancelling raffle ${raffleId} (only ${(percentSold * 100).toFixed(1)}% sold)`,
+    );
 
     const raffle = await this.prisma.raffle.findUnique({
       where: { id: raffleId },
-      include: { 
+      include: {
         tickets: { where: { estado: 'PAGADO' }, include: { buyer: true } },
         seller: true,
       },
@@ -200,7 +213,7 @@ export class RaffleTasksService {
       if (ticket.mpPaymentId) {
         try {
           await this.paymentsService.refundPayment(ticket.mpPaymentId);
-          
+
           await this.notificationsService.sendRefundNotification(
             ticket.buyer.email,
             {
@@ -210,7 +223,8 @@ export class RaffleTasksService {
             },
           );
         } catch (error) {
-          const message = error instanceof Error ? error.message : 'Unknown error';
+          const message =
+            error instanceof Error ? error.message : 'Unknown error';
           this.logger.error(`Failed to refund ticket ${ticket.id}:`, message);
         }
       }
@@ -232,7 +246,8 @@ export class RaffleTasksService {
     const percentNotSold = 1 - percentSold;
     const reductionFactor = percentNotSold * 0.5;
     const currentPrice = Number(raffle.precioPorTicket);
-    const suggestedPrice = Math.round(currentPrice * (1 - reductionFactor) * 100) / 100;
+    const suggestedPrice =
+      Math.round(currentPrice * (1 - reductionFactor) * 100) / 100;
 
     await this.prisma.priceReduction.create({
       data: {
@@ -317,8 +332,11 @@ export class RaffleTasksService {
         }
         await this.payoutsService.schedulePayoutAfterDelivery(raffle.id);
       } catch (error) {
-        const message = error instanceof Error ? error.message : 'Unknown error';
-        this.logger.error(`Failed to process payout for raffle ${raffle.id}: ${message}`);
+        const message =
+          error instanceof Error ? error.message : 'Unknown error';
+        this.logger.error(
+          `Failed to process payout for raffle ${raffle.id}: ${message}`,
+        );
       }
     }
   }
@@ -343,8 +361,10 @@ export class RaffleTasksService {
 
     for (const raffle of raffles) {
       if (raffle.winner) {
-        this.logger.log(`Sending confirmation reminder for raffle ${raffle.id}`);
-        
+        this.logger.log(
+          `Sending confirmation reminder for raffle ${raffle.id}`,
+        );
+
         await this.notificationsService.sendDeliveryReminderToWinner(
           raffle.winner.email,
           {

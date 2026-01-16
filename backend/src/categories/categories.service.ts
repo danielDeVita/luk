@@ -1,6 +1,14 @@
-import { Injectable, Logger, NotFoundException, ConflictException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  NotFoundException,
+  ConflictException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { CreateCategoryInput, UpdateCategoryInput } from './dto/create-category.input';
+import {
+  CreateCategoryInput,
+  UpdateCategoryInput,
+} from './dto/create-category.input';
 
 @Injectable()
 export class CategoriesService {
@@ -85,7 +93,9 @@ export class CategoriesService {
         where: { id },
         data: { isActive: false },
       });
-      this.logger.log(`Category deactivated (has ${rafflesCount} raffles): ${id}`);
+      this.logger.log(
+        `Category deactivated (has ${rafflesCount} raffles): ${id}`,
+      );
     } else {
       await this.prisma.category.delete({ where: { id } });
       this.logger.log(`Category deleted: ${id}`);
@@ -96,13 +106,48 @@ export class CategoriesService {
 
   async seedDefaultCategories() {
     const defaults = [
-      { nombre: 'Electronica', descripcion: 'Celulares, computadoras, gadgets', icono: 'laptop', orden: 1 },
-      { nombre: 'Moda', descripcion: 'Ropa, zapatillas, accesorios', icono: 'shirt', orden: 2 },
-      { nombre: 'Hogar', descripcion: 'Electrodomesticos, muebles, decoracion', icono: 'home', orden: 3 },
-      { nombre: 'Deportes', descripcion: 'Equipamiento deportivo, bicicletas', icono: 'dumbbell', orden: 4 },
-      { nombre: 'Vehiculos', descripcion: 'Autos, motos, accesorios', icono: 'car', orden: 5 },
-      { nombre: 'Entretenimiento', descripcion: 'Consolas, juegos, instrumentos', icono: 'gamepad', orden: 6 },
-      { nombre: 'Otros', descripcion: 'Todo lo demas', icono: 'box', orden: 99 },
+      {
+        nombre: 'Electronica',
+        descripcion: 'Celulares, computadoras, gadgets',
+        icono: 'laptop',
+        orden: 1,
+      },
+      {
+        nombre: 'Moda',
+        descripcion: 'Ropa, zapatillas, accesorios',
+        icono: 'shirt',
+        orden: 2,
+      },
+      {
+        nombre: 'Hogar',
+        descripcion: 'Electrodomesticos, muebles, decoracion',
+        icono: 'home',
+        orden: 3,
+      },
+      {
+        nombre: 'Deportes',
+        descripcion: 'Equipamiento deportivo, bicicletas',
+        icono: 'dumbbell',
+        orden: 4,
+      },
+      {
+        nombre: 'Vehiculos',
+        descripcion: 'Autos, motos, accesorios',
+        icono: 'car',
+        orden: 5,
+      },
+      {
+        nombre: 'Entretenimiento',
+        descripcion: 'Consolas, juegos, instrumentos',
+        icono: 'gamepad',
+        orden: 6,
+      },
+      {
+        nombre: 'Otros',
+        descripcion: 'Todo lo demas',
+        icono: 'box',
+        orden: 99,
+      },
     ];
 
     for (const cat of defaults) {

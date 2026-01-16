@@ -62,7 +62,8 @@ async function bootstrap() {
           baseUri: ["'self'"],
           formAction: ["'self'"],
           frameAncestors: ["'self'"],
-          upgradeInsecureRequests: process.env.NODE_ENV === 'production' ? [] : null,
+          upgradeInsecureRequests:
+            process.env.NODE_ENV === 'production' ? [] : null,
         },
       },
       crossOriginEmbedderPolicy: false,
@@ -85,7 +86,13 @@ async function bootstrap() {
   app.enableCors({
     origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-    allowedHeaders: ['Authorization', 'Content-Type', 'stripe-signature', 'x-signature', 'x-request-id'],
+    allowedHeaders: [
+      'Authorization',
+      'Content-Type',
+      'stripe-signature',
+      'x-signature',
+      'x-request-id',
+    ],
     credentials: true,
   });
 

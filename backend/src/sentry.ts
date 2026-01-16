@@ -16,7 +16,8 @@ export function initSentry(): void {
   }
 
   const environment = process.env.NODE_ENV || 'development';
-  const release = process.env.SENTRY_RELEASE || process.env.npm_package_version || 'unknown';
+  const release =
+    process.env.SENTRY_RELEASE || process.env.npm_package_version || 'unknown';
 
   Sentry.init({
     dsn,
@@ -70,7 +71,9 @@ export function initSentry(): void {
     },
   });
 
-  console.log(`[Sentry] Initialized (env: ${environment}, release: ${release})`);
+  console.log(
+    `[Sentry] Initialized (env: ${environment}, release: ${release})`,
+  );
 }
 
 /**
@@ -108,7 +111,9 @@ export function captureException(
 /**
  * Set the current user context for Sentry
  */
-export function setUser(user: { id: string; email?: string; role?: string } | null): void {
+export function setUser(
+  user: { id: string; email?: string; role?: string } | null,
+): void {
   if (!process.env.SENTRY_DSN) return;
 
   if (user) {

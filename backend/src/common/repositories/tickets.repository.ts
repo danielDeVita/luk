@@ -103,7 +103,10 @@ export class TicketsRepository extends BaseRepository<
   /**
    * Count tickets for a raffle by status.
    */
-  async countByRaffleAndStatus(raffleId: string, status?: TicketStatus): Promise<number> {
+  async countByRaffleAndStatus(
+    raffleId: string,
+    status?: TicketStatus,
+  ): Promise<number> {
     return this.prisma.ticket.count({
       where: {
         raffleId,
@@ -195,7 +198,10 @@ export class TicketsRepository extends BaseRepository<
   /**
    * Get buyer ticket count for a raffle (for max ticket validation).
    */
-  async getBuyerTicketCount(raffleId: string, buyerId: string): Promise<number> {
+  async getBuyerTicketCount(
+    raffleId: string,
+    buyerId: string,
+  ): Promise<number> {
     return this.prisma.ticket.count({
       where: {
         raffleId,
@@ -209,7 +215,10 @@ export class TicketsRepository extends BaseRepository<
   /**
    * Get available ticket numbers for a raffle.
    */
-  async getAvailableNumbers(raffleId: string, totalTickets: number): Promise<number[]> {
+  async getAvailableNumbers(
+    raffleId: string,
+    totalTickets: number,
+  ): Promise<number[]> {
     const taken = await this.getTakenNumbers(raffleId);
     const takenSet = new Set(taken);
 

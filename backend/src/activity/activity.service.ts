@@ -46,7 +46,10 @@ export class ActivityService {
 
   // ==================== Auth Events ====================
 
-  async logUserRegistered(userId: string, method: 'email' | 'google' = 'email') {
+  async logUserRegistered(
+    userId: string,
+    method: 'email' | 'google' = 'email',
+  ) {
     return this.log({
       userId,
       action: ActivityType.USER_REGISTERED,
@@ -54,10 +57,17 @@ export class ActivityService {
     });
   }
 
-  async logUserLoggedIn(userId: string, method: 'email' | 'google' = 'email', ipAddress?: string) {
+  async logUserLoggedIn(
+    userId: string,
+    method: 'email' | 'google' = 'email',
+    ipAddress?: string,
+  ) {
     return this.log({
       userId,
-      action: method === 'google' ? ActivityType.USER_LOGGED_IN_GOOGLE : ActivityType.USER_LOGGED_IN,
+      action:
+        method === 'google'
+          ? ActivityType.USER_LOGGED_IN_GOOGLE
+          : ActivityType.USER_LOGGED_IN,
       ipAddress,
     });
   }
@@ -119,7 +129,11 @@ export class ActivityService {
     });
   }
 
-  async logRaffleDeadlineExtended(userId: string, raffleId: string, newDeadline: Date) {
+  async logRaffleDeadlineExtended(
+    userId: string,
+    raffleId: string,
+    newDeadline: Date,
+  ) {
     return this.log({
       userId,
       action: ActivityType.RAFFLE_DEADLINE_EXTENDED,
@@ -129,7 +143,12 @@ export class ActivityService {
     });
   }
 
-  async logRaffleWinnerRejected(adminId: string, raffleId: string, previousWinnerId: string, reason: string) {
+  async logRaffleWinnerRejected(
+    adminId: string,
+    raffleId: string,
+    previousWinnerId: string,
+    reason: string,
+  ) {
     return this.log({
       userId: adminId,
       action: ActivityType.RAFFLE_WINNER_REJECTED,
@@ -180,7 +199,11 @@ export class ActivityService {
 
   // ==================== Delivery Events ====================
 
-  async logDeliveryShipped(userId: string, raffleId: string, trackingNumber?: string) {
+  async logDeliveryShipped(
+    userId: string,
+    raffleId: string,
+    trackingNumber?: string,
+  ) {
     return this.log({
       userId,
       action: ActivityType.DELIVERY_SHIPPED,
@@ -201,7 +224,12 @@ export class ActivityService {
 
   // ==================== Dispute Events ====================
 
-  async logDisputeOpened(userId: string, disputeId: string, raffleId: string, reason: string) {
+  async logDisputeOpened(
+    userId: string,
+    disputeId: string,
+    raffleId: string,
+    reason: string,
+  ) {
     return this.log({
       userId,
       action: ActivityType.DISPUTE_OPENED,
@@ -220,7 +248,11 @@ export class ActivityService {
     });
   }
 
-  async logDisputeResolved(adminId: string, disputeId: string, resolution: string) {
+  async logDisputeResolved(
+    adminId: string,
+    disputeId: string,
+    resolution: string,
+  ) {
     return this.log({
       userId: adminId,
       action: ActivityType.DISPUTE_RESOLVED,

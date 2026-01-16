@@ -1,7 +1,17 @@
-import { Injectable, BadRequestException, NotFoundException, ForbiddenException, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  NotFoundException,
+  ForbiddenException,
+  Logger,
+} from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../prisma/prisma.service';
-import { OpenDisputeInput, RespondDisputeInput, ResolveDisputeInput } from './dto/dispute.input';
+import {
+  OpenDisputeInput,
+  RespondDisputeInput,
+  ResolveDisputeInput,
+} from './dto/dispute.input';
 import { PaymentsService } from '../payments/payments.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { AuditService } from '../audit/audit.service';
@@ -70,7 +80,13 @@ export class DisputesService {
     // Emit dispute opened event for cross-cutting concerns
     this.eventEmitter.emit(
       RaffleEvents.DISPUTE_OPENED,
-      new DisputeOpenedEvent(dispute.id, input.raffleId, userId, dispute.raffle.sellerId, input.tipo),
+      new DisputeOpenedEvent(
+        dispute.id,
+        input.raffleId,
+        userId,
+        dispute.raffle.sellerId,
+        input.tipo,
+      ),
     );
 
     // Notify seller
@@ -91,15 +107,14 @@ export class DisputesService {
     );
 
     // Notify buyer that dispute was registered
-    await this.notifications.sendDisputeOpenedToBuyer(
-      dispute.reporter.email,
-      {
-        raffleName: dispute.raffle.titulo,
-        disputeId: dispute.id,
-      },
-    );
+    await this.notifications.sendDisputeOpenedToBuyer(dispute.reporter.email, {
+      raffleName: dispute.raffle.titulo,
+      disputeId: dispute.id,
+    });
 
-    this.logger.log(`Dispute opened for raffle ${input.raffleId} by user ${userId}`);
+    this.logger.log(
+      `Dispute opened for raffle ${input.raffleId} by user ${userId}`,
+    );
 
     return dispute;
   }
@@ -117,7 +132,11 @@ export class DisputesService {
     });
   }
 
-  async respondDispute(userId: string, disputeId: string, input: RespondDisputeInput) {
+  async respondDispute(
+    userId: string,
+    disputeId: string,
+    input: RespondDisputeInput,
+  ) {
     const dispute = await this.findOne(disputeId);
 
     const raffle = await this.prisma.raffle.findUnique({
@@ -125,11 +144,18 @@ export class DisputesService {
     });
 
     if (!raffle || raffle.sellerId !== userId) {
-      throw new ForbiddenException('Solo el vendedor puede responder a la disputa');
+      throw new ForbiddenException(
+        'Solo el vendedor puede responder a la disputa',
+      );
     }
 
-    if (dispute.estado !== 'ABIERTA' && dispute.estado !== 'ESPERANDO_RESPUESTA_VENDEDOR') {
-      throw new BadRequestException('La disputa no está en un estado válido para responder');
+    if (
+      dispute.estado !== 'ABIERTA' &&
+      dispute.estado !== 'ESPERANDO_RESPUESTA_VENDEDOR'
+    ) {
+      throw new BadRequestException(
+        'La disputa no está en un estado válido para responder',
+      );
     }
 
     return this.prisma.dispute.update({
@@ -144,10 +170,18 @@ export class DisputesService {
     });
   }
 
-  async resolveDispute(adminId: string, disputeId: string, input: ResolveDisputeInput) {
+  async resolveDispute(
+    adminId: string,
+    disputeId: string,
+    input: ResolveDisputeInput,
+  ) {
     const dispute = await this.findOne(disputeId);
 
-    const validStatuses = ['RESUELTA_COMPRADOR', 'RESUELTA_VENDEDOR', 'RESUELTA_PARCIAL'];
+    const validStatuses = [
+      'RESUELTA_COMPRADOR',
+      'RESUELTA_VENDEDOR',
+      'RESUELTA_PARCIAL',
+    ];
     if (!validStatuses.includes(input.decision)) {
       throw new BadRequestException('Estado de resolución inválido');
     }
@@ -162,7 +196,10 @@ export class DisputesService {
         adminNotes: input.adminNotes,
         resolvedAt: new Date(),
       },
-      include: { raffle: { include: { seller: true, winner: true, tickets: true } }, reporter: true },
+      include: {
+        raffle: { include: { seller: true, winner: true, tickets: true } },
+        reporter: true,
+      },
     });
 
     // Process based on decision
@@ -174,7 +211,10 @@ export class DisputesService {
       await this.updateSellerDisputeLost(sellerId);
 
       if (input.montoReembolsado && input.montoReembolsado > 0) {
-        await this.processDisputeRefund(updatedDispute.raffle, Number(input.montoReembolsado));
+        await this.processDisputeRefund(
+          updatedDispute.raffle,
+          Number(input.montoReembolsado),
+        );
       }
     } else if (input.decision === 'RESUELTA_VENDEDOR') {
       // Seller wins: update seller reputation positively
@@ -182,7 +222,10 @@ export class DisputesService {
     } else if (input.decision === 'RESUELTA_PARCIAL') {
       // Partial resolution: both parties share the outcome
       if (input.montoReembolsado && input.montoReembolsado > 0) {
-        await this.processDisputeRefund(updatedDispute.raffle, Number(input.montoReembolsado));
+        await this.processDisputeRefund(
+          updatedDispute.raffle,
+          Number(input.montoReembolsado),
+        );
       }
     }
 
@@ -190,7 +233,8 @@ export class DisputesService {
     await this.prisma.raffle.update({
       where: { id: updatedDispute.raffleId },
       data: {
-        deliveryStatus: input.decision === 'RESUELTA_VENDEDOR' ? 'CONFIRMED' : 'DISPUTED',
+        deliveryStatus:
+          input.decision === 'RESUELTA_VENDEDOR' ? 'CONFIRMED' : 'DISPUTED',
         estado: 'FINALIZADA',
       },
     });
@@ -201,7 +245,9 @@ export class DisputesService {
       {
         raffleName: updatedDispute.raffle.titulo,
         resolution: input.resolucion,
-        refundAmount: input.montoReembolsado ? Number(input.montoReembolsado) : undefined,
+        refundAmount: input.montoReembolsado
+          ? Number(input.montoReembolsado)
+          : undefined,
       },
     );
 
@@ -247,7 +293,9 @@ export class DisputesService {
       ),
     );
 
-    this.logger.log(`Dispute ${disputeId} resolved with decision: ${input.decision}`);
+    this.logger.log(
+      `Dispute ${disputeId} resolved with decision: ${input.decision}`,
+    );
 
     return updatedDispute;
   }
@@ -280,10 +328,14 @@ export class DisputesService {
 
   private async processDisputeRefund(raffle: any, amount: number) {
     // Find tickets to refund
-    const tickets = raffle.tickets?.filter((t: any) => t.estado === 'PAGADO' && t.mpPaymentId);
+    const tickets = raffle.tickets?.filter(
+      (t: any) => t.estado === 'PAGADO' && t.mpPaymentId,
+    );
 
     if (!tickets || tickets.length === 0) {
-      this.logger.warn(`No paid tickets found for raffle ${raffle.id} to refund`);
+      this.logger.warn(
+        `No paid tickets found for raffle ${raffle.id} to refund`,
+      );
       return;
     }
 
@@ -297,7 +349,8 @@ export class DisputesService {
           await this.paymentsService.refundPayment(ticket.mpPaymentId);
         }
       } catch (error) {
-        const message = error instanceof Error ? error.message : 'Unknown error';
+        const message =
+          error instanceof Error ? error.message : 'Unknown error';
         this.logger.error(`Failed to refund ticket ${ticket.id}: ${message}`);
       }
     }
@@ -317,7 +370,10 @@ export class DisputesService {
   async findOne(id: string) {
     const dispute = await this.prisma.dispute.findUnique({
       where: { id },
-      include: { raffle: { include: { seller: true, winner: true } }, reporter: true },
+      include: {
+        raffle: { include: { seller: true, winner: true } },
+        reporter: true,
+      },
     });
 
     if (!dispute) {
@@ -330,10 +386,7 @@ export class DisputesService {
   async findByUser(userId: string) {
     return this.prisma.dispute.findMany({
       where: {
-        OR: [
-          { reporterId: userId },
-          { raffle: { sellerId: userId } },
-        ],
+        OR: [{ reporterId: userId }, { raffle: { sellerId: userId } }],
       },
       include: { raffle: { include: { product: true } } },
       orderBy: { createdAt: 'desc' },
@@ -343,9 +396,14 @@ export class DisputesService {
   async findAllPending() {
     return this.prisma.dispute.findMany({
       where: {
-        estado: { in: ['ABIERTA', 'ESPERANDO_RESPUESTA_VENDEDOR', 'EN_MEDIACION'] },
+        estado: {
+          in: ['ABIERTA', 'ESPERANDO_RESPUESTA_VENDEDOR', 'EN_MEDIACION'],
+        },
       },
-      include: { raffle: { include: { seller: true, winner: true } }, reporter: true },
+      include: {
+        raffle: { include: { seller: true, winner: true } },
+        reporter: true,
+      },
       orderBy: { createdAt: 'asc' },
     });
   }

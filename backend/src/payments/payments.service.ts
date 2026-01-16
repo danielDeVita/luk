@@ -1,9 +1,18 @@
-import { BadRequestException, Injectable, Logger, Inject, forwardRef } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  Inject,
+  forwardRef,
+} from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { MercadoPagoConfig, Preference, Payment } from 'mercadopago';
-import { PLATFORM_FEE_RATE, MP_FEE_ESTIMATE_RATE } from '../common/constants/fees.constants';
+import {
+  PLATFORM_FEE_RATE,
+  MP_FEE_ESTIMATE_RATE,
+} from '../common/constants/fees.constants';
 import { NotificationsService } from '../notifications/notifications.service';
 import { ActivityService } from '../activity/activity.service';
 import { ReferralsService } from '../referrals/referrals.service';
@@ -36,18 +45,27 @@ export class PaymentsService {
       this.mpClient = new MercadoPagoConfig({ accessToken });
     }
     // Allow env override, otherwise use shared constant
-    const envFeePercent = this.configService.get<number>('MP_PLATFORM_FEE_PERCENT');
-    this.platformFeeRate = envFeePercent ? envFeePercent / 100 : PLATFORM_FEE_RATE;
+    const envFeePercent = this.configService.get<number>(
+      'MP_PLATFORM_FEE_PERCENT',
+    );
+    this.platformFeeRate = envFeePercent
+      ? envFeePercent / 100
+      : PLATFORM_FEE_RATE;
   }
 
   private getMpClient(): MercadoPagoConfig {
     if (!this.mpClient) {
-      throw new BadRequestException('Mercado Pago no está configurado (MP_ACCESS_TOKEN faltante)');
+      throw new BadRequestException(
+        'Mercado Pago no está configurado (MP_ACCESS_TOKEN faltante)',
+      );
     }
     return this.mpClient;
   }
 
-  private normalizeBaseUrl(value: string | undefined | null, fallback: string): string {
+  private normalizeBaseUrl(
+    value: string | undefined | null,
+    fallback: string,
+  ): string {
     const raw = (value || '').trim();
     const base = raw.length ? raw : fallback;
     const withScheme = /^https?:\/\//i.test(base) ? base : `http://${base}`;
@@ -84,7 +102,8 @@ export class PaymentsService {
     const pendingUrl = `${frontendUrl}/checkout/status`;
 
     const shouldAutoReturn =
-      /^https:\/\//i.test(successUrl) && !/localhost|127\.0\.0\.1/i.test(successUrl);
+      /^https:\/\//i.test(successUrl) &&
+      !/localhost|127\.0\.0\.1/i.test(successUrl);
 
     this.logger.log(
       `MP preference URLs: success=${successUrl} failure=${failureUrl} pending=${pendingUrl} (auto_return=${shouldAutoReturn})`,
@@ -226,7 +245,9 @@ export class PaymentsService {
       });
 
       if (existing) {
-        this.logger.log(`Payment ${paymentId} already processed, skipping sync`);
+        this.logger.log(
+          `Payment ${paymentId} already processed, skipping sync`,
+        );
         return {
           status: 'approved',
           alreadyProcessed: true,
@@ -336,7 +357,9 @@ export class PaymentsService {
     });
 
     if (existingTx) {
-      this.logger.log(`Transaction already exists for mpPaymentId ${mpPaymentId} (tx=${existingTx.id})`);
+      this.logger.log(
+        `Transaction already exists for mpPaymentId ${mpPaymentId} (tx=${existingTx.id})`,
+      );
       await this.checkRaffleCompletion(raffleId);
       return;
     }
@@ -369,8 +392,14 @@ export class PaymentsService {
     // Send notifications for ticket purchase
     try {
       const [buyer, raffle, tickets] = await Promise.all([
-        this.prisma.user.findUnique({ where: { id: buyerId }, select: { email: true, nombre: true } }),
-        this.prisma.raffle.findUnique({ where: { id: raffleId }, select: { titulo: true, sellerId: true } }),
+        this.prisma.user.findUnique({
+          where: { id: buyerId },
+          select: { email: true, nombre: true },
+        }),
+        this.prisma.raffle.findUnique({
+          where: { id: raffleId },
+          select: { titulo: true, sellerId: true },
+        }),
         this.prisma.ticket.findMany({
           where: { raffleId, buyerId, mpPaymentId },
           select: { id: true, numeroTicket: true },
@@ -378,14 +407,17 @@ export class PaymentsService {
       ]);
 
       if (buyer && raffle) {
-        const ticketNumbers = tickets.map(t => t.numeroTicket);
+        const ticketNumbers = tickets.map((t) => t.numeroTicket);
 
         // Send purchase confirmation email
-        await this.notificationsService.sendTicketPurchaseConfirmation(buyer.email, {
-          raffleName: raffle.titulo,
-          ticketNumbers,
-          amount: totalAmount,
-        });
+        await this.notificationsService.sendTicketPurchaseConfirmation(
+          buyer.email,
+          {
+            raffleName: raffle.titulo,
+            ticketNumbers,
+            amount: totalAmount,
+          },
+        );
 
         // Create in-app notification
         await this.notificationsService.create(
@@ -407,17 +439,29 @@ export class PaymentsService {
         // Emit tickets purchased event for cross-cutting concerns
         this.eventEmitter.emit(
           RaffleEvents.TICKETS_PURCHASED,
-          new TicketsPurchasedEvent(raffleId, buyerId, ticketNumbers.length, totalAmount, mpPaymentId),
+          new TicketsPurchasedEvent(
+            raffleId,
+            buyerId,
+            ticketNumbers.length,
+            totalAmount,
+            mpPaymentId,
+          ),
         );
 
         // Process referral reward if this is the user's first purchase
-        this.referralsService.processFirstPurchaseReward(buyerId, totalAmount, tickets[0]?.id).catch((err) => {
-          this.logger.error(`Failed to process referral reward: ${err.message}`);
-        });
+        this.referralsService
+          .processFirstPurchaseReward(buyerId, totalAmount, tickets[0]?.id)
+          .catch((err) => {
+            this.logger.error(
+              `Failed to process referral reward: ${err.message}`,
+            );
+          });
       }
     } catch (notifError) {
       // Don't fail payment processing if notifications fail
-      this.logger.error(`Failed to send purchase notifications: ${(notifError as Error).message}`);
+      this.logger.error(
+        `Failed to send purchase notifications: ${(notifError as Error).message}`,
+      );
     }
 
     // Check raffle completion
@@ -430,7 +474,9 @@ export class PaymentsService {
    * For MVP: Records transfer to seller (manual payout in MP dashboard).
    * In production with Marketplace API, this would use splits.
    */
-  async transferToSeller(raffleId: string): Promise<{ netAmount: number; totalAmount: number } | null> {
+  async transferToSeller(
+    raffleId: string,
+  ): Promise<{ netAmount: number; totalAmount: number } | null> {
     const raffle = await this.prisma.raffle.findUnique({
       where: { id: raffleId },
       include: { tickets: { where: { estado: 'PAGADO' } } },
@@ -446,7 +492,8 @@ export class PaymentsService {
       0,
     );
 
-    const { netAmount, platformFee, mpFee } = this.calculateCommissions(totalAmount);
+    const { netAmount, platformFee, mpFee } =
+      this.calculateCommissions(totalAmount);
 
     this.logger.log(
       `Recording transfer for raffle ${raffleId}: $${netAmount} to seller ${raffle.sellerId}`,
@@ -485,13 +532,16 @@ export class PaymentsService {
     try {
       const mpClient = this.getMpClient();
       // Mercado Pago SDK v2 uses PaymentRefund for refunds
-      const response = await fetch(`https://api.mercadopago.com/v1/payments/${mpPaymentId}/refunds`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${mpClient.accessToken}`,
-          'Content-Type': 'application/json',
+      const response = await fetch(
+        `https://api.mercadopago.com/v1/payments/${mpPaymentId}/refunds`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${mpClient.accessToken}`,
+            'Content-Type': 'application/json',
+          },
         },
-      });
+      );
 
       if (!response.ok) {
         throw new Error(`Refund failed: ${response.statusText}`);
@@ -536,7 +586,11 @@ export class PaymentsService {
 
     if (tickets.length === 0) {
       this.logger.warn(`No paid tickets found for raffle ${raffleId}`);
-      return { success: false, releasedPayments: 0, errors: ['No hay pagos para liberar'] };
+      return {
+        success: false,
+        releasedPayments: 0,
+        errors: ['No hay pagos para liberar'],
+      };
     }
 
     const mpClient = this.getMpClient();
@@ -552,7 +606,7 @@ export class PaymentsService {
           {
             method: 'POST',
             headers: {
-              'Authorization': `Bearer ${mpClient.accessToken}`,
+              Authorization: `Bearer ${mpClient.accessToken}`,
               'Content-Type': 'application/json',
             },
           },
@@ -566,18 +620,28 @@ export class PaymentsService {
           const errorMsg = errorData.message || response.statusText;
 
           // If already released, count as success
-          if (response.status === 400 && errorMsg.includes('already released')) {
+          if (
+            response.status === 400 &&
+            errorMsg.includes('already released')
+          ) {
             releasedPayments++;
-            this.logger.log(`Payment ${ticket.mpPaymentId} was already released`);
+            this.logger.log(
+              `Payment ${ticket.mpPaymentId} was already released`,
+            );
           } else {
             errors.push(`Payment ${ticket.mpPaymentId}: ${errorMsg}`);
-            this.logger.error(`Failed to release payment ${ticket.mpPaymentId}: ${errorMsg}`);
+            this.logger.error(
+              `Failed to release payment ${ticket.mpPaymentId}: ${errorMsg}`,
+            );
           }
         }
       } catch (error) {
-        const message = error instanceof Error ? error.message : 'Unknown error';
+        const message =
+          error instanceof Error ? error.message : 'Unknown error';
         errors.push(`Payment ${ticket.mpPaymentId}: ${message}`);
-        this.logger.error(`Exception releasing payment ${ticket.mpPaymentId}: ${message}`);
+        this.logger.error(
+          `Exception releasing payment ${ticket.mpPaymentId}: ${message}`,
+        );
       }
     }
 
@@ -590,7 +654,9 @@ export class PaymentsService {
         data: { paymentReleasedAt: new Date() },
       });
 
-      this.logger.log(`Released ${releasedPayments} payments for raffle ${raffleId}`);
+      this.logger.log(
+        `Released ${releasedPayments} payments for raffle ${raffleId}`,
+      );
     }
 
     return { success, releasedPayments, errors };
@@ -622,7 +688,10 @@ export class PaymentsService {
       return { canRelease: false, reason: 'Los fondos ya fueron liberados' };
     }
 
-    if (raffle.dispute && !['RESUELTA_VENDEDOR', 'RESUELTA_PARCIAL'].includes(raffle.dispute.estado)) {
+    if (
+      raffle.dispute &&
+      !['RESUELTA_VENDEDOR', 'RESUELTA_PARCIAL'].includes(raffle.dispute.estado)
+    ) {
       return { canRelease: false, reason: 'Hay una disputa activa' };
     }
 
@@ -631,7 +700,10 @@ export class PaymentsService {
     }
 
     if (!['SORTEADA', 'EN_ENTREGA', 'FINALIZADA'].includes(raffle.estado)) {
-      return { canRelease: false, reason: `Estado de rifa no válido: ${raffle.estado}` };
+      return {
+        canRelease: false,
+        reason: `Estado de rifa no válido: ${raffle.estado}`,
+      };
     }
 
     return { canRelease: true, reason: 'OK' };
@@ -684,19 +756,29 @@ export class PaymentsService {
     const paidTicketCount = paidTickets.length;
 
     if (paidTicketCount >= raffle.totalTickets) {
-      this.logger.log(`Raffle ${raffleId} is now COMPLETADA (100% tickets sold)`);
+      this.logger.log(
+        `Raffle ${raffleId} is now COMPLETADA (100% tickets sold)`,
+      );
       await this.prisma.raffle.update({
         where: { id: raffleId },
         data: { estado: 'COMPLETADA' },
       });
 
       // Calculate total amount from tickets
-      const totalAmount = paidTickets.reduce((sum, t) => sum + Number(t.precioPagado), 0);
+      const totalAmount = paidTickets.reduce(
+        (sum, t) => sum + Number(t.precioPagado),
+        0,
+      );
 
       // Emit raffle completed event for cross-cutting concerns
       this.eventEmitter.emit(
         RaffleEvents.COMPLETED,
-        new RaffleCompletedEvent(raffleId, raffle.sellerId, paidTicketCount, totalAmount),
+        new RaffleCompletedEvent(
+          raffleId,
+          raffle.sellerId,
+          paidTicketCount,
+          totalAmount,
+        ),
       );
     }
   }

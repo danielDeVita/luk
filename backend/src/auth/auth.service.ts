@@ -1,4 +1,11 @@
-import { Injectable, UnauthorizedException, ConflictException, Logger, Inject, forwardRef } from '@nestjs/common';
+import {
+  Injectable,
+  UnauthorizedException,
+  ConflictException,
+  Logger,
+  Inject,
+  forwardRef,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
@@ -12,7 +19,7 @@ import { LoginThrottlerService } from '@/common/guards';
 import { ReferralsService } from '../referrals/referrals.service';
 
 // Token expiration times
-const ACCESS_TOKEN_EXPIRY = '15m';  // 15 minutes
+const ACCESS_TOKEN_EXPIRY = '15m'; // 15 minutes
 const REFRESH_TOKEN_EXPIRY_DAYS = 7; // 7 days
 const VERIFICATION_CODE_EXPIRY_MINUTES = 15;
 
@@ -50,7 +57,10 @@ export class AuthService {
     const today = new Date();
     let age = today.getFullYear() - birthDate.getFullYear();
     const monthDiff = today.getMonth() - birthDate.getMonth();
-    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+    if (
+      monthDiff < 0 ||
+      (monthDiff === 0 && today.getDate() < birthDate.getDate())
+    ) {
       age--;
     }
 
@@ -82,7 +92,9 @@ export class AuthService {
     // Store referral code for later (after verification)
     if (input.referralCode) {
       // We'll apply it after email verification
-      this.logger.log(`Referral code ${input.referralCode} pending for user ${user.id}`);
+      this.logger.log(
+        `Referral code ${input.referralCode} pending for user ${user.id}`,
+      );
     }
 
     // Generate and send verification code
@@ -90,13 +102,15 @@ export class AuthService {
     await this.createEmailVerificationCode(user.id, verificationCode);
 
     // Send verification email (non-blocking)
-    this.notifications.sendEmailVerificationCode(user.email, {
-      userName: user.nombre,
-      code: verificationCode,
-      expiresInMinutes: VERIFICATION_CODE_EXPIRY_MINUTES,
-    }).catch((err) => {
-      this.logger.error(`Failed to send verification email: ${err.message}`);
-    });
+    this.notifications
+      .sendEmailVerificationCode(user.email, {
+        userName: user.nombre,
+        code: verificationCode,
+        expiresInMinutes: VERIFICATION_CODE_EXPIRY_MINUTES,
+      })
+      .catch((err) => {
+        this.logger.error(`Failed to send verification email: ${err.message}`);
+      });
 
     // Log activity
     this.activityService.logUserRegistered(user.id, 'email').catch((err) => {
@@ -148,7 +162,9 @@ export class AuthService {
       });
 
       if (latestCode && latestCode.attempts >= latestCode.maxAttempts) {
-        throw new UnauthorizedException('Demasiados intentos. Solicitá un nuevo código.');
+        throw new UnauthorizedException(
+          'Demasiados intentos. Solicitá un nuevo código.',
+        );
       }
 
       throw new UnauthorizedException('Código inválido o expirado');
@@ -179,7 +195,9 @@ export class AuthService {
           referrerName = referrer.nombre;
         }
       } catch (err) {
-        this.logger.warn(`Failed to apply referral code: ${err instanceof Error ? err.message : 'Unknown error'}`);
+        this.logger.warn(
+          `Failed to apply referral code: ${err instanceof Error ? err.message : 'Unknown error'}`,
+        );
       }
     }
 
@@ -189,10 +207,18 @@ export class AuthService {
     });
 
     // Generate tokens
-    const accessToken = this.generateAccessToken(user.id, user.email, user.role);
+    const accessToken = this.generateAccessToken(
+      user.id,
+      user.email,
+      user.role,
+    );
     const refreshToken = await this.createRefreshToken(user.id);
 
-    return { token: accessToken, refreshToken, user: { ...user, emailVerified: true } };
+    return {
+      token: accessToken,
+      refreshToken,
+      user: { ...user, emailVerified: true },
+    };
   }
 
   async resendVerificationCode(userId: string) {
@@ -218,7 +244,9 @@ export class AuthService {
     });
 
     if (recentCodes >= 3) {
-      throw new ConflictException('Demasiados intentos. Esperá una hora antes de solicitar otro código.');
+      throw new ConflictException(
+        'Demasiados intentos. Esperá una hora antes de solicitar otro código.',
+      );
     }
 
     // Invalidate old codes
@@ -246,7 +274,9 @@ export class AuthService {
   }
 
   private async createEmailVerificationCode(userId: string, code: string) {
-    const expiresAt = new Date(Date.now() + VERIFICATION_CODE_EXPIRY_MINUTES * 60 * 1000);
+    const expiresAt = new Date(
+      Date.now() + VERIFICATION_CODE_EXPIRY_MINUTES * 60 * 1000,
+    );
 
     return this.prisma.emailVerificationCode.create({
       data: {
@@ -257,11 +287,17 @@ export class AuthService {
     });
   }
 
-  private async sendWelcomeNotifications(user: { id: string; email: string; nombre: string }, referrerName?: string) {
+  private async sendWelcomeNotifications(
+    user: { id: string; email: string; nombre: string },
+    referrerName?: string,
+  ) {
     const userName = user.nombre || user.email.split('@')[0];
 
     const emailPromise = referrerName
-      ? this.notifications.sendWelcomeWithReferralBonusEmail(user.email, { userName, referrerName })
+      ? this.notifications.sendWelcomeWithReferralBonusEmail(user.email, {
+          userName,
+          referrerName,
+        })
       : this.notifications.sendWelcomeEmail(user.email, { userName });
 
     const welcomeMessage = referrerName
@@ -317,7 +353,10 @@ export class AuthService {
       return recordFailedAttempt('Please login with Google');
     }
 
-    const isPasswordValid = await bcrypt.compare(input.password, user.passwordHash);
+    const isPasswordValid = await bcrypt.compare(
+      input.password,
+      user.passwordHash,
+    );
 
     if (!isPasswordValid) {
       return recordFailedAttempt('Invalid credentials');
@@ -328,7 +367,11 @@ export class AuthService {
       this.loginThrottler.clearAttempts(ip);
     }
 
-    const accessToken = this.generateAccessToken(user.id, user.email, user.role);
+    const accessToken = this.generateAccessToken(
+      user.id,
+      user.email,
+      user.role,
+    );
     const refreshToken = await this.createRefreshToken(user.id, undefined, ip);
 
     // Log login activity (non-blocking)
@@ -354,7 +397,11 @@ export class AuthService {
   /**
    * Generate JWT token for a user (used by OAuth flows)
    */
-  async generateTokenForUser(user: { id: string; email: string; role: UserRole }): Promise<{ token: string; refreshToken: string }> {
+  async generateTokenForUser(user: {
+    id: string;
+    email: string;
+    role: UserRole;
+  }): Promise<{ token: string; refreshToken: string }> {
     const token = this.generateAccessToken(user.id, user.email, user.role);
     const refreshToken = await this.createRefreshToken(user.id);
     return { token, refreshToken };
@@ -364,7 +411,9 @@ export class AuthService {
    * Refresh the access token using a refresh token.
    * Implements token rotation - old refresh token is revoked and a new one is issued.
    */
-  async refreshAccessToken(refreshTokenValue: string): Promise<{ token: string; refreshToken: string }> {
+  async refreshAccessToken(
+    refreshTokenValue: string,
+  ): Promise<{ token: string; refreshToken: string }> {
     const refreshToken = await this.prisma.refreshToken.findUnique({
       where: { token: refreshTokenValue },
       include: { user: true },
@@ -376,7 +425,9 @@ export class AuthService {
 
     if (refreshToken.revokedAt) {
       // Token was already used - possible token theft, revoke all user tokens
-      this.logger.warn(`Refresh token reuse detected for user ${refreshToken.userId}`);
+      this.logger.warn(
+        `Refresh token reuse detected for user ${refreshToken.userId}`,
+      );
       await this.revokeAllUserRefreshTokens(refreshToken.userId);
       throw new UnauthorizedException('Refresh token has been revoked');
     }
@@ -398,7 +449,11 @@ export class AuthService {
     });
 
     // Generate new tokens
-    const newAccessToken = this.generateAccessToken(user.id, user.email, user.role);
+    const newAccessToken = this.generateAccessToken(
+      user.id,
+      user.email,
+      user.role,
+    );
     const newRefreshToken = await this.createRefreshToken(user.id);
 
     return { token: newAccessToken, refreshToken: newRefreshToken };
@@ -433,7 +488,11 @@ export class AuthService {
   /**
    * Create a new refresh token for a user
    */
-  private async createRefreshToken(userId: string, deviceInfo?: string, ipAddress?: string): Promise<string> {
+  private async createRefreshToken(
+    userId: string,
+    deviceInfo?: string,
+    ipAddress?: string,
+  ): Promise<string> {
     const token = crypto.randomBytes(64).toString('hex');
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + REFRESH_TOKEN_EXPIRY_DAYS);
@@ -457,16 +516,17 @@ export class AuthService {
   async cleanupExpiredRefreshTokens(): Promise<number> {
     const result = await this.prisma.refreshToken.deleteMany({
       where: {
-        OR: [
-          { expiresAt: { lt: new Date() } },
-          { revokedAt: { not: null } },
-        ],
+        OR: [{ expiresAt: { lt: new Date() } }, { revokedAt: { not: null } }],
       },
     });
     return result.count;
   }
 
-  private generateAccessToken(userId: string, email: string, role: UserRole): string {
+  private generateAccessToken(
+    userId: string,
+    email: string,
+    role: UserRole,
+  ): string {
     return this.jwtService.sign(
       {
         sub: userId,

@@ -27,7 +27,10 @@ export class UsersRepository extends BaseRepository<
   /**
    * Find a user by email address.
    */
-  async findByEmail(email: string, include?: Prisma.UserInclude): Promise<User | null> {
+  async findByEmail(
+    email: string,
+    include?: Prisma.UserInclude,
+  ): Promise<User | null> {
     return this.prisma.user.findUnique({
       where: { email },
       ...(include && { include }),
@@ -37,7 +40,10 @@ export class UsersRepository extends BaseRepository<
   /**
    * Find a user by Google ID (OAuth).
    */
-  async findByGoogleId(googleId: string, include?: Prisma.UserInclude): Promise<User | null> {
+  async findByGoogleId(
+    googleId: string,
+    include?: Prisma.UserInclude,
+  ): Promise<User | null> {
     return this.prisma.user.findUnique({
       where: { googleId },
       ...(include && { include }),
@@ -47,7 +53,10 @@ export class UsersRepository extends BaseRepository<
   /**
    * Find a user by Mercado Pago user ID.
    */
-  async findByMpUserId(mpUserId: string, include?: Prisma.UserInclude): Promise<User | null> {
+  async findByMpUserId(
+    mpUserId: string,
+    include?: Prisma.UserInclude,
+  ): Promise<User | null> {
     return this.prisma.user.findUnique({
       where: { mpUserId },
       ...(include && { include }),
@@ -90,7 +99,9 @@ export class UsersRepository extends BaseRepository<
   /**
    * Get user with reputation data.
    */
-  async findWithReputation(userId: string): Promise<User & { reputation: any } | null> {
+  async findWithReputation(
+    userId: string,
+  ): Promise<(User & { reputation: any }) | null> {
     return this.prisma.user.findUnique({
       where: { id: userId },
       include: { reputation: true },

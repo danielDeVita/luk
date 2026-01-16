@@ -18,7 +18,11 @@ export class TicketsResolver {
     @Args('raffleId') raffleId: string,
     @Args('cantidad', { type: () => Int }) cantidad: number,
   ): Promise<BuyTicketsResult> {
-    const result = await this.ticketsService.buyTickets(user.id, raffleId, cantidad);
+    const result = await this.ticketsService.buyTickets(
+      user.id,
+      raffleId,
+      cantidad,
+    );
     // Cast Prisma Decimal types to numbers for GraphQL
     return result as unknown as BuyTicketsResult;
   }

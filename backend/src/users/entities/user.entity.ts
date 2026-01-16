@@ -1,5 +1,10 @@
 import { ObjectType, Field, ID } from '@nestjs/graphql';
-import { UserRole, MpConnectStatus, DocumentType, KycStatus } from '../../common/enums';
+import {
+  UserRole,
+  MpConnectStatus,
+  DocumentType,
+  KycStatus,
+} from '../../common/enums';
 
 @ObjectType()
 export class User {
@@ -48,7 +53,10 @@ export class User {
   @Field(() => MpConnectStatus)
   mpConnectStatus!: MpConnectStatus;
 
-  @Field(() => String, { nullable: true, description: 'MP user ID (public identifier)' })
+  @Field(() => String, {
+    nullable: true,
+    description: 'MP user ID (public identifier)',
+  })
   mpUserId?: string | null;
 
   // Legal & Terms

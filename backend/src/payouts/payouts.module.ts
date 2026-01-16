@@ -6,7 +6,11 @@ import { NotificationsModule } from '../notifications/notifications.module';
 import { PaymentsModule } from '../payments/payments.module';
 
 @Module({
-  imports: [PrismaModule, NotificationsModule, forwardRef(() => PaymentsModule)],
+  imports: [
+    PrismaModule,
+    NotificationsModule,
+    forwardRef(() => PaymentsModule),
+  ],
   providers: [PayoutsService, PayoutsResolver],
   exports: [PayoutsService],
 })

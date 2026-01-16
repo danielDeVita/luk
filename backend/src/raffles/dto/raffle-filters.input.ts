@@ -1,11 +1,5 @@
 import { Field, InputType, Float } from '@nestjs/graphql';
-import {
-  IsOptional,
-  IsEnum,
-  IsString,
-  MaxLength,
-  Min,
-} from 'class-validator';
+import { IsOptional, IsEnum, IsString, MaxLength, Min } from 'class-validator';
 import { RaffleStatus, RaffleSort } from '../../common/enums';
 
 @InputType()

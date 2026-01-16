@@ -53,7 +53,10 @@ import { redisStore } from 'cache-manager-redis-yet';
               ttl: 5 * 60 * 1000,
             };
           } catch (error) {
-            console.warn('Redis connection failed, falling back to memory cache:', error);
+            console.warn(
+              'Redis connection failed, falling back to memory cache:',
+              error,
+            );
           }
         }
 

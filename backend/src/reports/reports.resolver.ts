@@ -29,7 +29,10 @@ export class ReportsResolver {
     @Args('reviewed', { nullable: true }) reviewed?: boolean,
     @Args('raffleId', { nullable: true }) raffleId?: string,
   ) {
-    const reports = await this.reportsService.getReports({ reviewed, raffleId });
+    const reports = await this.reportsService.getReports({
+      reviewed,
+      raffleId,
+    });
     return JSON.stringify(reports);
   }
 

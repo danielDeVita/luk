@@ -1,10 +1,20 @@
-import { Injectable, Logger, NotFoundException, BadRequestException, Inject, forwardRef } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  NotFoundException,
+  BadRequestException,
+  Inject,
+  forwardRef,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { AuditService } from '../audit/audit.service';
 import { PaymentsService } from '../payments/payments.service';
 import { PayoutStatus } from '@prisma/client';
-import { PLATFORM_FEE_RATE, MP_FEE_ESTIMATE_RATE } from '../common/constants/fees.constants';
+import {
+  PLATFORM_FEE_RATE,
+  MP_FEE_ESTIMATE_RATE,
+} from '../common/constants/fees.constants';
 
 @Injectable()
 export class PayoutsService {
@@ -86,7 +96,9 @@ export class PayoutsService {
       data: { scheduledFor },
     });
 
-    this.logger.log(`Payout scheduled for ${scheduledFor.toISOString()} for raffle ${raffleId}`);
+    this.logger.log(
+      `Payout scheduled for ${scheduledFor.toISOString()} for raffle ${raffleId}`,
+    );
 
     // Notify seller
     const raffle = await this.prisma.raffle.findUnique({
@@ -129,13 +141,16 @@ export class PayoutsService {
       try {
         // Only process if delivery is confirmed
         if (payout.raffle.deliveryStatus !== 'CONFIRMED') {
-          this.logger.warn(`Skipping payout ${payout.id}: delivery not confirmed`);
+          this.logger.warn(
+            `Skipping payout ${payout.id}: delivery not confirmed`,
+          );
           continue;
         }
 
         await this.processPayout(payout.id);
       } catch (error) {
-        const message = error instanceof Error ? error.message : 'Unknown error';
+        const message =
+          error instanceof Error ? error.message : 'Unknown error';
         this.logger.error(`Failed to process payout ${payout.id}: ${message}`);
       }
     }
@@ -150,7 +165,14 @@ export class PayoutsService {
       include: {
         raffle: {
           include: {
-            seller: { select: { id: true, mpUserId: true, mpAccessToken: true, email: true } },
+            seller: {
+              select: {
+                id: true,
+                mpUserId: true,
+                mpAccessToken: true,
+                email: true,
+              },
+            },
           },
         },
       },
@@ -161,7 +183,9 @@ export class PayoutsService {
     }
 
     if (payout.status !== PayoutStatus.PENDING) {
-      throw new BadRequestException(`Payout ya esta en estado ${payout.status}`);
+      throw new BadRequestException(
+        `Payout ya esta en estado ${payout.status}`,
+      );
     }
 
     // Mark as processing
@@ -172,15 +196,22 @@ export class PayoutsService {
 
     try {
       // Check if seller has MP connected
-      if (!payout.raffle.seller.mpUserId || !payout.raffle.seller.mpAccessToken) {
+      if (
+        !payout.raffle.seller.mpUserId ||
+        !payout.raffle.seller.mpAccessToken
+      ) {
         throw new Error('Vendedor no tiene Mercado Pago conectado');
       }
 
       // Release held funds via MP API (delayed disbursement)
-      const releaseResult = await this.paymentsService.releaseFundsToSeller(payout.raffleId);
+      const releaseResult = await this.paymentsService.releaseFundsToSeller(
+        payout.raffleId,
+      );
 
       if (!releaseResult.success && releaseResult.releasedPayments === 0) {
-        throw new Error(`No se pudieron liberar los fondos: ${releaseResult.errors.join(', ')}`);
+        throw new Error(
+          `No se pudieron liberar los fondos: ${releaseResult.errors.join(', ')}`,
+        );
       }
 
       await this.prisma.payout.update({
@@ -237,7 +268,11 @@ export class PayoutsService {
   /**
    * Manually release payout (admin action)
    */
-  async releasePayoutManually(adminId: string, payoutId: string, reason: string) {
+  async releasePayoutManually(
+    adminId: string,
+    payoutId: string,
+    reason: string,
+  ) {
     const payout = await this.prisma.payout.findUnique({
       where: { id: payoutId },
       include: { raffle: { select: { titulo: true } } },

@@ -1,7 +1,10 @@
 import { Resolver, Query, Mutation, Args } from '@nestjs/graphql';
 import { UseGuards } from '@nestjs/common';
 import { QuestionsService } from './questions.service';
-import { RaffleQuestion, RaffleAnswer } from './entities/raffle-question.entity';
+import {
+  RaffleQuestion,
+  RaffleAnswer,
+} from './entities/raffle-question.entity';
 import { AskQuestionInput, AnswerQuestionInput } from './dto/question.input';
 import { GqlAuthGuard } from '../auth/guards/gql-auth.guard';
 import { Public } from '../auth/decorators/public.decorator';

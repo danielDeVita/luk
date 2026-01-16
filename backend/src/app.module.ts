@@ -71,56 +71,66 @@ import { CacheModule } from './common/cache';
       imports: [ConfigModule, AuthModule],
       inject: [ConfigService, JwtService],
       useFactory: (config: ConfigService, jwtService: JwtService) => {
-        const playgroundEnabled = config.get('GRAPHQL_PLAYGROUND', 'true') === 'true';
+        const playgroundEnabled =
+          config.get('GRAPHQL_PLAYGROUND', 'true') === 'true';
         const isDev = config.get('NODE_ENV', 'development') !== 'production';
 
         const enableLandingPage = playgroundEnabled && isDev;
 
         return {
-        autoSchemaFile: join(process.cwd(), 'src/schema.gql'),
-        sortSchema: true,
-        playground: false,
-        debug: config.get('GRAPHQL_DEBUG', 'true') === 'true',
-        introspection: enableLandingPage,
-        csrfPrevention: enableLandingPage ? false : true,
-        plugins: [
-          // Query complexity protection (always enabled)
-          complexityPlugin,
-          // Dev landing page (only in development with playground enabled)
-          ...(enableLandingPage
-            ? [ApolloServerPluginLandingPageLocalDefault({ embed: true })]
-            : []),
-        ],
-        context: ({ req, res, extra }: { req: any; res: any; extra?: Record<string, any> }) => ({ req, res, ...(extra || {}) }),
-        subscriptions: {
-          'graphql-ws': {
-            onConnect: async (ctx: any) => {
-              const raw =
-                ctx?.connectionParams?.Authorization ??
-                ctx?.connectionParams?.authorization ??
-                '';
-              const token = typeof raw === 'string' ? raw.replace(/^Bearer\s+/i, '') : '';
+          autoSchemaFile: join(process.cwd(), 'src/schema.gql'),
+          sortSchema: true,
+          playground: false,
+          debug: config.get('GRAPHQL_DEBUG', 'true') === 'true',
+          introspection: enableLandingPage,
+          csrfPrevention: enableLandingPage ? false : true,
+          plugins: [
+            // Query complexity protection (always enabled)
+            complexityPlugin,
+            // Dev landing page (only in development with playground enabled)
+            ...(enableLandingPage
+              ? [ApolloServerPluginLandingPageLocalDefault({ embed: true })]
+              : []),
+          ],
+          context: ({
+            req,
+            res,
+            extra,
+          }: {
+            req: any;
+            res: any;
+            extra?: Record<string, any>;
+          }) => ({ req, res, ...(extra || {}) }),
+          subscriptions: {
+            'graphql-ws': {
+              onConnect: async (ctx: any) => {
+                const raw =
+                  ctx?.connectionParams?.Authorization ??
+                  ctx?.connectionParams?.authorization ??
+                  '';
+                const token =
+                  typeof raw === 'string' ? raw.replace(/^Bearer\s+/i, '') : '';
 
-              if (!token) return {};
+                if (!token) return {};
 
-              try {
-                const payload: any = jwtService.verify(token, {
-                  secret: config.getOrThrow<string>('JWT_SECRET'),
-                });
-                return {
-                  user: {
-                    id: payload.sub,
-                    email: payload.email,
-                    role: payload.role,
-                  },
-                };
-              } catch {
-                return {};
-              }
+                try {
+                  const payload: any = jwtService.verify(token, {
+                    secret: config.getOrThrow<string>('JWT_SECRET'),
+                  });
+                  return {
+                    user: {
+                      id: payload.sub,
+                      email: payload.email,
+                      role: payload.role,
+                    },
+                  };
+                } catch {
+                  return {};
+                }
+              },
             },
+            'subscriptions-transport-ws': false,
           },
-          'subscriptions-transport-ws': false,
-        },
         };
       },
     }),

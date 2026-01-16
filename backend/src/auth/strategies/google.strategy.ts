@@ -7,7 +7,10 @@ import { NotificationsService } from '../../notifications/notifications.service'
 import { User } from '@prisma/client';
 
 @Injectable()
-export class GoogleStrategy extends PassportStrategy(Strategy, 'google') implements OnModuleInit {
+export class GoogleStrategy
+  extends PassportStrategy(Strategy, 'google')
+  implements OnModuleInit
+{
   private readonly logger = new Logger(GoogleStrategy.name);
   private isConfigured = false;
 
@@ -18,12 +21,14 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') impleme
   ) {
     const clientID = configService.get('GOOGLE_CLIENT_ID');
     const clientSecret = configService.get('GOOGLE_CLIENT_SECRET');
-    
+
     // Pass placeholder values if not configured (strategy won't work but app won't crash)
     super({
       clientID: clientID || 'not-configured',
       clientSecret: clientSecret || 'not-configured',
-      callbackURL: configService.get('GOOGLE_CALLBACK_URL') || 'http://localhost:3001/auth/google/callback',
+      callbackURL:
+        configService.get('GOOGLE_CALLBACK_URL') ||
+        'http://localhost:3001/auth/google/callback',
       scope: ['email', 'profile'],
     });
 
@@ -34,7 +39,9 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') impleme
     if (this.isConfigured) {
       this.logger.log('✅ Google OAuth configured');
     } else {
-      this.logger.warn('⚠️ Google OAuth NOT configured (missing GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET)');
+      this.logger.warn(
+        '⚠️ Google OAuth NOT configured (missing GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET)',
+      );
     }
   }
 

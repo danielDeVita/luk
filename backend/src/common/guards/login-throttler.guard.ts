@@ -56,14 +56,16 @@ export class LoginThrottlerGuard implements CanActivate {
   }
 
   private getIpFromRequest(req: Record<string, unknown>): string {
-    const headers = req.headers as Record<string, string | string[]> | undefined;
+    const headers = req.headers as
+      | Record<string, string | string[]>
+      | undefined;
 
     // Check for proxy headers
     const forwardedFor = headers?.['x-forwarded-for'];
     if (forwardedFor) {
       const clientIp = Array.isArray(forwardedFor)
         ? forwardedFor[0]
-        : (forwardedFor as string).split(',')[0];
+        : forwardedFor.split(',')[0];
       return clientIp.trim();
     }
 
@@ -73,6 +75,10 @@ export class LoginThrottlerGuard implements CanActivate {
     }
 
     // Fall back to direct connection IP
-    return (req.ip as string) || (req.socket as Record<string, unknown>)?.remoteAddress as string || 'unknown';
+    return (
+      (req.ip as string) ||
+      ((req.socket as Record<string, unknown>)?.remoteAddress as string) ||
+      'unknown'
+    );
   }
 }

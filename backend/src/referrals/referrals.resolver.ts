@@ -49,7 +49,9 @@ export class ReferralsResolver {
 
   @Query(() => [ReferralCredit])
   @UseGuards(GqlAuthGuard)
-  async myReferralCredits(@CurrentUser() user: User): Promise<ReferralCredit[]> {
+  async myReferralCredits(
+    @CurrentUser() user: User,
+  ): Promise<ReferralCredit[]> {
     const credits = await this.referralsService.getReferralCredits(user.id);
     return credits.map((c) => ({
       ...c,

@@ -1,7 +1,16 @@
-import { Injectable, Logger, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  NotFoundException,
+  ForbiddenException,
+  BadRequestException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
-import { SendMessageInput, StartConversationInput } from './dto/messaging.input';
+import {
+  SendMessageInput,
+  StartConversationInput,
+} from './dto/messaging.input';
 
 @Injectable()
 export class MessagingService {
@@ -16,7 +25,13 @@ export class MessagingService {
     // Check if raffle exists
     const raffle = await this.prisma.raffle.findUnique({
       where: { id: input.raffleId },
-      select: { id: true, sellerId: true, winnerId: true, titulo: true, estado: true },
+      select: {
+        id: true,
+        sellerId: true,
+        winnerId: true,
+        titulo: true,
+        estado: true,
+      },
     });
 
     if (!raffle) {
@@ -25,7 +40,9 @@ export class MessagingService {
 
     // Only winner can start conversation with seller
     if (raffle.winnerId !== userId && raffle.sellerId !== userId) {
-      throw new ForbiddenException('Solo el ganador o vendedor pueden iniciar conversacion');
+      throw new ForbiddenException(
+        'Solo el ganador o vendedor pueden iniciar conversacion',
+      );
     }
 
     // Determine user roles
@@ -120,7 +137,10 @@ export class MessagingService {
     });
 
     // Notify recipient
-    const recipientId = conversation.user1Id === userId ? conversation.user2Id : conversation.user1Id;
+    const recipientId =
+      conversation.user1Id === userId
+        ? conversation.user2Id
+        : conversation.user1Id;
     await this.notifications.create(
       recipientId,
       'INFO',
@@ -166,7 +186,8 @@ export class MessagingService {
       data: { isRead: true },
     });
 
-    const otherUser = conversation.user1Id === userId ? conversation.user2 : conversation.user1;
+    const otherUser =
+      conversation.user1Id === userId ? conversation.user2 : conversation.user1;
 
     return {
       ...conversation,

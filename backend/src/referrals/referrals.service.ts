@@ -1,4 +1,9 @@
-import { Injectable, BadRequestException, NotFoundException, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  NotFoundException,
+  Logger,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { ReferralCreditStatus, ReferralCreditType } from '@prisma/client';
@@ -41,7 +46,10 @@ export class ReferralsService {
     let attempts = 0;
 
     while (!isUnique && attempts < 10) {
-      const randomPart = Math.random().toString(36).substring(2, 6).toUpperCase();
+      const randomPart = Math.random()
+        .toString(36)
+        .substring(2, 6)
+        .toUpperCase();
       code = `${prefix}${randomPart}`;
 
       const existing = await this.prisma.user.findUnique({
@@ -96,7 +104,9 @@ export class ReferralsService {
     }
 
     if (referrer.id === userId) {
-      throw new BadRequestException('No podés usar tu propio código de referido');
+      throw new BadRequestException(
+        'No podés usar tu propio código de referido',
+      );
     }
 
     // Link the user to the referrer
@@ -105,7 +115,9 @@ export class ReferralsService {
       data: { referredById: referrer.id },
     });
 
-    this.logger.log(`User ${userId} applied referral code ${code} from referrer ${referrer.id}`);
+    this.logger.log(
+      `User ${userId} applied referral code ${code} from referrer ${referrer.id}`,
+    );
     return true;
   }
 
@@ -113,7 +125,11 @@ export class ReferralsService {
    * Process referral reward when a referred user makes their first purchase.
    * Called from TicketsService after successful payment.
    */
-  async processFirstPurchaseReward(refereeId: string, purchaseAmount: number, ticketId?: string): Promise<void> {
+  async processFirstPurchaseReward(
+    refereeId: string,
+    purchaseAmount: number,
+    ticketId?: string,
+  ): Promise<void> {
     const referee = await this.prisma.user.findUnique({
       where: { id: refereeId },
       select: { referredById: true, nombre: true },
@@ -133,7 +149,9 @@ export class ReferralsService {
     });
 
     if (existingReward) {
-      this.logger.debug(`Referral reward already processed for referee ${refereeId}`);
+      this.logger.debug(
+        `Referral reward already processed for referee ${refereeId}`,
+      );
       return;
     }
 
@@ -143,12 +161,15 @@ export class ReferralsService {
     });
 
     if (!referrer) {
-      this.logger.warn(`Referrer ${referee.referredById} not found for referee ${refereeId}`);
+      this.logger.warn(
+        `Referrer ${referee.referredById} not found for referee ${refereeId}`,
+      );
       return;
     }
 
     // Calculate reward (5% of purchase amount)
-    const rewardAmount = Math.round(purchaseAmount * this.REFERRER_BONUS_PERCENT * 100) / 100;
+    const rewardAmount =
+      Math.round(purchaseAmount * this.REFERRER_BONUS_PERCENT * 100) / 100;
 
     // Create referral credit and update balance in a transaction
     await this.prisma.$transaction([
@@ -173,24 +194,34 @@ export class ReferralsService {
     ]);
 
     // Notify referrer (non-blocking)
-    this.notifications.sendReferralRewardNotification(referrer.email, {
-      refereeName: referee.nombre,
-      amount: rewardAmount,
-      totalBalance: Number(referrer.referralBalance) + rewardAmount,
-    }).catch((err) => {
-      this.logger.error(`Failed to send referral reward notification: ${err.message}`);
-    });
+    this.notifications
+      .sendReferralRewardNotification(referrer.email, {
+        refereeName: referee.nombre,
+        amount: rewardAmount,
+        totalBalance: Number(referrer.referralBalance) + rewardAmount,
+      })
+      .catch((err) => {
+        this.logger.error(
+          `Failed to send referral reward notification: ${err.message}`,
+        );
+      });
 
-    this.notifications.create(
-      referrer.id,
-      'INFO',
-      '💰 ¡Ganaste crédito de referido!',
-      `${referee.nombre} hizo su primera compra. Ganaste $${rewardAmount.toFixed(2)} de crédito.`,
-    ).catch((err) => {
-      this.logger.error(`Failed to create in-app notification: ${err.message}`);
-    });
+    this.notifications
+      .create(
+        referrer.id,
+        'INFO',
+        '💰 ¡Ganaste crédito de referido!',
+        `${referee.nombre} hizo su primera compra. Ganaste $${rewardAmount.toFixed(2)} de crédito.`,
+      )
+      .catch((err) => {
+        this.logger.error(
+          `Failed to create in-app notification: ${err.message}`,
+        );
+      });
 
-    this.logger.log(`Processed referral reward: $${rewardAmount} for referrer ${referrer.id} from referee ${refereeId}`);
+    this.logger.log(
+      `Processed referral reward: $${rewardAmount} for referrer ${referrer.id} from referee ${refereeId}`,
+    );
   }
 
   /**

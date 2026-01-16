@@ -18,7 +18,8 @@ export class StripeWebhookGuard implements CanActivate {
     this.stripe = new Stripe(
       this.configService.get<string>('STRIPE_SECRET_KEY') || '',
     );
-    this.webhookSecret = this.configService.get<string>('STRIPE_WEBHOOK_SECRET') || '';
+    this.webhookSecret =
+      this.configService.get<string>('STRIPE_WEBHOOK_SECRET') || '';
   }
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -32,9 +33,11 @@ export class StripeWebhookGuard implements CanActivate {
 
     try {
       const rawBody = request.rawBody;
-      
+
       if (!rawBody) {
-        this.logger.error('Raw body not available. Make sure rawBody is enabled in NestFactory');
+        this.logger.error(
+          'Raw body not available. Make sure rawBody is enabled in NestFactory',
+        );
         throw new UnauthorizedException('Unable to verify webhook signature');
       }
 

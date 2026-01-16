@@ -32,7 +32,8 @@ export class AuthGoogleController {
   @Public()
   @UseGuards(AuthGuard('google'))
   async googleAuthCallback(@Req() req: any, @Res() res: Response) {
-    const frontendUrl = this.configService.get('FRONTEND_URL') || 'http://localhost:3000';
+    const frontendUrl =
+      this.configService.get('FRONTEND_URL') || 'http://localhost:3000';
     const isProduction = this.configService.get('NODE_ENV') === 'production';
 
     if (!req.user) {
@@ -40,7 +41,9 @@ export class AuthGoogleController {
     }
 
     // Generate JWT access token and refresh token
-    const { token, refreshToken } = await this.authService.generateTokenForUser(req.user);
+    const { token, refreshToken } = await this.authService.generateTokenForUser(
+      req.user,
+    );
 
     // Set access token as httpOnly cookie (short-lived, 15 min)
     res.cookie('auth_token', token, {
@@ -99,7 +102,8 @@ export class AuthGoogleController {
     }
 
     try {
-      const { token, refreshToken } = await this.authService.refreshAccessToken(refreshTokenValue);
+      const { token, refreshToken } =
+        await this.authService.refreshAccessToken(refreshTokenValue);
 
       // Set new access token as httpOnly cookie
       res.cookie('auth_token', token, {
@@ -124,7 +128,9 @@ export class AuthGoogleController {
       // Clear invalid cookies
       res.clearCookie('auth_token');
       res.clearCookie('refresh_token', { path: '/auth' });
-      return res.status(401).json({ error: 'Invalid or expired refresh token' });
+      return res
+        .status(401)
+        .json({ error: 'Invalid or expired refresh token' });
     }
   }
 

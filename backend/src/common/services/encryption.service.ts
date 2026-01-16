@@ -90,7 +90,7 @@ export class EncryptionService implements OnModuleInit {
 
     for (const field of PII_FIELDS) {
       if (field in result && typeof result[field] === 'string') {
-        result[field] = this.encrypt(result[field] as string);
+        result[field] = this.encrypt(result[field]);
       }
     }
 
@@ -109,7 +109,7 @@ export class EncryptionService implements OnModuleInit {
 
     for (const field of PII_FIELDS) {
       if (field in result && typeof result[field] === 'string') {
-        result[field] = this.decrypt(result[field] as string);
+        result[field] = this.decrypt(result[field]);
       }
     }
 

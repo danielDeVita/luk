@@ -30,4 +30,3 @@ export class AnswerQuestionInput {
   @MaxLength(1000, { message: 'La respuesta no puede exceder 1000 caracteres' })
   content!: string;
 }
-

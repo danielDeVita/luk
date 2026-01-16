@@ -2,7 +2,10 @@ import { Resolver, Query, Mutation, Args } from '@nestjs/graphql';
 import { UseGuards } from '@nestjs/common';
 import { ShippingService } from './shipping.service';
 import { ShippingAddress } from './entities/shipping-address.entity';
-import { CreateShippingAddressInput, UpdateShippingAddressInput } from './dto/shipping-address.input';
+import {
+  CreateShippingAddressInput,
+  UpdateShippingAddressInput,
+} from './dto/shipping-address.input';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 

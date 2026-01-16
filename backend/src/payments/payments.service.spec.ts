@@ -129,7 +129,9 @@ describe('PaymentsService', () => {
 
     it('should not create duplicate transaction on second call', async () => {
       mockPrismaService.ticket.updateMany.mockResolvedValue({ count: 0 });
-      mockPrismaService.transaction.findFirst.mockResolvedValue({ id: 'existing-tx' });
+      mockPrismaService.transaction.findFirst.mockResolvedValue({
+        id: 'existing-tx',
+      });
       mockPrismaService.raffle.findUnique.mockResolvedValue({
         id: 'raffle-123',
         totalTickets: 10,
@@ -166,7 +168,10 @@ describe('PaymentsService', () => {
     });
 
     it('should handle missing external_reference gracefully', async () => {
-      const paymentWithoutRef = { ...mockPaymentData, external_reference: null };
+      const paymentWithoutRef = {
+        ...mockPaymentData,
+        external_reference: null,
+      };
 
       await service.handlePaymentApproved(paymentWithoutRef);
 
@@ -396,9 +401,9 @@ describe('PaymentsService', () => {
 
       const serviceWithoutMp = module.get<PaymentsService>(PaymentsService);
 
-      await expect(
-        serviceWithoutMp.getPaymentStatus('123'),
-      ).rejects.toThrow(BadRequestException);
+      await expect(serviceWithoutMp.getPaymentStatus('123')).rejects.toThrow(
+        BadRequestException,
+      );
     });
   });
 });

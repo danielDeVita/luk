@@ -207,7 +207,11 @@ export class RafflesRepository extends BaseRepository<
   /**
    * Hide/unhide a raffle (moderation).
    */
-  async setHidden(id: string, hidden: boolean, reason?: string): Promise<Raffle> {
+  async setHidden(
+    id: string,
+    hidden: boolean,
+    reason?: string,
+  ): Promise<Raffle> {
     return this.prisma.raffle.update({
       where: { id },
       data: {
@@ -233,7 +237,9 @@ export class RafflesRepository extends BaseRepository<
   /**
    * Count raffles by status.
    */
-  async countByStatus(sellerId?: string): Promise<Record<RaffleStatus, number>> {
+  async countByStatus(
+    sellerId?: string,
+  ): Promise<Record<RaffleStatus, number>> {
     const statuses: RaffleStatus[] = [
       'ACTIVA',
       'COMPLETADA',

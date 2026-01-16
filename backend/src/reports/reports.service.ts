@@ -1,4 +1,9 @@
-import { Injectable, Logger, BadRequestException, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  BadRequestException,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
@@ -79,7 +84,9 @@ export class ReportsService {
         },
       });
 
-      this.logger.warn(`Raffle ${raffleId} auto-hidden due to ${reportCount} reports`);
+      this.logger.warn(
+        `Raffle ${raffleId} auto-hidden due to ${reportCount} reports`,
+      );
     }
   }
 

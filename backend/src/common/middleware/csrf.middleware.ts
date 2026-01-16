@@ -1,4 +1,9 @@
-import { Injectable, NestMiddleware, ForbiddenException, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  NestMiddleware,
+  ForbiddenException,
+  Logger,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Request, Response, NextFunction } from 'express';
 import * as crypto from 'crypto';
@@ -67,16 +72,20 @@ export class CsrfMiddleware implements NestMiddleware {
     if (!cookieToken) {
       this.setTokenCookie(res);
       this.logger.warn(`CSRF: No token cookie for ${req.method} ${req.path}`);
-      throw new ForbiddenException('CSRF token missing. Please refresh the page.');
+      throw new ForbiddenException(
+        'CSRF token missing. Please refresh the page.',
+      );
     }
 
     // Validate header token matches cookie token
     if (!headerToken || !this.secureCompare(cookieToken, headerToken)) {
       this.logger.warn(
         `CSRF validation failed for ${req.method} ${req.path} - ` +
-        `cookie: ${cookieToken ? 'present' : 'missing'}, header: ${headerToken ? 'present' : 'missing'}`
+          `cookie: ${cookieToken ? 'present' : 'missing'}, header: ${headerToken ? 'present' : 'missing'}`,
       );
-      throw new ForbiddenException('Invalid CSRF token. Please refresh the page.');
+      throw new ForbiddenException(
+        'Invalid CSRF token. Please refresh the page.',
+      );
     }
 
     // Rotate token on successful validation (prevents token fixation)

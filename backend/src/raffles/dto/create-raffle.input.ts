@@ -27,13 +27,17 @@ import GraphQLJSON from 'graphql-type-json';
 export class ProductInput {
   @Field()
   @IsString()
-  @MinLength(3, { message: 'El nombre del producto debe tener al menos 3 caracteres' })
+  @MinLength(3, {
+    message: 'El nombre del producto debe tener al menos 3 caracteres',
+  })
   @MaxLength(100)
   nombre!: string;
 
   @Field()
   @IsString()
-  @MinLength(20, { message: 'La descripción debe tener al menos 20 caracteres' })
+  @MinLength(20, {
+    message: 'La descripción debe tener al menos 20 caracteres',
+  })
   @MaxLength(2000)
   descripcionDetallada!: string;
 
@@ -69,7 +73,9 @@ export class CreateRaffleInput {
 
   @Field()
   @IsString()
-  @MinLength(50, { message: 'La descripción debe tener al menos 50 caracteres' })
+  @MinLength(50, {
+    message: 'La descripción debe tener al menos 50 caracteres',
+  })
   @MaxLength(5000)
   descripcion!: string;
 
@@ -118,7 +124,6 @@ export class UpdateRaffleInput {
   @IsAfter('now')
   fechaLimite?: string;
 }
-
 
 @InputType()
 export class BuyTicketsInput {

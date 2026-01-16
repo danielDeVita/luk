@@ -1,9 +1,26 @@
-import { Resolver, Query, Mutation, Args, Int, ResolveField, Parent } from '@nestjs/graphql';
+import {
+  Resolver,
+  Query,
+  Mutation,
+  Args,
+  Int,
+  ResolveField,
+  Parent,
+} from '@nestjs/graphql';
 import { UseGuards } from '@nestjs/common';
 import { RafflesService } from './raffles.service';
-import { Raffle, PaginatedRaffles, SellerDashboardStats, BulkActionResult, BuyerStats } from './entities/raffle.entity';
+import {
+  Raffle,
+  PaginatedRaffles,
+  SellerDashboardStats,
+  BulkActionResult,
+  BuyerStats,
+} from './entities/raffle.entity';
 import { PriceHistory } from './entities/price-history.entity';
-import { CreateRaffleInput, UpdateRaffleInput } from './dto/create-raffle.input';
+import {
+  CreateRaffleInput,
+  UpdateRaffleInput,
+} from './dto/create-raffle.input';
 import { RaffleFiltersInput } from './dto/raffle-filters.input';
 import { GqlAuthGuard } from '../auth/guards/gql-auth.guard';
 import { RolesGuard } from '../auth/guards/roles/roles.guard';
@@ -131,7 +148,11 @@ export class RafflesResolver {
     @Args('raffleId') raffleId: string,
     @Args('newDeadline') newDeadline: string,
   ) {
-    return this.rafflesService.extendRaffleDeadline(raffleId, user.id, new Date(newDeadline));
+    return this.rafflesService.extendRaffleDeadline(
+      raffleId,
+      user.id,
+      new Date(newDeadline),
+    );
   }
 
   @Mutation(() => Raffle)
@@ -164,7 +185,9 @@ export class RafflesResolver {
 
   @Query(() => SellerDashboardStats)
   @UseGuards(GqlAuthGuard)
-  async sellerDashboardStats(@CurrentUser() user: User): Promise<SellerDashboardStats> {
+  async sellerDashboardStats(
+    @CurrentUser() user: User,
+  ): Promise<SellerDashboardStats> {
     return this.rafflesService.getSellerDashboardStats(user.id);
   }
 
@@ -184,12 +207,18 @@ export class RafflesResolver {
     @Args('raffleIds', { type: () => [String] }) raffleIds: string[],
     @Args('newDeadline') newDeadline: string,
   ): Promise<BulkActionResult> {
-    return this.rafflesService.bulkExtendRaffles(user.id, raffleIds, new Date(newDeadline));
+    return this.rafflesService.bulkExtendRaffles(
+      user.id,
+      raffleIds,
+      new Date(newDeadline),
+    );
   }
 
   @Mutation(() => Boolean)
   @Public()
-  async incrementRaffleViews(@Args('raffleId') raffleId: string): Promise<boolean> {
+  async incrementRaffleViews(
+    @Args('raffleId') raffleId: string,
+  ): Promise<boolean> {
     await this.rafflesService.incrementViewCount(raffleId);
     return true;
   }
@@ -206,26 +235,42 @@ export class RafflesResolver {
   @UseGuards(GqlAuthGuard)
   async recommendedRaffles(
     @CurrentUser() user: User,
-    @Args('limit', { type: () => Int, nullable: true, defaultValue: 6 }) limit: number,
+    @Args('limit', { type: () => Int, nullable: true, defaultValue: 6 })
+    limit: number,
   ): Promise<Raffle[]> {
-    return this.rafflesService.getRecommendedRaffles(user.id, limit) as unknown as Raffle[];
+    return this.rafflesService.getRecommendedRaffles(
+      user.id,
+      limit,
+    ) as unknown as Raffle[];
   }
 
   @Query(() => [Raffle])
   @UseGuards(GqlAuthGuard)
   async favoritesEndingSoon(
     @CurrentUser() user: User,
-    @Args('hoursThreshold', { type: () => Int, nullable: true, defaultValue: 48 }) hoursThreshold: number,
+    @Args('hoursThreshold', {
+      type: () => Int,
+      nullable: true,
+      defaultValue: 48,
+    })
+    hoursThreshold: number,
   ): Promise<Raffle[]> {
-    return this.rafflesService.getFavoritesEndingSoon(user.id, hoursThreshold) as unknown as Raffle[];
+    return this.rafflesService.getFavoritesEndingSoon(
+      user.id,
+      hoursThreshold,
+    ) as unknown as Raffle[];
   }
 
   // ==================== PRICE ALERTS ====================
 
   @Public()
   @Query(() => [PriceHistory])
-  async priceHistory(@Args('raffleId') raffleId: string): Promise<PriceHistory[]> {
-    return this.rafflesService.getPriceHistory(raffleId) as unknown as PriceHistory[];
+  async priceHistory(
+    @Args('raffleId') raffleId: string,
+  ): Promise<PriceHistory[]> {
+    return this.rafflesService.getPriceHistory(
+      raffleId,
+    ) as unknown as PriceHistory[];
   }
 
   @Mutation(() => Raffle)
@@ -235,6 +280,10 @@ export class RafflesResolver {
     @Args('raffleId') raffleId: string,
     @Args('newPrice', { type: () => Number }) newPrice: number,
   ): Promise<Raffle> {
-    return this.rafflesService.updatePrice(raffleId, user.id, newPrice) as unknown as Raffle;
+    return this.rafflesService.updatePrice(
+      raffleId,
+      user.id,
+      newPrice,
+    ) as unknown as Raffle;
   }
 }

@@ -28,9 +28,10 @@ export class ReputationService {
     });
 
     // Calculate average rating
-    const avgRating = reviews.length > 0
-      ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length
-      : null;
+    const avgRating =
+      reviews.length > 0
+        ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length
+        : null;
 
     // Get dispute stats
     const disputesWon = await this.prisma.dispute.count({
@@ -48,7 +49,12 @@ export class ReputationService {
     });
 
     // Determine seller level based on completed sales
-    const level = this.calculateSellerLevel(completedRaffles, avgRating, disputesWon, disputesLost);
+    const level = this.calculateSellerLevel(
+      completedRaffles,
+      avgRating,
+      disputesWon,
+      disputesLost,
+    );
 
     // Calculate max simultaneous raffles based on level
     const maxRaffles = this.getMaxRafflesForLevel(level);
@@ -75,7 +81,9 @@ export class ReputationService {
       },
     });
 
-    this.logger.log(`Reputation updated for seller ${sellerId}: Level ${level}, ${completedRaffles} sales`);
+    this.logger.log(
+      `Reputation updated for seller ${sellerId}: Level ${level}, ${completedRaffles} sales`,
+    );
   }
 
   /**
@@ -109,7 +117,9 @@ export class ReputationService {
       },
     });
 
-    this.logger.log(`Reputation updated for buyer ${buyerId}: ${completedPurchases} purchases`);
+    this.logger.log(
+      `Reputation updated for buyer ${buyerId}: ${completedPurchases} purchases`,
+    );
   }
 
   /**
@@ -123,7 +133,8 @@ export class ReputationService {
   ): SellerLevel {
     // Calculate dispute ratio
     const totalDisputes = disputesWon + disputesLost;
-    const disputeLostRatio = totalDisputes > 0 ? disputesLost / totalDisputes : 0;
+    const disputeLostRatio =
+      totalDisputes > 0 ? disputesLost / totalDisputes : 0;
 
     // Penalize if too many disputes lost
     if (disputeLostRatio > 0.5 && totalDisputes >= 3) {
@@ -189,7 +200,9 @@ export class ReputationService {
       nivel: reputation.nivelVendedor,
       totalVentas: reputation.totalVentasCompletadas,
       totalCompras: reputation.totalComprasCompletadas,
-      rating: reputation.ratingPromedioVendedor ? Number(reputation.ratingPromedioVendedor) : null,
+      rating: reputation.ratingPromedioVendedor
+        ? Number(reputation.ratingPromedioVendedor)
+        : null,
       disputasGanadas: reputation.disputasComoVendedorGanadas,
       disputasPerdidas: reputation.disputasComoVendedorPerdidas,
       maxRifasSimultaneas: reputation.maxRifasSimultaneas,
@@ -199,7 +212,9 @@ export class ReputationService {
   /**
    * Check if seller can create more raffles
    */
-  async canSellerCreateRaffle(sellerId: string): Promise<{ allowed: boolean; reason?: string }> {
+  async canSellerCreateRaffle(
+    sellerId: string,
+  ): Promise<{ allowed: boolean; reason?: string }> {
     const reputation = await this.prisma.userReputation.findUnique({
       where: { userId: sellerId },
     });

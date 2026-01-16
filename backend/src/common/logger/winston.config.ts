@@ -11,10 +11,14 @@ export const winstonConfig: winston.LoggerOptions = {
       ? winston.format.json()
       : winston.format.combine(
           winston.format.colorize({ all: true }),
-          winston.format.printf(({ timestamp, level, message, context, ...meta }) => {
-            const metaStr = Object.keys(meta).length ? ` ${JSON.stringify(meta)}` : '';
-            return `${timestamp} [${context || 'Application'}] ${level}: ${message}${metaStr}`;
-          }),
+          winston.format.printf(
+            ({ timestamp, level, message, context, ...meta }) => {
+              const metaStr = Object.keys(meta).length
+                ? ` ${JSON.stringify(meta)}`
+                : '';
+              return `${timestamp} [${context || 'Application'}] ${level}: ${message}${metaStr}`;
+            },
+          ),
         ),
   ),
   transports: [new winston.transports.Console()],

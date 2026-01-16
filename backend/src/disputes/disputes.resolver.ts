@@ -5,7 +5,11 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { User } from '../users/entities/user.entity';
 import { DisputesService } from './disputes.service';
 import { Dispute } from './entities/dispute.entity';
-import { OpenDisputeInput, RespondDisputeInput, ResolveDisputeInput } from './dto/dispute.input';
+import {
+  OpenDisputeInput,
+  RespondDisputeInput,
+  ResolveDisputeInput,
+} from './dto/dispute.input';
 import { UserRole } from '@prisma/client';
 
 @Resolver(() => Dispute)
@@ -38,7 +42,7 @@ export class DisputesResolver {
   ) {
     // Basic check, in production use RolesGuard
     if (user.role !== UserRole.ADMIN) {
-        throw new Error('Unauthorized');
+      throw new Error('Unauthorized');
     }
     return this.disputesService.resolveDispute(user.id, disputeId, input);
   }

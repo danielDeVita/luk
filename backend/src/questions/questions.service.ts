@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+  BadRequestException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AskQuestionInput, AnswerQuestionInput } from './dto/question.input';
 import { UserRole, RaffleStatus } from '@prisma/client';
@@ -31,7 +36,12 @@ export class QuestionsService {
         answer: {
           include: {
             seller: {
-              select: { id: true, nombre: true, apellido: true, avatarUrl: true },
+              select: {
+                id: true,
+                nombre: true,
+                apellido: true,
+                avatarUrl: true,
+              },
             },
           },
         },
@@ -48,7 +58,13 @@ export class QuestionsService {
     // Verify raffle exists and is active
     const raffle = await this.prisma.raffle.findUnique({
       where: { id: input.raffleId },
-      select: { id: true, sellerId: true, estado: true, isDeleted: true, isHidden: true },
+      select: {
+        id: true,
+        sellerId: true,
+        estado: true,
+        isDeleted: true,
+        isHidden: true,
+      },
     });
 
     if (!raffle || raffle.isDeleted || raffle.isHidden) {
@@ -56,12 +72,16 @@ export class QuestionsService {
     }
 
     if (raffle.estado !== RaffleStatus.ACTIVA) {
-      throw new BadRequestException('Solo se pueden hacer preguntas en rifas activas');
+      throw new BadRequestException(
+        'Solo se pueden hacer preguntas en rifas activas',
+      );
     }
 
     // Seller cannot ask questions on their own raffle
     if (raffle.sellerId === askerId) {
-      throw new BadRequestException('No podés hacer preguntas en tu propia rifa');
+      throw new BadRequestException(
+        'No podés hacer preguntas en tu propia rifa',
+      );
     }
 
     return this.prisma.raffleQuestion.create({
@@ -103,7 +123,9 @@ export class QuestionsService {
 
     // Only the raffle seller can answer
     if (question.raffle.sellerId !== sellerId) {
-      throw new ForbiddenException('Solo el vendedor puede responder preguntas');
+      throw new ForbiddenException(
+        'Solo el vendedor puede responder preguntas',
+      );
     }
 
     return this.prisma.raffleAnswer.create({
@@ -119,7 +141,12 @@ export class QuestionsService {
         question: {
           include: {
             asker: {
-              select: { id: true, nombre: true, apellido: true, avatarUrl: true },
+              select: {
+                id: true,
+                nombre: true,
+                apellido: true,
+                avatarUrl: true,
+              },
             },
           },
         },
@@ -143,7 +170,9 @@ export class QuestionsService {
 
     // Only author or admin can delete
     if (question.askerId !== userId && userRole !== UserRole.ADMIN) {
-      throw new ForbiddenException('No tenés permiso para eliminar esta pregunta');
+      throw new ForbiddenException(
+        'No tenés permiso para eliminar esta pregunta',
+      );
     }
 
     await this.prisma.raffleQuestion.delete({

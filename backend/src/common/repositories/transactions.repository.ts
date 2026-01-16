@@ -1,5 +1,10 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma, Transaction, TransactionType, TransactionStatus } from '@prisma/client';
+import {
+  Prisma,
+  Transaction,
+  TransactionType,
+  TransactionStatus,
+} from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { BaseRepository } from './base.repository';
 
@@ -53,7 +58,10 @@ export class TransactionsRepository extends BaseRepository<
   /**
    * Find transactions by raffle.
    */
-  async findByRaffle(raffleId: string, type?: TransactionType): Promise<Transaction[]> {
+  async findByRaffle(
+    raffleId: string,
+    type?: TransactionType,
+  ): Promise<Transaction[]> {
     return this.prisma.transaction.findMany({
       where: {
         raffleId,
@@ -155,7 +163,10 @@ export class TransactionsRepository extends BaseRepository<
   /**
    * Update transaction status.
    */
-  async updateStatus(id: string, status: TransactionStatus): Promise<Transaction> {
+  async updateStatus(
+    id: string,
+    status: TransactionStatus,
+  ): Promise<Transaction> {
     return this.prisma.transaction.update({
       where: { id },
       data: { estado: status },
@@ -182,9 +193,12 @@ export class TransactionsRepository extends BaseRepository<
   /**
    * Get transaction summary by type.
    */
-  async getSummaryByType(
-    options?: { userId?: string; raffleId?: string; startDate?: Date; endDate?: Date },
-  ): Promise<Array<{ type: TransactionType; count: number; total: number }>> {
+  async getSummaryByType(options?: {
+    userId?: string;
+    raffleId?: string;
+    startDate?: Date;
+    endDate?: Date;
+  }): Promise<Array<{ type: TransactionType; count: number; total: number }>> {
     const where: Prisma.TransactionWhereInput = {
       isDeleted: false,
       userId: options?.userId,

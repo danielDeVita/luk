@@ -31,7 +31,6 @@ import {
   Clock,
   BarChart3,
   CheckCircle2,
-  Circle,
   User,
   CreditCard,
   MapPin,
@@ -42,8 +41,6 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState, useMemo } from 'react';
 import { toast } from 'sonner';
 import {
-  LineChart,
-  Line,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -219,7 +216,7 @@ export default function MySalesPage() {
     skip: !isAuthenticated,
   });
 
-  const { data: statsData, loading: statsLoading } = useQuery<{ sellerDashboardStats: SellerDashboardStats }>(
+  const { data: statsData } = useQuery<{ sellerDashboardStats: SellerDashboardStats }>(
     SELLER_DASHBOARD_STATS,
     { skip: !isAuthenticated }
   );
@@ -287,6 +284,67 @@ export default function MySalesPage() {
     }
   }, [isAuthenticated, router]);
 
+  // Get data from queries - safe to use here since they're from graphql
+  const raffles = data?.myRafflesAsSeller || [];
+  const stats = statsData?.sellerDashboardStats;
+
+  // Chart data (useMemo before any returns)
+  const chartData = useMemo(() => {
+    if (!stats?.monthlyRevenue) return [];
+    return stats.monthlyRevenue.map((m) => ({
+      name: `${MONTH_NAMES[m.month - 1]} ${m.year}`,
+      revenue: m.revenue,
+      tickets: m.ticketsSold,
+    }));
+  }, [stats]);
+
+  // Onboarding checklist (useMemo before any returns)
+  const onboardingSteps = useMemo(() => {
+    const userData = onboardingData?.me;
+    const hasRaffles = raffles.length > 0;
+
+    const steps = [
+      {
+        id: 'profile',
+        label: 'Completar perfil',
+        description: 'Nombre y teléfono',
+        completed: !!(userData?.nombre && userData?.apellido && userData?.phone),
+        href: '/dashboard/settings',
+        icon: User,
+      },
+      {
+        id: 'mp',
+        label: 'Conectar Mercado Pago',
+        description: 'Para recibir pagos',
+        completed: userData?.mpConnectStatus === 'CONNECTED',
+        href: '/dashboard/settings?tab=payments',
+        icon: CreditCard,
+      },
+      {
+        id: 'address',
+        label: 'Agregar dirección',
+        description: 'Dirección de envío',
+        completed: !!(userData?.street && userData?.city && userData?.province && userData?.postalCode),
+        href: '/dashboard/settings?tab=kyc',
+        icon: MapPin,
+      },
+      {
+        id: 'raffle',
+        label: 'Crear primera rifa',
+        description: 'Empezá a vender',
+        completed: hasRaffles,
+        href: '/dashboard/create',
+        icon: Ticket,
+      },
+    ];
+
+    const completedCount = steps.filter((s) => s.completed).length;
+    const progress = (completedCount / steps.length) * 100;
+
+    return { steps, completedCount, progress, allComplete: completedCount === steps.length };
+  }, [onboardingData, raffles]);
+
+  // Handler functions
   const handleMarkAsShipped = () => {
     if (!selectedRaffle) return;
     markAsShipped({
@@ -403,65 +461,6 @@ export default function MySalesPage() {
       </div>
     );
   }
-
-  const raffles = data?.myRafflesAsSeller || [];
-  const stats = statsData?.sellerDashboardStats;
-
-  // Chart data
-  const chartData = useMemo(() => {
-    if (!stats?.monthlyRevenue) return [];
-    return stats.monthlyRevenue.map((m) => ({
-      name: `${MONTH_NAMES[m.month - 1]} ${m.year}`,
-      revenue: m.revenue,
-      tickets: m.ticketsSold,
-    }));
-  }, [stats]);
-
-  // Onboarding checklist
-  const onboardingSteps = useMemo(() => {
-    const userData = onboardingData?.me;
-    const hasRaffles = raffles.length > 0;
-
-    const steps = [
-      {
-        id: 'profile',
-        label: 'Completar perfil',
-        description: 'Nombre y teléfono',
-        completed: !!(userData?.nombre && userData?.apellido && userData?.phone),
-        href: '/dashboard/settings',
-        icon: User,
-      },
-      {
-        id: 'mp',
-        label: 'Conectar Mercado Pago',
-        description: 'Para recibir pagos',
-        completed: userData?.mpConnectStatus === 'CONNECTED',
-        href: '/dashboard/settings?tab=payments',
-        icon: CreditCard,
-      },
-      {
-        id: 'address',
-        label: 'Agregar dirección',
-        description: 'Dirección de envío',
-        completed: !!(userData?.street && userData?.city && userData?.province && userData?.postalCode),
-        href: '/dashboard/settings?tab=kyc',
-        icon: MapPin,
-      },
-      {
-        id: 'raffle',
-        label: 'Crear primera rifa',
-        description: 'Empezá a vender',
-        completed: hasRaffles,
-        href: '/dashboard/create',
-        icon: Ticket,
-      },
-    ];
-
-    const completedCount = steps.filter((s) => s.completed).length;
-    const progress = (completedCount / steps.length) * 100;
-
-    return { steps, completedCount, progress, allComplete: completedCount === steps.length };
-  }, [onboardingData, raffles]);
 
   const activeRafflesForSelection = raffles.filter((r) => r.estado === 'ACTIVA');
   const allActiveSelected =

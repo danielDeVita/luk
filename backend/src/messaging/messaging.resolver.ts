@@ -2,7 +2,10 @@ import { Resolver, Query, Mutation, Args } from '@nestjs/graphql';
 import { UseGuards } from '@nestjs/common';
 import { MessagingService } from './messaging.service';
 import { Conversation, Message } from './entities/conversation.entity';
-import { SendMessageInput, StartConversationInput } from './dto/messaging.input';
+import {
+  SendMessageInput,
+  StartConversationInput,
+} from './dto/messaging.input';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 

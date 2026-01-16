@@ -29,8 +29,11 @@ export class NotificationsService {
     @Inject('PUB_SUB') private readonly pubSub: PubSub,
   ) {
     const resendApiKey = this.configService.get<string>('RESEND_API_KEY');
-    this.fromEmail = this.configService.get<string>('EMAIL_FROM') || 'onboarding@resend.dev';
-    this.fromName = this.configService.get<string>('EMAIL_FROM_NAME') || 'Plataforma de Rifas';
+    this.fromEmail =
+      this.configService.get<string>('EMAIL_FROM') || 'onboarding@resend.dev';
+    this.fromName =
+      this.configService.get<string>('EMAIL_FROM_NAME') ||
+      'Plataforma de Rifas';
     this.isProduction = !!resendApiKey && resendApiKey !== 'mock';
 
     if (this.isProduction) {
@@ -101,10 +104,13 @@ export class NotificationsService {
           return false;
         }
 
-        this.logger.log(`📧 Email sent: ${options.subject} -> ${options.to} (ID: ${data?.id})`);
+        this.logger.log(
+          `📧 Email sent: ${options.subject} -> ${options.to} (ID: ${data?.id})`,
+        );
         return true;
       } catch (error) {
-        const message = error instanceof Error ? error.message : 'Unknown error';
+        const message =
+          error instanceof Error ? error.message : 'Unknown error';
         this.logger.error(`Email error: ${message}`);
         return false;
       }
@@ -112,17 +118,16 @@ export class NotificationsService {
       // Mock mode - log email content
       this.logger.log(`📧 [MOCK] Email to: ${options.to}`);
       this.logger.log(`   Subject: ${options.subject}`);
-      this.logger.debug(`   Body preview: ${options.html.substring(0, 150)}...`);
+      this.logger.debug(
+        `   Body preview: ${options.html.substring(0, 150)}...`,
+      );
       return true;
     }
   }
 
   // ==================== Auth Notifications ====================
 
-  async sendWelcomeEmail(
-    email: string,
-    data: { userName: string },
-  ) {
+  async sendWelcomeEmail(email: string, data: { userName: string }) {
     return this.sendEmail({
       to: email,
       subject: '¡Bienvenido a la Plataforma de Rifas!',
@@ -305,7 +310,12 @@ export class NotificationsService {
 
   async sendPriceReductionSuggestion(
     email: string,
-    data: { raffleName: string; currentPrice: number; suggestedPrice: number; percentageSold: number },
+    data: {
+      raffleName: string;
+      currentPrice: number;
+      suggestedPrice: number;
+      percentageSold: number;
+    },
   ) {
     return this.sendEmail({
       to: email,
@@ -529,7 +539,13 @@ export class NotificationsService {
 
   async sendPriceDropAlert(
     email: string,
-    data: { raffleName: string; oldPrice: number; newPrice: number; dropPercent: number; raffleUrl: string },
+    data: {
+      raffleName: string;
+      oldPrice: number;
+      newPrice: number;
+      dropPercent: number;
+      raffleUrl: string;
+    },
   ) {
     return this.sendEmail({
       to: email,

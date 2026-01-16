@@ -40,11 +40,16 @@ export class MpConnectController {
       this.logger.log(`Redirecting user ${user.userId} to MP auth`);
       return res.redirect(authUrl);
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Error desconocido';
+      const message =
+        error instanceof Error ? error.message : 'Error desconocido';
       this.logger.error(`Failed to start MP connect: ${message}`);
 
-      const frontendUrl = this.configService.get<string>('FRONTEND_URL') || 'http://localhost:3000';
-      return res.redirect(`${frontendUrl}/dashboard/settings?mp_error=${encodeURIComponent(message)}`);
+      const frontendUrl =
+        this.configService.get<string>('FRONTEND_URL') ||
+        'http://localhost:3000';
+      return res.redirect(
+        `${frontendUrl}/dashboard/settings?mp_error=${encodeURIComponent(message)}`,
+      );
     }
   }
 
@@ -61,31 +66,46 @@ export class MpConnectController {
     @Query('error_description') errorDescription: string,
     @Res() res: Response,
   ) {
-    const frontendUrl = this.configService.get<string>('FRONTEND_URL') || 'http://localhost:3000';
+    const frontendUrl =
+      this.configService.get<string>('FRONTEND_URL') || 'http://localhost:3000';
     const profileUrl = `${frontendUrl}/dashboard/settings`;
 
     // Handle MP errors
     if (error) {
       this.logger.error(`MP OAuth error: ${error} - ${errorDescription}`);
-      return res.redirect(`${profileUrl}?mp_error=${encodeURIComponent(errorDescription || error)}`);
+      return res.redirect(
+        `${profileUrl}?mp_error=${encodeURIComponent(errorDescription || error)}`,
+      );
     }
 
     // Validate required params
     if (!code || !state) {
       this.logger.error('Missing code or state in MP callback');
-      return res.redirect(`${profileUrl}?mp_error=${encodeURIComponent('Parámetros faltantes')}`);
+      return res.redirect(
+        `${profileUrl}?mp_error=${encodeURIComponent('Parámetros faltantes')}`,
+      );
     }
 
     try {
-      const result = await this.mpConnectService.exchangeCodeForTokens(code, state);
+      const result = await this.mpConnectService.exchangeCodeForTokens(
+        code,
+        state,
+      );
 
-      this.logger.log(`Successfully connected MP account ${result.mpUserId} for user ${result.userId}`);
+      this.logger.log(
+        `Successfully connected MP account ${result.mpUserId} for user ${result.userId}`,
+      );
 
       return res.redirect(`${profileUrl}?mp_connected=true`);
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Error al conectar con Mercado Pago';
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'Error al conectar con Mercado Pago';
       this.logger.error(`MP callback error: ${message}`);
-      return res.redirect(`${profileUrl}?mp_error=${encodeURIComponent(message)}`);
+      return res.redirect(
+        `${profileUrl}?mp_error=${encodeURIComponent(message)}`,
+      );
     }
   }
 
@@ -111,8 +131,11 @@ export class MpConnectController {
       await this.mpConnectService.disconnect(user.userId);
       return res.status(HttpStatus.OK).json({ disconnected: true });
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Error desconocido';
-      return res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({ error: message });
+      const message =
+        error instanceof Error ? error.message : 'Error desconocido';
+      return res
+        .status(HttpStatus.INTERNAL_SERVER_ERROR)
+        .json({ error: message });
     }
   }
 }

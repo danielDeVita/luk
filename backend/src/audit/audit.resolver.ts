@@ -45,7 +45,10 @@ export class AuditResolver {
     @Args('targetType') targetType: string,
     @Args('targetId') targetId: string,
   ) {
-    const logs = await this.auditService.getAuditLogsForTarget(targetType, targetId);
+    const logs = await this.auditService.getAuditLogsForTarget(
+      targetType,
+      targetId,
+    );
     return logs.map((log) => ({
       ...log,
       details: log.details ? JSON.stringify(log.details) : null,

@@ -92,7 +92,9 @@ export class DisputesRepository extends BaseRepository<
   async findOpen(): Promise<DisputeWithRelations[]> {
     return this.prisma.dispute.findMany({
       where: {
-        estado: { in: ['ABIERTA', 'ESPERANDO_RESPUESTA_VENDEDOR', 'EN_MEDIACION'] },
+        estado: {
+          in: ['ABIERTA', 'ESPERANDO_RESPUESTA_VENDEDOR', 'EN_MEDIACION'],
+        },
         isDeleted: false,
       },
       include: DisputesRepository.defaultInclude,
@@ -161,7 +163,10 @@ export class DisputesRepository extends BaseRepository<
   /**
    * Update dispute status.
    */
-  async updateStatus(disputeId: string, status: DisputeStatus): Promise<Dispute> {
+  async updateStatus(
+    disputeId: string,
+    status: DisputeStatus,
+  ): Promise<Dispute> {
     return this.prisma.dispute.update({
       where: { id: disputeId },
       data: { estado: status },
@@ -254,7 +259,9 @@ export class DisputesRepository extends BaseRepository<
       } else if (d.estado === 'RESUELTA_COMPRADOR') {
         stats.lost++;
       } else if (
-        ['ABIERTA', 'ESPERANDO_RESPUESTA_VENDEDOR', 'EN_MEDIACION'].includes(d.estado)
+        ['ABIERTA', 'ESPERANDO_RESPUESTA_VENDEDOR', 'EN_MEDIACION'].includes(
+          d.estado,
+        )
       ) {
         stats.pending++;
       }

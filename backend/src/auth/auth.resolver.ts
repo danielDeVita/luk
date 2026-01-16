@@ -22,7 +22,11 @@ export class AuthResolver {
     private configService: ConfigService,
   ) {}
 
-  private setAuthCookies(res: Response, token: string, refreshToken: string): void {
+  private setAuthCookies(
+    res: Response,
+    token: string,
+    refreshToken: string,
+  ): void {
     const isProduction = this.configService.get('NODE_ENV') === 'production';
 
     // Set access token as httpOnly cookie
@@ -60,9 +64,14 @@ export class AuthResolver {
     @Args('userId') userId: string,
     @Args('code') code: string,
     @Context() context: { req: Record<string, unknown>; res: Response },
-    @Args('referralCode', { type: () => String, nullable: true }) referralCode?: string,
+    @Args('referralCode', { type: () => String, nullable: true })
+    referralCode?: string,
   ): Promise<AuthPayload> {
-    const result = await this.authService.verifyEmail(userId, code, referralCode);
+    const result = await this.authService.verifyEmail(
+      userId,
+      code,
+      referralCode,
+    );
 
     // Set httpOnly cookies for the tokens
     this.setAuthCookies(context.res, result.token, result.refreshToken);
@@ -96,12 +105,14 @@ export class AuthResolver {
   }
 
   private extractIp(req: Record<string, unknown>): string {
-    const headers = req.headers as Record<string, string | string[]> | undefined;
+    const headers = req.headers as
+      | Record<string, string | string[]>
+      | undefined;
     const forwardedFor = headers?.['x-forwarded-for'];
     if (forwardedFor) {
       const clientIp = Array.isArray(forwardedFor)
         ? forwardedFor[0]
-        : (forwardedFor as string).split(',')[0];
+        : forwardedFor.split(',')[0];
       return clientIp.trim();
     }
     const realIp = headers?.['x-real-ip'];

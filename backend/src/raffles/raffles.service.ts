@@ -1,8 +1,18 @@
-import { Injectable, BadRequestException, NotFoundException, ForbiddenException, Logger, Inject } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  NotFoundException,
+  ForbiddenException,
+  Logger,
+  Inject,
+} from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { CACHE_MANAGER, Cache } from '@nestjs/cache-manager';
 import { PrismaService } from '../prisma/prisma.service';
-import { CreateRaffleInput, UpdateRaffleInput } from './dto/create-raffle.input';
+import {
+  CreateRaffleInput,
+  UpdateRaffleInput,
+} from './dto/create-raffle.input';
 import { RaffleFiltersInput } from './dto/raffle-filters.input';
 import { Prisma } from '@prisma/client';
 import { RaffleSort } from '../common/enums';
@@ -20,7 +30,10 @@ import {
   RaffleCancelledEvent,
   DeliveryConfirmedEvent,
 } from '../common/events';
-import { toTsqueryOr, escapePostgresString } from '../common/utils/fulltext-search.util';
+import {
+  toTsqueryOr,
+  escapePostgresString,
+} from '../common/utils/fulltext-search.util';
 
 // Cache configuration
 const CACHE_KEYS = {
@@ -46,7 +59,12 @@ export class RafflesService {
   /**
    * Generate cache key for raffle list queries.
    */
-  private getCacheKey(prefix: string, filters?: RaffleFiltersInput, page?: number, limit?: number): string {
+  private getCacheKey(
+    prefix: string,
+    filters?: RaffleFiltersInput,
+    page?: number,
+    limit?: number,
+  ): string {
     const parts = [prefix];
     if (filters) {
       if (filters.estado) parts.push(`estado:${filters.estado}`);
@@ -54,7 +72,8 @@ export class RafflesService {
       if (filters.precioMin) parts.push(`min:${filters.precioMin}`);
       if (filters.precioMax) parts.push(`max:${filters.precioMax}`);
       if (filters.sortBy) parts.push(`sort:${filters.sortBy}`);
-      if (filters.searchTerm) parts.push(`q:${filters.searchTerm.substring(0, 20)}`);
+      if (filters.searchTerm)
+        parts.push(`q:${filters.searchTerm.substring(0, 20)}`);
     }
     if (page) parts.push(`p:${page}`);
     if (limit) parts.push(`l:${limit}`);
@@ -72,9 +91,13 @@ export class RafflesService {
         this.cache.del(CACHE_KEYS.FEATURED),
         this.cache.del(CACHE_KEYS.CATEGORIES),
         this.cache.del(CACHE_KEYS.RAFFLE_LIST),
-        raffleId ? this.cache.del(`${CACHE_KEYS.RAFFLE_DETAIL}:${raffleId}`) : Promise.resolve(),
+        raffleId
+          ? this.cache.del(`${CACHE_KEYS.RAFFLE_DETAIL}:${raffleId}`)
+          : Promise.resolve(),
       ]);
-      this.logger.debug(`Cache invalidated${raffleId ? ` for raffle ${raffleId}` : ''}`);
+      this.logger.debug(
+        `Cache invalidated${raffleId ? ` for raffle ${raffleId}` : ''}`,
+      );
     } catch (error) {
       this.logger.warn(`Cache invalidation failed: ${error}`);
     }
@@ -84,7 +107,11 @@ export class RafflesService {
     // Check if seller has MP Connect configured
     const seller = await this.prisma.user.findUnique({
       where: { id: sellerId },
-      select: { mpConnectStatus: true, defaultSenderAddressId: true, shippingAddresses: { take: 1 } },
+      select: {
+        mpConnectStatus: true,
+        defaultSenderAddressId: true,
+        shippingAddresses: { take: 1 },
+      },
     });
 
     if (!seller) {
@@ -98,7 +125,10 @@ export class RafflesService {
     }
 
     // Check if seller has at least one address (for shipping to winner)
-    if (!seller.defaultSenderAddressId && seller.shippingAddresses.length === 0) {
+    if (
+      !seller.defaultSenderAddressId &&
+      seller.shippingAddresses.length === 0
+    ) {
       throw new BadRequestException(
         'Debes agregar una dirección de envío antes de crear una rifa. Ve a tu perfil para agregarla.',
       );
@@ -132,9 +162,11 @@ export class RafflesService {
     });
 
     // Log activity (non-blocking)
-    this.activityService.logRaffleCreated(sellerId, raffle.id, input.titulo).catch((err) => {
-      this.logger.error(`Failed to log raffle creation: ${err.message}`);
-    });
+    this.activityService
+      .logRaffleCreated(sellerId, raffle.id, input.titulo)
+      .catch((err) => {
+        this.logger.error(`Failed to log raffle creation: ${err.message}`);
+      });
 
     // Invalidate cache (non-blocking)
     this.invalidateRaffleCache().catch((err) => {
@@ -151,8 +183,18 @@ export class RafflesService {
     }
 
     // Check cache first
-    const cacheKey = this.getCacheKey(CACHE_KEYS.RAFFLE_LIST, filters, page, limit);
-    const cached = await this.cache.get<{ raffles: unknown[]; total: number; page: number; limit: number }>(cacheKey);
+    const cacheKey = this.getCacheKey(
+      CACHE_KEYS.RAFFLE_LIST,
+      filters,
+      page,
+      limit,
+    );
+    const cached = await this.cache.get<{
+      raffles: unknown[];
+      total: number;
+      page: number;
+      limit: number;
+    }>(cacheKey);
     if (cached) {
       this.logger.debug(`Cache hit for ${cacheKey}`);
       return cached;
@@ -164,7 +206,9 @@ export class RafflesService {
       where.estado = filters.estado;
     }
     if (filters?.categoria) {
-      where.product = { categoria: { contains: filters.categoria, mode: 'insensitive' } };
+      where.product = {
+        categoria: { contains: filters.categoria, mode: 'insensitive' },
+      };
     }
     if (filters?.precioMin || filters?.precioMax) {
       where.precioPorTicket = {};
@@ -200,7 +244,11 @@ export class RafflesService {
     const [raffles, total] = await Promise.all([
       this.prisma.raffle.findMany({
         where,
-        include: { product: true, seller: true, _count: { select: { tickets: true } } },
+        include: {
+          product: true,
+          seller: true,
+          _count: { select: { tickets: true } },
+        },
         skip: (page - 1) * limit,
         take: limit,
         orderBy,
@@ -251,7 +299,9 @@ export class RafflesService {
       conditions.push(`r.estado = '${filters.estado}'`);
     }
     if (filters.categoria) {
-      conditions.push(`p.categoria ILIKE '%${escapePostgresString(filters.categoria)}%'`);
+      conditions.push(
+        `p.categoria ILIKE '%${escapePostgresString(filters.categoria)}%'`,
+      );
     }
     if (filters.precioMin !== undefined) {
       conditions.push(`r.precio_por_ticket >= ${Number(filters.precioMin)}`);
@@ -260,7 +310,8 @@ export class RafflesService {
       conditions.push(`r.precio_por_ticket <= ${Number(filters.precioMax)}`);
     }
 
-    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    const whereClause =
+      conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
     // Build ORDER BY clause
     let orderClause = 'ORDER BY search_rank DESC, r.created_at DESC';
@@ -291,7 +342,9 @@ export class RafflesService {
 
     try {
       // Execute full-text search query with ranking
-      const raffleIds = await this.prisma.$queryRawUnsafe<{ id: string; search_rank: number }[]>(`
+      const raffleIds = await this.prisma.$queryRawUnsafe<
+        { id: string; search_rank: number }[]
+      >(`
         SELECT
           r.id,
           ts_rank(raffle_search_vector(r.titulo, r.descripcion), to_tsquery('spanish', '${escapedQuery}')) as search_rank
@@ -303,7 +356,9 @@ export class RafflesService {
       `);
 
       // Get total count
-      const countResult = await this.prisma.$queryRawUnsafe<{ count: bigint }[]>(`
+      const countResult = await this.prisma.$queryRawUnsafe<
+        { count: bigint }[]
+      >(`
         SELECT COUNT(*) as count
         FROM raffles r
         LEFT JOIN products p ON p.raffle_id = r.id
@@ -320,7 +375,11 @@ export class RafflesService {
       // Fetch full raffle data with relations
       const raffles = await this.prisma.raffle.findMany({
         where: { id: { in: ids } },
-        include: { product: true, seller: true, _count: { select: { tickets: true } } },
+        include: {
+          product: true,
+          seller: true,
+          _count: { select: { tickets: true } },
+        },
       });
 
       // Maintain search ranking order
@@ -347,7 +406,9 @@ export class RafflesService {
         where.estado = filters.estado;
       }
       if (filters.categoria) {
-        where.product = { categoria: { contains: filters.categoria, mode: 'insensitive' } };
+        where.product = {
+          categoria: { contains: filters.categoria, mode: 'insensitive' },
+        };
       }
       if (filters.precioMin || filters.precioMax) {
         where.precioPorTicket = {};
@@ -358,7 +419,11 @@ export class RafflesService {
       const [raffles, total] = await Promise.all([
         this.prisma.raffle.findMany({
           where,
-          include: { product: true, seller: true, _count: { select: { tickets: true } } },
+          include: {
+            product: true,
+            seller: true,
+            _count: { select: { tickets: true } },
+          },
           skip: offset,
           take: limit,
           orderBy: { createdAt: 'desc' },
@@ -374,7 +439,13 @@ export class RafflesService {
     this.logger.debug(`Finding raffle with ID: ${id}`);
     const raffle = await this.prisma.raffle.findUnique({
       where: { id },
-      include: { product: true, seller: true, tickets: true, winner: true, dispute: true },
+      include: {
+        product: true,
+        seller: true,
+        tickets: true,
+        winner: true,
+        dispute: true,
+      },
     });
 
     if (!raffle) {
@@ -404,7 +475,9 @@ export class RafflesService {
     });
 
     if (soldTickets > 0) {
-      throw new BadRequestException('No se puede modificar una rifa con tickets vendidos');
+      throw new BadRequestException(
+        'No se puede modificar una rifa con tickets vendidos',
+      );
     }
 
     return this.prisma.raffle.update({
@@ -412,7 +485,9 @@ export class RafflesService {
       data: {
         titulo: input.titulo,
         descripcion: input.descripcion,
-        fechaLimiteSorteo: input.fechaLimite ? new Date(input.fechaLimite) : undefined,
+        fechaLimiteSorteo: input.fechaLimite
+          ? new Date(input.fechaLimite)
+          : undefined,
       },
       include: { product: true, seller: true },
     });
@@ -432,18 +507,29 @@ export class RafflesService {
     const cancelledRaffle = await this.prisma.raffle.update({
       where: { id },
       data: { estado: 'CANCELADA' },
-      include: { product: true, seller: true, tickets: { where: { estado: 'PAGADO' }, include: { buyer: true } } },
+      include: {
+        product: true,
+        seller: true,
+        tickets: { where: { estado: 'PAGADO' }, include: { buyer: true } },
+      },
     });
 
     // Emit cancellation event for cross-cutting concerns
     this.eventEmitter.emit(
       RaffleEvents.CANCELLED,
-      new RaffleCancelledEvent(id, userId, 'Cancelada por el vendedor', cancelledRaffle.tickets?.length || 0),
+      new RaffleCancelledEvent(
+        id,
+        userId,
+        'Cancelada por el vendedor',
+        cancelledRaffle.tickets?.length || 0,
+      ),
     );
 
     // Notify all buyers who purchased tickets (non-blocking)
     this.notifyCancellation(cancelledRaffle).catch((err) => {
-      this.logger.error(`Failed to send cancellation notifications: ${err.message}`);
+      this.logger.error(
+        `Failed to send cancellation notifications: ${err.message}`,
+      );
     });
 
     return cancelledRaffle;
@@ -476,17 +562,27 @@ export class RafflesService {
     }
 
     notifications.push(
-      this.activityService.logRaffleCancelled(raffle.sellerId, raffle.id, raffle.titulo),
+      this.activityService.logRaffleCancelled(
+        raffle.sellerId,
+        raffle.id,
+        raffle.titulo,
+      ),
     );
 
     await Promise.all(notifications);
   }
 
-  async markAsShipped(raffleId: string, userId: string, trackingNumber?: string) {
+  async markAsShipped(
+    raffleId: string,
+    userId: string,
+    trackingNumber?: string,
+  ) {
     const raffle = await this.findOne(raffleId);
 
     if (raffle.sellerId !== userId) {
-      throw new ForbiddenException('Solo el vendedor puede marcar como enviado');
+      throw new ForbiddenException(
+        'Solo el vendedor puede marcar como enviado',
+      );
     }
 
     if (raffle.estado !== 'SORTEADA') {
@@ -510,7 +606,9 @@ export class RafflesService {
     // Notify winner about shipment (non-blocking)
     if (updatedRaffle.winner) {
       this.notifyShipment(updatedRaffle).catch((err) => {
-        this.logger.error(`Failed to send shipment notifications: ${err.message}`);
+        this.logger.error(
+          `Failed to send shipment notifications: ${err.message}`,
+        );
       });
     }
 
@@ -528,7 +626,11 @@ export class RafflesService {
         '¡Tu premio fue enviado!',
         `El vendedor ha enviado el premio de "${raffle.titulo}".${raffle.trackingNumber ? ` Número de seguimiento: ${raffle.trackingNumber}` : ''}`,
       ),
-      this.activityService.logDeliveryShipped(raffle.sellerId, raffle.id, raffle.trackingNumber),
+      this.activityService.logDeliveryShipped(
+        raffle.sellerId,
+        raffle.id,
+        raffle.trackingNumber,
+      ),
     ]);
   }
 
@@ -536,11 +638,13 @@ export class RafflesService {
     const raffle = await this.findOne(raffleId);
 
     if (raffle.winnerId !== userId) {
-      throw new ForbiddenException('Solo el ganador puede confirmar la entrega');
+      throw new ForbiddenException(
+        'Solo el ganador puede confirmar la entrega',
+      );
     }
 
     if (raffle.deliveryStatus === 'CONFIRMED') {
-        throw new BadRequestException('La entrega ya ha sido confirmada');
+      throw new BadRequestException('La entrega ya ha sido confirmada');
     }
 
     // 1. Release Funds (Placeholder)
@@ -549,14 +653,14 @@ export class RafflesService {
 
     // 2. Increment Seller Reputation
     await this.prisma.userReputation.upsert({
-        where: { userId: raffle.sellerId },
-        create: {
-            userId: raffle.sellerId,
-            totalVentasCompletadas: 1
-        },
-        update: {
-            totalVentasCompletadas: { increment: 1 }
-        }
+      where: { userId: raffle.sellerId },
+      create: {
+        userId: raffle.sellerId,
+        totalVentasCompletadas: 1,
+      },
+      update: {
+        totalVentasCompletadas: { increment: 1 },
+      },
     });
 
     // 3. Update Raffle Status
@@ -579,7 +683,9 @@ export class RafflesService {
 
     // Notify seller about delivery confirmation (non-blocking)
     this.notifyDeliveryConfirmed(updatedRaffle).catch((err) => {
-      this.logger.error(`Failed to send delivery confirmation notifications: ${err.message}`);
+      this.logger.error(
+        `Failed to send delivery confirmation notifications: ${err.message}`,
+      );
     });
 
     return updatedRaffle;
@@ -638,18 +744,31 @@ export class RafflesService {
     // Emit raffle drawn event for cross-cutting concerns
     this.eventEmitter.emit(
       RaffleEvents.DRAWN,
-      new RaffleDrawnEvent(raffleId, winningTicket.buyerId, winningTicket.numeroTicket, raffle.sellerId),
+      new RaffleDrawnEvent(
+        raffleId,
+        winningTicket.buyerId,
+        winningTicket.numeroTicket,
+        raffle.sellerId,
+      ),
     );
 
     // Notify winner and participants (non-blocking)
-    this.notifyDrawResult(updatedRaffle, paidTickets, winningTicket).catch((err) => {
-      this.logger.error(`Failed to send draw result notifications: ${err.message}`);
-    });
+    this.notifyDrawResult(updatedRaffle, paidTickets, winningTicket).catch(
+      (err) => {
+        this.logger.error(
+          `Failed to send draw result notifications: ${err.message}`,
+        );
+      },
+    );
 
     return updatedRaffle;
   }
 
-  private async notifyDrawResult(raffle: any, paidTickets: any[], winningTicket: any) {
+  private async notifyDrawResult(
+    raffle: any,
+    paidTickets: any[],
+    winningTicket: any,
+  ) {
     const notifications: Promise<any>[] = [];
 
     // Notify winner via email and in-app
@@ -690,9 +809,16 @@ export class RafflesService {
     }
 
     // Notify non-winners
-    const uniqueNonWinners = new Map<string, { id: string; email: string; nombre: string }>();
+    const uniqueNonWinners = new Map<
+      string,
+      { id: string; email: string; nombre: string }
+    >();
     for (const ticket of paidTickets) {
-      if (ticket.buyerId !== winningTicket.buyerId && ticket.buyer && !uniqueNonWinners.has(ticket.buyerId)) {
+      if (
+        ticket.buyerId !== winningTicket.buyerId &&
+        ticket.buyer &&
+        !uniqueNonWinners.has(ticket.buyerId)
+      ) {
         uniqueNonWinners.set(ticket.buyerId, ticket.buyer);
       }
     }
@@ -716,7 +842,11 @@ export class RafflesService {
 
     // Log activity
     notifications.push(
-      this.activityService.logRaffleDrawn(raffle.sellerId, raffle.id, raffle.winnerId),
+      this.activityService.logRaffleDrawn(
+        raffle.sellerId,
+        raffle.id,
+        raffle.winnerId,
+      ),
     );
 
     await Promise.all(notifications);
@@ -724,18 +854,21 @@ export class RafflesService {
 
   async suggestPriceReduction(raffleId: string) {
     const raffle = await this.findOne(raffleId);
-    
+
     const soldTickets = await this.prisma.ticket.count({
       where: { raffleId, estado: 'PAGADO' },
     });
 
     const porcentajeVendido = soldTickets / raffle.totalTickets;
     const porcentajeNoVendido = 1 - porcentajeVendido;
-    
+
     const factorReduccion = porcentajeNoVendido * 0.5;
     const precioActual = Number(raffle.precioPorTicket);
-    const precioSugerido = Math.round(precioActual * (1 - factorReduccion) * 100) / 100;
-    const porcentajeReduccion = Math.round(((precioActual - precioSugerido) / precioActual) * 100 * 100) / 100;
+    const precioSugerido =
+      Math.round(precioActual * (1 - factorReduccion) * 100) / 100;
+    const porcentajeReduccion =
+      Math.round(((precioActual - precioSugerido) / precioActual) * 100 * 100) /
+      100;
 
     return this.prisma.priceReduction.create({
       data: {
@@ -758,7 +891,8 @@ export class RafflesService {
   }
 
   getTicketStats(raffle: any) {
-    const soldTickets = raffle.tickets?.filter((t: any) => t.estado === 'PAGADO').length || 0;
+    const soldTickets =
+      raffle.tickets?.filter((t: any) => t.estado === 'PAGADO').length || 0;
     return {
       ticketsVendidos: soldTickets,
       ticketsDisponibles: raffle.totalTickets - soldTickets,
@@ -767,7 +901,11 @@ export class RafflesService {
     };
   }
 
-  async extendRaffleDeadline(raffleId: string, userId: string, newDeadline: Date) {
+  async extendRaffleDeadline(
+    raffleId: string,
+    userId: string,
+    newDeadline: Date,
+  ) {
     const raffle = await this.findOne(raffleId);
 
     if (raffle.sellerId !== userId) {
@@ -775,7 +913,9 @@ export class RafflesService {
     }
 
     if (raffle.estado !== 'ACTIVA') {
-      throw new BadRequestException('Solo se puede extender el plazo de rifas activas');
+      throw new BadRequestException(
+        'Solo se puede extender el plazo de rifas activas',
+      );
     }
 
     if (newDeadline <= new Date()) {
@@ -783,18 +923,26 @@ export class RafflesService {
     }
 
     if (newDeadline <= raffle.fechaLimiteSorteo) {
-      throw new BadRequestException('La nueva fecha debe ser posterior a la fecha límite actual');
+      throw new BadRequestException(
+        'La nueva fecha debe ser posterior a la fecha límite actual',
+      );
     }
 
     const updatedRaffle = await this.prisma.raffle.update({
       where: { id: raffleId },
       data: { fechaLimiteSorteo: newDeadline },
-      include: { product: true, seller: true, tickets: { where: { estado: 'PAGADO' }, include: { buyer: true } } },
+      include: {
+        product: true,
+        seller: true,
+        tickets: { where: { estado: 'PAGADO' }, include: { buyer: true } },
+      },
     });
 
     // Notify ticket holders about deadline extension (non-blocking)
     this.notifyDeadlineExtension(updatedRaffle, newDeadline).catch((err) => {
-      this.logger.error(`Failed to send deadline extension notifications: ${err.message}`);
+      this.logger.error(
+        `Failed to send deadline extension notifications: ${err.message}`,
+      );
     });
 
     return updatedRaffle;
@@ -822,7 +970,11 @@ export class RafflesService {
 
     // Log activity
     notifications.push(
-      this.activityService.logRaffleDeadlineExtended(raffle.sellerId, raffle.id, newDeadline),
+      this.activityService.logRaffleDeadlineExtended(
+        raffle.sellerId,
+        raffle.id,
+        newDeadline,
+      ),
     );
 
     await Promise.all(notifications);
@@ -832,7 +984,9 @@ export class RafflesService {
     const raffle = await this.findOne(raffleId);
 
     if (raffle.estado !== 'SORTEADA') {
-      throw new BadRequestException('Solo se puede rechazar el ganador de rifas sorteadas');
+      throw new BadRequestException(
+        'Solo se puede rechazar el ganador de rifas sorteadas',
+      );
     }
 
     if (!raffle.winnerId) {
@@ -853,14 +1007,23 @@ export class RafflesService {
     });
 
     // Log the rejection and notify affected parties (non-blocking)
-    this.notifyWinnerRejection(raffle, previousWinnerId, adminId, reason).catch((err) => {
-      this.logger.error(`Failed to send winner rejection notifications: ${err.message}`);
-    });
+    this.notifyWinnerRejection(raffle, previousWinnerId, adminId, reason).catch(
+      (err) => {
+        this.logger.error(
+          `Failed to send winner rejection notifications: ${err.message}`,
+        );
+      },
+    );
 
     return updatedRaffle;
   }
 
-  private async notifyWinnerRejection(raffle: any, previousWinnerId: string, adminId: string, reason: string) {
+  private async notifyWinnerRejection(
+    raffle: any,
+    previousWinnerId: string,
+    adminId: string,
+    reason: string,
+  ) {
     const notifications: Promise<any>[] = [];
 
     // Notify previous winner
@@ -885,7 +1048,12 @@ export class RafflesService {
 
     // Log activity
     notifications.push(
-      this.activityService.logRaffleWinnerRejected(adminId, raffle.id, previousWinnerId, reason),
+      this.activityService.logRaffleWinnerRejected(
+        adminId,
+        raffle.id,
+        previousWinnerId,
+        reason,
+      ),
     );
 
     await Promise.all(notifications);
@@ -924,11 +1092,13 @@ export class RafflesService {
       }
 
       if (raffle.estado === 'ACTIVA') activeRaffles++;
-      if (['SORTEADA', 'FINALIZADA', 'EN_ENTREGA'].includes(raffle.estado)) completedRaffles++;
+      if (['SORTEADA', 'FINALIZADA', 'EN_ENTREGA'].includes(raffle.estado))
+        completedRaffles++;
     }
 
     // Calculate conversion rate (tickets sold / views)
-    const conversionRate = totalViews > 0 ? (totalTicketsSold / totalViews) * 100 : 0;
+    const conversionRate =
+      totalViews > 0 ? (totalTicketsSold / totalViews) * 100 : 0;
 
     // Get monthly revenue for the last 12 months
     const monthlyRevenue = await this.getMonthlyRevenue(sellerId);
@@ -959,12 +1129,19 @@ export class RafflesService {
     });
 
     // Group by month
-    const monthlyData = new Map<string, { revenue: number; ticketsSold: number; rafflesCompleted: Set<string> }>();
+    const monthlyData = new Map<
+      string,
+      { revenue: number; ticketsSold: number; rafflesCompleted: Set<string> }
+    >();
 
     for (let i = 0; i < 12; i++) {
       const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
       const key = `${date.getFullYear()}-${date.getMonth() + 1}`;
-      monthlyData.set(key, { revenue: 0, ticketsSold: 0, rafflesCompleted: new Set() });
+      monthlyData.set(key, {
+        revenue: 0,
+        ticketsSold: 0,
+        rafflesCompleted: new Set(),
+      });
     }
 
     for (const ticket of tickets) {
@@ -996,7 +1173,12 @@ export class RafflesService {
   }
 
   async bulkCancelRaffles(sellerId: string, raffleIds: string[]) {
-    const results = { successCount: 0, failedCount: 0, failedIds: [] as string[], errors: [] as string[] };
+    const results = {
+      successCount: 0,
+      failedCount: 0,
+      failedIds: [] as string[],
+      errors: [] as string[],
+    };
 
     for (const raffleId of raffleIds) {
       try {
@@ -1012,8 +1194,17 @@ export class RafflesService {
     return results;
   }
 
-  async bulkExtendRaffles(sellerId: string, raffleIds: string[], newDeadline: Date) {
-    const results = { successCount: 0, failedCount: 0, failedIds: [] as string[], errors: [] as string[] };
+  async bulkExtendRaffles(
+    sellerId: string,
+    raffleIds: string[],
+    newDeadline: Date,
+  ) {
+    const results = {
+      successCount: 0,
+      failedCount: 0,
+      failedIds: [] as string[],
+      errors: [] as string[],
+    };
 
     for (const raffleId of raffleIds) {
       try {
@@ -1049,16 +1240,21 @@ export class RafflesService {
     });
 
     // Calculate stats
-    const paidTickets = tickets.filter(t => t.estado === 'PAGADO');
+    const paidTickets = tickets.filter((t) => t.estado === 'PAGADO');
     const totalTicketsPurchased = paidTickets.length;
-    const totalSpent = paidTickets.reduce((sum, t) => sum + Number(t.precioPagado), 0);
+    const totalSpent = paidTickets.reduce(
+      (sum, t) => sum + Number(t.precioPagado),
+      0,
+    );
 
     // Count unique raffles participated
-    const uniqueRaffles = new Set(paidTickets.map(t => t.raffleId)).size;
+    const uniqueRaffles = new Set(paidTickets.map((t) => t.raffleId)).size;
     const winRate = uniqueRaffles > 0 ? (rafflesWon / uniqueRaffles) * 100 : 0;
 
     // Active tickets (in ACTIVA raffles)
-    const activeTickets = paidTickets.filter(t => t.raffle.estado === 'ACTIVA').length;
+    const activeTickets = paidTickets.filter(
+      (t) => t.raffle.estado === 'ACTIVA',
+    ).length;
 
     return {
       totalTicketsPurchased,
@@ -1102,8 +1298,8 @@ export class RafflesService {
       .map(([cat]) => cat);
 
     // Get raffles user hasn't participated in, prioritizing top categories
-    const participatedRaffleIds = new Set(userTickets.map(t => t.raffleId));
-    const favoritedRaffleIds = new Set(userFavorites.map(f => f.raffleId));
+    const participatedRaffleIds = new Set(userTickets.map((t) => t.raffleId));
+    const favoritedRaffleIds = new Set(userFavorites.map((f) => f.raffleId));
 
     const recommendations = await this.prisma.raffle.findMany({
       where: {
@@ -1115,7 +1311,11 @@ export class RafflesService {
           product: { categoria: { in: topCategories } },
         }),
       },
-      include: { product: true, seller: true, _count: { select: { tickets: true } } },
+      include: {
+        product: true,
+        seller: true,
+        _count: { select: { tickets: true } },
+      },
       orderBy: { createdAt: 'desc' },
       take: limit,
     });
@@ -1128,10 +1328,17 @@ export class RafflesService {
           isHidden: false,
           sellerId: { not: userId },
           id: {
-            notIn: [...Array.from(participatedRaffleIds), ...recommendations.map(r => r.id)]
+            notIn: [
+              ...Array.from(participatedRaffleIds),
+              ...recommendations.map((r) => r.id),
+            ],
           },
         },
-        include: { product: true, seller: true, _count: { select: { tickets: true } } },
+        include: {
+          product: true,
+          seller: true,
+          _count: { select: { tickets: true } },
+        },
         orderBy: { viewCount: 'desc' },
         take: limit - recommendations.length,
       });
@@ -1142,7 +1349,9 @@ export class RafflesService {
   }
 
   async getFavoritesEndingSoon(userId: string, hoursThreshold = 48) {
-    const thresholdDate = new Date(Date.now() + hoursThreshold * 60 * 60 * 1000);
+    const thresholdDate = new Date(
+      Date.now() + hoursThreshold * 60 * 60 * 1000,
+    );
 
     return this.prisma.raffle.findMany({
       where: {
@@ -1150,7 +1359,11 @@ export class RafflesService {
         estado: 'ACTIVA',
         fechaLimiteSorteo: { lte: thresholdDate },
       },
-      include: { product: true, seller: true, _count: { select: { tickets: true } } },
+      include: {
+        product: true,
+        seller: true,
+        _count: { select: { tickets: true } },
+      },
       orderBy: { fechaLimiteSorteo: 'asc' },
     });
   }
@@ -1165,7 +1378,9 @@ export class RafflesService {
     }
 
     if (raffle.estado !== 'ACTIVA') {
-      throw new BadRequestException('Solo se puede cambiar el precio de rifas activas');
+      throw new BadRequestException(
+        'Solo se puede cambiar el precio de rifas activas',
+      );
     }
 
     if (newPrice <= 0) {
@@ -1205,9 +1420,13 @@ export class RafflesService {
     });
 
     // Notify users who favorited this raffle (async, non-blocking)
-    this.notifyPriceDrop(raffleId, raffle.titulo, oldPrice, newPrice).catch((err) => {
-      this.logger.error(`Failed to send price drop notifications: ${err.message}`);
-    });
+    this.notifyPriceDrop(raffleId, raffle.titulo, oldPrice, newPrice).catch(
+      (err) => {
+        this.logger.error(
+          `Failed to send price drop notifications: ${err.message}`,
+        );
+      },
+    );
 
     // Invalidate cache
     this.invalidateRaffleCache(raffleId).catch((err) => {
@@ -1224,7 +1443,12 @@ export class RafflesService {
     });
   }
 
-  private async notifyPriceDrop(raffleId: string, raffleName: string, oldPrice: number, newPrice: number) {
+  private async notifyPriceDrop(
+    raffleId: string,
+    raffleName: string,
+    oldPrice: number,
+    newPrice: number,
+  ) {
     // Get all users who favorited this raffle
     const favorites = await this.prisma.favorite.findMany({
       where: { raffleId },
@@ -1266,6 +1490,8 @@ export class RafflesService {
     }
 
     await Promise.all(notifications);
-    this.logger.log(`Sent price drop notifications to ${favorites.length} users for raffle ${raffleId}`);
+    this.logger.log(
+      `Sent price drop notifications to ${favorites.length} users for raffle ${raffleId}`,
+    );
   }
 }

@@ -55,15 +55,19 @@ export class AuditService {
 
     if (filters.startDate || filters.endDate) {
       where.createdAt = {};
-      if (filters.startDate) (where.createdAt as Record<string, Date>).gte = filters.startDate;
-      if (filters.endDate) (where.createdAt as Record<string, Date>).lte = filters.endDate;
+      if (filters.startDate)
+        (where.createdAt as Record<string, Date>).gte = filters.startDate;
+      if (filters.endDate)
+        (where.createdAt as Record<string, Date>).lte = filters.endDate;
     }
 
     const [logs, total] = await Promise.all([
       this.prisma.auditLog.findMany({
         where,
         include: {
-          admin: { select: { id: true, email: true, nombre: true, apellido: true } },
+          admin: {
+            select: { id: true, email: true, nombre: true, apellido: true },
+          },
         },
         orderBy: { createdAt: 'desc' },
         take: filters.limit ?? 50,

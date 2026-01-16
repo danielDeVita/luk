@@ -44,15 +44,18 @@ export class MpController {
     const eventType =
       body?.type ??
       body?.topic ??
-      (typeof body?.action === 'string' ? body.action.split('.')[0] : undefined);
+      (typeof body?.action === 'string'
+        ? body.action.split('.')[0]
+        : undefined);
 
     this.logger.log(
       `Received MP webhook: type=${eventType ?? 'unknown'} id=${eventId ?? 'unknown'}`,
     );
 
     // Verify webhook signature in production
-    const webhookSecret = this.configService.get<string>('MP_WEBHOOK_SECRET') ||
-                          this.configService.get<string>('MP_CLIENT_SECRET');
+    const webhookSecret =
+      this.configService.get<string>('MP_WEBHOOK_SECRET') ||
+      this.configService.get<string>('MP_CLIENT_SECRET');
     const isProduction = this.configService.get('NODE_ENV') === 'production';
 
     if (webhookSecret && eventId) {
@@ -64,7 +67,9 @@ export class MpController {
       });
 
       if (!verification.valid) {
-        this.logger.warn(`Webhook signature verification failed: ${verification.reason}`);
+        this.logger.warn(
+          `Webhook signature verification failed: ${verification.reason}`,
+        );
         // In production, reject invalid signatures
         // In development, log warning but continue (for local testing with ngrok)
         if (isProduction) {
@@ -75,7 +80,9 @@ export class MpController {
         }
       }
     } else if (isProduction && !webhookSecret) {
-      this.logger.warn('MP_WEBHOOK_SECRET or MP_CLIENT_SECRET not configured - webhook signature verification disabled');
+      this.logger.warn(
+        'MP_WEBHOOK_SECRET or MP_CLIENT_SECRET not configured - webhook signature verification disabled',
+      );
     }
 
     if (!eventType || !eventId) {
@@ -113,12 +120,15 @@ export class MpController {
     @Res() res: Response,
   ) {
     if (!paymentId) {
-      return res.status(HttpStatus.BAD_REQUEST).json({ error: 'payment_id required' });
+      return res
+        .status(HttpStatus.BAD_REQUEST)
+        .json({ error: 'payment_id required' });
     }
 
     try {
       // Opportunistically sync status to handle cases where webhook failed or local dev
-      const syncResult = await this.paymentsService.syncPaymentStatus(paymentId);
+      const syncResult =
+        await this.paymentsService.syncPaymentStatus(paymentId);
 
       const status = await this.paymentsService.getPaymentStatus(paymentId);
       return res.status(HttpStatus.OK).json({
@@ -148,11 +158,14 @@ export class MpController {
     @Res() res: Response,
   ) {
     if (!paymentId) {
-      return res.status(HttpStatus.BAD_REQUEST).json({ error: 'paymentId required' });
+      return res
+        .status(HttpStatus.BAD_REQUEST)
+        .json({ error: 'paymentId required' });
     }
 
     try {
-      const syncResult = await this.paymentsService.syncPaymentStatus(paymentId);
+      const syncResult =
+        await this.paymentsService.syncPaymentStatus(paymentId);
       this.logger.log(
         `Sync result for ${paymentId}: status=${syncResult.status} alreadyProcessed=${syncResult.alreadyProcessed} ticketsUpdated=${syncResult.ticketsUpdated}`,
       );

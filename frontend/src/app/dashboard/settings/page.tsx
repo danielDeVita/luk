@@ -17,6 +17,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Loader2, User, Lock, CreditCard, CheckCircle2, XCircle, ExternalLink, Shield, AlertTriangle, Clock, FileCheck, Camera, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
+import Image from 'next/image';
 import { getOptimizedImageUrl, CLOUDINARY_PRESETS } from '@/lib/cloudinary';
 
 // Types
@@ -219,42 +220,11 @@ function SettingsContent() {
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [avatarDeleting, setAvatarDeleting] = useState(false);
 
-  useEffect(() => {
-    if (!isAuthenticated) {
-      router.push('/auth/login');
-    }
-  }, [isAuthenticated, router]);
-
-  if (!isAuthenticated) return null;
-
-  // Get user data from server
+  // All hooks must be called unconditionally, before any early returns
   const { data: userData, loading: userLoading, refetch: refetchUserData } = useQuery<MpStatusData>(GET_USER_DATA, {
     fetchPolicy: 'network-only',
   });
 
-  const mpStatus = userData?.me?.mpConnectStatus || 'NOT_CONNECTED';
-  const mpUserId = userData?.me?.mpUserId;
-  const isConnected = mpStatus === 'CONNECTED';
-  const kycStatus = userData?.me?.kycStatus || 'NOT_SUBMITTED';
-  const isKycVerified = kycStatus === 'VERIFIED';
-  const isKycPending = kycStatus === 'PENDING_REVIEW';
-
-  // Handle query params for MP connection result
-  useEffect(() => {
-    const mpConnected = searchParams.get('mp_connected');
-    const mpError = searchParams.get('mp_error');
-
-    if (mpConnected === 'true') {
-      toast.success('Mercado Pago conectado exitosamente');
-      refetchUserData();
-      window.history.replaceState({}, '', '/dashboard/settings');
-    } else if (mpError) {
-      toast.error(`Error al conectar Mercado Pago: ${mpError}`);
-      window.history.replaceState({}, '', '/dashboard/settings');
-    }
-  }, [searchParams, refetchUserData]);
-
-  // Profile Form
   const { register: registerProfile, handleSubmit: handleProfileSubmit, formState: { errors: profileErrors, isSubmitting: isProfileSubmitting } } = useForm<ProfileForm>({
     resolver: zodResolver(profileSchema),
     defaultValues: {
@@ -264,12 +234,10 @@ function SettingsContent() {
     },
   });
 
-  // Password Form
   const { register: registerPass, handleSubmit: handlePassSubmit, reset: resetPass, formState: { errors: passErrors, isSubmitting: isPassSubmitting } } = useForm<PasswordForm>({
     resolver: zodResolver(passwordSchema),
   });
 
-  // KYC Form
   const { register: registerKyc, handleSubmit: handleKycSubmit, setValue: setKycValue, watch: watchKyc, formState: { errors: kycErrors, isSubmitting: isKycSubmitting } } = useForm<KycForm>({
     resolver: zodResolver(kycSchema),
     defaultValues: {
@@ -286,27 +254,6 @@ function SettingsContent() {
     },
   });
 
-  // Update KYC form when data loads
-  useEffect(() => {
-    if (userData?.me) {
-      const me = userData.me;
-      if (me.documentType) setKycValue('documentType', me.documentType as 'DNI' | 'PASSPORT' | 'CUIT_CUIL');
-      if (me.documentNumber) setKycValue('documentNumber', me.documentNumber);
-      if (me.street) setKycValue('street', me.street);
-      if (me.streetNumber) setKycValue('streetNumber', me.streetNumber);
-      if (me.apartment) setKycValue('apartment', me.apartment);
-      if (me.city) setKycValue('city', me.city);
-      if (me.province) setKycValue('province', me.province);
-      if (me.postalCode) setKycValue('postalCode', me.postalCode);
-      if (me.phone) setKycValue('phone', me.phone);
-      if (me.cuitCuil) setKycValue('cuitCuil', me.cuitCuil);
-    }
-  }, [userData, setKycValue]);
-
-  const watchedDocType = watchKyc('documentType');
-  const watchedProvince = watchKyc('province');
-
-  // Mutations
   const [updateProfile] = useMutation(UPDATE_PROFILE, {
     onCompleted: () => {
       toast.success('Perfil actualizado correctamente');
@@ -360,6 +307,57 @@ function SettingsContent() {
       toast.error(error.message || 'Error al eliminar avatar');
     }
   });
+
+  // Now the early return check (after all hooks are declared)
+  useEffect(() => {
+    if (!isAuthenticated) {
+      router.push('/auth/login');
+    }
+  }, [isAuthenticated, router]);
+
+  if (!isAuthenticated) return null;
+
+  const mpStatus = userData?.me?.mpConnectStatus || 'NOT_CONNECTED';
+  const mpUserId = userData?.me?.mpUserId;
+  const isConnected = mpStatus === 'CONNECTED';
+  const kycStatus = userData?.me?.kycStatus || 'NOT_SUBMITTED';
+  const isKycVerified = kycStatus === 'VERIFIED';
+  const isKycPending = kycStatus === 'PENDING_REVIEW';
+
+  // Handle query params for MP connection result
+  useEffect(() => {
+    const mpConnected = searchParams.get('mp_connected');
+    const mpError = searchParams.get('mp_error');
+
+    if (mpConnected === 'true') {
+      toast.success('Mercado Pago conectado exitosamente');
+      refetchUserData();
+      window.history.replaceState({}, '', '/dashboard/settings');
+    } else if (mpError) {
+      toast.error(`Error al conectar Mercado Pago: ${mpError}`);
+      window.history.replaceState({}, '', '/dashboard/settings');
+    }
+  }, [searchParams, refetchUserData]);
+
+  // Update KYC form when data loads
+  useEffect(() => {
+    if (userData?.me) {
+      const me = userData.me;
+      if (me.documentType) setKycValue('documentType', me.documentType as 'DNI' | 'PASSPORT' | 'CUIT_CUIL');
+      if (me.documentNumber) setKycValue('documentNumber', me.documentNumber);
+      if (me.street) setKycValue('street', me.street);
+      if (me.streetNumber) setKycValue('streetNumber', me.streetNumber);
+      if (me.apartment) setKycValue('apartment', me.apartment);
+      if (me.city) setKycValue('city', me.city);
+      if (me.province) setKycValue('province', me.province);
+      if (me.postalCode) setKycValue('postalCode', me.postalCode);
+      if (me.phone) setKycValue('phone', me.phone);
+      if (me.cuitCuil) setKycValue('cuitCuil', me.cuitCuil);
+    }
+  }, [userData, setKycValue]);
+
+  const watchedDocType = watchKyc('documentType');
+  const watchedProvince = watchKyc('province');
 
   const onProfileSubmit = (data: ProfileForm) => {
     updateProfile({ variables: { input: data } });
@@ -528,9 +526,11 @@ function SettingsContent() {
               <div className="flex items-center gap-6 pb-6 border-b">
                 <div className="relative">
                   {user?.avatarUrl || userData?.me?.avatarUrl ? (
-                    <img
+                    <Image
                       src={getOptimizedImageUrl(user?.avatarUrl || userData?.me?.avatarUrl || '', CLOUDINARY_PRESETS.avatar)}
                       alt="Avatar"
+                      width={96}
+                      height={96}
                       className="w-24 h-24 rounded-full object-cover border-4 border-primary/20"
                     />
                   ) : (

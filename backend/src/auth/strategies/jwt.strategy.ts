@@ -27,7 +27,8 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       },
       // 2. Fall back to Authorization header (for backwards compatibility)
       (req: any) => {
-        const authHeader = req?.headers?.authorization ?? req?.headers?.Authorization;
+        const authHeader =
+          req?.headers?.authorization ?? req?.headers?.Authorization;
         if (typeof authHeader !== 'string') return null;
         return authHeader.replace(/^Bearer\s+/i, '');
       },

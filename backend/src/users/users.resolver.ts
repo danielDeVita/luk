@@ -4,7 +4,13 @@ import { UsersService } from './users.service';
 import { User } from './entities/user.entity';
 import { GqlAuthGuard } from '../auth/guards/gql-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
-import { UpdateProfileInput, ChangePasswordInput, UpdateKycInput, AcceptTermsInput, UpdateAvatarInput } from './dto/update-user.input';
+import {
+  UpdateProfileInput,
+  ChangePasswordInput,
+  UpdateKycInput,
+  AcceptTermsInput,
+  UpdateAvatarInput,
+} from './dto/update-user.input';
 import { PublicSellerProfile } from './entities/public-seller-profile.entity';
 import { Public } from '../auth/decorators/public.decorator';
 

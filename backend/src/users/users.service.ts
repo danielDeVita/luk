@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { UserRole, SellerLevel, KycStatus } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
@@ -26,12 +30,15 @@ export class UsersService {
   }
 
   async findByEmail(email: string) {
-    return this.prisma.user.findUnique({ 
-      where: { email } 
+    return this.prisma.user.findUnique({
+      where: { email },
     });
   }
 
-  async updateProfile(userId: string, data: { nombre?: string; apellido?: string; phone?: string }) {
+  async updateProfile(
+    userId: string,
+    data: { nombre?: string; apellido?: string; phone?: string },
+  ) {
     return this.prisma.user.update({
       where: { id: userId },
       data,
@@ -49,7 +56,9 @@ export class UsersService {
 
     // If already verified, don't allow changes
     if (user.kycStatus === KycStatus.VERIFIED) {
-      throw new BadRequestException('KYC ya verificado. Contacte soporte para cambios.');
+      throw new BadRequestException(
+        'KYC ya verificado. Contacte soporte para cambios.',
+      );
     }
 
     return this.prisma.user.update({
@@ -96,7 +105,9 @@ export class UsersService {
   async getUserStats(userId: string) {
     const [rafflesCreated, ticketsPurchased, rafflesWon] = await Promise.all([
       this.prisma.raffle.count({ where: { sellerId: userId } }),
-      this.prisma.ticket.count({ where: { buyerId: userId, estado: 'PAGADO' } }),
+      this.prisma.ticket.count({
+        where: { buyerId: userId, estado: 'PAGADO' },
+      }),
       this.prisma.raffle.count({ where: { winnerId: userId } }),
     ]);
 
@@ -127,13 +138,19 @@ export class UsersService {
     });
   }
 
-  async changePassword(userId: string, oldPassword: string, newPassword: string) {
+  async changePassword(
+    userId: string,
+    oldPassword: string,
+    newPassword: string,
+  ) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
     });
 
     if (!user || !user.passwordHash) {
-      throw new NotFoundException('Usuario no encontrado o sin contraseña configurada (OAuth)');
+      throw new NotFoundException(
+        'Usuario no encontrado o sin contraseña configurada (OAuth)',
+      );
     }
 
     const isMatch = await bcrypt.compare(oldPassword, user.passwordHash);
@@ -156,10 +173,10 @@ export class UsersService {
         rafflesCreated: {
           where: { isHidden: false }, // Only show public raffles
           include: { product: true },
-          orderBy: { createdAt: 'desc' }
+          orderBy: { createdAt: 'desc' },
         },
         reputation: true,
-      }
+      },
     });
 
     if (!user) throw new NotFoundException('Vendedor no encontrado');
@@ -187,7 +204,7 @@ export class UsersService {
     const existing = await this.prisma.userReputation.findUnique({
       where: { userId },
     });
-    
+
     if (existing) return existing;
 
     return this.prisma.userReputation.create({

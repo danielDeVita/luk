@@ -173,7 +173,11 @@ export abstract class BaseRepository<
    * @param include - Optional relations to include in the result
    * @returns The updated record
    */
-  async update(id: string, data: UpdateInput, include?: IncludeInput): Promise<T> {
+  async update(
+    id: string,
+    data: UpdateInput,
+    include?: IncludeInput,
+  ): Promise<T> {
     return this.delegate.update({
       where: { id },
       data,
@@ -189,7 +193,11 @@ export abstract class BaseRepository<
    * @param include - Optional relations to include in the result
    * @returns The updated record
    */
-  async updateWhere(where: WhereInput, data: UpdateInput, include?: IncludeInput): Promise<T> {
+  async updateWhere(
+    where: WhereInput,
+    data: UpdateInput,
+    include?: IncludeInput,
+  ): Promise<T> {
     return this.delegate.update({
       where,
       data,

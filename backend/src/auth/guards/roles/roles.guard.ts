@@ -9,10 +9,10 @@ export class RolesGuard implements CanActivate {
   constructor(private reflector: Reflector) {}
 
   canActivate(context: ExecutionContext): boolean {
-    const requiredRoles = this.reflector.getAllAndOverride<UserRole[]>(ROLES_KEY, [
-      context.getHandler(),
-      context.getClass(),
-    ]);
+    const requiredRoles = this.reflector.getAllAndOverride<UserRole[]>(
+      ROLES_KEY,
+      [context.getHandler(), context.getClass()],
+    );
 
     // If no roles are required, allow access
     if (!requiredRoles || requiredRoles.length === 0) {
@@ -20,7 +20,7 @@ export class RolesGuard implements CanActivate {
     }
 
     const user = this.getUser(context);
-    
+
     // No user means not authenticated
     if (!user) {
       return false;
@@ -32,12 +32,12 @@ export class RolesGuard implements CanActivate {
 
   private getUser(context: ExecutionContext) {
     const type = context.getType<string>();
-    
+
     if (type === 'graphql') {
       const ctx = GqlExecutionContext.create(context);
       return ctx.getContext().req?.user;
     }
-    
+
     return context.switchToHttp().getRequest()?.user;
   }
 }

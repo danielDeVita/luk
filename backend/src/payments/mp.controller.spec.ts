@@ -187,8 +187,12 @@ describe('MpController', () => {
 
       await controller.getPaymentStatus('12345678', res);
 
-      expect(mockPaymentsService.syncPaymentStatus).toHaveBeenCalledWith('12345678');
-      expect(mockPaymentsService.getPaymentStatus).toHaveBeenCalledWith('12345678');
+      expect(mockPaymentsService.syncPaymentStatus).toHaveBeenCalledWith(
+        '12345678',
+      );
+      expect(mockPaymentsService.getPaymentStatus).toHaveBeenCalledWith(
+        '12345678',
+      );
       expect(res.status).toHaveBeenCalledWith(HttpStatus.OK);
       expect(res.json).toHaveBeenCalledWith({
         status: 'approved',
@@ -237,7 +241,9 @@ describe('MpController', () => {
 
       await controller.syncPayment('12345678', res);
 
-      expect(mockPaymentsService.syncPaymentStatus).toHaveBeenCalledWith('12345678');
+      expect(mockPaymentsService.syncPaymentStatus).toHaveBeenCalledWith(
+        '12345678',
+      );
       expect(res.status).toHaveBeenCalledWith(HttpStatus.OK);
       expect(res.json).toHaveBeenCalledWith({
         status: 'approved',

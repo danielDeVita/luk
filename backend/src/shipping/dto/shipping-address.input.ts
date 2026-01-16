@@ -1,5 +1,11 @@
 import { InputType, Field } from '@nestjs/graphql';
-import { IsString, IsOptional, MinLength, IsBoolean, Matches } from 'class-validator';
+import {
+  IsString,
+  IsOptional,
+  MinLength,
+  IsBoolean,
+  Matches,
+} from 'class-validator';
 
 @InputType()
 export class CreateShippingAddressInput {
@@ -39,7 +45,9 @@ export class CreateShippingAddressInput {
 
   @Field()
   @IsString()
-  @Matches(/^[A-Z]?\d{4}[A-Z]{3}?$|^\d{4}$/, { message: 'Codigo postal invalido' })
+  @Matches(/^[A-Z]?\d{4}[A-Z]{3}?$|^\d{4}$/, {
+    message: 'Codigo postal invalido',
+  })
   postalCode!: string;
 
   @Field({ defaultValue: 'Argentina' })

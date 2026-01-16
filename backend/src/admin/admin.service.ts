@@ -45,8 +45,10 @@ export class AdminService {
 
     if (filters.startDate || filters.endDate) {
       where.processedAt = {};
-      if (filters.startDate) (where.processedAt as Record<string, Date>).gte = filters.startDate;
-      if (filters.endDate) (where.processedAt as Record<string, Date>).lte = filters.endDate;
+      if (filters.startDate)
+        (where.processedAt as Record<string, Date>).gte = filters.startDate;
+      if (filters.endDate)
+        (where.processedAt as Record<string, Date>).lte = filters.endDate;
     }
 
     const [events, total] = await Promise.all([
@@ -81,15 +83,19 @@ export class AdminService {
 
     if (filters.startDate || filters.endDate) {
       where.createdAt = {};
-      if (filters.startDate) (where.createdAt as Record<string, Date>).gte = filters.startDate;
-      if (filters.endDate) (where.createdAt as Record<string, Date>).lte = filters.endDate;
+      if (filters.startDate)
+        (where.createdAt as Record<string, Date>).gte = filters.startDate;
+      if (filters.endDate)
+        (where.createdAt as Record<string, Date>).lte = filters.endDate;
     }
 
     const [transactions, total] = await Promise.all([
       this.prisma.transaction.findMany({
         where,
         include: {
-          user: { select: { id: true, email: true, nombre: true, apellido: true } },
+          user: {
+            select: { id: true, email: true, nombre: true, apellido: true },
+          },
           raffle: { select: { id: true, titulo: true } },
         },
         orderBy: { createdAt: 'desc' },
@@ -106,7 +112,9 @@ export class AdminService {
     return this.prisma.transaction.findFirst({
       where: { mpPaymentId, isDeleted: false },
       include: {
-        user: { select: { id: true, email: true, nombre: true, apellido: true } },
+        user: {
+          select: { id: true, email: true, nombre: true, apellido: true },
+        },
         raffle: { select: { id: true, titulo: true, sellerId: true } },
       },
     });
@@ -148,7 +156,7 @@ export class AdminService {
       transactionStatus: transaction?.estado,
       transactionAmount: transaction?.monto,
       ticketsCount: tickets.length,
-      tickets: tickets.map(t => ({
+      tickets: tickets.map((t) => ({
         id: t.id,
         numeroTicket: t.numeroTicket,
         estado: t.estado,
@@ -260,7 +268,7 @@ export class AdminService {
     ]);
 
     return {
-      users: users.map(u => ({
+      users: users.map((u) => ({
         id: u.id,
         email: u.email,
         nombre: u.nombre,

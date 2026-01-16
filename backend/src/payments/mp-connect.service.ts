@@ -19,7 +19,10 @@ export class MpConnectService {
   private readonly logger = new Logger(MpConnectService.name);
 
   // Store PKCE verifiers temporarily (in production, use Redis)
-  private readonly pkceVerifiers = new Map<string, { verifier: string; userId: string; expiresAt: number }>();
+  private readonly pkceVerifiers = new Map<
+    string,
+    { verifier: string; userId: string; expiresAt: number }
+  >();
 
   constructor(
     private configService: ConfigService,
@@ -76,7 +79,10 @@ export class MpConnectService {
   /**
    * Exchange authorization code for tokens (with PKCE)
    */
-  async exchangeCodeForTokens(code: string, state: string): Promise<{
+  async exchangeCodeForTokens(
+    code: string,
+    state: string,
+  ): Promise<{
     userId: string;
     mpUserId: string;
   }> {
@@ -85,18 +91,24 @@ export class MpConnectService {
     const redirectUri = this.getRedirectUri();
 
     if (!clientId || !clientSecret) {
-      throw new BadRequestException('MP_CLIENT_ID o MP_CLIENT_SECRET no están configurados');
+      throw new BadRequestException(
+        'MP_CLIENT_ID o MP_CLIENT_SECRET no están configurados',
+      );
     }
 
     // Retrieve and validate PKCE verifier
     const pkceData = this.pkceVerifiers.get(state);
     if (!pkceData) {
-      throw new BadRequestException('Estado inválido o expirado. Intenta conectar nuevamente.');
+      throw new BadRequestException(
+        'Estado inválido o expirado. Intenta conectar nuevamente.',
+      );
     }
 
     if (pkceData.expiresAt < Date.now()) {
       this.pkceVerifiers.delete(state);
-      throw new BadRequestException('La sesión expiró. Intenta conectar nuevamente.');
+      throw new BadRequestException(
+        'La sesión expiró. Intenta conectar nuevamente.',
+      );
     }
 
     const { verifier, userId } = pkceData;
@@ -117,7 +129,7 @@ export class MpConnectService {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
-        'Accept': 'application/json',
+        Accept: 'application/json',
       },
       body: body.toString(),
     });
@@ -126,7 +138,8 @@ export class MpConnectService {
       const error = await response.json().catch(() => ({}));
       this.logger.error(`MP token exchange failed: ${JSON.stringify(error)}`);
       throw new BadRequestException(
-        error.message || 'Error al conectar con Mercado Pago. Intenta nuevamente.',
+        error.message ||
+          'Error al conectar con Mercado Pago. Intenta nuevamente.',
       );
     }
 
@@ -186,7 +199,7 @@ export class MpConnectService {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
-        'Accept': 'application/json',
+        Accept: 'application/json',
       },
       body: body.toString(),
     });
@@ -264,7 +277,8 @@ export class MpConnectService {
   }
 
   private getRedirectUri(): string {
-    const backendUrl = this.configService.get<string>('BACKEND_URL') || 'http://localhost:3001';
+    const backendUrl =
+      this.configService.get<string>('BACKEND_URL') || 'http://localhost:3001';
     return `${backendUrl.replace(/\/$/, '')}/mp/connect/callback`;
   }
 

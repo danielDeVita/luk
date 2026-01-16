@@ -1,5 +1,13 @@
 import { InputType, Field } from '@nestjs/graphql';
-import { IsOptional, IsString, MinLength, Matches, IsEnum, MaxLength, IsNotEmpty } from 'class-validator';
+import {
+  IsOptional,
+  IsString,
+  MinLength,
+  Matches,
+  IsEnum,
+  MaxLength,
+  IsNotEmpty,
+} from 'class-validator';
 import { DocumentType } from '../../common/enums';
 
 @InputType()
@@ -99,7 +107,9 @@ export class UpdateKycInput {
   @Field({ nullable: true })
   @IsOptional()
   @IsString()
-  @Matches(/^\d{2}-\d{8}-\d$/, { message: 'CUIT/CUIL debe tener el formato XX-XXXXXXXX-X' })
+  @Matches(/^\d{2}-\d{8}-\d$/, {
+    message: 'CUIT/CUIL debe tener el formato XX-XXXXXXXX-X',
+  })
   cuitCuil?: string;
 }
 

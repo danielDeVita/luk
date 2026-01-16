@@ -1,4 +1,9 @@
-import { Injectable, BadRequestException, NotFoundException, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  NotFoundException,
+  Logger,
+} from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../prisma/prisma.service';
 import { PaymentsService } from '../payments/payments.service';
@@ -33,11 +38,12 @@ export class TicketsService {
       );
     }
 
-    return this.prisma.$transaction(async (tx) => {
-      const reservationId = randomUUID();
+    return this.prisma.$transaction(
+      async (tx) => {
+        const reservationId = randomUUID();
 
-      // Lock the raffle row for update to prevent concurrent modifications
-      const [raffle] = await tx.$queryRaw<any[]>`
+        // Lock the raffle row for update to prevent concurrent modifications
+        const [raffle] = await tx.$queryRaw<any[]>`
         SELECT r.*, 
                (SELECT COUNT(*) FROM tickets t WHERE t.raffle_id = r.id AND t.estado != 'REEMBOLSADO') as sold_count
         FROM raffles r 
@@ -45,110 +51,123 @@ export class TicketsService {
         FOR UPDATE
       `;
 
-      if (!raffle) {
-        throw new NotFoundException('Rifa no encontrada');
-      }
-
-      if (raffle.estado !== 'ACTIVA') {
-        throw new BadRequestException('La rifa no está activa');
-      }
-
-      if (raffle.is_hidden) {
-        throw new BadRequestException('Esta rifa no está disponible');
-      }
-
-      if (raffle.seller_id === userId) {
-        throw new BadRequestException('No puedes comprar tickets de tu propia rifa');
-      }
-
-      // Check user's ticket count within transaction
-      const userTicketCount = await tx.ticket.count({
-        where: {
-          buyerId: userId,
-          raffleId,
-          estado: { not: 'REEMBOLSADO' },
-        },
-      });
-
-      const maxAllowed = Math.floor(raffle.total_tickets * this.MAX_TICKET_PERCENTAGE);
-      const remainingAllowed = maxAllowed - userTicketCount;
-
-      if (cantidad > remainingAllowed) {
-        throw new BadRequestException(
-          `Solo puedes comprar ${remainingAllowed} tickets más (límite 50%)`,
-        );
-      }
-
-      const soldTickets = Number(raffle.sold_count);
-      const availableTickets = raffle.total_tickets - soldTickets;
-
-      if (cantidad > availableTickets) {
-        throw new BadRequestException(`Solo quedan ${availableTickets} tickets disponibles`);
-      }
-
-      // Get available ticket numbers within transaction
-      const usedTickets = await tx.ticket.findMany({
-        where: { raffleId, estado: { not: 'REEMBOLSADO' } },
-        select: { numeroTicket: true },
-      });
-
-      const usedNumbers = new Set(usedTickets.map(t => t.numeroTicket));
-      const availableNumbers: number[] = [];
-
-      for (let i = 1; i <= raffle.total_tickets; i++) {
-        if (!usedNumbers.has(i)) {
-          availableNumbers.push(i);
+        if (!raffle) {
+          throw new NotFoundException('Rifa no encontrada');
         }
-      }
 
-      const selectedNumbers = availableNumbers.slice(0, cantidad);
+        if (raffle.estado !== 'ACTIVA') {
+          throw new BadRequestException('La rifa no está activa');
+        }
 
-      if (selectedNumbers.length < cantidad) {
-        throw new BadRequestException('No hay suficientes tickets disponibles');
-      }
+        if (raffle.is_hidden) {
+          throw new BadRequestException('Esta rifa no está disponible');
+        }
 
-      const totalAmount = Number(raffle.precio_por_ticket) * cantidad;
+        if (raffle.seller_id === userId) {
+          throw new BadRequestException(
+            'No puedes comprar tickets de tu propia rifa',
+          );
+        }
 
-      // Create tickets in RESERVADO state (will be confirmed by webhook)
-      const tickets = await Promise.all(
-        selectedNumbers.map(numeroTicket =>
-          tx.ticket.create({
-            data: {
-              raffleId,
-              numeroTicket,
-              buyerId: userId,
-              precioPagado: raffle.precio_por_ticket,
-              estado: 'RESERVADO',
-              mpExternalReference: reservationId,
-            },
-          }),
-        ),
-      );
+        // Check user's ticket count within transaction
+        const userTicketCount = await tx.ticket.count({
+          where: {
+            buyerId: userId,
+            raffleId,
+            estado: { not: 'REEMBOLSADO' },
+          },
+        });
 
-      this.logger.log(`User ${userId} reserved ${cantidad} tickets for raffle ${raffleId}`);
+        const maxAllowed = Math.floor(
+          raffle.total_tickets * this.MAX_TICKET_PERCENTAGE,
+        );
+        const remainingAllowed = maxAllowed - userTicketCount;
 
-      // Create Mercado Pago preference (outside transaction is ok)
-      const { initPoint, preferenceId } = await this.paymentsService.createPreference({
-        raffleId,
-        cantidad,
-        buyerId: userId,
-        precioPorTicket: Number(raffle.precio_por_ticket),
-        tituloRifa: raffle.titulo,
-        reservationId,
-      });
+        if (cantidad > remainingAllowed) {
+          throw new BadRequestException(
+            `Solo puedes comprar ${remainingAllowed} tickets más (límite 50%)`,
+          );
+        }
 
-      return {
-        tickets,
-        initPoint, // MP checkout URL
-        preferenceId,
-        totalAmount,
-        cantidadComprada: cantidad,
-        ticketsRestantesQuePuedeComprar: remainingAllowed - cantidad,
-      };
-    }, {
-      isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
-      timeout: 10000,
-    });
+        const soldTickets = Number(raffle.sold_count);
+        const availableTickets = raffle.total_tickets - soldTickets;
+
+        if (cantidad > availableTickets) {
+          throw new BadRequestException(
+            `Solo quedan ${availableTickets} tickets disponibles`,
+          );
+        }
+
+        // Get available ticket numbers within transaction
+        const usedTickets = await tx.ticket.findMany({
+          where: { raffleId, estado: { not: 'REEMBOLSADO' } },
+          select: { numeroTicket: true },
+        });
+
+        const usedNumbers = new Set(usedTickets.map((t) => t.numeroTicket));
+        const availableNumbers: number[] = [];
+
+        for (let i = 1; i <= raffle.total_tickets; i++) {
+          if (!usedNumbers.has(i)) {
+            availableNumbers.push(i);
+          }
+        }
+
+        const selectedNumbers = availableNumbers.slice(0, cantidad);
+
+        if (selectedNumbers.length < cantidad) {
+          throw new BadRequestException(
+            'No hay suficientes tickets disponibles',
+          );
+        }
+
+        const totalAmount = Number(raffle.precio_por_ticket) * cantidad;
+
+        // Create tickets in RESERVADO state (will be confirmed by webhook)
+        const tickets = await Promise.all(
+          selectedNumbers.map((numeroTicket) =>
+            tx.ticket.create({
+              data: {
+                raffleId,
+                numeroTicket,
+                buyerId: userId,
+                precioPagado: raffle.precio_por_ticket,
+                estado: 'RESERVADO',
+                mpExternalReference: reservationId,
+              },
+            }),
+          ),
+        );
+
+        this.logger.log(
+          `User ${userId} reserved ${cantidad} tickets for raffle ${raffleId}`,
+        );
+
+        // Create Mercado Pago preference (outside transaction is ok)
+        const { initPoint, preferenceId } =
+          await this.paymentsService.createPreference({
+            raffleId,
+            cantidad,
+            buyerId: userId,
+            precioPorTicket: Number(raffle.precio_por_ticket),
+            tituloRifa: raffle.titulo,
+            reservationId,
+          });
+
+        return {
+          tickets,
+          initPoint, // MP checkout URL
+          preferenceId,
+          totalAmount,
+          cantidadComprada: cantidad,
+          ticketsRestantesQuePuedeComprar: remainingAllowed - cantidad,
+        };
+      },
+      {
+        isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+        timeout: 10000,
+      },
+    );
   }
 
   async confirmTicketPurchase(mpPaymentId: string) {
@@ -177,7 +196,10 @@ export class TicketsService {
     // Emit refunded events grouped by buyer
     const ticketsByBuyer = new Map<string, { count: number; amount: number }>();
     for (const ticket of tickets) {
-      const existing = ticketsByBuyer.get(ticket.buyerId) || { count: 0, amount: 0 };
+      const existing = ticketsByBuyer.get(ticket.buyerId) || {
+        count: 0,
+        amount: 0,
+      };
       existing.count += 1;
       existing.amount += Number(ticket.precioPagado);
       ticketsByBuyer.set(ticket.buyerId, existing);
@@ -209,7 +231,7 @@ export class TicketsService {
       select: { numeroTicket: true },
     });
 
-    const usedNumbers = new Set(usedTickets.map(t => t.numeroTicket));
+    const usedNumbers = new Set(usedTickets.map((t) => t.numeroTicket));
     const availableNumbers: number[] = [];
 
     for (let i = 1; i <= totalTickets; i++) {

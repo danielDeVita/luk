@@ -12,7 +12,8 @@ export class CleanupTasksService {
     private prisma: PrismaService,
     private configService: ConfigService,
   ) {
-    this.cronEnabled = this.configService.get<string>('ENABLE_CRON_JOBS') !== 'false';
+    this.cronEnabled =
+      this.configService.get<string>('ENABLE_CRON_JOBS') !== 'false';
   }
 
   /**
@@ -21,7 +22,7 @@ export class CleanupTasksService {
   @Cron('0 3 * * *') // 3:00 AM every day
   async dailyCleanup() {
     if (!this.cronEnabled) return;
-    
+
     this.logger.log('Starting: Daily cleanup tasks');
 
     try {
@@ -29,7 +30,10 @@ export class CleanupTasksService {
       await this.sendShippingReminders();
       this.logger.log('Finished: Daily cleanup tasks');
     } catch (error) {
-      this.logger.error('Error in daily cleanup:', error instanceof Error ? error.stack : error);
+      this.logger.error(
+        'Error in daily cleanup:',
+        error instanceof Error ? error.stack : error,
+      );
     }
   }
 
@@ -81,7 +85,9 @@ export class CleanupTasksService {
     });
 
     for (const raffle of raffles) {
-      this.logger.log(`Reminder: Seller ${raffle.sellerId} needs to ship raffle ${raffle.id}`);
+      this.logger.log(
+        `Reminder: Seller ${raffle.sellerId} needs to ship raffle ${raffle.id}`,
+      );
       // In production, would send notification here
     }
 

@@ -1,6 +1,14 @@
-import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { CreateShippingAddressInput, UpdateShippingAddressInput } from './dto/shipping-address.input';
+import {
+  CreateShippingAddressInput,
+  UpdateShippingAddressInput,
+} from './dto/shipping-address.input';
 
 @Injectable()
 export class ShippingService {
@@ -16,7 +24,9 @@ export class ShippingService {
     });
 
     if (count >= this.MAX_ADDRESSES) {
-      throw new BadRequestException(`Maximo ${this.MAX_ADDRESSES} direcciones permitidas`);
+      throw new BadRequestException(
+        `Maximo ${this.MAX_ADDRESSES} direcciones permitidas`,
+      );
     }
 
     // If this is the first address or marked as default, handle default logic

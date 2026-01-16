@@ -65,8 +65,14 @@ export function encrypt(plaintext: string | null | undefined): string | null {
  * @param encryptedText - Base64-encoded encrypted string (IV + AuthTag + CipherText)
  * @returns Decrypted plaintext string, or null if input is null/undefined
  */
-export function decrypt(encryptedText: string | null | undefined): string | null {
-  if (encryptedText === null || encryptedText === undefined || encryptedText === '') {
+export function decrypt(
+  encryptedText: string | null | undefined,
+): string | null {
+  if (
+    encryptedText === null ||
+    encryptedText === undefined ||
+    encryptedText === ''
+  ) {
     return null;
   }
 

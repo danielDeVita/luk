@@ -16,7 +16,8 @@ export class DisputeTasksService {
     private notificationsService: NotificationsService,
     private configService: ConfigService,
   ) {
-    this.cronEnabled = this.configService.get<string>('ENABLE_CRON_JOBS') !== 'false';
+    this.cronEnabled =
+      this.configService.get<string>('ENABLE_CRON_JOBS') !== 'false';
   }
 
   /**
@@ -27,7 +28,7 @@ export class DisputeTasksService {
   @Cron('0 */6 * * *') // Every 6 hours
   async processDisputeEscalations() {
     if (!this.cronEnabled) return;
-    
+
     this.logger.log('Starting: Process dispute escalations');
 
     try {
@@ -35,7 +36,10 @@ export class DisputeTasksService {
       await this.autoRefundOldDisputes();
       this.logger.log('Finished: Process dispute escalations');
     } catch (error) {
-      this.logger.error('Error processing disputes:', error instanceof Error ? error.stack : error);
+      this.logger.error(
+        'Error processing disputes:',
+        error instanceof Error ? error.stack : error,
+      );
     }
   }
 
@@ -59,18 +63,23 @@ export class DisputeTasksService {
     });
 
     for (const dispute of disputes) {
-      this.logger.log(`Escalating dispute ${dispute.id} to EN_MEDIACION (no seller response)`);
+      this.logger.log(
+        `Escalating dispute ${dispute.id} to EN_MEDIACION (no seller response)`,
+      );
 
       await this.prisma.dispute.update({
         where: { id: dispute.id },
         data: {
           estado: 'EN_MEDIACION',
-          adminNotes: 'Escalado automáticamente por falta de respuesta del vendedor en 48h.',
+          adminNotes:
+            'Escalado automáticamente por falta de respuesta del vendedor en 48h.',
         },
       });
 
       // Notify admin of escalation (in production, would send to admin email)
-      this.logger.log(`Dispute ${dispute.id} escalated and marked for priority review`);
+      this.logger.log(
+        `Dispute ${dispute.id} escalated and marked for priority review`,
+      );
     }
 
     this.logger.log(`Escalated ${disputes.length} disputes`);
@@ -85,24 +94,28 @@ export class DisputeTasksService {
 
     const disputes = await this.prisma.dispute.findMany({
       where: {
-        estado: { in: ['ABIERTA', 'ESPERANDO_RESPUESTA_VENDEDOR', 'EN_MEDIACION'] },
+        estado: {
+          in: ['ABIERTA', 'ESPERANDO_RESPUESTA_VENDEDOR', 'EN_MEDIACION'],
+        },
         createdAt: { lte: fifteenDaysAgo },
         resolvedAt: null,
         isDeleted: false,
       },
       include: {
-        raffle: { 
-          include: { 
+        raffle: {
+          include: {
             seller: true,
             tickets: { where: { estado: 'PAGADO' } },
-          } 
+          },
         },
         reporter: true,
       },
     });
 
     for (const dispute of disputes) {
-      this.logger.log(`Auto-resolving dispute ${dispute.id} in favor of buyer (15 days timeout)`);
+      this.logger.log(
+        `Auto-resolving dispute ${dispute.id} in favor of buyer (15 days timeout)`,
+      );
 
       // Calculate total amount to refund
       const totalAmount = dispute.raffle.tickets.reduce(
@@ -116,7 +129,8 @@ export class DisputeTasksService {
         data: {
           estado: 'RESUELTA_COMPRADOR',
           resolvedAt: new Date(),
-          resolucion: 'Reembolso automático por tiempo de espera excedido (15 días sin resolución)',
+          resolucion:
+            'Reembolso automático por tiempo de espera excedido (15 días sin resolución)',
           montoReembolsado: totalAmount,
           montoPagadoVendedor: 0,
         },

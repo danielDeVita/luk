@@ -20,7 +20,9 @@ export interface SignatureVerificationResult {
  *
  * @see https://www.mercadopago.com/developers/en/docs/your-integrations/notifications/webhooks
  */
-export function verifyWebhookSignature(params: WebhookSignatureParams): SignatureVerificationResult {
+export function verifyWebhookSignature(
+  params: WebhookSignatureParams,
+): SignatureVerificationResult {
   const { xSignature, xRequestId, dataId, secret } = params;
 
   if (!xSignature) {
@@ -78,7 +80,10 @@ export function verifyWebhookSignature(params: WebhookSignatureParams): Signatur
   const fiveMinutes = 5 * 60;
 
   if (Math.abs(now - timestamp) > fiveMinutes) {
-    return { valid: false, reason: 'Timestamp too old (possible replay attack)' };
+    return {
+      valid: false,
+      reason: 'Timestamp too old (possible replay attack)',
+    };
   }
 
   return { valid: true };

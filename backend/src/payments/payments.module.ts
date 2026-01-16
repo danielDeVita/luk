@@ -8,7 +8,11 @@ import { NotificationsModule } from '../notifications/notifications.module';
 import { ReferralsModule } from '../referrals/referrals.module';
 
 @Module({
-  imports: [PrismaModule, NotificationsModule, forwardRef(() => ReferralsModule)],
+  imports: [
+    PrismaModule,
+    NotificationsModule,
+    forwardRef(() => ReferralsModule),
+  ],
   controllers: [MpController, MpConnectController],
   providers: [PaymentsService, MpConnectService],
   exports: [PaymentsService, MpConnectService],

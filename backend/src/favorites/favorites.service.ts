@@ -1,4 +1,9 @@
-import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
@@ -19,7 +24,9 @@ export class FavoritesService {
     }
 
     if (raffle.sellerId === userId) {
-      throw new BadRequestException('No puedes agregar tu propia rifa a favoritos');
+      throw new BadRequestException(
+        'No puedes agregar tu propia rifa a favoritos',
+      );
     }
 
     // Check if already favorited

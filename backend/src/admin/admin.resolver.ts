@@ -2,7 +2,13 @@ import { Resolver, Query, Mutation, Args, Int } from '@nestjs/graphql';
 import { UseGuards } from '@nestjs/common';
 import { AdminService } from './admin.service';
 import { MpEvent, MpEventList } from './entities/mp-event.entity';
-import { AdminStats, PaymentDebugInfo, AdminUserList, UserActivity, BulkResolveResult } from './entities/admin-stats.entity';
+import {
+  AdminStats,
+  PaymentDebugInfo,
+  AdminUserList,
+  UserActivity,
+  BulkResolveResult,
+} from './entities/admin-stats.entity';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -23,7 +29,9 @@ export class AdminResolver {
 
   // ==================== MpEvent Viewer ====================
 
-  @Query(() => MpEventList, { description: 'List MP webhook events for debugging' })
+  @Query(() => MpEventList, {
+    description: 'List MP webhook events for debugging',
+  })
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
   async mpEvents(
@@ -37,7 +45,7 @@ export class AdminResolver {
       offset,
     });
     return {
-      events: result.events.map(e => ({
+      events: result.events.map((e) => ({
         ...e,
         metadata: e.metadata as Record<string, unknown> | undefined,
       })),
@@ -59,15 +67,21 @@ export class AdminResolver {
 
   // ==================== Payment Debug ====================
 
-  @Query(() => PaymentDebugInfo, { description: 'Debug payment by MP payment ID' })
+  @Query(() => PaymentDebugInfo, {
+    description: 'Debug payment by MP payment ID',
+  })
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
-  async paymentDebug(@Args('mpPaymentId') mpPaymentId: string): Promise<PaymentDebugInfo> {
+  async paymentDebug(
+    @Args('mpPaymentId') mpPaymentId: string,
+  ): Promise<PaymentDebugInfo> {
     const info = await this.adminService.getPaymentDebugInfo(mpPaymentId);
     return {
       ...info,
-      transactionAmount: info.transactionAmount ? Number(info.transactionAmount) : undefined,
-      tickets: info.tickets.map(t => ({
+      transactionAmount: info.transactionAmount
+        ? Number(info.transactionAmount)
+        : undefined,
+      tickets: info.tickets.map((t) => ({
         ...t,
         precioPagado: Number(t.precioPagado),
       })),
@@ -104,7 +118,9 @@ export class AdminResolver {
     });
   }
 
-  @Query(() => [UserActivity], { description: 'Get activity log for a specific user' })
+  @Query(() => [UserActivity], {
+    description: 'Get activity log for a specific user',
+  })
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
   async adminUserActivity(
@@ -112,8 +128,12 @@ export class AdminResolver {
     @Args('limit', { nullable: true, type: () => Int }) limit?: number,
     @Args('offset', { nullable: true, type: () => Int }) offset?: number,
   ): Promise<UserActivity[]> {
-    const activities = await this.adminService.getUserActivity(userId, limit, offset);
-    return activities.map(a => ({
+    const activities = await this.adminService.getUserActivity(
+      userId,
+      limit,
+      offset,
+    );
+    return activities.map((a) => ({
       id: a.id,
       action: a.action,
       targetType: a.targetType ?? undefined,
@@ -152,7 +172,9 @@ export class AdminResolver {
 
   // ==================== Bulk Dispute Resolution ====================
 
-  @Mutation(() => BulkResolveResult, { description: 'Resolve multiple disputes at once' })
+  @Mutation(() => BulkResolveResult, {
+    description: 'Resolve multiple disputes at once',
+  })
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
   async bulkResolveDisputes(

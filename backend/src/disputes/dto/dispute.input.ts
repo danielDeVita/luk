@@ -32,7 +32,9 @@ export class OpenDisputeInput {
 
   @Field()
   @IsString()
-  @MinLength(50, { message: 'La descripción debe tener al menos 50 caracteres' })
+  @MinLength(50, {
+    message: 'La descripción debe tener al menos 50 caracteres',
+  })
   @MaxLength(2000)
   descripcion!: string;
 
@@ -64,7 +66,8 @@ export class RespondDisputeInput {
 export class ResolveDisputeInput {
   @Field(() => DisputeStatus)
   @IsEnum(DisputeStatus, {
-    message: 'La decisión debe ser RESUELTA_COMPRADOR, RESUELTA_VENDEDOR o RESUELTA_PARCIAL'
+    message:
+      'La decisión debe ser RESUELTA_COMPRADOR, RESUELTA_VENDEDOR o RESUELTA_PARCIAL',
   })
   decision!: DisputeStatus;
 

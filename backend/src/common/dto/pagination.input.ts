@@ -16,4 +16,3 @@ export class PaginationInput {
   @Max(50)
   limit?: number = 20;
 }
-

@@ -45,4 +45,3 @@ export class RaffleQuestion {
   @Field(() => RaffleAnswer, { nullable: true })
   answer?: RaffleAnswer;
 }
-

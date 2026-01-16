@@ -39,7 +39,11 @@ export class LoginThrottlerService {
    * Check if an IP is currently blocked.
    * Returns block info if blocked, null otherwise.
    */
-  isBlocked(ip: string): { blocked: boolean; remainingMs: number; retryAfter: Date | null } {
+  isBlocked(ip: string): {
+    blocked: boolean;
+    remainingMs: number;
+    retryAfter: Date | null;
+  } {
     const attempt = this.attempts.get(ip);
 
     if (!attempt) {
@@ -62,7 +66,10 @@ export class LoginThrottlerService {
    * Record a failed login attempt.
    * Returns the remaining attempts before block, or null if now blocked.
    */
-  recordFailedAttempt(ip: string): { remainingAttempts: number | null; blocked: boolean } {
+  recordFailedAttempt(ip: string): {
+    remainingAttempts: number | null;
+    blocked: boolean;
+  } {
     const now = Date.now();
     let attempt = this.attempts.get(ip);
 
@@ -74,7 +81,9 @@ export class LoginThrottlerService {
         blockedUntil: null,
       };
       this.attempts.set(ip, attempt);
-      this.logger.debug(`Failed login attempt 1/${this.MAX_ATTEMPTS} from IP: ${this.maskIp(ip)}`);
+      this.logger.debug(
+        `Failed login attempt 1/${this.MAX_ATTEMPTS} from IP: ${this.maskIp(ip)}`,
+      );
       return { remainingAttempts: this.MAX_ATTEMPTS - 1, blocked: false };
     }
 
@@ -84,7 +93,9 @@ export class LoginThrottlerService {
       attempt.count = 1;
       attempt.firstAttempt = now;
       attempt.blockedUntil = null;
-      this.logger.debug(`Reset login attempt window for IP: ${this.maskIp(ip)}`);
+      this.logger.debug(
+        `Reset login attempt window for IP: ${this.maskIp(ip)}`,
+      );
       return { remainingAttempts: this.MAX_ATTEMPTS - 1, blocked: false };
     }
 
@@ -96,14 +107,14 @@ export class LoginThrottlerService {
       attempt.blockedUntil = now + this.BLOCK_DURATION_MS;
       this.logger.warn(
         `IP blocked after ${attempt.count} failed login attempts: ${this.maskIp(ip)}. ` +
-        `Blocked until: ${new Date(attempt.blockedUntil).toISOString()}`
+          `Blocked until: ${new Date(attempt.blockedUntil).toISOString()}`,
       );
       return { remainingAttempts: null, blocked: true };
     }
 
     const remaining = this.MAX_ATTEMPTS - attempt.count;
     this.logger.debug(
-      `Failed login attempt ${attempt.count}/${this.MAX_ATTEMPTS} from IP: ${this.maskIp(ip)}`
+      `Failed login attempt ${attempt.count}/${this.MAX_ATTEMPTS} from IP: ${this.maskIp(ip)}`,
     );
     return { remainingAttempts: remaining, blocked: false };
   }

@@ -102,7 +102,8 @@ export function buildRaffleSearchClause(
   searchTerm: string,
   mode: 'or' | 'and' = 'or',
 ): string | null {
-  const queryStr = mode === 'and' ? toTsqueryAnd(searchTerm) : toTsqueryOr(searchTerm);
+  const queryStr =
+    mode === 'and' ? toTsqueryAnd(searchTerm) : toTsqueryOr(searchTerm);
 
   if (!queryStr) {
     return null;
