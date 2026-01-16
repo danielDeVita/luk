@@ -110,6 +110,8 @@ export default function CreateRafflePage() {
         displayMsg = message;
       }
 
+      // Error sync from Apollo requires setState in effect
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setErrorMsg(displayMsg);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }

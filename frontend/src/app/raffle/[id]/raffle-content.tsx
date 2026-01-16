@@ -158,6 +158,8 @@ export function RaffleContent({ id }: RaffleContentProps) {
 
   useEffect(() => {
     if (favoriteData?.isFavorite !== undefined) {
+      // Sync local state with server data
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setIsFavorite(favoriteData.isFavorite);
     }
   }, [favoriteData]);

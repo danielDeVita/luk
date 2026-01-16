@@ -2,11 +2,11 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
-import { Menu, X, Ticket, User, LogOut } from 'lucide-react';
+import { Menu, X, Ticket, User } from 'lucide-react';
 
 export function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [isLoggedIn] = useState(false);
 
   return (
     <nav className="bg-white shadow-sm border-b">

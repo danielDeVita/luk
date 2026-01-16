@@ -308,21 +308,12 @@ function SettingsContent() {
     }
   });
 
-  // Now the early return check (after all hooks are declared)
+  // Auth redirect effect
   useEffect(() => {
     if (!isAuthenticated) {
       router.push('/auth/login');
     }
   }, [isAuthenticated, router]);
-
-  if (!isAuthenticated) return null;
-
-  const mpStatus = userData?.me?.mpConnectStatus || 'NOT_CONNECTED';
-  const mpUserId = userData?.me?.mpUserId;
-  const isConnected = mpStatus === 'CONNECTED';
-  const kycStatus = userData?.me?.kycStatus || 'NOT_SUBMITTED';
-  const isKycVerified = kycStatus === 'VERIFIED';
-  const isKycPending = kycStatus === 'PENDING_REVIEW';
 
   // Handle query params for MP connection result
   useEffect(() => {
@@ -355,6 +346,16 @@ function SettingsContent() {
       if (me.cuitCuil) setKycValue('cuitCuil', me.cuitCuil);
     }
   }, [userData, setKycValue]);
+
+  // Now the early return check (after all hooks are declared)
+  if (!isAuthenticated) return null;
+
+  const mpStatus = userData?.me?.mpConnectStatus || 'NOT_CONNECTED';
+  const mpUserId = userData?.me?.mpUserId;
+  const isConnected = mpStatus === 'CONNECTED';
+  const kycStatus = userData?.me?.kycStatus || 'NOT_SUBMITTED';
+  const isKycVerified = kycStatus === 'VERIFIED';
+  const isKycPending = kycStatus === 'PENDING_REVIEW';
 
   const watchedDocType = watchKyc('documentType');
   const watchedProvince = watchKyc('province');

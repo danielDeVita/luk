@@ -33,6 +33,26 @@ const GET_SELLER_PROFILE = gql`
   }
 `;
 
+interface SellerRaffle {
+  id: string;
+  titulo: string;
+  precioPorTicket: number;
+  totalTickets: number;
+  ticketsVendidos: number;
+  fechaLimiteSorteo: string;
+  estado: string;
+  lastPriceDropAt?: string;
+  product?: {
+    nombre: string;
+    imagenes: string[];
+    condicion: string;
+  };
+  seller?: {
+    nombre: string;
+    apellido: string;
+  };
+}
+
 interface SellerProfileData {
   sellerProfile: {
     id: string;
@@ -42,7 +62,7 @@ interface SellerProfileData {
     totalVentas: number;
     nivelVendedor: string;
     isVerified: boolean;
-    raffles: any[];
+    raffles: SellerRaffle[];
   };
 }
 
@@ -117,7 +137,7 @@ export default function SellerPage({ params }: { params: Promise<{ id: string }>
           <p className="text-muted-foreground text-center py-8">Este usuario no tiene rifas públicas activas.</p>
         ) : (
           <div className="grid md:grid-cols-3 lg:grid-cols-4 gap-6">
-            {profile.raffles.map((raffle: any) => (
+            {profile.raffles.map((raffle) => (
               <RaffleCard key={raffle.id} raffle={raffle} />
             ))}
           </div>

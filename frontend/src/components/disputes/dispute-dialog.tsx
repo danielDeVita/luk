@@ -90,7 +90,7 @@ export function DisputeDialog({ raffleId, raffleTitle, onDisputeOpened, trigger 
         <DialogHeader>
           <DialogTitle>Reportar Problema</DialogTitle>
           <DialogDescription>
-            Inicia una disputa para la rifa "{raffleTitle}". El pago se retendrá hasta que se resuelva el caso.
+            Inicia una disputa para la rifa &quot;{raffleTitle}&quot;. El pago se retendrá hasta que se resuelva el caso.
           </DialogDescription>
         </DialogHeader>
         

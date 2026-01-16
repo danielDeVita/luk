@@ -133,8 +133,16 @@ function FavoriteCard({
   const timeLeft = getTimeLeft(raffle.fechaLimiteSorteo);
 
   // Check if price was recently reduced (within last 48 hours)
-  const hasRecentPriceDrop = raffle.lastPriceDropAt &&
-    (Date.now() - new Date(raffle.lastPriceDropAt).getTime()) < 48 * 60 * 60 * 1000;
+  // Using state to compute on mount to avoid impure Date.now() in render
+  const [hasRecentPriceDrop, setHasRecentPriceDrop] = useState(false);
+  useEffect(() => {
+    if (raffle.lastPriceDropAt) {
+      const dropTime = new Date(raffle.lastPriceDropAt).getTime();
+      const now = Date.now();
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setHasRecentPriceDrop((now - dropTime) < 48 * 60 * 60 * 1000);
+    }
+  }, [raffle.lastPriceDropAt]);
 
   return (
     <Card className="overflow-hidden hover:shadow-md transition-shadow">

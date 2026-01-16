@@ -79,7 +79,7 @@ export function NotificationsBell() {
   // Use faster polling when WebSocket is disconnected
   const pollInterval = connectionStatus === 'connected' ? 60000 : 15000;
 
-  const { data, loading, refetch } = useQuery<MyNotificationsData>(GET_NOTIFICATIONS, {
+  const { data, refetch } = useQuery<MyNotificationsData>(GET_NOTIFICATIONS, {
     pollInterval,
     fetchPolicy: 'network-only',
   });
@@ -98,7 +98,7 @@ export function NotificationsBell() {
   });
 
   const notifications = data?.myNotifications || [];
-  const unreadCount = notifications.filter((n: any) => !n.read).length;
+  const unreadCount = notifications.filter((n) => !n.read).length;
 
   // Connection status indicator
   const isConnected = connectionStatus === 'connected';
@@ -163,7 +163,7 @@ export function NotificationsBell() {
               No tenés notificaciones
             </div>
           ) : (
-            notifications.map((n: any) => (
+            notifications.map((n) => (
               <DropdownMenuItem key={n.id} className={cn("flex flex-col items-start p-3 cursor-pointer", !n.read && "bg-muted/50")}>
                 <div className="flex justify-between w-full gap-2">
                   <span className="font-semibold text-sm">{n.title}</span>

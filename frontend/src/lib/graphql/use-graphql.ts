@@ -11,9 +11,9 @@ interface GraphQLResponse<T> {
   refetch: () => Promise<void>;
 }
 
-export function useQuery<T = any>(
+export function useQuery<T = unknown>(
   query: string,
-  variables?: Record<string, any>
+  variables?: Record<string, unknown>
 ): GraphQLResponse<T> {
   const [data, setData] = useState<T | null>(null);
   const [loading, setLoading] = useState(true);
@@ -51,21 +51,23 @@ export function useQuery<T = any>(
     }
   };
 
+  const variablesString = JSON.stringify(variables);
+
   useEffect(() => {
-    const currentVars = JSON.stringify(variables);
-    if (!hasFetched.current || variablesRef.current !== currentVars) {
-      variablesRef.current = currentVars;
+    if (!hasFetched.current || variablesRef.current !== variablesString) {
+      variablesRef.current = variablesString;
       hasFetched.current = true;
       fetchData();
     }
-  }, [query, JSON.stringify(variables)]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query, variablesString]);
 
   return { data, loading, error, refetch: fetchData };
 }
 
-export async function graphqlMutation<T = any>(
+export async function graphqlMutation<T = unknown>(
   query: string,
-  variables?: Record<string, any>
+  variables?: Record<string, unknown>
 ): Promise<{ data: T | null; error: Error | null }> {
   try {
     const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;

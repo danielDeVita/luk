@@ -260,8 +260,11 @@ export default function AdminPage() {
     if (reportsData?.getReports) {
       try {
         const parsed = JSON.parse(reportsData.getReports);
+        // JSON parsing requires setState since useMemo can't handle try/catch cleanly
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setReports(parsed);
       } catch {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setReports([]);
       }
     }

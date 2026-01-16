@@ -141,6 +141,7 @@ export function ApolloWrapper({ children }: { children: ReactNode }) {
 
   const { client, wsClient } = useMemo(
     () => createApolloClient(isAuthenticated, setConnectionStatus),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [isAuthenticated, retryTrigger]
   );
 

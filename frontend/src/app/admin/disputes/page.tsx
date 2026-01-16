@@ -104,7 +104,6 @@ interface BulkResolveResult {
 export default function AdminDisputesPage() {
   const router = useRouter();
   const { user, isAuthenticated, hasHydrated } = useAuthStore();
-  const [isAuthorized, setIsAuthorized] = useState(false);
   const [selectedDispute, setSelectedDispute] = useState<Dispute | null>(null);
   const [resolutionText, setResolutionText] = useState('');
   const [action, setAction] = useState<'REFUND' | 'RELEASE' | null>(null);
@@ -126,10 +125,11 @@ export default function AdminDisputesPage() {
     if (user?.role !== 'ADMIN') {
         toast.error('Acceso denegado. Se requieren permisos de administrador.');
         router.push('/dashboard');
-    } else {
-        setIsAuthorized(true);
     }
   }, [isAuthenticated, user, router, hasHydrated]);
+
+  // Derive authorization status from state instead of setting it in effect
+  const isAuthorized = hasHydrated && isAuthenticated && user?.role === 'ADMIN';
 
   const { data, loading, refetch, error } = useQuery<PendingDisputesResult>(GET_PENDING_DISPUTES, {
     skip: !hasHydrated || !isAuthenticated || user?.role !== 'ADMIN',

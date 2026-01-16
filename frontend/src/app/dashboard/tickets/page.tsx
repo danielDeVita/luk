@@ -215,20 +215,13 @@ export default function MyTicketsPage() {
     }
   }, [isAuthenticated, router]);
 
-  const handleConfirmDelivery = (raffleId: string) => {
-    if (confirm('¿Confirmás que recibiste el producto en buen estado? Esto liberará el pago al vendedor.')) {
-      confirmDelivery({ variables: { raffleId } });
-    }
-  };
-
-  if (!isAuthenticated) return null;
-
+  // Get data from queries
   const tickets = data?.myTickets || [];
   const stats = statsData?.buyerStats;
   const recommendations = recommendedData?.recommendedRaffles || [];
   const favoritesEndingSoon = endingSoonData?.favoritesEndingSoon || [];
 
-  // Filter tickets
+  // Filter tickets (useMemo before early return)
   const filteredTickets = useMemo(() => {
     return tickets.filter((ticket) => {
       if (ticketStatus !== 'ALL' && ticket.estado !== ticketStatus) return false;
@@ -250,6 +243,14 @@ export default function MyTicketsPage() {
       return true;
     });
   }, [tickets, ticketStatus, raffleStatus, showWinsOnly, dateFrom, dateTo, user?.id]);
+
+  const handleConfirmDelivery = (raffleId: string) => {
+    if (confirm('¿Confirmás que recibiste el producto en buen estado? Esto liberará el pago al vendedor.')) {
+      confirmDelivery({ variables: { raffleId } });
+    }
+  };
+
+  if (!isAuthenticated) return null;
 
   const hasActiveFilters = ticketStatus !== 'ALL' || raffleStatus !== 'ALL' || showWinsOnly || dateFrom || dateTo;
 

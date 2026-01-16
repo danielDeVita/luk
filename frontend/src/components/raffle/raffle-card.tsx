@@ -40,12 +40,19 @@ export function RaffleCard({ raffle }: RaffleCardProps) {
   const isHot = progress >= 75;
   const isAlmostDone = progress >= 90;
 
-  // Check if price was recently reduced (within last 48 hours)
-  const hasRecentPriceDrop = raffle.lastPriceDropAt &&
-    (Date.now() - new Date(raffle.lastPriceDropAt).getTime()) < 48 * 60 * 60 * 1000;
-
   const { isAuthenticated } = useAuthStore();
   const [isFavorite, setIsFavorite] = useState(false);
+  const [hasRecentPriceDrop, setHasRecentPriceDrop] = useState(false);
+
+  // Check if price was recently reduced (within last 48 hours)
+  useEffect(() => {
+    if (raffle.lastPriceDropAt) {
+      const dropTime = new Date(raffle.lastPriceDropAt).getTime();
+      const now = Date.now();
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setHasRecentPriceDrop((now - dropTime) < 48 * 60 * 60 * 1000);
+    }
+  }, [raffle.lastPriceDropAt]);
 
   // Query favorite status
   const { data: favoriteData } = useQuery<{ isFavorite: boolean }>(IS_FAVORITE, {
@@ -55,6 +62,7 @@ export function RaffleCard({ raffle }: RaffleCardProps) {
 
   useEffect(() => {
     if (favoriteData?.isFavorite !== undefined) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setIsFavorite(favoriteData.isFavorite);
     }
   }, [favoriteData]);

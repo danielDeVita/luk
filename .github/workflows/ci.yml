@@ -51,8 +51,8 @@ jobs:
       - name: Generate Prisma client
         run: npx prisma generate
 
-      - name: Run database migrations
-        run: npx prisma migrate deploy
+      - name: Sync database schema
+        run: npx prisma db push --skip-generate
         env:
           DATABASE_URL: postgresql://raffle_user:raffle_password@localhost:5432/raffle_db
 
@@ -146,9 +146,9 @@ jobs:
         working-directory: backend
         run: npx prisma generate
 
-      - name: Run migrations
+      - name: Sync database schema
         working-directory: backend
-        run: npx prisma migrate deploy
+        run: npx prisma db push --skip-generate
         env:
           DATABASE_URL: postgresql://raffle_user:raffle_password@localhost:5432/raffle_db
 

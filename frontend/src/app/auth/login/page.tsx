@@ -79,12 +79,8 @@ export default function LoginPage() {
     }
   }, [data, setAuth, router]);
 
-  // Handle error
-  useEffect(() => {
-    if (error) {
-      setErrorMsg(error.message || 'Error al iniciar sesión');
-    }
-  }, [error]);
+  // Derive error message from Apollo error
+  const derivedError = error?.message || null;
 
   const onSubmit = (formData: LoginForm) => {
     setErrorMsg(null);
@@ -109,9 +105,9 @@ export default function LoginPage() {
         </CardHeader>
 
         <CardContent className="space-y-4">
-          {errorMsg && (
+          {(errorMsg || derivedError) && (
             <div className="p-3 text-sm text-destructive bg-destructive/10 rounded-lg border border-destructive/20">
-              {errorMsg}
+              {errorMsg || derivedError}
             </div>
           )}
 
