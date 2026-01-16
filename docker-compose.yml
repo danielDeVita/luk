@@ -16,6 +16,19 @@ services:
       timeout: 5s
       retries: 5
 
+  redis:
+    image: redis:7-alpine
+    container_name: raffle_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
   backend:
     build:
       context: ./backend
@@ -26,6 +39,7 @@ services:
     environment:
       NODE_ENV: production
       DATABASE_URL: postgresql://raffle_user:raffle_password@postgres:5432/raffle_db
+      REDIS_URL: redis://redis:6379
       PORT: 3001
       # For local Docker: use localhost (browser connects directly)
       # For production: set these via .env or override
@@ -44,6 +58,8 @@ services:
       - "5555:5555"
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     command: sh -c "npx prisma migrate deploy && npm run start:prod"
 
@@ -68,3 +84,4 @@ services:
 
 volumes:
   postgres_data:
+  redis_data:
