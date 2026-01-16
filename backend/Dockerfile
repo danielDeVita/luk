@@ -43,5 +43,5 @@ COPY --from=builder /app/dist ./dist
 
 EXPOSE 3001
 
-# Run migrations then start the app
-CMD ["sh", "-c", "npx prisma migrate deploy && node dist/src/main.js"]
+# Sync schema and start the app
+CMD ["sh", "-c", "npx prisma db push --skip-generate && node dist/src/main.js"]
