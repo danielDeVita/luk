@@ -285,7 +285,6 @@ frontend/src/
 | Purpose | Path |
 |---------|------|
 | Prisma Schema | `backend/prisma/schema.prisma` |
-| Seed Data | `backend/prisma/seed/seed.ts` |
 | Fee Constants | `backend/src/common/constants/fees.constants.ts` |
 | Apollo Client | `frontend/src/lib/apollo-client.ts` |
 | Auth Store | `frontend/src/store/auth.ts` |
@@ -403,7 +402,6 @@ npm run docker:shell:frontend # Frontend container shell
 
 # Database
 npm run docker:db:push        # Run prisma db push
-npm run docker:db:seed        # Seed the database
 npm run docker:db:studio      # Open Prisma Studio
 
 # Cleanup
@@ -503,18 +501,6 @@ cd backend && npx prisma generate
 npx prisma db push --force-reset  # Resets DB
 npx prisma generate               # Regenerate client
 ```
-
----
-
-## Test Users (after `npm run seed`)
-
-| Role | Email | Password |
-|------|-------|----------|
-| Admin | admin@rifas.com | Password123! |
-| Seller | vendedor@test.com | Password123! |
-| Buyer | comprador@test.com | Password123! |
-
-Seed creates: 3 users, 5 raffles (various states), 27 tickets, 3 categories
 
 ---
 

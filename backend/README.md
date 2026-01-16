@@ -12,7 +12,6 @@ GraphQL API built with NestJS, Prisma, and PostgreSQL.
 # From project root
 npm run docker:dev:build    # First time
 npm run docker:db:push      # Create tables
-npm run docker:db:seed      # Seed test data
 ```
 
 ## Quick Start (Local)
@@ -28,7 +27,6 @@ npm run start:dev
 | Command | Description |
 |---------|-------------|
 | `npm run start:dev` | Dev server (watch mode) |
-| `npm run seed` | Seed sample data |
 | `npx prisma studio` | Database GUI |
 | `npx prisma db push --force-reset` | Reset DB |
 
@@ -228,7 +226,7 @@ src/
 
 prisma/
 ├── schema.prisma          # Database schema
-└── seed/                  # Seed scripts
+└── migrations/            # Database migrations
 ```
 
 ## Testing

@@ -22,7 +22,6 @@ Use Docker for development to avoid Node.js version conflicts.
 | Command | When to Use |
 |---------|-------------|
 | `npm run docker:db:push` | After modifying `prisma/schema.prisma` |
-| `npm run docker:db:seed` | Populate database with test data |
 | `npm run docker:db:studio` | Open Prisma Studio (database UI) at http://localhost:5555 |
 
 ### Debugging
@@ -167,7 +166,6 @@ Run from `/backend`:
 
 | Command | Description |
 |---------|-------------|
-| `npm run seed` or `npm run db:seed` | Seed database with test data |
 | `npm run db:migrate` | Run Prisma migrations |
 | `npm run db:generate` | Regenerate Prisma client |
 | `npm run db:studio` | Open Prisma Studio |
@@ -181,7 +179,6 @@ Run from `/backend`:
 ```bash
 npm run docker:dev:build    # Build and start
 npm run docker:db:push      # Create tables (in another terminal)
-npm run docker:db:seed      # Add test data
 ```
 
 ### Daily Development
@@ -231,12 +228,3 @@ cd frontend && npm run test:e2e:ui
 | GraphQL Playground | http://localhost:3001/graphql |
 | Prisma Studio | http://localhost:5555 |
 
----
-
-## Test Users (after seeding)
-
-| Role | Email | Password |
-|------|-------|----------|
-| Admin | admin@rifas.com | Password123! |
-| Seller | vendedor@test.com | Password123! |
-| Buyer | comprador@test.com | Password123! |

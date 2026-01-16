@@ -162,12 +162,6 @@ cd backend
 DATABASE_URL="your-neon-connection-string" npx prisma db push
 ```
 
-### Seed Initial Data (Optional)
-
-```bash
-DATABASE_URL="your-neon-connection-string" npx prisma db seed
-```
-
 ---
 
 ## Step 5: Configure Mercado Pago (5 min)

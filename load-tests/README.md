@@ -86,13 +86,15 @@ TARGET_URL=https://api.example.com npm run k6:smoke
 
 ## Test Users
 
-Tests use seed data users (see `backend/prisma/seed/seed.ts`):
+Tests require authenticated users. Before running load tests, create test users manually through the app registration flow or via the GraphQL API. The test helpers in `helpers/auth.js` expect:
 
-| Role | Email | Password |
-|------|-------|----------|
-| Admin | admin@rifas.com | Password123! |
-| Seller | vendedor@test.com | Password123! |
-| Buyer | comprador@test.com | Password123! |
+| Role | Environment Variable | Default |
+|------|---------------------|---------|
+| Admin | `ADMIN_EMAIL`, `ADMIN_PASSWORD` | admin@rifas.com |
+| Seller | `SELLER_EMAIL`, `SELLER_PASSWORD` | vendedor@test.com |
+| Buyer | `BUYER_EMAIL`, `BUYER_PASSWORD` | comprador@test.com |
+
+Configure via environment variables or update `helpers/data.js`.
 
 ## Thresholds
 
@@ -168,7 +170,7 @@ load-tests/
 ## Tips
 
 1. **Always run smoke test first** - Validates endpoints work before running longer tests
-2. **Seed the database** - Run `npm run seed` in backend to create test data
+2. **Create test users** - Register users through the app or via GraphQL before running tests
 3. **Monitor resources** - Watch CPU/memory during tests
 4. **Don't stress production** - Use staging or a copy
 5. **Check rate limits** - Auth endpoints have throttling (low VUs for auth tests)
