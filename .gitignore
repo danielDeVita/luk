@@ -1,0 +1,44 @@
+# Environment variables (single source of truth)
+.env
+
+# Build outputs
+dist/
+build/
+.next/
+
+# Dependencies
+node_modules/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Logs
+logs/
+*.log
+
+# Docker
+docker-compose.override.yml
+
+# Temporary files
+tmp/
+temp/
+
+# Coverage
+coverage/
+
+# Root package-lock (use subfolder locks)
+/package-lock.json
+
+# Debug scripts (contain expired test tokens)
+backend/debug-*.js
+
+# Test reports
+frontend/playwright-report/
+frontend/test-results/

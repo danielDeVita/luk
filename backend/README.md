@@ -1,0 +1,337 @@
+# Raffle Platform - Backend
+
+GraphQL API built with NestJS, Prisma, and PostgreSQL.
+
+> **Full documentation**: See [CLAUDE.md](../CLAUDE.md) for business flows, database models, enums, and complete API reference.
+>
+> **All commands**: See [COMMANDS.md](../COMMANDS.md) for Docker, testing, and development commands.
+
+## Quick Start (Docker - Recommended)
+
+```bash
+# From project root
+npm run docker:dev:build    # First time
+npm run docker:db:push      # Create tables
+npm run docker:db:seed      # Seed test data
+```
+
+## Quick Start (Local)
+
+Requires Node.js 22 installed globally.
+
+```bash
+npm install
+npx prisma db push
+npm run start:dev
+```
+
+| Command | Description |
+|---------|-------------|
+| `npm run start:dev` | Dev server (watch mode) |
+| `npm run seed` | Seed sample data |
+| `npx prisma studio` | Database GUI |
+| `npx prisma db push --force-reset` | Reset DB |
+
+## Architecture
+
+- **API**: GraphQL (Apollo) + REST for webhooks/OAuth
+- **Database**: PostgreSQL + Prisma ORM
+- **Auth**: JWT + Google OAuth (Passport.js)
+- **Real-time**: GraphQL Subscriptions
+- **Patterns**: Repository layer, Event-driven
+
+## Modules
+
+| Module | Purpose |
+|--------|---------|
+| `auth/` | JWT authentication, Google OAuth, email verification, guards |
+| `users/` | User management, profiles |
+| `raffles/` | Raffle CRUD, state management, seller dashboard, buyer experience, analytics |
+| `tickets/` | Ticket reservation and purchase |
+| `payments/` | Mercado Pago integration + MP Connect OAuth |
+| `disputes/` | Buyer protection system |
+| `notifications/` | Email (Resend) + in-app notifications |
+| `uploads/` | Cloudinary upload signatures |
+| `admin/` | Admin panel, user management, bulk dispute resolution, stats |
+| `categories/` | Raffle categories management |
+| `reports/` | Raffle reporting/flagging system |
+| `referrals/` | Referral program (codes, rewards, stats) |
+| `tasks/` | Scheduled jobs (cron) |
+| `health/` | Health check endpoints |
+| `questions/` | Q&A system for raffle pages |
+| `activity/` | Activity logging |
+
+### Module Dependencies (Circular)
+
+These modules have circular dependencies requiring `forwardRef`:
+
+```
+AuthModule ↔ ReferralsModule     (registration applies referral codes)
+PaymentsModule ↔ ReferralsModule (purchases trigger referral rewards)
+```
+
+**Pattern:**
+```typescript
+// In module
+imports: [forwardRef(() => ReferralsModule)]
+
+// In service
+@Inject(forwardRef(() => ReferralsService))
+private referralsService: ReferralsService;
+```
+
+## Environment
+
+The backend reads from `../.env` (root). Key variables:
+
+```bash
+DATABASE_URL="postgresql://..."
+JWT_SECRET="..."
+MP_ACCESS_TOKEN="TEST-..."
+MP_PUBLIC_KEY="TEST-..."
+MP_CLIENT_ID="..."           # For MP Connect OAuth
+MP_CLIENT_SECRET="..."       # For MP Connect OAuth
+BACKEND_URL="http://localhost:3001"
+FRONTEND_URL="http://localhost:3000"
+```
+
+## API Endpoints
+
+### GraphQL
+- `POST /graphql` - Main API
+- `WS /graphql` - Subscriptions
+
+### REST (Webhooks & Sync)
+- `POST /mp/webhook` - Mercado Pago webhooks
+- `GET /mp/sync-payment/:paymentId` - Manual payment sync
+- `GET /mp/payment-status?payment_id=X` - Payment status check
+
+### REST (MP Connect OAuth)
+- `GET /mp/connect` - Start OAuth flow (requires auth)
+- `GET /mp/connect/callback` - OAuth callback (public)
+- `GET /mp/connect/status` - Get connection status (requires auth)
+- `POST /mp/connect/disconnect` - Disconnect MP account (requires auth)
+
+### Health Check
+- `GET /health` - Full health check (database, version, uptime)
+- `GET /health/ready` - Readiness probe for k8s
+- `GET /health/live` - Liveness probe
+
+## Mercado Pago Integration
+
+### Webhook Processing
+1. Receives webhook at `POST /mp/webhook`
+2. Parses payload (supports `type`, `topic`, `action` formats)
+3. Records `MpEvent` for idempotency
+4. On `approved` payment:
+   - Updates tickets to `PAGADO`
+   - Creates `Transaction` record
+   - Triggers notifications
+
+### Self-Healing Sync
+When webhooks fail (no tunnel), the frontend calls `/mp/sync-payment/:paymentId` to manually sync payment status.
+
+## Seller Dashboard & Buyer Experience
+
+### Seller Dashboard Queries/Mutations
+```graphql
+# Get seller statistics (revenue, tickets sold, views, conversion rate, monthly chart data)
+query { sellerDashboardStats { totalRevenue totalTicketsSold activeRaffles completedRaffles totalViews conversionRate monthlyRevenue { year month revenue ticketsSold } } }
+
+# Cancel multiple raffles at once
+mutation { bulkCancelRaffles(raffleIds: ["id1", "id2"]) { successCount failedCount errors } }
+
+# Extend deadline for multiple raffles
+mutation { bulkExtendRaffles(raffleIds: ["id1"], newDeadline: "2025-02-01T00:00:00Z") { successCount failedCount } }
+
+# Increment view count (called when viewing raffle page)
+mutation { incrementRaffleViews(raffleId: "...") }
+```
+
+### Buyer Experience Queries
+```graphql
+# Get buyer statistics (tickets, wins, win rate, total spent)
+query { buyerStats { totalTicketsPurchased totalRafflesWon winRate totalSpent activeTickets favoritesCount } }
+
+# Get personalized recommendations based on purchase history
+query { recommendedRaffles(limit: 6) { id titulo precioPorTicket product { imagenes categoria } } }
+
+# Get favorites that are ending soon (within 48 hours by default)
+query { favoritesEndingSoon(hoursThreshold: 48) { id titulo fechaLimiteSorteo } }
+```
+
+### Referral Program Queries/Mutations
+```graphql
+# Get referral stats (code, total referred, earnings, balance)
+query { myReferralStats { referralCode totalReferred totalEarned pendingCredits availableBalance } }
+
+# Get list of referred users with purchase status
+query { myReferredUsers { id nombre apellido createdAt hasPurchased earnedFromUser } }
+
+# Generate referral code for current user
+mutation { generateReferralCode }
+
+# Get referral credit history
+query { myReferralCredits { id amount type status createdAt processedAt } }
+```
+
+### Price Alerts
+```graphql
+# Seller updates raffle price (triggers notifications if price dropped)
+mutation { updateRafflePrice(raffleId: "...", newPrice: 100.00) { id precioPorTicket lastPriceDropAt } }
+```
+
+### Email Verification
+```graphql
+# Register returns user without tokens (requires verification)
+mutation { register(input: {...}) { user { id } requiresVerification message } }
+
+# Verify email with 6-digit code
+mutation { verifyEmail(userId: "...", code: "123456", referralCode: "ABC") { token user { id emailVerified } } }
+
+# Resend verification code (rate limited to 3 per hour)
+mutation { resendVerificationCode(userId: "...") }
+```
+
+### Price History
+```graphql
+# Get price change history for a raffle
+query { priceHistory(raffleId: "...") { id previousPrice newPrice changedAt percentChange } }
+```
+
+## Project Structure
+
+```
+src/
+├── app.module.ts          # Root module
+├── main.ts                # Entry point
+├── common/
+│   ├── constants/         # Fee rates, etc.
+│   ├── decorators/        # @CurrentUser, @Public
+│   ├── guards/            # JWT, Roles, Throttler
+│   ├── events/            # Event emitter for decoupled architecture
+│   ├── repositories/      # Repository pattern (BaseRepository + entity repos)
+│   ├── utils/             # Encryption, full-text search utilities
+│   ├── logger/            # Winston structured logging
+│   └── scalars/           # DateTime, Decimal
+├── auth/                  # Authentication
+├── users/                 # User management
+├── raffles/               # Core raffle logic
+├── tickets/               # Ticket management
+├── payments/              # MP integration
+├── disputes/              # Dispute system
+├── notifications/         # Email + in-app
+├── uploads/               # Cloudinary
+├── admin/                 # Admin features
+├── tasks/                 # Cron jobs
+└── prisma/                # DB client module
+
+prisma/
+├── schema.prisma          # Database schema
+└── seed/                  # Seed scripts
+```
+
+## Testing
+
+```bash
+npm run test        # Unit tests (Jest)
+npm run test:e2e    # E2E tests
+npm run test:cov    # Coverage report
+```
+
+## Admin Queries/Mutations
+
+```graphql
+# Get users with filters
+query { adminUsers(filters: { role: USER, search: "email", onlyBanned: false }) { id email role isBanned deletedAt } }
+
+# Get user activity log
+query { adminUserActivity(userId: "...") { id action entityType entityId createdAt } }
+
+# Ban/unban users
+mutation { banUser(userId: "...", reason: "TOS violation") { id isBanned } }
+mutation { unbanUser(userId: "...") { id isBanned } }
+
+# Bulk resolve disputes
+mutation { bulkResolveDisputes(disputeIds: ["..."], resolution: RESUELTA_COMPRADOR, justification: "...") { successCount failedCount } }
+```
+
+## Key Services
+
+| Service | File | Purpose |
+|---------|------|---------|
+| AuthService | `src/auth/auth.service.ts` | Registration, login, email verification |
+| RafflesService | `src/raffles/raffles.service.ts` | Core raffle CRUD, seller dashboard, buyer experience, price history |
+| PaymentsService | `src/payments/payments.service.ts` | MP Checkout Pro, webhooks, payment sync |
+| MpConnectService | `src/payments/mp-connect.service.ts` | OAuth flow with PKCE for seller onboarding |
+| NotificationsService | `src/notifications/notifications.service.ts` | Email (Resend) + in-app notifications + verification emails |
+| ActivityService | `src/activity/activity.service.ts` | Audit logging for all actions |
+| AdminService | `src/admin/admin.service.ts` | Admin-only operations |
+| DisputesService | `src/disputes/disputes.service.ts` | Buyer protection workflow |
+| ReferralsService | `src/referrals/referrals.service.ts` | Referral codes, rewards, stats |
+
+## Database Schema
+
+The Prisma schema is at `prisma/schema.prisma`. Key models:
+
+| Model | Purpose |
+|-------|---------|
+| User | Users with roles, MP connection status, email verification |
+| Raffle | Raffles with state machine |
+| Ticket | Ticket purchases with payment status |
+| Product | Product details for raffles |
+| Transaction | Payment records |
+| Dispute | Buyer protection disputes |
+| Notification | In-app notifications |
+| ActivityLog | Audit trail |
+| Category | Raffle categories |
+| MpEvent | Webhook idempotency |
+| ReferralCredit | Referral rewards tracking |
+| RaffleQuestion | Questions asked by users on raffles |
+| RaffleAnswer | Seller answers to questions |
+| EmailVerificationCode | 6-digit codes for email verification (15 min expiry) |
+| PriceHistory | Track price changes on raffles |
+
+## Delayed Disbursement
+
+Payments are held for 30 days using MP's `money_release_days` parameter:
+
+```typescript
+// In payments.service.ts
+const preference = await this.mercadopago.preferences.create({
+  body: {
+    // ...
+    marketplace_fee: platformFee,
+    money_release_days: 30, // Buyer protection
+  }
+});
+```
+
+## Environment Variables
+
+| Variable | Description |
+|----------|-------------|
+| `DATABASE_URL` | PostgreSQL connection string |
+| `JWT_SECRET` | Secret for JWT tokens (min 32 chars) |
+| `MP_ACCESS_TOKEN` | Mercado Pago access token |
+| `MP_PUBLIC_KEY` | Mercado Pago public key |
+| `MP_CLIENT_ID` | MP OAuth Client ID (for MP Connect) |
+| `MP_CLIENT_SECRET` | MP OAuth Client Secret |
+| `RESEND_API_KEY` | Resend email API key |
+| `CLOUDINARY_*` | Cloudinary credentials |
+| `FRONTEND_URL` | Frontend URL for redirects |
+| `BACKEND_URL` | Backend URL for webhooks |
+| `ENCRYPTION_KEY` | 32-byte hex key for PII encryption |
+
+## Troubleshooting
+
+```bash
+# TypeScript errors after schema change
+npx prisma generate
+
+# Reset database
+npx prisma db push --force-reset
+
+# Check circular dependency issues
+# Use forwardRef pattern (see Module Dependencies above)
+```

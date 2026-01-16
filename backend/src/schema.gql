@@ -1,0 +1,881 @@
+# ------------------------------------------------------
+# THIS FILE WAS AUTOMATICALLY GENERATED (DO NOT MODIFY)
+# ------------------------------------------------------
+
+input AcceptTermsInput {
+  termsVersion: String!
+}
+
+type AdminStats {
+  activeRaffles: Int!
+  completedRaffles: Int!
+  newRafflesToday: Int!
+  newUsersToday: Int!
+  pendingDisputes: Int!
+  recentMpEvents: Int!
+  totalDisputes: Int!
+  totalRaffles: Int!
+  totalRevenue: Float!
+  totalTicketsSold: Int!
+  totalTransactions: Int!
+  totalUsers: Int!
+}
+
+type AdminUser {
+  apellido: String!
+  createdAt: DateTime!
+  email: String!
+  id: ID!
+  isDeleted: Boolean!
+  mpConnectStatus: MpConnectStatus!
+  nombre: String!
+  rafflesCreated: Int!
+  rafflesWon: Int!
+  role: UserRole!
+  ticketsPurchased: Int!
+}
+
+type AdminUserList {
+  total: Int!
+  users: [AdminUser!]!
+}
+
+input AnswerQuestionInput {
+  content: String!
+  questionId: String!
+}
+
+input AskQuestionInput {
+  content: String!
+  raffleId: String!
+}
+
+"""Types of admin actions that can be audited"""
+enum AuditAction {
+  DISPUTE_RESOLVED
+  PAYOUT_RELEASED
+  RAFFLE_HIDDEN
+  RAFFLE_UNHIDDEN
+  REFUND_ISSUED
+  REPORT_REVIEWED
+  USER_BANNED
+  USER_UNBANNED
+}
+
+type AuditLog {
+  action: AuditAction!
+  adminEmail: String
+  adminId: String!
+  createdAt: DateTime!
+  details: String
+  id: ID!
+  reason: String
+  targetId: String!
+  targetType: String!
+}
+
+type AuthPayload {
+  token: String
+  user: User!
+}
+
+type BulkActionResult {
+  errors: [String!]!
+  failedCount: Int!
+  failedIds: [String!]!
+  successCount: Int!
+}
+
+type BulkResolveResult {
+  errors: [String!]!
+  failedCount: Int!
+  failedIds: [String!]!
+  successCount: Int!
+}
+
+type BuyTicketsResult {
+  cantidadComprada: Int!
+  initPoint: String!
+  preferenceId: String!
+  tickets: [Ticket!]!
+  ticketsRestantesQuePuedeComprar: Int!
+  totalAmount: Float!
+}
+
+type BuyerStats {
+  activeTickets: Int!
+  favoritesCount: Int!
+  totalRafflesWon: Int!
+  totalSpent: Float!
+  totalTicketsPurchased: Int!
+  winRate: Float!
+}
+
+type Category {
+  createdAt: DateTime!
+  descripcion: String
+  icono: String
+  id: ID!
+  isActive: Boolean!
+  nombre: String!
+  orden: Int!
+}
+
+input ChangePasswordInput {
+  newPassword: String!
+  oldPassword: String!
+}
+
+type Conversation {
+  createdAt: DateTime!
+  id: ID!
+  isActive: Boolean!
+  lastMessage: String
+  messages: [Message]!
+  otherUserName: String
+  raffleId: String!
+  raffleTitulo: String
+  unreadCount: Float
+  updatedAt: DateTime!
+  user1Id: String!
+  user2Id: String!
+}
+
+input CreateCategoryInput {
+  descripcion: String
+  icono: String
+  nombre: String!
+  orden: Int! = 0
+}
+
+input CreateRaffleInput {
+  descripcion: String!
+  fechaLimite: String!
+  precioPorTicket: Float!
+  productData: ProductInput!
+  titulo: String!
+  totalTickets: Int!
+}
+
+input CreateShippingAddressInput {
+  apartment: String
+  city: String!
+  country: String! = "Argentina"
+  instructions: String
+  isDefault: Boolean! = false
+  label: String! = "Principal"
+  number: String!
+  phone: String
+  postalCode: String!
+  province: String!
+  recipientName: String!
+  street: String!
+}
+
+"""
+A date-time string at UTC, such as 2019-12-03T09:54:33Z, compliant with the date-time format.
+"""
+scalar DateTime
+
+enum DeliveryStatus {
+  CONFIRMED
+  DELIVERED
+  DISPUTED
+  PENDING
+  SHIPPED
+}
+
+type Dispute {
+  adminNotes: String
+  createdAt: DateTime!
+  descripcion: String!
+  estado: DisputeStatus!
+  evidencias: [String!]!
+  evidenciasVendedor: [String!]
+  fechaRespuestaVendedor: DateTime
+  id: ID!
+  montoPagadoVendedor: Float
+  montoReembolsado: Float
+  raffle: Raffle
+  raffleId: String!
+  reporter: User
+  reporterId: String!
+  resolucion: String
+  resolvedAt: DateTime
+  respuestaVendedor: String
+  tipo: DisputeType!
+  titulo: String!
+}
+
+enum DisputeStatus {
+  ABIERTA
+  EN_MEDIACION
+  ESPERANDO_RESPUESTA_VENDEDOR
+  RESUELTA_COMPRADOR
+  RESUELTA_PARCIAL
+  RESUELTA_VENDEDOR
+}
+
+enum DisputeType {
+  DANADO
+  DIFERENTE
+  NO_LLEGO
+  OTRO
+  VENDEDOR_NO_RESPONDE
+}
+
+enum DocumentType {
+  CUIT_CUIL
+  DNI
+  PASSPORT
+}
+
+type Favorite {
+  createdAt: DateTime!
+  id: ID!
+  raffle: Raffle
+  raffleId: String!
+  userId: String!
+}
+
+"""
+The `JSON` scalar type represents JSON values as specified by [ECMA-404](http://www.ecma-international.org/publications/files/ECMA-ST/ECMA-404.pdf).
+"""
+scalar JSON
+
+enum KycStatus {
+  NOT_SUBMITTED
+  PENDING_REVIEW
+  REJECTED
+  VERIFIED
+}
+
+input LoginInput {
+  email: String!
+  password: String!
+}
+
+type Message {
+  content: String!
+  conversationId: String!
+  createdAt: DateTime!
+  id: ID!
+  isRead: Boolean!
+  senderId: String!
+  senderName: String
+}
+
+type MonthlyRevenue {
+  month: Int!
+  rafflesCompleted: Int!
+  revenue: Float!
+  ticketsSold: Int!
+  year: Int!
+}
+
+enum MpConnectStatus {
+  CONNECTED
+  NOT_CONNECTED
+  PENDING
+}
+
+type MpEvent {
+  eventId: String!
+  eventType: String!
+  id: ID!
+  metadata: JSON
+  processedAt: DateTime!
+}
+
+type MpEventList {
+  events: [MpEvent!]!
+  total: Float!
+}
+
+type Mutation {
+  acceptTerms(input: AcceptTermsInput!): User!
+  addFavorite(raffleId: String!): Favorite!
+  answerQuestion(input: AnswerQuestionInput!): RaffleAnswer!
+  applyReferralCode(code: String!): Boolean!
+  askQuestion(input: AskQuestionInput!): RaffleQuestion!
+
+  """Ban a user"""
+  banUser(reason: String!, userId: String!): User!
+  bulkCancelRaffles(raffleIds: [String!]!): BulkActionResult!
+  bulkExtendRaffles(newDeadline: String!, raffleIds: [String!]!): BulkActionResult!
+
+  """Resolve multiple disputes at once"""
+  bulkResolveDisputes(adminNotes: String, decision: String!, disputeIds: [String!]!, resolucion: String!): BulkResolveResult!
+  buyTickets(cantidad: Int!, raffleId: String!): BuyTicketsResult!
+  cancelRaffle(id: String!): Raffle!
+  changePassword(input: ChangePasswordInput!): User!
+  closeConversation(conversationId: String!): Boolean!
+  confirmDelivery(raffleId: String!): Raffle!
+  createCategory(input: CreateCategoryInput!): Category!
+  createRaffle(input: CreateRaffleInput!): Raffle!
+  createShippingAddress(input: CreateShippingAddressInput!): ShippingAddress!
+  deleteAvatar: User!
+  deleteCategory(id: String!): Boolean!
+  deleteQuestion(questionId: String!): Boolean!
+  deleteShippingAddress(id: String!): Boolean!
+  extendRaffleDeadline(newDeadline: String!, raffleId: String!): Raffle!
+  generateReferralCode: String!
+  incrementRaffleViews(raffleId: String!): Boolean!
+  login(input: LoginInput!): AuthPayload!
+  markAllNotificationsRead: Boolean!
+  markAsShipped(raffleId: String!, trackingNumber: String): Raffle!
+  markNotificationRead(id: String!): Notification!
+  openDispute(input: OpenDisputeInput!): Dispute!
+  processDuePayouts: Boolean!
+  register(input: RegisterInput!): RegisterPayload!
+  rejectRaffleWinner(raffleId: String!, reason: String!): Raffle!
+  releasePayoutManually(payoutId: String!, reason: String!): Boolean!
+  removeFavorite(raffleId: String!): Boolean!
+  reportRaffle(raffleId: String!, reason: String!): Boolean!
+  resendVerificationCode(userId: String!): Boolean!
+  resolveDispute(disputeId: String!, input: ResolveDisputeInput!): Dispute!
+  respondDispute(disputeId: String!, input: RespondDisputeInput!): Dispute!
+  reviewReport(action: String!, adminNotes: String!, reportId: String!): Boolean!
+  sendMessage(input: SendMessageInput!): Message!
+  setDefaultShippingAddress(id: String!): Boolean!
+  startConversation(input: StartConversationInput!): Conversation!
+  testEmail: Boolean!
+
+  """Unban a user"""
+  unbanUser(reason: String!, userId: String!): User!
+  unhideRaffle(adminNotes: String!, raffleId: String!): Boolean!
+  updateAvatar(input: UpdateAvatarInput!): User!
+  updateCategory(id: String!, input: UpdateCategoryInput!): Category!
+  updateKyc(input: UpdateKycInput!): User!
+  updateProfile(input: UpdateProfileInput!): User!
+  updateRaffle(id: String!, input: UpdateRaffleInput!): Raffle!
+  updateRafflePrice(newPrice: Float!, raffleId: String!): Raffle!
+  updateShippingAddress(id: String!, input: UpdateShippingAddressInput!): ShippingAddress!
+  verifyEmail(code: String!, referralCode: String, userId: String!): AuthPayload!
+}
+
+type Notification {
+  createdAt: DateTime!
+  id: ID!
+  message: String!
+  read: Boolean!
+  title: String!
+  type: String!
+}
+
+input OpenDisputeInput {
+  descripcion: String!
+  evidencias: [String!]
+  raffleId: String!
+  tipo: DisputeType!
+  titulo: String!
+}
+
+type PaginatedRaffles {
+  items: [Raffle!]!
+  meta: PaginationMeta!
+}
+
+input PaginationInput {
+  limit: Int = 20
+  page: Int = 1
+}
+
+type PaginationMeta {
+  hasNext: Boolean!
+  hasPrev: Boolean!
+  limit: Int!
+  page: Int!
+  total: Int!
+  totalPages: Int!
+}
+
+type PaymentDebugInfo {
+  buyer: UserMinimal
+  mpPaymentId: String!
+  raffle: RaffleMinimal
+  tickets: [TicketDebugInfo!]!
+  ticketsCount: Int!
+  transactionAmount: Float
+  transactionCreated: Boolean!
+  transactionId: String
+  transactionStatus: String
+  webhookEventType: String
+  webhookProcessedAt: DateTime
+  webhookReceived: Boolean!
+}
+
+type Payout {
+  createdAt: DateTime!
+  failureReason: String
+  grossAmount: Float!
+  id: ID!
+  mpPayoutId: String
+  netAmount: Float!
+  platformFee: Float!
+  processedAt: DateTime
+  processingFee: Float!
+  raffleId: String!
+  raffleTitulo: String
+  scheduledFor: DateTime
+  sellerId: String!
+  status: PayoutStatus!
+  updatedAt: DateTime!
+}
+
+"""Status of seller payout"""
+enum PayoutStatus {
+  COMPLETED
+  FAILED
+  PENDING
+  PROCESSING
+}
+
+type PriceHistory {
+  changedAt: DateTime!
+  id: ID!
+  newPrice: Float!
+  previousPrice: Float!
+  raffleId: String!
+}
+
+type Product {
+  categoria: String
+  condicion: ProductCondition!
+  createdAt: DateTime!
+  descripcionDetallada: String!
+  especificacionesTecnicas: JSON
+  id: ID!
+  imagenes: [String!]!
+  nombre: String!
+  raffleId: String!
+  updatedAt: DateTime!
+}
+
+enum ProductCondition {
+  NUEVO
+  USADO_ACEPTABLE
+  USADO_BUEN_ESTADO
+  USADO_COMO_NUEVO
+}
+
+input ProductInput {
+  categoria: String
+  condicion: ProductCondition!
+  descripcionDetallada: String!
+  especificacionesTecnicas: JSON
+  imagenes: [String!]!
+  nombre: String!
+}
+
+type PublicSellerProfile {
+  apellido: String!
+  createdAt: DateTime!
+  id: String!
+  isVerified: Boolean!
+  nivelVendedor: String!
+  nombre: String!
+  raffles: [Raffle]!
+  reputation: Float
+  totalVentas: Int!
+}
+
+type Query {
+  """Get admin dashboard statistics"""
+  adminStats: AdminStats!
+
+  """Get activity log for a specific user"""
+  adminUserActivity(limit: Int, offset: Int, userId: String!): [UserActivity!]!
+
+  """List all users with filtering"""
+  adminUsers(includeDeleted: Boolean, limit: Int, offset: Int, role: UserRole, search: String): AdminUserList!
+  allCategories: [Category!]!
+  auditLogs(action: String, adminId: String, limit: Int, offset: Int, targetId: String, targetType: String): [AuditLog!]!
+  auditLogsForTarget(targetId: String!, targetType: String!): [AuditLog!]!
+  buyerStats: BuyerStats!
+  categories: [Category!]!
+  category(id: String!): Category!
+  conversation(id: String!): Conversation!
+  dispute(id: String!): Dispute!
+  favoritesEndingSoon(hoursThreshold: Int = 48): [Raffle!]!
+  getReports(raffleId: String, reviewed: Boolean): String!
+  isFavorite(raffleId: String!): Boolean!
+  me: User!
+
+  """Get MP event by ID"""
+  mpEvent(eventId: String!): MpEvent
+
+  """List MP webhook events for debugging"""
+  mpEvents(eventType: String, limit: Int, offset: Int): MpEventList!
+  myConversations: [Conversation!]!
+  myDefaultShippingAddress: ShippingAddress
+  myDisputes: [Dispute!]!
+  myFavorites: [Favorite!]!
+  myNotifications: [Notification!]!
+  myPayouts: [Payout!]!
+  myRafflesAsSeller: [Raffle!]!
+  myReferralCode: String
+  myReferralCredits: [ReferralCredit!]!
+  myReferralStats: ReferralStats!
+  myReferredUsers: [ReferredUser!]!
+  myShippingAddresses: [ShippingAddress!]!
+  myTickets: [Ticket!]!
+
+  """Debug payment by MP payment ID"""
+  paymentDebug(mpPaymentId: String!): PaymentDebugInfo!
+  pendingDisputes: [Dispute!]!
+  pendingPayouts: [Payout!]!
+  priceHistory(raffleId: String!): [PriceHistory!]!
+  raffle(id: String!): Raffle!
+  rafflePayout(raffleId: String!): Payout
+  raffleQuestions(raffleId: String!): [RaffleQuestion!]!
+  raffles(filters: RaffleFiltersInput, pagination: PaginationInput): [Raffle!]!
+  rafflesPaginated(filters: RaffleFiltersInput, pagination: PaginationInput): PaginatedRaffles!
+  recommendedRaffles(limit: Int = 6): [Raffle!]!
+  sellerDashboardStats: SellerDashboardStats!
+  sellerProfile(id: String!): PublicSellerProfile!
+  shippingAddress(id: String!): ShippingAddress!
+  ticket(id: String!): Ticket!
+}
+
+type Raffle {
+  confirmedAt: DateTime
+  createdAt: DateTime!
+  deliveryStatus: DeliveryStatus!
+  descripcion: String!
+  estado: RaffleStatus!
+  fechaInicio: DateTime!
+  fechaLimiteSorteo: DateTime!
+  fechaSorteoReal: DateTime
+  id: ID!
+  lastPriceDropAt: DateTime
+  maxTicketsPorUsuario: Int!
+  paymentReleasedAt: DateTime
+  precioPorTicket: Float!
+  precioTotal: Float!
+  product: Product
+  seller: User
+  sellerId: String!
+  shippedAt: DateTime
+  tickets: [Ticket!]
+  ticketsDisponibles: Int!
+  ticketsVendidos: Int!
+  titulo: String!
+  totalTickets: Int!
+  trackingNumber: String
+  updatedAt: DateTime!
+  viewCount: Int!
+  winner: User
+  winnerId: String
+}
+
+type RaffleAnswer {
+  content: String!
+  createdAt: DateTime!
+  id: ID!
+  questionId: String!
+  seller: User
+  sellerId: String!
+}
+
+input RaffleFiltersInput {
+  categoria: String
+  estado: RaffleStatus
+  precioMax: Float
+  precioMin: Float
+  searchTerm: String
+  sortBy: RaffleSort
+}
+
+type RaffleMinimal {
+  id: String!
+  sellerId: String
+  titulo: String!
+}
+
+type RaffleQuestion {
+  answer: RaffleAnswer
+  asker: User
+  askerId: String!
+  content: String!
+  createdAt: DateTime!
+  id: ID!
+  raffleId: String!
+}
+
+enum RaffleSort {
+  CREATED_ASC
+  CREATED_DESC
+  END_DATE_ASC
+  END_DATE_DESC
+  PRICE_ASC
+  PRICE_DESC
+}
+
+enum RaffleStatus {
+  ACTIVA
+  CANCELADA
+  COMPLETADA
+  EN_ENTREGA
+  FINALIZADA
+  SORTEADA
+}
+
+type ReferralCredit {
+  amount: Float!
+  createdAt: DateTime!
+  description: String
+  id: ID!
+  processedAt: DateTime
+  refereeId: String!
+  status: ReferralCreditStatus!
+  ticketId: String
+  type: ReferralCreditType!
+  userId: String!
+}
+
+enum ReferralCreditStatus {
+  CREDITED
+  EXPIRED
+  PENDING
+  USED
+}
+
+enum ReferralCreditType {
+  FIRST_PURCHASE_BONUS
+  SIGNUP_BONUS
+}
+
+type ReferralStats {
+  availableBalance: Float!
+  pendingCredits: Float!
+  referralCode: String
+  totalEarned: Float!
+  totalReferred: Float!
+}
+
+type ReferredUser {
+  apellido: String!
+  createdAt: DateTime!
+  earnedFromUser: Float!
+  hasPurchased: Boolean!
+  id: ID!
+  nombre: String!
+}
+
+input RegisterInput {
+  acceptTerms: Boolean!
+  apellido: String!
+  email: String!
+  fechaNacimiento: String!
+  nombre: String!
+  password: String!
+  referralCode: String
+}
+
+type RegisterPayload {
+  message: String
+  requiresVerification: Boolean!
+  user: User!
+}
+
+input ResolveDisputeInput {
+  adminNotes: String
+  decision: DisputeStatus!
+  montoPagadoVendedor: Float
+  montoReembolsado: Float
+  resolucion: String!
+}
+
+input RespondDisputeInput {
+  evidencias: [String!]
+  respuesta: String!
+}
+
+type SellerDashboardStats {
+  activeRaffles: Int!
+  completedRaffles: Int!
+  conversionRate: Float!
+  monthlyRevenue: [MonthlyRevenue!]!
+  totalRevenue: Float!
+  totalTicketsSold: Int!
+  totalViews: Int!
+}
+
+input SendMessageInput {
+  content: String!
+  conversationId: String!
+}
+
+type ShippingAddress {
+  apartment: String
+  city: String!
+  country: String!
+  createdAt: DateTime!
+  id: ID!
+  instructions: String
+  isDefault: Boolean!
+  label: String!
+  number: String!
+  phone: String
+  postalCode: String!
+  province: String!
+  recipientName: String!
+  street: String!
+  updatedAt: DateTime!
+  userId: String!
+}
+
+input StartConversationInput {
+  initialMessage: String!
+  raffleId: String!
+}
+
+type Subscription {
+  notificationAdded: Notification!
+}
+
+type Ticket {
+  buyer: User
+  buyerId: String!
+  createdAt: DateTime!
+  estado: TicketStatus!
+  fechaCompra: DateTime!
+  id: ID!
+  mpPaymentId: String
+  numeroTicket: Int!
+  precioPagado: Float!
+  raffle: Raffle
+  raffleId: String!
+  updatedAt: DateTime!
+}
+
+type TicketDebugInfo {
+  estado: String!
+  id: String!
+  numeroTicket: Int!
+  precioPagado: Float!
+}
+
+enum TicketStatus {
+  PAGADO
+  REEMBOLSADO
+  RESERVADO
+}
+
+input UpdateAvatarInput {
+  avatarUrl: String!
+}
+
+input UpdateCategoryInput {
+  descripcion: String
+  icono: String
+  isActive: Boolean
+  nombre: String
+  orden: Int
+}
+
+input UpdateKycInput {
+  apartment: String
+  city: String!
+  cuitCuil: String
+  documentBackUrl: String
+  documentFrontUrl: String
+  documentNumber: String!
+  documentType: DocumentType!
+  phone: String
+  postalCode: String!
+  province: String!
+  street: String!
+  streetNumber: String!
+}
+
+input UpdateProfileInput {
+  apellido: String
+  nombre: String
+  phone: String
+}
+
+input UpdateRaffleInput {
+  descripcion: String
+  fechaLimite: String
+  titulo: String
+}
+
+input UpdateShippingAddressInput {
+  apartment: String
+  city: String
+  country: String
+  instructions: String
+  isDefault: Boolean
+  label: String
+  number: String
+  phone: String
+  postalCode: String
+  province: String
+  recipientName: String
+  street: String
+}
+
+type User {
+  apartment: String
+  apellido: String!
+  avatarUrl: String
+  city: String
+  country: String
+  createdAt: DateTime!
+  cuitCuil: String
+  defaultSenderAddressId: String
+  deletedAt: DateTime
+  documentBackUrl: String
+  documentFrontUrl: String
+  documentNumber: String
+  documentType: DocumentType
+  email: String!
+  emailVerified: Boolean!
+  emailVerifiedAt: DateTime
+  fechaNacimiento: DateTime
+  googleId: String
+  id: ID!
+  isDeleted: Boolean!
+  kycRejectedReason: String
+  kycStatus: KycStatus!
+  kycSubmittedAt: DateTime
+  kycVerifiedAt: DateTime
+  mpConnectStatus: MpConnectStatus!
+
+  """MP user ID (public identifier)"""
+  mpUserId: String
+  nombre: String!
+  phone: String
+  postalCode: String
+  province: String
+  role: UserRole!
+  street: String
+  streetNumber: String
+  termsAcceptedAt: DateTime
+  termsVersion: String
+  updatedAt: DateTime!
+}
+
+type UserActivity {
+  action: String!
+  createdAt: DateTime!
+  id: ID!
+  ipAddress: String
+  metadata: String
+  targetId: String
+  targetType: String
+}
+
+type UserMinimal {
+  email: String!
+  id: String!
+  nombre: String!
+}
+
+enum UserRole {
+  ADMIN
+  BANNED
+  USER
+}

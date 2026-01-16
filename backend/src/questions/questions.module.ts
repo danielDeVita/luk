@@ -1,0 +1,11 @@
+import { Module } from '@nestjs/common';
+import { QuestionsService } from './questions.service';
+import { QuestionsResolver } from './questions.resolver';
+import { PrismaModule } from '../prisma/prisma.module';
+
+@Module({
+  imports: [PrismaModule],
+  providers: [QuestionsService, QuestionsResolver],
+  exports: [QuestionsService],
+})
+export class QuestionsModule {}

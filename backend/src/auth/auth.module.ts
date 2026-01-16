@@ -1,0 +1,42 @@
+import { Module, forwardRef } from '@nestjs/common';
+import { JwtModule } from '@nestjs/jwt';
+import { PassportModule } from '@nestjs/passport';
+import { ConfigService } from '@nestjs/config';
+import { AuthService } from './auth.service';
+import { AuthResolver } from './auth.resolver';
+import { AuthGoogleController } from './auth-google.controller';
+import { JwtStrategy } from './strategies/jwt.strategy';
+import { GoogleStrategy } from './strategies/google.strategy';
+import { GqlAuthGuard } from './guards/gql-auth.guard';
+import { LoginThrottlerService, LoginThrottlerGuard } from '@/common/guards';
+import { PrismaModule } from '../prisma/prisma.module';
+import { NotificationsModule } from '../notifications/notifications.module';
+import { ReferralsModule } from '../referrals/referrals.module';
+
+@Module({
+  imports: [
+    PrismaModule,
+    NotificationsModule,
+    forwardRef(() => ReferralsModule),
+    PassportModule.register({ defaultStrategy: 'jwt' }),
+    JwtModule.registerAsync({
+      inject: [ConfigService],
+      useFactory: (configService: ConfigService) => ({
+        secret: configService.getOrThrow<string>('JWT_SECRET'),
+        signOptions: { expiresIn: '7d' },
+      }),
+    }),
+  ],
+  controllers: [AuthGoogleController],
+  providers: [
+    AuthService,
+    AuthResolver,
+    JwtStrategy,
+    GoogleStrategy,
+    GqlAuthGuard,
+    LoginThrottlerService,
+    LoginThrottlerGuard,
+  ],
+  exports: [AuthService, JwtModule, GqlAuthGuard, LoginThrottlerService],
+})
+export class AuthModule {}

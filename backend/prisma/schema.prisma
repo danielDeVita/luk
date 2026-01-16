@@ -1,0 +1,841 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ==================== ENUMS ====================
+
+enum UserRole {
+  USER
+  ADMIN
+  BANNED
+}
+
+enum DocumentType {
+  DNI
+  PASSPORT
+  CUIT_CUIL
+}
+
+enum KycStatus {
+  NOT_SUBMITTED
+  PENDING_REVIEW
+  VERIFIED
+  REJECTED
+}
+
+enum RaffleStatus {
+  ACTIVA
+  COMPLETADA
+  SORTEADA
+  EN_ENTREGA
+  FINALIZADA
+  CANCELADA
+}
+
+enum DeliveryStatus {
+  PENDING
+  SHIPPED
+  DELIVERED
+  DISPUTED
+  CONFIRMED
+}
+
+enum ProductCondition {
+  NUEVO
+  USADO_COMO_NUEVO
+  USADO_BUEN_ESTADO
+  USADO_ACEPTABLE
+}
+
+enum TicketStatus {
+  RESERVADO
+  PAGADO
+  REEMBOLSADO
+}
+
+enum TransactionType {
+  COMPRA_TICKET
+  REEMBOLSO
+  PAGO_VENDEDOR
+  COMISION_PLATAFORMA
+  FEE_MP
+}
+
+enum TransactionStatus {
+  PENDIENTE
+  COMPLETADO
+  FALLIDO
+  REEMBOLSADO
+}
+
+enum DisputeType {
+  NO_LLEGO
+  DIFERENTE
+  DANADO
+  VENDEDOR_NO_RESPONDE
+  OTRO
+}
+
+enum DisputeStatus {
+  ABIERTA
+  ESPERANDO_RESPUESTA_VENDEDOR
+  EN_MEDIACION
+  RESUELTA_COMPRADOR
+  RESUELTA_VENDEDOR
+  RESUELTA_PARCIAL
+}
+
+enum SellerLevel {
+  NUEVO
+  BRONCE
+  PLATA
+  ORO
+}
+
+enum MpConnectStatus {
+  NOT_CONNECTED
+  PENDING
+  CONNECTED
+}
+
+enum AuditAction {
+  USER_BANNED
+  USER_UNBANNED
+  RAFFLE_HIDDEN
+  RAFFLE_UNHIDDEN
+  DISPUTE_RESOLVED
+  REPORT_REVIEWED
+  PAYOUT_RELEASED
+  REFUND_ISSUED
+}
+
+enum PayoutStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum ReferralCreditType {
+  SIGNUP_BONUS
+  FIRST_PURCHASE_BONUS
+}
+
+enum ReferralCreditStatus {
+  PENDING
+  CREDITED
+  USED
+  EXPIRED
+}
+
+// ==================== MODELS ====================
+
+model User {
+  id            String     @id @default(cuid())
+  email         String     @unique
+  passwordHash  String?    @map("password_hash") // Nullable for OAuth users
+  nombre        String
+  apellido      String
+  role          UserRole   @default(USER)
+  createdAt     DateTime   @default(now()) @map("created_at")
+  updatedAt     DateTime   @updatedAt @map("updated_at")
+
+  // Soft delete
+  isDeleted     Boolean    @default(false) @map("is_deleted")
+  deletedAt     DateTime?  @map("deleted_at")
+
+  // OAuth fields
+  googleId      String?    @unique @map("google_id")
+  avatarUrl     String?    @map("avatar_url")
+
+  // Email verification
+  emailVerified       Boolean       @default(false) @map("email_verified")
+  emailVerifiedAt     DateTime?     @map("email_verified_at")
+
+  // Mercado Pago (for sellers)
+  mpUserId             String?              @unique @map("mp_user_id")
+  mpAccessToken        String?              @map("mp_access_token")
+  mpRefreshToken       String?              @map("mp_refresh_token")
+  mpConnectStatus      MpConnectStatus      @default(NOT_CONNECTED) @map("mp_connect_status")
+
+  // Legal & Terms
+  termsAcceptedAt      DateTime?            @map("terms_accepted_at")
+  termsVersion         String?              @map("terms_version") // Version of terms accepted
+
+  // KYC - Identity Verification (Required for legal compliance)
+  fechaNacimiento      DateTime?            @map("fecha_nacimiento")
+  documentType         DocumentType?        @map("document_type")
+  documentNumber       String?              @map("document_number")
+  documentFrontUrl     String?              @map("document_front_url")
+  documentBackUrl      String?              @map("document_back_url")
+  kycStatus            KycStatus            @default(NOT_SUBMITTED) @map("kyc_status")
+  kycSubmittedAt       DateTime?            @map("kyc_submitted_at")
+  kycVerifiedAt        DateTime?            @map("kyc_verified_at")
+  kycRejectedReason    String?              @map("kyc_rejected_reason")
+
+  // Address (for KYC and prize delivery)
+  street               String?
+  streetNumber         String?              @map("street_number")
+  apartment            String?
+  city                 String?
+  province             String?
+  postalCode           String?              @map("postal_code")
+  country              String?              @default("Argentina")
+
+  // Contact
+  phone                String?
+
+  // CUIT/CUIL (for sellers - tax purposes)
+  cuitCuil             String?              @map("cuit_cuil")
+
+  // Seller's default "from" address for shipping labels
+  defaultSenderAddressId String?            @map("default_sender_address_id")
+
+  // Referral Program
+  referralCode      String?              @unique @map("referral_code")
+  referredById      String?              @map("referred_by_id")
+  referralBalance   Decimal              @default(0) @map("referral_balance") @db.Decimal(10, 2)
+
+  // Relations
+  referredBy        User?                @relation("UserReferrals", fields: [referredById], references: [id])
+  referredUsers     User[]               @relation("UserReferrals")
+  referralCredits   ReferralCredit[]
+  rafflesCreated    Raffle[]      @relation("SellerRaffles")
+  rafflesWon        Raffle[]      @relation("WinnerRaffles")
+  ticketsPurchased  Ticket[]
+  transactions      Transaction[]
+  disputesReported  Dispute[]     @relation("ReporterDisputes")
+  reviewsGiven      Review[]      @relation("ReviewerReviews")
+  reviewsReceived   Review[]      @relation("SellerReviews")
+  reputation        UserReputation?
+  reportsSubmitted  Report[]      @relation("ReporterReports")
+  notifications     Notification[]
+  favorites         Favorite[]
+  shippingAddresses ShippingAddress[]
+  auditLogsPerformed AuditLog[]   @relation("AdminAuditLogs")
+  conversationsAsUser1 Conversation[] @relation("ConversationUser1")
+  conversationsAsUser2 Conversation[] @relation("ConversationUser2")
+  messagesSent      Message[]
+  activityLogs      ActivityLog[] @relation("UserActivityLogs")
+  refreshTokens     RefreshToken[]
+  questionsAsked    RaffleQuestion[] @relation("UserQuestions")
+  answersGiven      RaffleAnswer[]   @relation("SellerAnswers")
+  emailVerificationCodes EmailVerificationCode[]
+
+  @@index([isDeleted, createdAt])
+  @@map("users")
+}
+
+model Raffle {
+  id                  String        @id @default(cuid())
+  titulo              String
+  descripcion         String
+  sellerId            String        @map("seller_id")
+  totalTickets        Int           @map("total_tickets")
+  precioPorTicket     Decimal       @map("precio_por_ticket") @db.Decimal(10, 2)
+  fechaInicio         DateTime      @default(now()) @map("fecha_inicio")
+  fechaLimiteSorteo   DateTime      @map("fecha_limite_sorteo")
+  estado              RaffleStatus  @default(ACTIVA)
+  winnerId            String?       @map("winner_id")
+  fechaSorteoReal     DateTime?     @map("fecha_sorteo_real")
+  
+  // Delivery fields
+  deliveryStatus      DeliveryStatus @default(PENDING) @map("delivery_status")
+  trackingNumber      String?       @map("tracking_number")
+  shippedAt           DateTime?     @map("shipped_at")
+  deliveredAt         DateTime?     @map("delivered_at")
+  confirmedAt         DateTime?     @map("confirmed_at")
+  paymentReleasedAt   DateTime?     @map("payment_released_at")
+  
+  // Analytics
+  viewCount           Int           @default(0) @map("view_count")
+  lastPriceDropAt     DateTime?     @map("last_price_drop_at")
+
+  // Moderation
+  isHidden            Boolean       @default(false) @map("is_hidden")
+  hiddenReason        String?       @map("hidden_reason")
+  
+  // Soft delete
+  isDeleted           Boolean       @default(false) @map("is_deleted")
+  deletedAt           DateTime?     @map("deleted_at")
+  
+  createdAt           DateTime      @default(now()) @map("created_at")
+  updatedAt           DateTime      @updatedAt @map("updated_at")
+
+  // Category
+  categoryId          String?       @map("category_id")
+
+  // Relations
+  seller              User          @relation("SellerRaffles", fields: [sellerId], references: [id])
+  winner              User?         @relation("WinnerRaffles", fields: [winnerId], references: [id])
+  product             Product?
+  tickets             Ticket[]
+  transactions        Transaction[]
+  priceReductions     PriceReduction[]
+  priceHistory        PriceHistory[]
+  dispute             Dispute?
+  review              Review?
+  drawResult          DrawResult?
+  reports             Report[]
+  category            Category?     @relation(fields: [categoryId], references: [id])
+  favorites           Favorite[]
+  payout              Payout?
+  conversation        Conversation?
+  questions           RaffleQuestion[]
+
+  @@index([sellerId])
+  @@index([estado])
+  @@index([fechaLimiteSorteo])
+  @@index([isDeleted, createdAt])
+  @@index([categoryId])
+  @@index([estado, fechaLimiteSorteo])  // Composite for cron job queries (expired raffles)
+  @@map("raffles")
+}
+
+model Product {
+  id                      String           @id @default(cuid())
+  raffleId                String           @unique @map("raffle_id")
+  nombre                  String
+  descripcionDetallada    String           @map("descripcion_detallada") @db.Text
+  categoria               String?
+  condicion               ProductCondition
+  imagenes                String[]
+  especificacionesTecnicas Json?           @map("especificaciones_tecnicas")
+  createdAt               DateTime         @default(now()) @map("created_at")
+  updatedAt               DateTime         @updatedAt @map("updated_at")
+
+  // Relations
+  raffle                  Raffle           @relation(fields: [raffleId], references: [id], onDelete: Cascade)
+
+  @@map("products")
+}
+
+model Ticket {
+  id              String       @id @default(cuid())
+  raffleId        String       @map("raffle_id")
+  numeroTicket    Int          @map("numero_ticket")
+  buyerId         String       @map("buyer_id")
+  precioPagado    Decimal      @map("precio_pagado") @db.Decimal(10, 2)
+  mpPaymentId     String?      @map("mp_payment_id")
+  mpExternalReference String?   @map("mp_external_reference")
+  estado          TicketStatus @default(RESERVADO)
+  fechaCompra     DateTime     @default(now()) @map("fecha_compra")
+  
+  // Soft delete
+  isDeleted       Boolean      @default(false) @map("is_deleted")
+  deletedAt       DateTime?    @map("deleted_at")
+  
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @updatedAt @map("updated_at")
+
+  // Relations
+  raffle          Raffle       @relation(fields: [raffleId], references: [id], onDelete: Cascade)
+  buyer           User         @relation(fields: [buyerId], references: [id])
+
+  @@unique([raffleId, numeroTicket])
+  @@index([raffleId])
+  @@index([buyerId])
+  @@index([estado])
+  @@index([isDeleted, createdAt])
+  @@index([mpPaymentId])
+  @@index([raffleId, estado])  // Composite for ticket purchase queries
+  @@map("tickets")
+}
+
+model Transaction {
+  id                  String            @id @default(cuid())
+  tipo                TransactionType
+  userId              String            @map("user_id")
+  raffleId            String            @map("raffle_id")
+  monto               Decimal           @db.Decimal(10, 2)
+  comisionPlataforma  Decimal?          @map("comision_plataforma") @db.Decimal(10, 2)
+  feeProcesamiento    Decimal?          @map("fee_procesamiento") @db.Decimal(10, 2)
+  montoNeto           Decimal?          @map("monto_neto") @db.Decimal(10, 2)
+  mpPaymentId         String?           @map("mp_payment_id")
+  mpMerchantOrderId   String?           @map("mp_merchant_order_id")
+  estado              TransactionStatus @default(PENDIENTE)
+  metadata            Json?
+  
+  // Soft delete
+  isDeleted           Boolean           @default(false) @map("is_deleted")
+  deletedAt           DateTime?         @map("deleted_at")
+  
+  createdAt           DateTime          @default(now()) @map("created_at")
+
+  // Relations
+  user                User              @relation(fields: [userId], references: [id])
+  raffle              Raffle            @relation(fields: [raffleId], references: [id])
+
+  @@index([userId])
+  @@index([raffleId])
+  @@index([tipo])
+  @@index([isDeleted, createdAt])
+  @@index([mpPaymentId])
+  @@index([estado, createdAt])  // Composite for admin queries
+  @@map("transactions")
+}
+
+model PriceReduction {
+  id                      String    @id @default(cuid())
+  raffleId                String    @map("raffle_id")
+  precioAnterior          Decimal   @map("precio_anterior") @db.Decimal(10, 2)
+  precioSugerido          Decimal   @map("precio_sugerido") @db.Decimal(10, 2)
+  porcentajeReduccion     Decimal   @map("porcentaje_reduccion") @db.Decimal(5, 2)
+  ticketsVendidosAlMomento Int      @map("tickets_vendidos_al_momento")
+  fechaSugerencia         DateTime  @default(now()) @map("fecha_sugerencia")
+  aceptada                Boolean?
+  fechaRespuesta          DateTime? @map("fecha_respuesta")
+
+  // Soft delete
+  isDeleted               Boolean   @default(false) @map("is_deleted")
+  deletedAt               DateTime? @map("deleted_at")
+
+  // Relations
+  raffle                  Raffle    @relation(fields: [raffleId], references: [id], onDelete: Cascade)
+
+  @@index([raffleId])
+  @@index([isDeleted, fechaSugerencia])
+  @@map("price_reductions")
+}
+
+model PriceHistory {
+  id              String   @id @default(cuid())
+  raffleId        String   @map("raffle_id")
+  previousPrice   Decimal  @map("previous_price") @db.Decimal(10, 2)
+  newPrice        Decimal  @map("new_price") @db.Decimal(10, 2)
+  changedAt       DateTime @default(now()) @map("changed_at")
+
+  // Relations
+  raffle          Raffle   @relation(fields: [raffleId], references: [id], onDelete: Cascade)
+
+  @@index([raffleId, changedAt])
+  @@map("price_history")
+}
+
+model Dispute {
+  id                    String        @id @default(cuid())
+  raffleId              String        @unique @map("raffle_id")
+  reporterId            String        @map("reporter_id")
+  tipo                  DisputeType
+  titulo                String
+  descripcion           String        @db.Text
+  evidencias            String[]
+  estado                DisputeStatus @default(ABIERTA)
+  respuestaVendedor     String?       @map("respuesta_vendedor") @db.Text
+  evidenciasVendedor    String[]      @map("evidencias_vendedor")
+  adminNotes            String?       @map("admin_notes") @db.Text
+  resolucion            String?       @db.Text
+  montoReembolsado      Decimal?      @map("monto_reembolsado") @db.Decimal(10, 2)
+  montoPagadoVendedor   Decimal?      @map("monto_pagado_vendedor") @db.Decimal(10, 2)
+  fechaRespuestaVendedor DateTime?    @map("fecha_respuesta_vendedor")
+  
+  // Soft delete
+  isDeleted             Boolean       @default(false) @map("is_deleted")
+  deletedAt             DateTime?     @map("deleted_at")
+  
+  createdAt             DateTime      @default(now()) @map("created_at")
+  resolvedAt            DateTime?     @map("resolved_at")
+
+  // Relations
+  raffle                Raffle        @relation(fields: [raffleId], references: [id])
+  reporter              User          @relation("ReporterDisputes", fields: [reporterId], references: [id])
+
+  @@index([estado])
+  @@index([isDeleted, createdAt])
+  @@map("disputes")
+}
+
+model UserReputation {
+  id                          String      @id @default(cuid())
+  userId                      String      @unique @map("user_id")
+  totalVentasCompletadas      Int         @default(0) @map("total_ventas_completadas")
+  totalComprasCompletadas     Int         @default(0) @map("total_compras_completadas")
+  totalRifasGanadas           Int         @default(0) @map("total_rifas_ganadas")
+  totalTicketsComprados       Int         @default(0) @map("total_tickets_comprados")
+  disputasComoVendedorGanadas Int         @default(0) @map("disputas_como_vendedor_ganadas")
+  disputasComoVendedorPerdidas Int        @default(0) @map("disputas_como_vendedor_perdidas")
+  disputasComoCompradorAbiertas Int       @default(0) @map("disputas_como_comprador_abiertas")
+  ratingPromedioVendedor      Decimal?    @map("rating_promedio_vendedor") @db.Decimal(3, 2)
+  nivelVendedor               SellerLevel @default(NUEVO) @map("nivel_vendedor")
+  maxRifasSimultaneas         Int         @default(3) @map("max_rifas_simultaneas")
+  updatedAt                   DateTime    @updatedAt @map("updated_at")
+
+  // Relations
+  user                        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_reputations")
+}
+
+model Review {
+  id          String   @id @default(cuid())
+  raffleId    String   @unique @map("raffle_id")
+  reviewerId  String   @map("reviewer_id")
+  sellerId    String   @map("seller_id")
+  rating      Int      @db.SmallInt
+  comentario  String?  @db.Text
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  // Relations
+  raffle      Raffle   @relation(fields: [raffleId], references: [id])
+  reviewer    User     @relation("ReviewerReviews", fields: [reviewerId], references: [id])
+  seller      User     @relation("SellerReviews", fields: [sellerId], references: [id])
+
+  @@index([sellerId])
+  @@map("reviews")
+}
+
+model DrawResult {
+  id                String   @id @default(cuid())
+  raffleId          String   @unique @map("raffle_id")
+  winningTicketId   String   @map("winning_ticket_id")
+  winnerId          String   @map("winner_id")
+  timestamp         DateTime @default(now())
+  method            String   @default("RANDOM_INDEX")
+  totalParticipants Int      @map("total_participants")
+  randomSeed        String?  @map("random_seed")
+
+  // Relations
+  raffle            Raffle   @relation(fields: [raffleId], references: [id])
+
+  @@map("draw_results")
+}
+
+// Mercado Pago webhook event tracking for idempotency
+model MpEvent {
+  id          String   @id @default(cuid())
+  eventId     String   @unique @map("event_id")
+  eventType   String   @map("event_type")
+  processedAt DateTime @default(now()) @map("processed_at")
+  metadata    Json?
+
+  @@map("mp_events")
+}
+
+// Reports for moderation (flag potentially fraudulent raffles)
+model Report {
+  id          String   @id @default(cuid())
+  raffleId    String   @map("raffle_id")
+  reporterId  String   @map("reporter_id")
+  reason      String   @db.Text
+  createdAt   DateTime @default(now()) @map("created_at")
+  reviewed    Boolean  @default(false)
+  reviewedAt  DateTime? @map("reviewed_at")
+  adminNotes  String?  @map("admin_notes") @db.Text
+
+  // Relations
+  raffle      Raffle   @relation(fields: [raffleId], references: [id])
+  reporter    User     @relation("ReporterReports", fields: [reporterId], references: [id])
+
+  @@unique([raffleId, reporterId]) // One report per user per raffle
+  @@index([raffleId])
+  @@index([reviewed])
+  @@map("reports")
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      String   // WIN, INFO, SYSTEM
+  title     String
+  message   String
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@index([read])
+  @@map("notifications")
+}
+
+// ==================== NEW MODELS ====================
+
+model Category {
+  id          String   @id @default(cuid())
+  nombre      String   @unique
+  descripcion String?
+  icono       String?  // Icon name or emoji
+  orden       Int      @default(0) // For sorting
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  // Relations
+  raffles     Raffle[]
+
+  @@index([isActive, orden])
+  @@map("categories")
+}
+
+model Favorite {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  raffleId  String   @map("raffle_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  raffle    Raffle   @relation(fields: [raffleId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, raffleId])
+  @@index([userId])
+  @@index([raffleId])
+  @@map("favorites")
+}
+
+model ShippingAddress {
+  id            String   @id @default(cuid())
+  userId        String   @map("user_id")
+  label         String   @default("Principal") // "Casa", "Trabajo", etc.
+  recipientName String   @map("recipient_name")
+  street        String
+  number        String
+  apartment     String?
+  city          String
+  province      String
+  postalCode    String   @map("postal_code")
+  country       String   @default("Argentina")
+  phone         String?
+  instructions  String?  // Delivery instructions
+  isDefault     Boolean  @default(false) @map("is_default")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isDefault])
+  @@map("shipping_addresses")
+}
+
+model AuditLog {
+  id          String      @id @default(cuid())
+  adminId     String      @map("admin_id")
+  action      AuditAction
+  targetType  String      @map("target_type") // "User", "Raffle", "Dispute", etc.
+  targetId    String      @map("target_id")
+  details     Json?       // Additional context
+  reason      String?     @db.Text
+  createdAt   DateTime    @default(now()) @map("created_at")
+
+  // Relations
+  admin       User        @relation("AdminAuditLogs", fields: [adminId], references: [id])
+
+  @@index([adminId])
+  @@index([targetType, targetId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+model Conversation {
+  id        String    @id @default(cuid())
+  raffleId  String    @unique @map("raffle_id")
+  user1Id   String    @map("user1_id") // Usually the buyer/winner
+  user2Id   String    @map("user2_id") // Usually the seller
+  isActive  Boolean   @default(true) @map("is_active")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  raffle    Raffle    @relation(fields: [raffleId], references: [id], onDelete: Cascade)
+  user1     User      @relation("ConversationUser1", fields: [user1Id], references: [id])
+  user2     User      @relation("ConversationUser2", fields: [user2Id], references: [id])
+  messages  Message[]
+
+  @@index([user1Id])
+  @@index([user2Id])
+  @@map("conversations")
+}
+
+model Message {
+  id             String   @id @default(cuid())
+  conversationId String   @map("conversation_id")
+  senderId       String   @map("sender_id")
+  content        String   @db.Text
+  isRead         Boolean  @default(false) @map("is_read")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  // Relations
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender         User         @relation(fields: [senderId], references: [id])
+
+  @@index([conversationId, createdAt])
+  @@index([senderId])
+  @@map("messages")
+}
+
+model Payout {
+  id                  String       @id @default(cuid())
+  raffleId            String       @unique @map("raffle_id")
+  sellerId            String       @map("seller_id")
+  grossAmount         Decimal      @map("gross_amount") @db.Decimal(10, 2)
+  platformFee         Decimal      @map("platform_fee") @db.Decimal(10, 2)
+  processingFee       Decimal      @map("processing_fee") @db.Decimal(10, 2)
+  netAmount           Decimal      @map("net_amount") @db.Decimal(10, 2)
+  status              PayoutStatus @default(PENDING)
+  mpPayoutId          String?      @map("mp_payout_id")
+  scheduledFor        DateTime?    @map("scheduled_for")
+  processedAt         DateTime?    @map("processed_at")
+  failureReason       String?      @map("failure_reason")
+  createdAt           DateTime     @default(now()) @map("created_at")
+  updatedAt           DateTime     @updatedAt @map("updated_at")
+
+  // Relations
+  raffle              Raffle       @relation(fields: [raffleId], references: [id])
+
+  @@index([sellerId])
+  @@index([status])
+  @@index([scheduledFor])
+  @@map("payouts")
+}
+
+// Activity Log - tracks major user events for analytics and debugging
+model ActivityLog {
+  id          String       @id @default(cuid())
+  userId      String       @map("user_id")
+  action      ActivityType
+  targetType  String?      @map("target_type") // "Raffle", "Ticket", "Dispute", etc.
+  targetId    String?      @map("target_id")
+  metadata    Json?        // Additional context (amount, ticket numbers, etc.)
+  ipAddress   String?      @map("ip_address")
+  userAgent   String?      @map("user_agent") @db.Text
+  createdAt   DateTime     @default(now()) @map("created_at")
+
+  // Relations
+  user        User         @relation("UserActivityLogs", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([action])
+  @@index([targetType, targetId])
+  @@map("activity_logs")
+}
+
+model RefreshToken {
+  id          String   @id @default(cuid())
+  userId      String   @map("user_id")
+  token       String   @unique
+  expiresAt   DateTime @map("expires_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+  revokedAt   DateTime? @map("revoked_at")
+  deviceInfo  String?  @map("device_info") // User agent or device identifier
+  ipAddress   String?  @map("ip_address")
+
+  // Relations
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("refresh_tokens")
+}
+
+model ReferralCredit {
+  id           String               @id @default(cuid())
+  userId       String               @map("user_id")
+  refereeId    String               @map("referee_id")
+  amount       Decimal              @db.Decimal(10, 2)
+  type         ReferralCreditType
+  status       ReferralCreditStatus @default(PENDING)
+  description  String?
+  ticketId     String?              @map("ticket_id")
+  createdAt    DateTime             @default(now()) @map("created_at")
+  processedAt  DateTime?            @map("processed_at")
+
+  user         User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+  @@index([refereeId])
+  @@map("referral_credits")
+}
+
+enum ActivityType {
+  // Auth events
+  USER_REGISTERED
+  USER_LOGGED_IN
+  USER_LOGGED_IN_GOOGLE
+  PASSWORD_CHANGED
+
+  // Raffle events
+  RAFFLE_CREATED
+  RAFFLE_PUBLISHED
+  RAFFLE_COMPLETED
+  RAFFLE_CANCELLED
+  RAFFLE_DRAWN
+  RAFFLE_DEADLINE_EXTENDED
+  RAFFLE_WINNER_REJECTED
+
+  // Ticket events
+  TICKETS_PURCHASED
+  TICKETS_REFUNDED
+
+  // Delivery events
+  DELIVERY_SHIPPED
+  DELIVERY_CONFIRMED
+
+  // Dispute events
+  DISPUTE_OPENED
+  DISPUTE_RESPONDED
+  DISPUTE_RESOLVED
+
+  // Payment events
+  PAYMENT_RECEIVED
+  PAYOUT_RELEASED
+
+  // Profile events
+  PROFILE_UPDATED
+  SHIPPING_ADDRESS_ADDED
+}
+
+// ==================== Q&A MODELS ====================
+
+model RaffleQuestion {
+  id          String         @id @default(cuid())
+  raffleId    String         @map("raffle_id")
+  askerId     String         @map("asker_id")
+  content     String         @db.Text
+  createdAt   DateTime       @default(now()) @map("created_at")
+  
+  // Relations
+  raffle      Raffle         @relation(fields: [raffleId], references: [id], onDelete: Cascade)
+  asker       User           @relation("UserQuestions", fields: [askerId], references: [id])
+  answer      RaffleAnswer?
+
+  @@index([raffleId, createdAt])
+  @@map("raffle_questions")
+}
+
+model RaffleAnswer {
+  id          String         @id @default(cuid())
+  questionId  String         @unique @map("question_id")
+  sellerId    String         @map("seller_id")
+  content     String         @db.Text
+  createdAt   DateTime       @default(now()) @map("created_at")
+
+  // Relations
+  question    RaffleQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  seller      User           @relation("SellerAnswers", fields: [sellerId], references: [id])
+
+  @@map("raffle_answers")
+}
+
+model EmailVerificationCode {
+  id          String    @id @default(cuid())
+  userId      String    @map("user_id")
+  code        String
+  expiresAt   DateTime  @map("expires_at")
+  attempts    Int       @default(0)
+  maxAttempts Int       @default(3) @map("max_attempts")
+  isUsed      Boolean   @default(false) @map("is_used")
+  usedAt      DateTime? @map("used_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  // Relations
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+  @@index([code, isUsed])
+  @@map("email_verification_codes")
+}
