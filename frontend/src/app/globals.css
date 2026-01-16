@@ -1,0 +1,552 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  /* Refined Emerald & Warm Gold Theme */
+
+  /* Primary - Deep Teal */
+  --primary: oklch(0.45 0.12 175);
+  --primary-foreground: oklch(0.98 0.005 175);
+
+  /* Secondary - Warm Amber */
+  --secondary: oklch(0.75 0.12 75);
+  --secondary-foreground: oklch(0.20 0.04 75);
+
+  /* Accent - Soft Coral */
+  --accent: oklch(0.68 0.14 25);
+  --accent-foreground: oklch(0.98 0.01 25);
+
+  /* Background & Cards - Warm whites */
+  --background: oklch(0.985 0.003 90);
+  --foreground: oklch(0.18 0.02 260);
+
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.18 0.02 260);
+
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.18 0.02 260);
+
+  /* Muted - Subtle gray with warmth */
+  --muted: oklch(0.96 0.005 90);
+  --muted-foreground: oklch(0.50 0.02 260);
+
+  /* Destructive - Refined red */
+  --destructive: oklch(0.55 0.20 25);
+  --destructive-foreground: oklch(0.98 0.01 25);
+
+  /* Success - Fresh green */
+  --success: oklch(0.55 0.16 155);
+  --success-foreground: oklch(0.98 0.01 155);
+
+  /* Borders & Inputs */
+  --border: oklch(0.92 0.005 260);
+  --input: oklch(0.96 0.003 260);
+  --ring: oklch(0.45 0.12 175);
+
+  /* Chart colors */
+  --chart-1: oklch(0.45 0.12 175);
+  --chart-2: oklch(0.75 0.12 75);
+  --chart-3: oklch(0.68 0.14 25);
+  --chart-4: oklch(0.55 0.15 220);
+  --chart-5: oklch(0.60 0.12 320);
+
+  --radius: 0.625rem;
+
+  /* Sidebar */
+  --sidebar: oklch(0.98 0.003 90);
+  --sidebar-foreground: oklch(0.18 0.02 260);
+  --sidebar-primary: oklch(0.45 0.12 175);
+  --sidebar-primary-foreground: oklch(0.98 0.005 175);
+  --sidebar-accent: oklch(0.96 0.005 90);
+  --sidebar-accent-foreground: oklch(0.25 0.02 260);
+  --sidebar-border: oklch(0.92 0.005 260);
+  --sidebar-ring: oklch(0.45 0.12 175);
+}
+
+.dark {
+  /* Dark mode - Rich, warm darkness */
+  --background: oklch(0.14 0.015 260);
+  --foreground: oklch(0.94 0.008 90);
+
+  --card: oklch(0.18 0.015 260);
+  --card-foreground: oklch(0.94 0.008 90);
+
+  --popover: oklch(0.18 0.015 260);
+  --popover-foreground: oklch(0.94 0.008 90);
+
+  --primary: oklch(0.60 0.14 175);
+  --primary-foreground: oklch(0.12 0.015 175);
+
+  --secondary: oklch(0.70 0.10 75);
+  --secondary-foreground: oklch(0.15 0.03 75);
+
+  --accent: oklch(0.65 0.12 25);
+  --accent-foreground: oklch(0.12 0.015 25);
+
+  --muted: oklch(0.22 0.012 260);
+  --muted-foreground: oklch(0.65 0.015 90);
+
+  --destructive: oklch(0.60 0.18 25);
+  --destructive-foreground: oklch(0.98 0.01 25);
+
+  --success: oklch(0.60 0.14 155);
+  --success-foreground: oklch(0.12 0.015 155);
+
+  --border: oklch(0.28 0.012 260);
+  --input: oklch(0.24 0.012 260);
+  --ring: oklch(0.60 0.14 175);
+
+  --chart-1: oklch(0.60 0.14 175);
+  --chart-2: oklch(0.70 0.10 75);
+  --chart-3: oklch(0.65 0.12 25);
+  --chart-4: oklch(0.60 0.13 220);
+  --chart-5: oklch(0.65 0.10 320);
+
+  --sidebar: oklch(0.16 0.015 260);
+  --sidebar-foreground: oklch(0.94 0.008 90);
+  --sidebar-primary: oklch(0.60 0.14 175);
+  --sidebar-primary-foreground: oklch(0.12 0.015 175);
+  --sidebar-accent: oklch(0.22 0.012 260);
+  --sidebar-accent-foreground: oklch(0.94 0.008 90);
+  --sidebar-border: oklch(0.28 0.012 260);
+  --sidebar-ring: oklch(0.60 0.14 175);
+}
+
+* {
+  border-color: var(--border);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-body), system-ui, -apple-system, sans-serif;
+  font-feature-settings: "ss01", "ss02", "cv01";
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Utility classes for Shadcn */
+.bg-background { background-color: var(--background); }
+.bg-foreground { background-color: var(--foreground); }
+.bg-card { background-color: var(--card); }
+.bg-primary { background-color: var(--primary); }
+.bg-secondary { background-color: var(--secondary); }
+.bg-muted { background-color: var(--muted); }
+.bg-accent { background-color: var(--accent); }
+.bg-destructive { background-color: var(--destructive); }
+.bg-success { background-color: var(--success); }
+
+.text-foreground { color: var(--foreground); }
+.text-card-foreground { color: var(--card-foreground); }
+.text-primary { color: var(--primary); }
+.text-primary-foreground { color: var(--primary-foreground); }
+.text-secondary-foreground { color: var(--secondary-foreground); }
+.text-muted-foreground { color: var(--muted-foreground); }
+.text-accent-foreground { color: var(--accent-foreground); }
+.text-destructive { color: var(--destructive); }
+.text-destructive-foreground { color: var(--destructive-foreground); }
+.text-success { color: var(--success); }
+
+.border-input { border-color: var(--input); }
+.ring-ring { --tw-ring-color: var(--ring); }
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+  --radius-3xl: calc(var(--radius) + 12px);
+  --radius-4xl: calc(var(--radius) + 16px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-success: var(--success);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* ========================================
+   Animations - Refined & Subtle
+   ======================================== */
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fade-down {
+  from {
+    opacity: 0;
+    transform: translateY(-16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes float-gentle {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+
+@keyframes pulse-soft {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+@keyframes shimmer-subtle {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+/* Animation utilities */
+.animate-fade-in {
+  animation: fade-in 0.4s ease-out forwards;
+  opacity: 0;
+}
+
+.animate-fade-up {
+  animation: fade-up 0.5s ease-out forwards;
+  opacity: 0;
+}
+
+.animate-fade-down {
+  animation: fade-down 0.5s ease-out forwards;
+  opacity: 0;
+}
+
+.animate-scale-in {
+  animation: scale-in 0.4s ease-out forwards;
+  opacity: 0;
+}
+
+.animate-float {
+  animation: float-gentle 4s ease-in-out infinite;
+}
+
+.animate-pulse-soft {
+  animation: pulse-soft 2s ease-in-out infinite;
+}
+
+/* Staggered delays */
+.delay-1 { animation-delay: 0.1s; }
+.delay-2 { animation-delay: 0.2s; }
+.delay-3 { animation-delay: 0.3s; }
+.delay-4 { animation-delay: 0.4s; }
+.delay-5 { animation-delay: 0.5s; }
+.delay-6 { animation-delay: 0.6s; }
+
+/* ========================================
+   Card & Interactive Element Styles
+   ======================================== */
+
+/* Elegant card hover */
+.card-hover {
+  transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+}
+
+.card-hover:hover {
+  transform: translateY(-4px);
+  box-shadow:
+    0 12px 32px -8px oklch(0 0 0 / 0.1),
+    0 4px 8px -2px oklch(0 0 0 / 0.05);
+}
+
+.dark .card-hover:hover {
+  box-shadow:
+    0 12px 32px -8px oklch(0 0 0 / 0.3),
+    0 4px 8px -2px oklch(0 0 0 / 0.15);
+}
+
+/* Subtle shine on hover */
+.card-shine {
+  position: relative;
+  overflow: hidden;
+}
+
+.card-shine::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: oklch(1 0 0 / 0);
+  transition: background 0.3s ease;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.card-shine:hover::before {
+  background: oklch(1 0 0 / 0.03);
+}
+
+.dark .card-shine:hover::before {
+  background: oklch(1 0 0 / 0.02);
+}
+
+/* Interactive button press effect */
+.btn-press {
+  transition: transform 0.15s ease;
+}
+
+.btn-press:active {
+  transform: scale(0.97);
+}
+
+/* ========================================
+   Typography Utilities
+   ======================================== */
+
+.font-display {
+  font-family: var(--font-display), Georgia, serif;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.text-balance {
+  text-wrap: balance;
+}
+
+/* ========================================
+   Background & Decorative Effects
+   ======================================== */
+
+/* Subtle dot pattern */
+.pattern-dots {
+  background-image: radial-gradient(oklch(0 0 0 / 0.04) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+.dark .pattern-dots {
+  background-image: radial-gradient(oklch(1 0 0 / 0.03) 1px, transparent 1px);
+}
+
+/* Soft mesh background effect */
+.bg-mesh {
+  position: relative;
+}
+
+.bg-mesh::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 10%;
+  width: 40%;
+  height: 50%;
+  background: var(--primary);
+  opacity: 0.04;
+  border-radius: 50%;
+  filter: blur(100px);
+  pointer-events: none;
+}
+
+.bg-mesh::after {
+  content: '';
+  position: absolute;
+  bottom: 10%;
+  right: 5%;
+  width: 35%;
+  height: 45%;
+  background: var(--secondary);
+  opacity: 0.05;
+  border-radius: 50%;
+  filter: blur(100px);
+  pointer-events: none;
+}
+
+/* ========================================
+   Form Elements Enhancement
+   ======================================== */
+
+/* Input focus enhancement */
+input:focus,
+textarea:focus,
+select:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px oklch(from var(--primary) l c h / 0.1);
+}
+
+/* ========================================
+   Badge Styles (No uppercase)
+   ======================================== */
+
+.badge-status {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.375rem 0.875rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border-radius: 0.5rem;
+  letter-spacing: 0;
+  text-transform: none;
+  border: 1px solid transparent;
+  backdrop-filter: blur(4px);
+}
+
+.badge-active {
+  background: oklch(from var(--success) l c h / 0.9);
+  color: white;
+  border-color: oklch(from var(--success) l c h / 0.3);
+}
+
+.badge-pending {
+  background: oklch(from var(--secondary) l c h / 0.85);
+  color: white;
+  border-color: oklch(from var(--secondary) l c h / 0.3);
+}
+
+.badge-completed {
+  background: oklch(from var(--primary) l c h / 0.85);
+  color: white;
+  border-color: oklch(from var(--primary) l c h / 0.3);
+}
+
+.badge-hot {
+  background: var(--accent);
+  color: white;
+  border-color: oklch(from var(--accent) l c h / 0.4);
+  box-shadow: 0 0 12px oklch(from var(--accent) l c h / 0.2);
+}
+
+/* ========================================
+   Progress Bar Styles
+   ======================================== */
+
+.progress-bar {
+  height: 6px;
+  background: var(--muted);
+  border-radius: 9999px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  border-radius: 9999px;
+  transition: width 0.5s ease;
+}
+
+/* ========================================
+   Selection & Focus
+   ======================================== */
+
+::selection {
+  background: oklch(from var(--primary) l c h / 0.2);
+  color: var(--foreground);
+}
+
+:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+/* ========================================
+   Scrollbar (Subtle)
+   ======================================== */
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: oklch(from var(--muted-foreground) l c h / 0.3);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: oklch(from var(--muted-foreground) l c h / 0.5);
+}
+
+/* ========================================
+   Utility Classes
+   ======================================== */
+
+/* Glass effect */
+.glass {
+  background: oklch(from var(--card) l c h / 0.8);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+/* Divider */
+.divider {
+  height: 1px;
+  background: var(--border);
+}
+
+/* Container with max-width */
+.container-narrow {
+  max-width: 640px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.container-wide {
+  max-width: 1400px;
+  margin-left: auto;
+  margin-right: auto;
+}

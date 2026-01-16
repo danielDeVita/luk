@@ -1,0 +1,905 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { useQuery, useMutation, useLazyQuery } from '@apollo/client/react';
+import { gql } from '@apollo/client/core';
+import { useAuthStore } from '@/store/auth';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import { toast } from 'sonner';
+import {
+  Loader2,
+  Shield,
+  Users,
+  AlertTriangle,
+  Eye,
+  EyeOff,
+  Ban,
+  CheckCircle,
+  XCircle,
+  Ticket,
+  DollarSign,
+  TrendingUp,
+  Activity,
+  Search,
+  UserX,
+  UserCheck,
+  History,
+} from 'lucide-react';
+
+// GraphQL queries - Split to avoid non-existent fields error
+const GET_ADMIN_STATS = gql`
+  query GetAdminStats {
+    adminStats {
+      totalUsers
+      totalRaffles
+      activeRaffles
+      completedRaffles
+      totalTransactions
+      totalRevenue
+      totalTicketsSold
+      totalDisputes
+      pendingDisputes
+      recentMpEvents
+      newUsersToday
+      newRafflesToday
+    }
+  }
+`;
+
+const GET_RAFFLES = gql`
+  query GetRaffles {
+    raffles {
+      id
+      titulo
+      estado
+      isHidden
+      hiddenReason
+      totalTickets
+      precioPorTicket
+      createdAt
+      seller {
+        id
+        nombre
+        apellido
+        email
+      }
+    }
+  }
+`;
+
+const GET_REPORTS = gql`
+  query GetReports($reviewed: Boolean) {
+    getReports(reviewed: $reviewed)
+  }
+`;
+
+const GET_ADMIN_USERS = gql`
+  query GetAdminUsers($role: UserRole, $search: String, $includeDeleted: Boolean, $limit: Int, $offset: Int) {
+    adminUsers(role: $role, search: $search, includeDeleted: $includeDeleted, limit: $limit, offset: $offset) {
+      users {
+        id
+        email
+        nombre
+        apellido
+        role
+        mpConnectStatus
+        createdAt
+        isDeleted
+        rafflesCreated
+        ticketsPurchased
+        rafflesWon
+      }
+      total
+    }
+  }
+`;
+
+const GET_USER_ACTIVITY = gql`
+  query GetUserActivity($userId: String!, $limit: Int) {
+    adminUserActivity(userId: $userId, limit: $limit) {
+      id
+      action
+      targetType
+      targetId
+      metadata
+      ipAddress
+      createdAt
+    }
+  }
+`;
+
+const REVIEW_REPORT = gql`
+  mutation ReviewReport($reportId: String!, $adminNotes: String!, $action: String!) {
+    reviewReport(reportId: $reportId, adminNotes: $adminNotes, action: $action)
+  }
+`;
+
+const UNHIDE_RAFFLE = gql`
+  mutation UnhideRaffle($raffleId: String!, $adminNotes: String!) {
+    unhideRaffle(raffleId: $raffleId, adminNotes: $adminNotes)
+  }
+`;
+
+const BAN_USER = gql`
+  mutation BanUser($userId: String!, $reason: String!) {
+    banUser(userId: $userId, reason: $reason) {
+      id
+      role
+    }
+  }
+`;
+
+const UNBAN_USER = gql`
+  mutation UnbanUser($userId: String!, $reason: String!) {
+    unbanUser(userId: $userId, reason: $reason) {
+      id
+      role
+    }
+  }
+`;
+
+interface AdminUser {
+  id: string;
+  email: string;
+  nombre: string;
+  apellido: string;
+  role: string;
+  mpConnectStatus: string;
+  createdAt: string;
+  isDeleted: boolean;
+  rafflesCreated: number;
+  ticketsPurchased: number;
+  rafflesWon: number;
+}
+
+interface UserActivity {
+  id: string;
+  action: string;
+  targetType?: string;
+  targetId?: string;
+  metadata?: string;
+  ipAddress?: string;
+  createdAt: string;
+}
+
+interface Raffle {
+  id: string;
+  titulo: string;
+  estado: string;
+  isHidden: boolean;
+  hiddenReason?: string;
+  totalTickets: number;
+  precioPorTicket: number;
+  createdAt: string;
+  seller: {
+    id: string;
+    nombre: string;
+    apellido: string;
+    email: string;
+  };
+}
+
+interface Report {
+  id: string;
+  reason: string;
+  createdAt: string;
+  reporter: { id: string; email: string; nombre: string };
+  raffle: { id: string; titulo: string; isHidden: boolean };
+}
+
+interface AdminStats {
+  totalUsers: number;
+  totalRaffles: number;
+  activeRaffles: number;
+  completedRaffles: number;
+  totalTransactions: number;
+  totalRevenue: number;
+  totalTicketsSold: number;
+  totalDisputes: number;
+  pendingDisputes: number;
+  recentMpEvents: number;
+  newUsersToday: number;
+  newRafflesToday: number;
+}
+
+interface AdminUsersData {
+  adminUsers: {
+    users: AdminUser[];
+    total: number;
+  };
+}
+
+interface UserActivityData {
+  adminUserActivity: UserActivity[];
+}
+
+export default function AdminPage() {
+  const router = useRouter();
+  const { isAuthenticated, user } = useAuthStore();
+  const [activeTab, setActiveTab] = useState('raffles');
+
+  // User management state
+  const [userSearch, setUserSearch] = useState('');
+  const [userRoleFilter, setUserRoleFilter] = useState<string>('ALL');
+  const [includeDeleted, setIncludeDeleted] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null);
+  const [activityDialogOpen, setActivityDialogOpen] = useState(false);
+  const [banDialogOpen, setBanDialogOpen] = useState(false);
+  const [banReason, setBanReason] = useState('');
+
+  // Parsed reports state
+  const [reports, setReports] = useState<Report[]>([]);
+
+  const { data: statsData, loading: statsLoading, error: statsError, refetch: refetchStats } = useQuery<{ adminStats: AdminStats }>(GET_ADMIN_STATS, {
+    skip: !isAuthenticated || user?.role !== 'ADMIN',
+  });
+
+  const { data: rafflesData, loading: rafflesLoading, refetch: refetchRaffles } = useQuery<{ raffles: Raffle[] }>(GET_RAFFLES, {
+    skip: !isAuthenticated || user?.role !== 'ADMIN',
+  });
+
+  const { data: reportsData, loading: reportsLoading, refetch: refetchReports } = useQuery<{ getReports: string }>(GET_REPORTS, {
+    skip: !isAuthenticated || user?.role !== 'ADMIN',
+    variables: { reviewed: false },
+  });
+
+  // Parse reports data when it changes
+  useEffect(() => {
+    if (reportsData?.getReports) {
+      try {
+        const parsed = JSON.parse(reportsData.getReports);
+        setReports(parsed);
+      } catch {
+        setReports([]);
+      }
+    }
+  }, [reportsData]);
+
+  const { data: usersData, loading: usersLoading, refetch: refetchUsers } = useQuery<AdminUsersData>(GET_ADMIN_USERS, {
+    skip: !isAuthenticated || user?.role !== 'ADMIN',
+    variables: {
+      role: userRoleFilter === 'ALL' ? undefined : userRoleFilter,
+      search: userSearch || undefined,
+      includeDeleted,
+      limit: 50,
+    },
+  });
+
+  const [getUserActivity, { data: activityData, loading: activityLoading }] = useLazyQuery<UserActivityData>(GET_USER_ACTIVITY);
+
+  const [reviewReport, { loading: reviewingReport }] = useMutation(REVIEW_REPORT, {
+    onCompleted: () => {
+      toast.success('Reporte procesado');
+      refetchReports();
+      refetchRaffles();
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  const [unhideRaffle, { loading: unhiding }] = useMutation(UNHIDE_RAFFLE, {
+    onCompleted: () => {
+      toast.success('Rifa visible nuevamente');
+      refetchRaffles();
+      refetchReports();
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  const [banUser, { loading: banning }] = useMutation(BAN_USER, {
+    onCompleted: () => {
+      toast.success('Usuario baneado correctamente');
+      setBanDialogOpen(false);
+      setBanReason('');
+      setSelectedUser(null);
+      refetchUsers();
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  const [unbanUser, { loading: unbanning }] = useMutation(UNBAN_USER, {
+    onCompleted: () => {
+      toast.success('Usuario desbaneado correctamente');
+      refetchUsers();
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      router.push('/auth/login');
+    } else if (user?.role !== 'ADMIN') {
+      router.push('/');
+    }
+  }, [isAuthenticated, user, router]);
+
+  const handleHideRaffle = async (raffleId: string, reportId?: string) => {
+    const reason = prompt('Razón para ocultar esta rifa:');
+    if (!reason) return;
+
+    if (reportId) {
+      await reviewReport({ variables: { reportId, adminNotes: reason, action: 'HIDE_RAFFLE' } });
+    } else {
+      // If no reportId, we need to create a way to hide directly
+      // For now, use reviewReport with a fake report or handle differently
+      toast.error('Para ocultar una rifa, debe hacerlo desde un reporte');
+    }
+  };
+
+  const handleUnhideRaffle = async (raffleId: string) => {
+    const reason = prompt('Razón para mostrar esta rifa:');
+    if (!reason) return;
+    await unhideRaffle({ variables: { raffleId, adminNotes: reason } });
+  };
+
+  const handleDismissReport = async (reportId: string) => {
+    await reviewReport({ variables: { reportId, adminNotes: 'Dismissed by admin', action: 'DISMISS' } });
+  };
+
+  const handleViewActivity = (u: AdminUser) => {
+    setSelectedUser(u);
+    getUserActivity({ variables: { userId: u.id, limit: 50 } });
+    setActivityDialogOpen(true);
+  };
+
+  const handleBanClick = (u: AdminUser) => {
+    setSelectedUser(u);
+    setBanDialogOpen(true);
+  };
+
+  const handleBanUser = () => {
+    if (!selectedUser || !banReason.trim()) return;
+    banUser({ variables: { userId: selectedUser.id, reason: banReason } });
+  };
+
+  const handleUnbanUser = (u: AdminUser) => {
+    if (confirm(`Desbanear a ${u.email}?`)) {
+      unbanUser({ variables: { userId: u.id, reason: 'Admin unban' } });
+    }
+  };
+
+  if (!isAuthenticated || user?.role !== 'ADMIN') {
+    return null;
+  }
+
+  const loading = statsLoading || rafflesLoading || reportsLoading;
+  const error = statsError;
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <div className="text-center py-12">
+          <AlertTriangle className="h-12 w-12 mx-auto text-destructive mb-4" />
+          <p>Error loading admin data: {error.message}</p>
+          <Button onClick={() => { refetchStats(); refetchRaffles(); refetchReports(); }} className="mt-4">
+            Reintentar
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  const users = usersData?.adminUsers?.users || [];
+  const totalUsers = usersData?.adminUsers?.total || 0;
+  const raffles = rafflesData?.raffles || [];
+  const stats = statsData?.adminStats;
+
+  const hiddenRaffles = raffles.filter((r) => r.isHidden);
+  const activities: UserActivity[] = activityData?.adminUserActivity || [];
+
+  return (
+    <div className="container mx-auto px-4 py-8">
+      {/* Header */}
+      <div className="flex items-center gap-3 mb-8">
+        <Shield className="h-8 w-8 text-primary" />
+        <div>
+          <h1 className="text-3xl font-bold">Panel de Administracion</h1>
+          <p className="text-muted-foreground">Gestion de usuarios, rifas y reportes</p>
+        </div>
+      </div>
+
+      {/* Platform Stats */}
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 mb-8">
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2">
+              <DollarSign className="h-5 w-5 text-green-500" />
+              <div>
+                <p className="text-2xl font-bold">${stats?.totalRevenue?.toFixed(2) || '0.00'}</p>
+                <p className="text-xs text-muted-foreground">Ingresos Totales</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2">
+              <Users className="h-5 w-5 text-blue-500" />
+              <div>
+                <p className="text-2xl font-bold">{stats?.totalUsers || 0}</p>
+                <p className="text-xs text-muted-foreground">Usuarios</p>
+                {stats?.newUsersToday ? (
+                  <p className="text-xs text-green-600">+{stats.newUsersToday} hoy</p>
+                ) : null}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2">
+              <Ticket className="h-5 w-5 text-purple-500" />
+              <div>
+                <p className="text-2xl font-bold">{stats?.totalTicketsSold || 0}</p>
+                <p className="text-xs text-muted-foreground">Tickets Vendidos</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2">
+              <TrendingUp className="h-5 w-5 text-green-500" />
+              <div>
+                <p className="text-2xl font-bold">{stats?.activeRaffles || 0}</p>
+                <p className="text-xs text-muted-foreground">Rifas Activas</p>
+                {stats?.newRafflesToday ? (
+                  <p className="text-xs text-green-600">+{stats.newRafflesToday} hoy</p>
+                ) : null}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2">
+              <EyeOff className="h-5 w-5 text-orange-500" />
+              <div>
+                <p className="text-2xl font-bold">{hiddenRaffles.length}</p>
+                <p className="text-xs text-muted-foreground">Rifas Ocultas</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-red-500" />
+              <div>
+                <p className="text-2xl font-bold">{stats?.pendingDisputes || 0}</p>
+                <p className="text-xs text-muted-foreground">Disputas Pendientes</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Secondary Stats Row */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+        <Card className="bg-muted/50">
+          <CardContent className="p-3">
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-muted-foreground">Total Rifas</span>
+              <span className="font-semibold">{stats?.totalRaffles || 0}</span>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="bg-muted/50">
+          <CardContent className="p-3">
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-muted-foreground">Completadas</span>
+              <span className="font-semibold">{stats?.completedRaffles || 0}</span>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="bg-muted/50">
+          <CardContent className="p-3">
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-muted-foreground">Transacciones</span>
+              <span className="font-semibold">{stats?.totalTransactions || 0}</span>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="bg-muted/50">
+          <CardContent className="p-3">
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-muted-foreground">Eventos MP (24h)</span>
+              <span className="font-semibold flex items-center gap-1">
+                <Activity className="h-3 w-3" />
+                {stats?.recentMpEvents || 0}
+              </span>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Tabs */}
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList className="mb-6">
+          <TabsTrigger value="raffles">Rifas ({raffles.length})</TabsTrigger>
+          <TabsTrigger value="reports">Reportes ({reports.length})</TabsTrigger>
+          <TabsTrigger value="users">Usuarios ({totalUsers})</TabsTrigger>
+        </TabsList>
+
+        {/* Raffles Tab */}
+        <TabsContent value="raffles">
+          <Card>
+            <CardHeader>
+              <CardTitle>Todas las Rifas</CardTitle>
+              <CardDescription>Gestionar visibilidad de rifas</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {raffles.length === 0 ? (
+                  <p className="text-muted-foreground text-center py-8">No hay rifas</p>
+                ) : (
+                  raffles.map((raffle) => (
+                    <div
+                      key={raffle.id}
+                      className={`p-4 rounded-lg border flex items-center justify-between ${
+                        raffle.isHidden ? 'bg-orange-500/10 border-orange-500/30' : ''
+                      }`}
+                    >
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h3 className="font-medium">{raffle.titulo}</h3>
+                          <span
+                            className={`text-xs px-2 py-0.5 rounded-full ${
+                              raffle.estado === 'ACTIVA'
+                                ? 'bg-green-500/20 text-green-700'
+                                : raffle.estado === 'SORTEADA'
+                                ? 'bg-blue-500/20 text-blue-700'
+                                : 'bg-muted text-muted-foreground'
+                            }`}
+                          >
+                            {raffle.estado}
+                          </span>
+                          {raffle.isHidden && (
+                            <span className="text-xs px-2 py-0.5 rounded-full bg-orange-500/20 text-orange-700">
+                              OCULTA
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-sm text-muted-foreground">
+                          Por: {raffle.seller.nombre} {raffle.seller.apellido} ({raffle.seller.email})
+                        </p>
+                        {raffle.hiddenReason && (
+                          <p className="text-xs text-orange-600 mt-1">Razon: {raffle.hiddenReason}</p>
+                        )}
+                      </div>
+                      <div className="flex gap-2">
+                        {raffle.isHidden && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleUnhideRaffle(raffle.id)}
+                            disabled={unhiding}
+                          >
+                            <Eye className="h-4 w-4 mr-1" />
+                            Mostrar
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Reports Tab */}
+        <TabsContent value="reports">
+          <Card>
+            <CardHeader>
+              <CardTitle>Reportes Pendientes</CardTitle>
+              <CardDescription>Revisar y gestionar reportes de usuarios</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {reports.length === 0 ? (
+                  <div className="text-center py-8">
+                    <CheckCircle className="h-12 w-12 mx-auto text-green-500 mb-2" />
+                    <p className="text-muted-foreground">No hay reportes pendientes</p>
+                  </div>
+                ) : (
+                  reports.map((report) => (
+                    <div
+                      key={report.id}
+                      className="p-4 rounded-lg border border-red-500/30 bg-red-500/5"
+                    >
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <p className="font-medium">Rifa: {report.raffle.titulo}</p>
+                          <p className="text-sm text-muted-foreground">
+                            Reportado por: {report.reporter.email}
+                          </p>
+                          <p className="text-sm mt-2">
+                            <span className="font-medium">Razon:</span> {report.reason}
+                          </p>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => handleHideRaffle(report.raffle.id, report.id)}
+                            disabled={reviewingReport}
+                          >
+                            <Ban className="h-4 w-4 mr-1" />
+                            Ocultar Rifa
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleDismissReport(report.id)}
+                            disabled={reviewingReport}
+                          >
+                            <XCircle className="h-4 w-4 mr-1" />
+                            Descartar
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Users Tab */}
+        <TabsContent value="users">
+          <Card>
+            <CardHeader>
+              <CardTitle>Gestion de Usuarios</CardTitle>
+              <CardDescription>Buscar, filtrar y gestionar usuarios</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {/* Search and Filters */}
+              <div className="flex flex-col md:flex-row gap-4 mb-6">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Buscar por email, nombre..."
+                    value={userSearch}
+                    onChange={(e) => setUserSearch(e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
+                <Select value={userRoleFilter} onValueChange={setUserRoleFilter}>
+                  <SelectTrigger className="w-[150px]">
+                    <SelectValue placeholder="Rol" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALL">Todos</SelectItem>
+                    <SelectItem value="USER">Usuario</SelectItem>
+                    <SelectItem value="ADMIN">Admin</SelectItem>
+                    <SelectItem value="BANNED">Baneado</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Button
+                  variant={includeDeleted ? 'secondary' : 'outline'}
+                  onClick={() => setIncludeDeleted(!includeDeleted)}
+                  size="sm"
+                >
+                  {includeDeleted ? 'Ocultando eliminados' : 'Mostrar eliminados'}
+                </Button>
+              </div>
+
+              {usersLoading ? (
+                <div className="flex justify-center py-8">
+                  <Loader2 className="h-8 w-8 animate-spin" />
+                </div>
+              ) : (
+                <>
+                  {/* Mobile: Card layout */}
+                  <div className="md:hidden space-y-3">
+                    {users.map((u) => (
+                      <div key={u.id} className={`border rounded-lg p-4 space-y-2 ${u.role === 'BANNED' ? 'border-red-500/50 bg-red-500/5' : ''}`}>
+                        <div className="flex items-center justify-between">
+                          <span className="font-medium text-sm truncate flex-1">{u.email}</span>
+                          <span
+                            className={`text-xs px-2 py-0.5 rounded-full ml-2 ${
+                              u.role === 'ADMIN'
+                                ? 'bg-purple-500/20 text-purple-700'
+                                : u.role === 'BANNED'
+                                ? 'bg-red-500/20 text-red-700'
+                                : 'bg-muted text-muted-foreground'
+                            }`}
+                          >
+                            {u.role}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-muted-foreground">{u.nombre} {u.apellido}</span>
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          Rifas: {u.rafflesCreated} | Tickets: {u.ticketsPurchased} | Ganadas: {u.rafflesWon}
+                        </div>
+                        <div className="flex gap-2 pt-2">
+                          <Button size="sm" variant="outline" onClick={() => handleViewActivity(u)}>
+                            <History className="h-3 w-3 mr-1" />
+                            Actividad
+                          </Button>
+                          {u.role === 'BANNED' ? (
+                            <Button size="sm" variant="outline" onClick={() => handleUnbanUser(u)} disabled={unbanning}>
+                              <UserCheck className="h-3 w-3 mr-1" />
+                              Desbanear
+                            </Button>
+                          ) : u.role !== 'ADMIN' ? (
+                            <Button size="sm" variant="destructive" onClick={() => handleBanClick(u)}>
+                              <UserX className="h-3 w-3 mr-1" />
+                              Banear
+                            </Button>
+                          ) : null}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Desktop: Table layout */}
+                  <div className="hidden md:block overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b">
+                          <th className="text-left p-2">Email</th>
+                          <th className="text-left p-2">Nombre</th>
+                          <th className="text-left p-2">Rol</th>
+                          <th className="text-left p-2">MP</th>
+                          <th className="text-left p-2">Stats</th>
+                          <th className="text-left p-2">Registro</th>
+                          <th className="text-left p-2">Acciones</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {users.map((u) => (
+                          <tr key={u.id} className={`border-b hover:bg-muted/50 ${u.role === 'BANNED' ? 'bg-red-500/5' : ''}`}>
+                            <td className="p-2">{u.email}</td>
+                            <td className="p-2">
+                              {u.nombre} {u.apellido}
+                            </td>
+                            <td className="p-2">
+                              <span
+                                className={`text-xs px-2 py-0.5 rounded-full ${
+                                  u.role === 'ADMIN'
+                                    ? 'bg-purple-500/20 text-purple-700'
+                                    : u.role === 'BANNED'
+                                    ? 'bg-red-500/20 text-red-700'
+                                    : 'bg-muted text-muted-foreground'
+                                }`}
+                              >
+                                {u.role}
+                              </span>
+                            </td>
+                            <td className="p-2">
+                              <span className={`text-xs ${u.mpConnectStatus === 'CONNECTED' ? 'text-green-600' : 'text-muted-foreground'}`}>
+                                {u.mpConnectStatus}
+                              </span>
+                            </td>
+                            <td className="p-2 text-xs text-muted-foreground">
+                              R:{u.rafflesCreated} T:{u.ticketsPurchased} W:{u.rafflesWon}
+                            </td>
+                            <td className="p-2 text-muted-foreground">
+                              {new Date(u.createdAt).toLocaleDateString()}
+                            </td>
+                            <td className="p-2">
+                              <div className="flex gap-1">
+                                <Button size="sm" variant="ghost" onClick={() => handleViewActivity(u)}>
+                                  <History className="h-4 w-4" />
+                                </Button>
+                                {u.role === 'BANNED' ? (
+                                  <Button size="sm" variant="ghost" onClick={() => handleUnbanUser(u)} disabled={unbanning}>
+                                    <UserCheck className="h-4 w-4 text-green-600" />
+                                  </Button>
+                                ) : u.role !== 'ADMIN' ? (
+                                  <Button size="sm" variant="ghost" onClick={() => handleBanClick(u)}>
+                                    <UserX className="h-4 w-4 text-red-600" />
+                                  </Button>
+                                ) : null}
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <p className="text-sm text-muted-foreground mt-4">
+                    Mostrando {users.length} de {totalUsers} usuarios
+                  </p>
+                </>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+
+      {/* Activity Dialog */}
+      <Dialog open={activityDialogOpen} onOpenChange={setActivityDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Actividad de {selectedUser?.email}</DialogTitle>
+          </DialogHeader>
+          {activityLoading ? (
+            <div className="flex justify-center py-8">
+              <Loader2 className="h-8 w-8 animate-spin" />
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {activities.length === 0 ? (
+                <p className="text-muted-foreground text-center py-4">Sin actividad registrada</p>
+              ) : (
+                activities.map((a) => (
+                  <div key={a.id} className="p-3 border rounded-lg text-sm">
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium">{a.action}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {new Date(a.createdAt).toLocaleString()}
+                      </span>
+                    </div>
+                    {a.targetType && (
+                      <p className="text-xs text-muted-foreground">
+                        {a.targetType}: {a.targetId}
+                      </p>
+                    )}
+                    {a.metadata && (
+                      <pre className="text-xs bg-muted p-2 rounded mt-1 overflow-x-auto">
+                        {a.metadata}
+                      </pre>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Ban Dialog */}
+      <Dialog open={banDialogOpen} onOpenChange={setBanDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Banear Usuario</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <p className="text-sm text-muted-foreground mb-4">
+              Baneando a: <strong>{selectedUser?.email}</strong>
+            </p>
+            <Input
+              placeholder="Razon del ban..."
+              value={banReason}
+              onChange={(e) => setBanReason(e.target.value)}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setBanDialogOpen(false)}>
+              Cancelar
+            </Button>
+            <Button variant="destructive" onClick={handleBanUser} disabled={banning || !banReason.trim()}>
+              {banning ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Confirmar Ban'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
