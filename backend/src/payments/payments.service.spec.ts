@@ -5,6 +5,8 @@ import { ConfigService } from '@nestjs/config';
 import { BadRequestException } from '@nestjs/common';
 import { NotificationsService } from '../notifications/notifications.service';
 import { ActivityService } from '../activity/activity.service';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import { ReferralsService } from '../referrals/referrals.service';
 
 // Mock mercadopago
 jest.mock('mercadopago', () => ({
@@ -68,6 +70,14 @@ describe('PaymentsService', () => {
     logTicketsPurchased: jest.fn().mockResolvedValue({ id: 'activity-1' }),
   };
 
+  const mockEventEmitter = {
+    emit: jest.fn(),
+  };
+
+  const mockReferralsService = {
+    applyReferralReward: jest.fn().mockResolvedValue(true),
+  };
+
   beforeEach(async () => {
     jest.clearAllMocks();
 
@@ -78,11 +88,12 @@ describe('PaymentsService', () => {
         { provide: ConfigService, useValue: mockConfigService },
         { provide: NotificationsService, useValue: mockNotificationsService },
         { provide: ActivityService, useValue: mockActivityService },
+        { provide: EventEmitter2, useValue: mockEventEmitter },
+        { provide: ReferralsService, useValue: mockReferralsService },
       ],
     }).compile();
 
     service = module.get<PaymentsService>(PaymentsService);
-    prisma = module.get(PrismaService);
   });
 
   describe('handlePaymentApproved', () => {
@@ -396,6 +407,8 @@ describe('PaymentsService', () => {
           { provide: ConfigService, useValue: noMpConfigService },
           { provide: NotificationsService, useValue: mockNotificationsService },
           { provide: ActivityService, useValue: mockActivityService },
+          { provide: EventEmitter2, useValue: mockEventEmitter },
+          { provide: ReferralsService, useValue: mockReferralsService },
         ],
       }).compile();
 
