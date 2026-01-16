@@ -472,6 +472,12 @@ If webhooks fail, `/checkout/status` page auto-syncs payment status on load.
 2. `npx prisma db push` (dev) or `npx prisma migrate dev` (with migration)
 3. `npx prisma generate` if needed
 
+### CI Database Strategy
+- **Local dev:** Uses `npx prisma db push` to push schema to existing database
+- **GitHub Actions CI:** Uses `npx prisma db push --skip-generate` for fresh databases (no migrations directory required)
+  - This approach creates tables directly instead of applying migrations sequentially
+  - Ideal for ephemeral CI environments where fresh databases are created on each run
+
 ### Full-text search setup
 Run migration: `psql -f backend/prisma/migrations/20260109_fulltext_search/migration.sql`
 
