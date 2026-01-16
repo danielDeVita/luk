@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useForm } from 'react-hook-form';
@@ -117,7 +117,7 @@ interface VerifyEmailResult {
   };
 }
 
-export default function RegisterPage() {
+function RegisterPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const refCode = searchParams.get('ref');
@@ -537,5 +537,17 @@ function PasswordCheck({ valid, text }: { valid: boolean; text: string }) {
       <Check className={`h-3 w-3 ${valid ? 'opacity-100' : 'opacity-30'}`} />
       <span>{text}</span>
     </div>
+  );
+}
+
+export default function RegisterPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-[calc(100vh-8rem)] flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    }>
+      <RegisterPageContent />
+    </Suspense>
   );
 }
