@@ -18,7 +18,7 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { User } from '../users/entities/user.entity';
 import { AuditService } from '../audit/audit.service';
 import { DisputesService } from '../disputes/disputes.service';
-import { UserRole } from '@prisma/client';
+import { UserRole, AuditAction } from '@prisma/client';
 import { UserRole as UserRoleEnum } from '../common/enums';
 
 @Resolver()
@@ -196,8 +196,12 @@ export class AdminResolver {
     @Args('userId') userId: string,
   ): Promise<KycApprovalResult> {
     const result = await this.adminService.approveKyc(userId);
-    await this.auditService.logAdminAction(admin.id, 'KYC_APPROVED', 'USER', userId, {
-      approvedBy: admin.email,
+    await this.auditService.log({
+      adminId: admin.id,
+      action: AuditAction.KYC_APPROVED,
+      targetType: 'USER',
+      targetId: userId,
+      details: { approvedBy: admin.email },
     });
     return result;
   }
@@ -213,9 +217,12 @@ export class AdminResolver {
     @Args('reason') reason: string,
   ): Promise<KycApprovalResult> {
     const result = await this.adminService.rejectKyc(userId, reason);
-    await this.auditService.logAdminAction(admin.id, 'KYC_REJECTED', 'USER', userId, {
-      rejectedBy: admin.email,
-      reason,
+    await this.auditService.log({
+      adminId: admin.id,
+      action: AuditAction.KYC_REJECTED,
+      targetType: 'USER',
+      targetId: userId,
+      details: { rejectedBy: admin.email, reason },
     });
     return result;
   }

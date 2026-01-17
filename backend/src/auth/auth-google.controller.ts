@@ -65,7 +65,9 @@ export class AuthGoogleController {
     });
 
     // Redirect with token in URL (for cross-subdomain where cookies are blocked)
-    return res.redirect(`${frontendUrl}/auth/callback?success=true&token=${token}`);
+    return res.redirect(
+      `${frontendUrl}/auth/callback?success=true&token=${token}`,
+    );
   }
 
   /**

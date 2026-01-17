@@ -294,6 +294,13 @@ interface AdminUsersData {
   };
 }
 
+interface KycPendingData {
+  pendingKycSubmissions: {
+    submissions: KycSubmission[];
+    total: number;
+  };
+}
+
 interface UserActivityData {
   adminUserActivity: UserActivity[];
 }
@@ -343,7 +350,6 @@ export default function AdminPage() {
         // eslint-disable-next-line react-hooks/set-state-in-effect
         setReports(parsed);
       } catch {
-        // eslint-disable-next-line react-hooks/set-state-in-effect
         setReports([]);
       }
     }
@@ -359,7 +365,7 @@ export default function AdminPage() {
     },
   });
 
-  const { data: kycData, loading: kycLoading, refetch: refetchKyc } = useQuery<any>(GET_PENDING_KYC, {
+  const { data: kycData, loading: kycLoading, refetch: refetchKyc } = useQuery<KycPendingData>(GET_PENDING_KYC, {
     skip: !isAuthenticated || user?.role !== 'ADMIN',
     variables: { limit: 50 },
   });

@@ -344,7 +344,7 @@ export class AdminService {
   // ==================== KYC Management ====================
 
   async getPendingKycSubmissions(limit = 50, offset = 0) {
-    const where = { kycStatus: 'PENDING_REVIEW', isDeleted: false };
+    const where = { kycStatus: 'PENDING_REVIEW' as any, isDeleted: false };
 
     const [users, total] = await Promise.all([
       this.prisma.user.findMany({
@@ -378,7 +378,27 @@ export class AdminService {
     ]);
 
     return {
-      submissions: users,
+      submissions: users.map((u) => ({
+        userId: u.id,
+        email: u.email,
+        nombre: u.nombre,
+        apellido: u.apellido,
+        kycStatus: u.kycStatus || 'PENDING_REVIEW',
+        documentType: u.documentType,
+        documentNumber: u.documentNumber,
+        street: u.street,
+        streetNumber: u.streetNumber,
+        apartment: u.apartment,
+        city: u.city,
+        province: u.province,
+        postalCode: u.postalCode,
+        phone: u.phone,
+        cuitCuil: u.cuitCuil,
+        kycSubmittedAt: u.kycSubmittedAt,
+        kycVerifiedAt: u.kycVerifiedAt,
+        kycRejectedReason: u.kycRejectedReason,
+        createdAt: u.createdAt,
+      })),
       total,
     };
   }
