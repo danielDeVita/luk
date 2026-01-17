@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import { useAuthStore } from '@/store/auth';
 
 const GRAPHQL_URL = process.env.NEXT_PUBLIC_GRAPHQL_URL || 'http://localhost:3001/graphql';
 
@@ -26,11 +27,13 @@ export function useQuery<T = unknown>(
     setError(null);
 
     try {
+      const token = useAuthStore.getState().token;
       const response = await fetch(GRAPHQL_URL, {
         method: 'POST',
         credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         body: JSON.stringify({ query, variables }),
       });
@@ -68,11 +71,13 @@ export async function graphqlMutation<T = unknown>(
   variables?: Record<string, unknown>
 ): Promise<{ data: T | null; error: Error | null }> {
   try {
+    const token = useAuthStore.getState().token;
     const response = await fetch(GRAPHQL_URL, {
       method: 'POST',
       credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
       body: JSON.stringify({ query, variables }),
     });

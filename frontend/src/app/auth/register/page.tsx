@@ -193,7 +193,7 @@ function RegisterPageContent() {
       });
 
       if (result.data?.verifyEmail) {
-        setAuth(result.data.verifyEmail.user);
+        setAuth(result.data.verifyEmail.user, result.data.verifyEmail.token);
         toast.success('¡Email verificado! Bienvenido');
         router.push('/');
       }

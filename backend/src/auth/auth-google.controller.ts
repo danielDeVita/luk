@@ -45,9 +45,9 @@ export class AuthGoogleController {
       req.user,
     );
 
-    // Set access token as httpOnly cookie (short-lived, 15 min)
-    // In development, use sameSite: 'none' to allow cross-origin requests (localhost:3000 → localhost:3001)
-    // Note: sameSite: 'none' requires secure: true (always, not just production)
+    // Pass token in URL for cross-subdomain deployments (third-party cookies blocked)
+    // Token is short-lived (15 min) and immediately stored in localStorage by frontend
+    // Also set cookies as fallback for same-domain deployments
     res.cookie('auth_token', token, {
       httpOnly: true,
       secure: true,
@@ -56,17 +56,16 @@ export class AuthGoogleController {
       path: '/',
     });
 
-    // Set refresh token as httpOnly cookie (long-lived, 7 days)
     res.cookie('refresh_token', refreshToken, {
       httpOnly: true,
       secure: true,
       sameSite: isProduction ? 'strict' : 'none',
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-      path: '/auth', // Only sent to /auth endpoints
+      path: '/auth',
     });
 
-    // Redirect to frontend callback (tokens are in cookies, not URL)
-    return res.redirect(`${frontendUrl}/auth/callback?success=true`);
+    // Redirect with token in URL (for cross-subdomain where cookies are blocked)
+    return res.redirect(`${frontendUrl}/auth/callback?success=true&token=${token}`);
   }
 
   /**

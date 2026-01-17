@@ -36,21 +36,32 @@ function CallbackContent() {
 
   const successParam = searchParams.get('success');
   const errorParam = searchParams.get('error');
+  const tokenParam = searchParams.get('token');
 
-  // With cookie-based auth, tokens are already in httpOnly cookies
-  // Just query the user - cookies are sent automatically
+  // Store token from URL first (for cross-subdomain where cookies are blocked)
+  useEffect(() => {
+    if (tokenParam) {
+      // Token is passed in URL, store it in auth store
+      // This enables Authorization header for subsequent requests
+      useAuthStore.setState({ token: tokenParam });
+      // Clear token from URL for security
+      window.history.replaceState({}, '', '/auth/callback?success=true');
+    }
+  }, [tokenParam]);
+
+  // Query user data - will use Authorization header from stored token
   const { data, error, loading } = useQuery<MeQueryResult>(ME_QUERY, {
-    skip: successParam !== 'true',
-    fetchPolicy: 'network-only', // Force fresh fetch
+    skip: successParam !== 'true' || !tokenParam,
+    fetchPolicy: 'network-only',
   });
 
   // Handle successful auth
   useEffect(() => {
-    if (data?.me) {
-      setAuth(data.me);
+    if (data?.me && tokenParam) {
+      setAuth(data.me, tokenParam);
       router.replace('/');
     }
-  }, [data, setAuth, router]);
+  }, [data, setAuth, router, tokenParam]);
 
   // Handle query error
   useEffect(() => {

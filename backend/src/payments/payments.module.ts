@@ -6,12 +6,14 @@ import { MpConnectService } from './mp-connect.service';
 import { PrismaModule } from '../prisma/prisma.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { ReferralsModule } from '../referrals/referrals.module';
+import { AuthModule } from '../auth/auth.module';
 
 @Module({
   imports: [
     PrismaModule,
     NotificationsModule,
     forwardRef(() => ReferralsModule),
+    AuthModule, // For JwtService in MP Connect
   ],
   controllers: [MpController, MpConnectController],
   providers: [PaymentsService, MpConnectService],

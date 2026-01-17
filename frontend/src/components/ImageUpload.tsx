@@ -3,6 +3,7 @@
 import { useState, useRef, useCallback } from 'react';
 import Image from 'next/image';
 import { ImagePlus, X, Loader2 } from 'lucide-react';
+import { useAuthStore } from '@/store/auth';
 
 interface ImageUploadProps {
   images: string[];
@@ -27,11 +28,15 @@ export function ImageUpload({ images, onImagesChange, maxImages = 5 }: ImageUplo
 
   const uploadToCloudinary = async (file: File): Promise<string | null> => {
     try {
-      // 1. Get signature from backend (uses httpOnly cookie for auth)
+      // 1. Get signature from backend
+      const token = useAuthStore.getState().token;
       const signatureResponse = await fetch(
         `${process.env.NEXT_PUBLIC_BACKEND_URL}/uploads/signature`,
         {
-          credentials: 'include', // Send cookies for auth
+          credentials: 'include',
+          headers: {
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
         }
       );
 

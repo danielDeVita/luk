@@ -1,7 +1,9 @@
 import { ApolloClient, InMemoryCache, from, Observable, FetchResult } from '@apollo/client';
 import { BatchHttpLink } from '@apollo/client/link/batch-http';
+import { setContext } from '@apollo/client/link/context';
 import { onError } from '@apollo/client/link/error';
 import * as Sentry from '@sentry/nextjs';
+import { useAuthStore } from '@/store/auth';
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
 const GRAPHQL_URL = process.env.NEXT_PUBLIC_GRAPHQL_URL || 'http://localhost:3001/graphql';
@@ -17,29 +19,49 @@ const resolvePendingRequests = () => {
 
 const refreshToken = async (): Promise<boolean> => {
   try {
+    const token = useAuthStore.getState().token;
     const response = await fetch(`${BACKEND_URL}/auth/refresh`, {
       method: 'GET',
-      credentials: 'include', // Send cookies, receive new cookies
+      credentials: 'include',
+      headers: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
     });
 
     if (!response.ok) {
       return false;
     }
 
-    // New tokens are set as httpOnly cookies by the backend
-    // We just need to know if refresh succeeded
+    // Backend returns new token in response
+    const data = await response.json();
+    if (data.token) {
+      useAuthStore.setState({ token: data.token });
+    }
     return true;
   } catch {
     return false;
   }
 };
 
+// Auth link - adds Authorization header from localStorage token
+// (httpOnly cookies don't work with third-party cookie blocking on different subdomains)
+const authLink = setContext((_, { headers }) => {
+  // Get token from Zustand store (works outside React components)
+  const token = useAuthStore.getState().token;
+
+  return {
+    headers: {
+      ...headers,
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  };
+});
+
 // Batch HTTP link - combines multiple GraphQL queries into a single HTTP request
 // This reduces network overhead and improves performance
-// Cookies are sent automatically with credentials: 'include'
 const batchLink = new BatchHttpLink({
   uri: GRAPHQL_URL,
-  credentials: 'include', // Include cookies with requests (auth_token cookie)
+  credentials: 'include', // Keep for cookie fallback
   batchMax: 10, // Max queries per batch
   batchInterval: 20, // Wait 20ms to collect queries before sending
 });
@@ -127,7 +149,7 @@ const errorLink = onError(({ graphQLErrors, networkError, operation, forward }: 
 });
 
 export const client = new ApolloClient({
-  link: from([errorLink, batchLink]), // Removed authLink - cookies are sent automatically
+  link: from([errorLink, authLink, batchLink]), // authLink adds Authorization header
   cache: new InMemoryCache(),
   defaultOptions: {
     watchQuery: {

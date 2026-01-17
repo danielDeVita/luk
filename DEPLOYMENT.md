@@ -353,5 +353,32 @@ When you need better performance:
 
 | Task | Description | Priority |
 |------|-------------|----------|
+| Custom Domain (Auth Fix) | Use same parent domain for frontend/backend to enable httpOnly cookies | **High** |
+| Next.js API Proxy | Alternative to custom domain - proxy backend calls through Next.js | Medium |
 | Infrastructure as Code | Terraform/Pulumi for reproducible infra | Low |
-| Custom Domain | Configure DNS + SSL | Medium |
+
+### ⚠️ Authentication Workaround (Third-Party Cookie Blocking)
+
+**Current Issue:** Frontend (`raffle-frontend.onrender.com`) and backend (`raffle-backend-xxx.onrender.com`) are on different subdomains. Modern browsers block third-party cookies, so httpOnly auth cookies don't work.
+
+**Current Workaround:** Tokens are stored in localStorage and sent via `Authorization: Bearer` header. This works but is less secure than httpOnly cookies (vulnerable to XSS).
+
+**Recommended Fixes (pick one):**
+
+1. **Custom Domain (Best)**
+   - Get domain like `rifas.com`
+   - Frontend: `rifas.com` or `www.rifas.com`
+   - Backend: `api.rifas.com`
+   - Set cookie domain to `.rifas.com` (shared parent domain)
+   - Cookies work because same parent domain = first-party
+
+2. **Next.js API Proxy**
+   - Configure `next.config.js` rewrites:
+     ```javascript
+     rewrites: async () => [
+       { source: '/api/:path*', destination: 'https://raffle-backend.onrender.com/:path*' }
+     ]
+     ```
+   - Frontend calls `/api/graphql` → proxied to backend
+   - Browser sees same-origin, cookies work
+   - Adds latency (extra hop through frontend)

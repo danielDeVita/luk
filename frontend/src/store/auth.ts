@@ -15,10 +15,12 @@ interface User {
 
 interface AuthState {
   user: User | null;
+  token: string | null; // Store token for Authorization header (third-party cookies blocked)
   isAuthenticated: boolean;
   isLoading: boolean;
   error: string | null;
-  setAuth: (user: User) => void;
+  setAuth: (user: User, token: string) => void;
+  getToken: () => string | null;
   logout: () => Promise<void>;
   updateUser: (user: Partial<User>) => void;
   setLoading: (loading: boolean) => void;
@@ -32,19 +34,25 @@ export const useAuthStore = create<AuthState>()(
   persist(
     (set, get) => ({
       user: null,
+      token: null,
       isAuthenticated: false,
       isLoading: false,
       error: null,
       hasHydrated: false,
 
-      setAuth: (user) => {
-        // Token is now in httpOnly cookie, only store user info
-        set({ user, isAuthenticated: true, isLoading: false, error: null });
+      setAuth: (user, token) => {
+        // Store token in localStorage for Authorization header
+        // (httpOnly cookies don't work with third-party cookie blocking on different subdomains)
+        set({ user, token, isAuthenticated: true, isLoading: false, error: null });
+      },
+
+      getToken: () => {
+        return get().token;
       },
 
       logout: async () => {
         try {
-          // Call backend to clear httpOnly cookies
+          // Call backend to clear any server-side session
           await fetch(`${BACKEND_URL}/auth/logout`, {
             method: 'GET',
             credentials: 'include',
@@ -52,7 +60,7 @@ export const useAuthStore = create<AuthState>()(
         } catch {
           // Ignore errors - just clear local state
         }
-        set({ user: null, isAuthenticated: false, error: null });
+        set({ user: null, token: null, isAuthenticated: false, error: null });
       },
 
       updateUser: (updates) => {
@@ -81,8 +89,9 @@ export const useAuthStore = create<AuthState>()(
     {
       name: 'auth-storage',
       partialize: (state) => ({
-        // Only persist user info, not token (token is in httpOnly cookie)
+        // Persist user info and token (cookies blocked on cross-subdomain deploys)
         user: state.user,
+        token: state.token,
         isAuthenticated: state.isAuthenticated,
       }),
       onRehydrateStorage: () => (state) => {

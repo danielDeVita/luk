@@ -8,6 +8,7 @@ import {
   Logger,
   HttpStatus,
   UseGuards,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { Response, Request } from 'express';
 import { MpConnectService } from './mp-connect.service';
@@ -15,6 +16,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Public } from '../auth/decorators/public.decorator';
 import { ConfigService } from '@nestjs/config';
+import { JwtService } from '@nestjs/jwt';
 
 @Controller('mp/connect')
 export class MpConnectController {
@@ -23,30 +25,74 @@ export class MpConnectController {
   constructor(
     private readonly mpConnectService: MpConnectService,
     private readonly configService: ConfigService,
+    private readonly jwtService: JwtService,
   ) {}
 
   /**
    * Start MP OAuth flow - redirects user to Mercado Pago authorization page.
-   * User must be authenticated.
+   * Accepts token via query param (for cross-subdomain where cookies are blocked)
+   * or via Authorization header/cookie (standard auth).
    */
   @Get()
-  @UseGuards(JwtAuthGuard)
+  @Public() // Public because we handle auth manually to support query param token
   async startConnect(
-    @CurrentUser() user: { userId: string },
+    @Query('token') tokenParam: string,
+    @Req() req: Request,
     @Res() res: Response,
   ) {
+    const frontendUrl =
+      this.configService.get<string>('FRONTEND_URL') || 'http://localhost:3000';
+
     try {
-      const { authUrl } = this.mpConnectService.generateAuthUrl(user.userId);
-      this.logger.log(`Redirecting user ${user.userId} to MP auth`);
+      // Try to get user from: 1) query param token, 2) cookie, 3) header
+      let userId: string | null = null;
+
+      // 1. Try query param token (for cross-subdomain deployments)
+      if (tokenParam) {
+        try {
+          const payload = this.jwtService.verify(tokenParam);
+          userId = payload.sub;
+        } catch {
+          this.logger.warn('Invalid token in query param');
+        }
+      }
+
+      // 2. Try cookie
+      if (!userId && req.cookies?.auth_token) {
+        try {
+          const payload = this.jwtService.verify(req.cookies.auth_token);
+          userId = payload.sub;
+        } catch {
+          this.logger.warn('Invalid token in cookie');
+        }
+      }
+
+      // 3. Try Authorization header
+      if (!userId) {
+        const authHeader = req.headers.authorization;
+        if (authHeader?.startsWith('Bearer ')) {
+          try {
+            const token = authHeader.substring(7);
+            const payload = this.jwtService.verify(token);
+            userId = payload.sub;
+          } catch {
+            this.logger.warn('Invalid token in header');
+          }
+        }
+      }
+
+      if (!userId) {
+        throw new UnauthorizedException('No valid authentication found');
+      }
+
+      const { authUrl } = this.mpConnectService.generateAuthUrl(userId);
+      this.logger.log(`Redirecting user ${userId} to MP auth`);
       return res.redirect(authUrl);
     } catch (error) {
       const message =
         error instanceof Error ? error.message : 'Error desconocido';
       this.logger.error(`Failed to start MP connect: ${message}`);
 
-      const frontendUrl =
-        this.configService.get<string>('FRONTEND_URL') ||
-        'http://localhost:3000';
       return res.redirect(
         `${frontendUrl}/dashboard/settings?mp_error=${encodeURIComponent(message)}`,
       );

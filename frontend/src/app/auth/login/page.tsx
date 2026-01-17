@@ -39,6 +39,7 @@ type LoginForm = z.infer<typeof loginSchema>;
 
 interface LoginResult {
   login: {
+    token: string;
     user: {
       id: string;
       email: string;
@@ -71,10 +72,10 @@ export default function LoginPage() {
 
   const [login, { data, loading, error }] = useMutation<LoginResult>(LOGIN_MUTATION);
 
-  // Handle success - token is now in httpOnly cookie, only store user
+  // Handle success - store token for Authorization header (cookies blocked cross-subdomain)
   useEffect(() => {
     if (data?.login) {
-      setAuth(data.login.user);
+      setAuth(data.login.user, data.login.token);
       router.push('/');
     }
   }, [data, setAuth, router]);

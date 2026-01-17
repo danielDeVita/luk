@@ -374,7 +374,9 @@ function SettingsContent() {
 
   const handleConnectMP = () => {
     const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
-    window.location.href = `${backendUrl}/mp/connect`;
+    // Pass token as query param since we can't send Authorization header with redirect
+    const token = useAuthStore.getState().token;
+    window.location.href = `${backendUrl}/mp/connect?token=${token}`;
   };
 
   const handleDisconnectMP = async () => {
@@ -385,12 +387,14 @@ function SettingsContent() {
     setIsDisconnecting(true);
     try {
       const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
+      const token = useAuthStore.getState().token;
 
       const response = await fetch(`${backendUrl}/mp/connect/disconnect`, {
         method: 'POST',
-        credentials: 'include', // Send httpOnly auth cookie
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
       });
 
@@ -427,8 +431,12 @@ function SettingsContent() {
     try {
       // Get signature from backend
       const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
+      const token = useAuthStore.getState().token;
       const sigResponse = await fetch(`${backendUrl}/uploads/signature/avatar`, {
-        credentials: 'include', // Send httpOnly auth cookie
+        credentials: 'include',
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
       });
       const sigData = await sigResponse.json();
 

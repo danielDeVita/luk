@@ -1,7 +1,8 @@
 'use client';
 
-import { ApolloClient, InMemoryCache, createHttpLink, split } from '@apollo/client';
+import { ApolloClient, InMemoryCache, createHttpLink, split, from } from '@apollo/client';
 import { ApolloProvider } from '@apollo/client/react';
+import { setContext } from '@apollo/client/link/context';
 import { onError } from '@apollo/client/link/error';
 import { GraphQLWsLink } from '@apollo/client/link/subscriptions';
 import { getMainDefinition } from '@apollo/client/utilities';
@@ -44,10 +45,21 @@ function createApolloClient(
   const httpUri = process.env.NEXT_PUBLIC_GRAPHQL_URL || 'http://localhost:3001/graphql';
   const wsUri = process.env.NEXT_PUBLIC_GRAPHQL_WS_URL || toWsUrl(httpUri);
 
-  // HTTP link with credentials for cookie-based auth
+  // Auth link - adds Authorization header from localStorage token
+  const authLink = setContext((_, { headers }) => {
+    const token = useAuthStore.getState().token;
+    return {
+      headers: {
+        ...headers,
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+    };
+  });
+
+  // HTTP link with credentials
   const httpLink = createHttpLink({
     uri: httpUri,
-    credentials: 'include', // Send cookies with requests
+    credentials: 'include', // Keep for cookie fallback
   });
 
   // Track WebSocket client for connection management
@@ -106,6 +118,9 @@ function createApolloClient(
     }
   });
 
+  // Combine auth link with http link
+  const authedHttpLink = authLink.concat(httpLink);
+
   // Use split link only if wsLink is available (browser environment)
   const terminalLink = wsLink
     ? split(
@@ -117,12 +132,12 @@ function createApolloClient(
           );
         },
         wsLink,
-        httpLink,
+        authedHttpLink,
       )
-    : httpLink;
+    : authedHttpLink;
 
   const client = new ApolloClient({
-    link: errorLink.concat(terminalLink),
+    link: from([errorLink, terminalLink]),
     cache: new InMemoryCache(),
     defaultOptions: {
       watchQuery: {
