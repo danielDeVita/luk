@@ -29,7 +29,7 @@ export function ImageUpload({ images, onImagesChange, maxImages = 5 }: ImageUplo
     try {
       // 1. Get signature from backend (uses httpOnly cookie for auth)
       const signatureResponse = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/uploads/signature`,
+        `${process.env.NEXT_PUBLIC_BACKEND_URL}/uploads/signature`,
         {
           credentials: 'include', // Send cookies for auth
         }

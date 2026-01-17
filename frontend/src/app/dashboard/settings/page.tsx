@@ -373,7 +373,7 @@ function SettingsContent() {
   };
 
   const handleConnectMP = () => {
-    const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
     window.location.href = `${backendUrl}/mp/connect`;
   };
 
@@ -384,7 +384,7 @@ function SettingsContent() {
 
     setIsDisconnecting(true);
     try {
-      const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
       const token = localStorage.getItem('token');
 
       const response = await fetch(`${backendUrl}/mp/connect/disconnect`, {
@@ -427,7 +427,7 @@ function SettingsContent() {
     setAvatarUploading(true);
     try {
       // Get signature from backend
-      const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
       const token = localStorage.getItem('token');
       const sigResponse = await fetch(`${backendUrl}/uploads/signature/avatar`, {
         headers: { 'Authorization': `Bearer ${token}` },
