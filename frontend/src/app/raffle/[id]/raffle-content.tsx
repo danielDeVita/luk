@@ -19,6 +19,7 @@ import { RaffleDetailSkeleton } from '@/components/ui/skeleton';
 import { IS_FAVORITE } from '@/lib/graphql/queries';
 import { ADD_FAVORITE, REMOVE_FAVORITE } from '@/lib/graphql/mutations';
 import { getOptimizedImageUrl, CLOUDINARY_PRESETS } from '@/lib/cloudinary';
+import { formatProductCondition } from '@/lib/format-condition';
 import { RaffleQA } from './raffle-qa';
 
 const GET_RAFFLE = gql`
@@ -517,7 +518,7 @@ export function RaffleContent({ id }: RaffleContentProps) {
             </div>
             <div>
               <span className="text-sm text-muted-foreground">Condicion</span>
-              <p className="font-medium">{raffle.product?.condicion}</p>
+              <p className="font-medium">{formatProductCondition(raffle.product?.condicion)}</p>
             </div>
             <div>
               <span className="text-sm text-muted-foreground">Descripcion Detallada</span>

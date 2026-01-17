@@ -275,6 +275,7 @@ export class AdminService {
         apellido: u.apellido,
         role: u.role,
         mpConnectStatus: u.mpConnectStatus,
+        kycStatus: u.kycStatus,
         createdAt: u.createdAt,
         isDeleted: u.isDeleted,
         rafflesCreated: u._count.rafflesCreated,
@@ -338,5 +339,106 @@ export class AdminService {
       take: limit,
       skip: offset,
     });
+  }
+
+  // ==================== KYC Management ====================
+
+  async getPendingKycSubmissions(limit = 50, offset = 0) {
+    const where = { kycStatus: 'PENDING_REVIEW', isDeleted: false };
+
+    const [users, total] = await Promise.all([
+      this.prisma.user.findMany({
+        where,
+        orderBy: { kycSubmittedAt: 'desc' },
+        take: limit,
+        skip: offset,
+        select: {
+          id: true,
+          email: true,
+          nombre: true,
+          apellido: true,
+          kycStatus: true,
+          documentType: true,
+          documentNumber: true,
+          street: true,
+          streetNumber: true,
+          apartment: true,
+          city: true,
+          province: true,
+          postalCode: true,
+          phone: true,
+          cuitCuil: true,
+          kycSubmittedAt: true,
+          kycVerifiedAt: true,
+          kycRejectedReason: true,
+          createdAt: true,
+        },
+      }),
+      this.prisma.user.count({ where }),
+    ]);
+
+    return {
+      submissions: users,
+      total,
+    };
+  }
+
+  async approveKyc(userId: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new NotFoundException('User not found');
+    if (user.kycStatus !== 'PENDING_REVIEW') {
+      throw new Error('KYC is not in PENDING_REVIEW status');
+    }
+
+    const updated = await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        kycStatus: 'VERIFIED',
+        kycVerifiedAt: new Date(),
+        kycRejectedReason: null,
+      },
+      select: {
+        id: true,
+        kycStatus: true,
+      },
+    });
+
+    return {
+      userId: updated.id,
+      kycStatus: updated.kycStatus,
+      success: true,
+      message: 'KYC verificado exitosamente',
+    };
+  }
+
+  async rejectKyc(userId: string, reason: string) {
+    if (!reason || reason.trim().length < 10) {
+      throw new Error('Rejection reason must be at least 10 characters');
+    }
+
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new NotFoundException('User not found');
+    if (user.kycStatus !== 'PENDING_REVIEW') {
+      throw new Error('KYC is not in PENDING_REVIEW status');
+    }
+
+    const updated = await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        kycStatus: 'REJECTED',
+        kycRejectedReason: reason,
+      },
+      select: {
+        id: true,
+        kycStatus: true,
+      },
+    });
+
+    return {
+      userId: updated.id,
+      kycStatus: updated.kycStatus,
+      success: true,
+      message: 'KYC rechazado',
+    };
   }
 }

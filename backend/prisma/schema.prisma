@@ -112,6 +112,8 @@ enum AuditAction {
   REPORT_REVIEWED
   PAYOUT_RELEASED
   REFUND_ISSUED
+  KYC_APPROVED
+  KYC_REJECTED
 }
 
 enum PayoutStatus {

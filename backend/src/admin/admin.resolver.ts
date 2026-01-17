@@ -8,6 +8,8 @@ import {
   AdminUserList,
   UserActivity,
   BulkResolveResult,
+  KycSubmissionList,
+  KycApprovalResult,
 } from './entities/admin-stats.entity';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles/roles.guard';
@@ -168,6 +170,54 @@ export class AdminResolver {
     const user = await this.adminService.unbanUser(userId);
     await this.auditService.logUserUnban(admin.id, userId, reason);
     return user;
+  }
+
+  // ==================== KYC Management ====================
+
+  @Query(() => KycSubmissionList, {
+    description: 'List pending KYC submissions for review',
+  })
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  async pendingKycSubmissions(
+    @Args('limit', { nullable: true, type: () => Int }) limit?: number,
+    @Args('offset', { nullable: true, type: () => Int }) offset?: number,
+  ): Promise<KycSubmissionList> {
+    return this.adminService.getPendingKycSubmissions(limit, offset);
+  }
+
+  @Mutation(() => KycApprovalResult, {
+    description: 'Approve a KYC submission',
+  })
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  async approveKyc(
+    @CurrentUser() admin: User,
+    @Args('userId') userId: string,
+  ): Promise<KycApprovalResult> {
+    const result = await this.adminService.approveKyc(userId);
+    await this.auditService.logAdminAction(admin.id, 'KYC_APPROVED', 'USER', userId, {
+      approvedBy: admin.email,
+    });
+    return result;
+  }
+
+  @Mutation(() => KycApprovalResult, {
+    description: 'Reject a KYC submission',
+  })
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  async rejectKyc(
+    @CurrentUser() admin: User,
+    @Args('userId') userId: string,
+    @Args('reason') reason: string,
+  ): Promise<KycApprovalResult> {
+    const result = await this.adminService.rejectKyc(userId, reason);
+    await this.auditService.logAdminAction(admin.id, 'KYC_REJECTED', 'USER', userId, {
+      rejectedBy: admin.email,
+      reason,
+    });
+    return result;
   }
 
   // ==================== Bulk Dispute Resolution ====================

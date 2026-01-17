@@ -23,6 +23,9 @@ export class AdminUser {
   @Field(() => MpConnectStatus)
   mpConnectStatus!: MpConnectStatus;
 
+  @Field(() => String, { nullable: true })
+  kycStatus?: string;
+
   @Field()
   createdAt!: Date;
 
@@ -204,4 +207,90 @@ export class PaymentDebugInfo {
 
   @Field(() => UserMinimal, { nullable: true })
   buyer?: UserMinimal;
+}
+
+// ==================== KYC Entities ====================
+
+@ObjectType()
+export class KycSubmission {
+  @Field(() => ID)
+  userId!: string;
+
+  @Field()
+  email!: string;
+
+  @Field()
+  nombre!: string;
+
+  @Field()
+  apellido!: string;
+
+  @Field(() => String)
+  kycStatus!: string;
+
+  @Field({ nullable: true })
+  documentType?: string;
+
+  @Field({ nullable: true })
+  documentNumber?: string;
+
+  @Field({ nullable: true })
+  street?: string;
+
+  @Field({ nullable: true })
+  streetNumber?: string;
+
+  @Field({ nullable: true })
+  apartment?: string;
+
+  @Field({ nullable: true })
+  city?: string;
+
+  @Field({ nullable: true })
+  province?: string;
+
+  @Field({ nullable: true })
+  postalCode?: string;
+
+  @Field({ nullable: true })
+  phone?: string;
+
+  @Field({ nullable: true })
+  cuitCuil?: string;
+
+  @Field({ nullable: true })
+  kycSubmittedAt?: Date;
+
+  @Field({ nullable: true })
+  kycVerifiedAt?: Date;
+
+  @Field({ nullable: true })
+  kycRejectedReason?: string;
+
+  @Field()
+  createdAt!: Date;
+}
+
+@ObjectType()
+export class KycSubmissionList {
+  @Field(() => [KycSubmission])
+  submissions!: KycSubmission[];
+
+  @Field(() => Int)
+  total!: number;
+}
+
+@ObjectType()
+export class KycApprovalResult {
+  @Field(() => ID)
+  userId!: string;
+
+  @Field()
+  kycStatus!: string;
+
+  @Field()
+  success!: boolean;
+
+  @Field({ nullable: true })
+  message?: string;
 }

@@ -95,6 +95,7 @@ const GET_ADMIN_USERS = gql`
         apellido
         role
         mpConnectStatus
+        kycStatus
         createdAt
         isDeleted
         rafflesCreated
@@ -150,6 +151,56 @@ const UNBAN_USER = gql`
   }
 `;
 
+const GET_PENDING_KYC = gql`
+  query GetPendingKyc($limit: Int, $offset: Int) {
+    pendingKycSubmissions(limit: $limit, offset: $offset) {
+      submissions {
+        userId
+        email
+        nombre
+        apellido
+        kycStatus
+        documentType
+        documentNumber
+        street
+        streetNumber
+        apartment
+        city
+        province
+        postalCode
+        phone
+        cuitCuil
+        kycSubmittedAt
+        kycRejectedReason
+        createdAt
+      }
+      total
+    }
+  }
+`;
+
+const APPROVE_KYC = gql`
+  mutation ApproveKyc($userId: String!) {
+    approveKyc(userId: $userId) {
+      userId
+      kycStatus
+      success
+      message
+    }
+  }
+`;
+
+const REJECT_KYC = gql`
+  mutation RejectKyc($userId: String!, $reason: String!) {
+    rejectKyc(userId: $userId, reason: $reason) {
+      userId
+      kycStatus
+      success
+      message
+    }
+  }
+`;
+
 interface AdminUser {
   id: string;
   email: string;
@@ -157,11 +208,33 @@ interface AdminUser {
   apellido: string;
   role: string;
   mpConnectStatus: string;
+  kycStatus?: string;
   createdAt: string;
   isDeleted: boolean;
   rafflesCreated: number;
   ticketsPurchased: number;
   rafflesWon: number;
+}
+
+interface KycSubmission {
+  userId: string;
+  email: string;
+  nombre: string;
+  apellido: string;
+  kycStatus: string;
+  documentType?: string;
+  documentNumber?: string;
+  street?: string;
+  streetNumber?: string;
+  apartment?: string;
+  city?: string;
+  province?: string;
+  postalCode?: string;
+  phone?: string;
+  cuitCuil?: string;
+  kycSubmittedAt?: string;
+  kycRejectedReason?: string;
+  createdAt: string;
 }
 
 interface UserActivity {
@@ -239,6 +312,12 @@ export default function AdminPage() {
   const [banDialogOpen, setBanDialogOpen] = useState(false);
   const [banReason, setBanReason] = useState('');
 
+  // KYC state
+  const [selectedKyc, setSelectedKyc] = useState<KycSubmission | null>(null);
+  const [kycDialogOpen, setKycDialogOpen] = useState(false);
+  const [rejectReason, setRejectReason] = useState('');
+  const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
+
   // Parsed reports state
   const [reports, setReports] = useState<Report[]>([]);
 
@@ -280,6 +359,11 @@ export default function AdminPage() {
     },
   });
 
+  const { data: kycData, loading: kycLoading, refetch: refetchKyc } = useQuery<any>(GET_PENDING_KYC, {
+    skip: !isAuthenticated || user?.role !== 'ADMIN',
+    variables: { limit: 50 },
+  });
+
   const [getUserActivity, { data: activityData, loading: activityLoading }] = useLazyQuery<UserActivityData>(GET_USER_ACTIVITY);
 
   const [reviewReport, { loading: reviewingReport }] = useMutation(REVIEW_REPORT, {
@@ -314,6 +398,27 @@ export default function AdminPage() {
   const [unbanUser, { loading: unbanning }] = useMutation(UNBAN_USER, {
     onCompleted: () => {
       toast.success('Usuario desbaneado correctamente');
+      refetchUsers();
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  const [approveKyc, { loading: approving }] = useMutation(APPROVE_KYC, {
+    onCompleted: () => {
+      toast.success('KYC aprobado exitosamente');
+      setKycDialogOpen(false);
+      refetchKyc();
+      refetchUsers();
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  const [rejectKyc, { loading: rejecting }] = useMutation(REJECT_KYC, {
+    onCompleted: () => {
+      toast.success('KYC rechazado');
+      setRejectDialogOpen(false);
+      setRejectReason('');
+      refetchKyc();
       refetchUsers();
     },
     onError: (err) => toast.error(err.message),
@@ -370,6 +475,30 @@ export default function AdminPage() {
     if (confirm(`Desbanear a ${u.email}?`)) {
       unbanUser({ variables: { userId: u.id, reason: 'Admin unban' } });
     }
+  };
+
+  const handleViewKyc = (submission: KycSubmission) => {
+    setSelectedKyc(submission);
+    setKycDialogOpen(true);
+  };
+
+  const handleApproveKyc = () => {
+    if (!selectedKyc) return;
+    if (!confirm(`¿Aprobar KYC para ${selectedKyc.email}?`)) return;
+    approveKyc({ variables: { userId: selectedKyc.userId } });
+  };
+
+  const handleRejectKycClick = (submission: KycSubmission) => {
+    setSelectedKyc(submission);
+    setRejectDialogOpen(true);
+  };
+
+  const handleRejectKyc = () => {
+    if (!selectedKyc || rejectReason.trim().length < 10) {
+      toast.error('Razón debe tener al menos 10 caracteres');
+      return;
+    }
+    rejectKyc({ variables: { userId: selectedKyc.userId, reason: rejectReason } });
   };
 
   if (!isAuthenticated || user?.role !== 'ADMIN') {
@@ -538,10 +667,59 @@ export default function AdminPage() {
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="mb-6">
+          <TabsTrigger value="kyc">KYC ({kycData?.pendingKycSubmissions?.total || 0})</TabsTrigger>
           <TabsTrigger value="raffles">Rifas ({raffles.length})</TabsTrigger>
           <TabsTrigger value="reports">Reportes ({reports.length})</TabsTrigger>
           <TabsTrigger value="users">Usuarios ({totalUsers})</TabsTrigger>
         </TabsList>
+
+        {/* KYC Tab */}
+        <TabsContent value="kyc">
+          <Card>
+            <CardHeader>
+              <CardTitle>Verificaciones KYC Pendientes</CardTitle>
+              <CardDescription>Revisar y aprobar/rechazar solicitudes de verificación</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {kycLoading ? (
+                <div className="flex justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                </div>
+              ) : (kycData?.pendingKycSubmissions?.submissions || []).length === 0 ? (
+                <div className="text-center py-8">
+                  <CheckCircle className="h-12 w-12 mx-auto text-green-500 mb-2" />
+                  <p className="text-muted-foreground">No hay verificaciones KYC pendientes</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {(kycData?.pendingKycSubmissions?.submissions || []).map((submission: KycSubmission) => (
+                    <div
+                      key={submission.userId}
+                      className="p-4 rounded-lg border border-blue-500/30 bg-blue-500/5 flex items-center justify-between"
+                    >
+                      <div>
+                        <h3 className="font-medium">{submission.nombre} {submission.apellido}</h3>
+                        <p className="text-sm text-muted-foreground">{submission.email}</p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Solicitado: {new Date(submission.createdAt).toLocaleDateString()}
+                        </p>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleViewKyc(submission)}
+                        >
+                          Ver Detalles
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
 
         {/* Raffles Tab */}
         <TabsContent value="raffles">
@@ -899,6 +1077,139 @@ export default function AdminPage() {
             </Button>
             <Button variant="destructive" onClick={handleBanUser} disabled={banning || !banReason.trim()}>
               {banning ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Confirmar Ban'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* KYC Review Dialog */}
+      <Dialog open={kycDialogOpen} onOpenChange={setKycDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Revisar Verificación KYC</DialogTitle>
+          </DialogHeader>
+          {selectedKyc && (
+            <div className="space-y-4 py-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <span className="text-sm text-muted-foreground">Nombre</span>
+                  <p className="font-medium">{selectedKyc.nombre} {selectedKyc.apellido}</p>
+                </div>
+                <div>
+                  <span className="text-sm text-muted-foreground">Email</span>
+                  <p className="font-medium">{selectedKyc.email}</p>
+                </div>
+                <div>
+                  <span className="text-sm text-muted-foreground">Tipo de Documento</span>
+                  <p className="font-medium">{selectedKyc.documentType || 'No especificado'}</p>
+                </div>
+                <div>
+                  <span className="text-sm text-muted-foreground">Número de Documento</span>
+                  <p className="font-medium">{selectedKyc.documentNumber || 'No especificado'}</p>
+                </div>
+              </div>
+
+              <div className="border-t pt-4">
+                <h4 className="font-semibold mb-3">Dirección</h4>
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <span className="text-muted-foreground">Calle</span>
+                    <p>{selectedKyc.street || '-'}</p>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Número</span>
+                    <p>{selectedKyc.streetNumber || '-'}</p>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Apartamento</span>
+                    <p>{selectedKyc.apartment || '-'}</p>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Ciudad</span>
+                    <p>{selectedKyc.city || '-'}</p>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Provincia</span>
+                    <p>{selectedKyc.province || '-'}</p>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Código Postal</span>
+                    <p>{selectedKyc.postalCode || '-'}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="border-t pt-4">
+                <h4 className="font-semibold mb-3">Información Adicional</h4>
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <span className="text-muted-foreground">Teléfono</span>
+                    <p>{selectedKyc.phone || '-'}</p>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">CUIT/CUIL</span>
+                    <p>{selectedKyc.cuitCuil || '-'}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setKycDialogOpen(false)}>
+              Cerrar
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setKycDialogOpen(false);
+                handleRejectKycClick(selectedKyc!);
+              }}
+              disabled={rejecting}
+            >
+              Rechazar
+            </Button>
+            <Button
+              onClick={handleApproveKyc}
+              disabled={approving}
+            >
+              {approving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : 'Aprobar KYC'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* KYC Reject Dialog */}
+      <Dialog open={rejectDialogOpen} onOpenChange={setRejectDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Rechazar Verificación KYC</DialogTitle>
+          </DialogHeader>
+          {selectedKyc && (
+            <div className="py-4">
+              <p className="text-sm text-muted-foreground mb-4">
+                Rechazando solicitud de: <strong>{selectedKyc.email}</strong>
+              </p>
+              <Input
+                placeholder="Razón del rechazo (mín. 10 caracteres)..."
+                value={rejectReason}
+                onChange={(e) => setRejectReason(e.target.value)}
+                className="min-h-24"
+              />
+              <p className="text-xs text-muted-foreground mt-2">
+                {rejectReason.length} caracteres
+              </p>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => { setRejectDialogOpen(false); setRejectReason(''); }}>
+              Cancelar
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleRejectKyc}
+              disabled={rejecting || rejectReason.trim().length < 10}
+            >
+              {rejecting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : 'Confirmar Rechazo'}
             </Button>
           </DialogFooter>
         </DialogContent>

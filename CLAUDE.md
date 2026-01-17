@@ -173,12 +173,17 @@ MpConnectStatus: NOT_CONNECTED → PENDING → CONNECTED
    - `useThemeStore` - dark/light theme
    - Apollo Client cache for server data
 
-2. **Components:**
+2. **Authentication:**
+   - Tokens stored in localStorage (not cookies) due to third-party cookie blocking on cross-subdomain deployments
+   - Apollo Client sends `Authorization: Bearer` header via authLink
+   - See DEPLOYMENT.md for recommended long-term fixes (custom domain or API proxy)
+
+3. **Components:**
    - `'use client'` for interactive components
    - shadcn/ui in `/components/ui/`
    - `cn()` utility for conditional classes
 
-3. **GraphQL:**
+4. **GraphQL:**
    - Queries/mutations inline with `gql` or in `/lib/graphql/`
    - Apollo BatchHttpLink for query batching
 
