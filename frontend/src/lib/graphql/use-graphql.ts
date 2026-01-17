@@ -26,13 +26,11 @@ export function useQuery<T = unknown>(
     setError(null);
 
     try {
-      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-      
       const response = await fetch(GRAPHQL_URL, {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
-          ...(token && { Authorization: `Bearer ${token}` }),
         },
         body: JSON.stringify({ query, variables }),
       });
@@ -70,13 +68,11 @@ export async function graphqlMutation<T = unknown>(
   variables?: Record<string, unknown>
 ): Promise<{ data: T | null; error: Error | null }> {
   try {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-
     const response = await fetch(GRAPHQL_URL, {
       method: 'POST',
+      credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
-        ...(token && { Authorization: `Bearer ${token}` }),
       },
       body: JSON.stringify({ query, variables }),
     });

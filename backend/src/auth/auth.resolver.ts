@@ -1,6 +1,5 @@
 import { Resolver, Mutation, Args, Query, Context } from '@nestjs/graphql';
 import { UseGuards } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { Response } from 'express';
 import { AuthService } from './auth.service';
 import { AuthPayload, RegisterPayload } from './dto/auth-payload';
@@ -17,25 +16,20 @@ const REFRESH_TOKEN_MAX_AGE = 7 * 24 * 60 * 60 * 1000; // 7 days
 
 @Resolver()
 export class AuthResolver {
-  constructor(
-    private authService: AuthService,
-    private configService: ConfigService,
-  ) {}
+  constructor(private authService: AuthService) {}
 
   private setAuthCookies(
     res: Response,
     token: string,
     refreshToken: string,
   ): void {
-    const isProduction = this.configService.get('NODE_ENV') === 'production';
-
-    // Set access token as httpOnly cookie
-    // In development, use sameSite: 'none' to allow cross-origin requests (localhost:3000 → localhost:3001)
-    // Note: sameSite: 'none' requires secure: true (always, not just production)
+    // sameSite: 'none' allows cross-origin requests (required for separate frontend/backend domains)
+    // secure: true ensures cookies only sent over HTTPS
+    // httpOnly: true prevents JavaScript access (XSS protection)
     res.cookie('auth_token', token, {
       httpOnly: true,
       secure: true,
-      sameSite: isProduction ? 'strict' : 'none',
+      sameSite: 'none',
       maxAge: ACCESS_TOKEN_MAX_AGE,
       path: '/',
     });
@@ -44,7 +38,7 @@ export class AuthResolver {
     res.cookie('refresh_token', refreshToken, {
       httpOnly: true,
       secure: true,
-      sameSite: isProduction ? 'strict' : 'none',
+      sameSite: 'none',
       maxAge: REFRESH_TOKEN_MAX_AGE,
       path: '/auth',
     });
