@@ -225,47 +225,47 @@ export class KycSubmission {
   @Field()
   apellido!: string;
 
-  @Field(() => String)
-  kycStatus!: string;
+  @Field(() => String, { nullable: true })
+  kycStatus?: string;
 
-  @Field({ nullable: true })
-  documentType?: string;
+  @Field(() => String, { nullable: true })
+  documentType?: string | null;
 
-  @Field({ nullable: true })
-  documentNumber?: string;
+  @Field(() => String, { nullable: true })
+  documentNumber?: string | null;
 
-  @Field({ nullable: true })
-  street?: string;
+  @Field(() => String, { nullable: true })
+  street?: string | null;
 
-  @Field({ nullable: true })
-  streetNumber?: string;
+  @Field(() => String, { nullable: true })
+  streetNumber?: string | null;
 
-  @Field({ nullable: true })
-  apartment?: string;
+  @Field(() => String, { nullable: true })
+  apartment?: string | null;
 
-  @Field({ nullable: true })
-  city?: string;
+  @Field(() => String, { nullable: true })
+  city?: string | null;
 
-  @Field({ nullable: true })
-  province?: string;
+  @Field(() => String, { nullable: true })
+  province?: string | null;
 
-  @Field({ nullable: true })
-  postalCode?: string;
+  @Field(() => String, { nullable: true })
+  postalCode?: string | null;
 
-  @Field({ nullable: true })
-  phone?: string;
+  @Field(() => String, { nullable: true })
+  phone?: string | null;
 
-  @Field({ nullable: true })
-  cuitCuil?: string;
+  @Field(() => String, { nullable: true })
+  cuitCuil?: string | null;
 
-  @Field({ nullable: true })
-  kycSubmittedAt?: Date;
+  @Field(() => Date, { nullable: true })
+  kycSubmittedAt?: Date | null;
 
-  @Field({ nullable: true })
-  kycVerifiedAt?: Date;
+  @Field(() => Date, { nullable: true })
+  kycVerifiedAt?: Date | null;
 
-  @Field({ nullable: true })
-  kycRejectedReason?: string;
+  @Field(() => String, { nullable: true })
+  kycRejectedReason?: string | null;
 
   @Field()
   createdAt!: Date;
