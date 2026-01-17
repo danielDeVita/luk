@@ -35,7 +35,7 @@ const createRaffleSchema = z.object({
   nombreProducto: z.string().min(3, 'Mínimo 3 caracteres').max(100),
   descripcionProducto: z.string().min(20, 'Mínimo 20 caracteres').max(2000),
   categoria: z.string().min(1, 'Categoría requerida'),
-  condicion: z.enum(['NUEVO', 'COMO_NUEVO', 'BUEN_ESTADO', 'USADO']),
+  condicion: z.enum(['NUEVO', 'USADO_COMO_NUEVO', 'USADO_BUEN_ESTADO', 'USADO_ACEPTABLE']),
 });
 
 type CreateRaffleForm = z.infer<typeof createRaffleSchema>;
@@ -298,9 +298,9 @@ export default function CreateRafflePage() {
                   {...register('condicion')}
                 >
                   <option value="NUEVO">Nuevo</option>
-                  <option value="COMO_NUEVO">Como Nuevo</option>
-                  <option value="BUEN_ESTADO">Buen Estado</option>
-                  <option value="USADO">Usado</option>
+                  <option value="USADO_COMO_NUEVO">Usado Como Nuevo</option>
+                  <option value="USADO_BUEN_ESTADO">Usado - Buen Estado</option>
+                  <option value="USADO_ACEPTABLE">Usado - Aceptable</option>
                 </select>
               </div>
             </div>

@@ -30,10 +30,12 @@ export class AuthResolver {
     const isProduction = this.configService.get('NODE_ENV') === 'production';
 
     // Set access token as httpOnly cookie
+    // In development, use sameSite: 'none' to allow cross-origin requests (localhost:3000 → localhost:3001)
+    // Note: sameSite: 'none' requires secure: true (always, not just production)
     res.cookie('auth_token', token, {
       httpOnly: true,
-      secure: isProduction,
-      sameSite: isProduction ? 'strict' : 'lax',
+      secure: true,
+      sameSite: isProduction ? 'strict' : 'none',
       maxAge: ACCESS_TOKEN_MAX_AGE,
       path: '/',
     });
@@ -41,8 +43,8 @@ export class AuthResolver {
     // Set refresh token as httpOnly cookie
     res.cookie('refresh_token', refreshToken, {
       httpOnly: true,
-      secure: isProduction,
-      sameSite: isProduction ? 'strict' : 'lax',
+      secure: true,
+      sameSite: isProduction ? 'strict' : 'none',
       maxAge: REFRESH_TOKEN_MAX_AGE,
       path: '/auth',
     });

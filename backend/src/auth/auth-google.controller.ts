@@ -46,10 +46,12 @@ export class AuthGoogleController {
     );
 
     // Set access token as httpOnly cookie (short-lived, 15 min)
+    // In development, use sameSite: 'none' to allow cross-origin requests (localhost:3000 → localhost:3001)
+    // Note: sameSite: 'none' requires secure: true (always, not just production)
     res.cookie('auth_token', token, {
       httpOnly: true,
-      secure: isProduction,
-      sameSite: isProduction ? 'strict' : 'lax',
+      secure: true,
+      sameSite: isProduction ? 'strict' : 'none',
       maxAge: 15 * 60 * 1000, // 15 minutes
       path: '/',
     });
@@ -57,8 +59,8 @@ export class AuthGoogleController {
     // Set refresh token as httpOnly cookie (long-lived, 7 days)
     res.cookie('refresh_token', refreshToken, {
       httpOnly: true,
-      secure: isProduction,
-      sameSite: isProduction ? 'strict' : 'lax',
+      secure: true,
+      sameSite: isProduction ? 'strict' : 'none',
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
       path: '/auth', // Only sent to /auth endpoints
     });
@@ -106,10 +108,12 @@ export class AuthGoogleController {
         await this.authService.refreshAccessToken(refreshTokenValue);
 
       // Set new access token as httpOnly cookie
+      // In development, use sameSite: 'none' to allow cross-origin requests (localhost:3000 → localhost:3001)
+      // Note: sameSite: 'none' requires secure: true (always, not just production)
       res.cookie('auth_token', token, {
         httpOnly: true,
-        secure: isProduction,
-        sameSite: isProduction ? 'strict' : 'lax',
+        secure: true,
+        sameSite: isProduction ? 'strict' : 'none',
         maxAge: 15 * 60 * 1000, // 15 minutes
         path: '/',
       });
@@ -117,8 +121,8 @@ export class AuthGoogleController {
       // Set new refresh token (rotation)
       res.cookie('refresh_token', refreshToken, {
         httpOnly: true,
-        secure: isProduction,
-        sameSite: isProduction ? 'strict' : 'lax',
+        secure: true,
+        sameSite: isProduction ? 'strict' : 'none',
         maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
         path: '/auth',
       });

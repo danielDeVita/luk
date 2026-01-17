@@ -16,20 +16,6 @@ Last Updated: January 16, 2026
 
 ---
 
-## Before You Start
-
-### Required Credentials
-
-| Variable | Where to Get |
-|----------|--------------|
-| `MP_ACCESS_TOKEN` | [MP Dashboard](https://www.mercadopago.com.ar/developers/panel/app) → Credenciales |
-| `MP_PUBLIC_KEY` | MP Dashboard → Credenciales |
-| `MP_CLIENT_ID` | MP Dashboard → Tu aplicacion |
-| `MP_CLIENT_SECRET` | MP Dashboard → Tu aplicacion |
-| `CLOUDINARY_*` | [Cloudinary Console](https://console.cloudinary.com/) |
-| `RESEND_API_KEY` | [Resend](https://resend.com/) |
-| `ENCRYPTION_KEY` | Run: `openssl rand -hex 32` |
-
 ---
 
 ## Step 1: Create Neon Database (5 min)

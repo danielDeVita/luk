@@ -93,6 +93,7 @@ async function bootstrap() {
       'x-signature',
       'x-request-id',
     ],
+    exposedHeaders: ['Set-Cookie'], // Expose Set-Cookie header to client
     credentials: true,
   });
 

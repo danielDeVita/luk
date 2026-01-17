@@ -385,12 +385,11 @@ function SettingsContent() {
     setIsDisconnecting(true);
     try {
       const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
-      const token = localStorage.getItem('token');
 
       const response = await fetch(`${backendUrl}/mp/connect/disconnect`, {
         method: 'POST',
+        credentials: 'include', // Send httpOnly auth cookie
         headers: {
-          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
       });
@@ -428,9 +427,8 @@ function SettingsContent() {
     try {
       // Get signature from backend
       const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
-      const token = localStorage.getItem('token');
       const sigResponse = await fetch(`${backendUrl}/uploads/signature/avatar`, {
-        headers: { 'Authorization': `Bearer ${token}` },
+        credentials: 'include', // Send httpOnly auth cookie
       });
       const sigData = await sigResponse.json();
 
