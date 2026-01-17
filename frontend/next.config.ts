@@ -38,7 +38,7 @@ const nextConfig: NextConfig = {
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: blob: https://res.cloudinary.com https://*.cloudinary.com",
       "font-src 'self' data:",
-      `connect-src 'self' https://${backendDomain} wss://${backendDomain} https://api.mercadopago.com https://*.mercadopago.com wss://*.mercadopago.com https://*.sentry.io https://*.ingest.sentry.io`,
+      `connect-src 'self' https://${backendDomain} wss://${backendDomain} https://api.cloudinary.com https://api.mercadopago.com https://*.mercadopago.com wss://*.mercadopago.com https://*.sentry.io https://*.ingest.sentry.io`,
       "frame-ancestors 'none'",
       "form-action 'self'",
       "base-uri 'self'",
