@@ -61,6 +61,13 @@ const CATEGORIES = [
   'Otro',
 ];
 
+interface KycStatusData {
+  me: {
+    id: string;
+    kycStatus: string;
+  };
+}
+
 interface CreateRaffleResult {
   createRaffle: {
     id: string;
@@ -74,7 +81,7 @@ export default function CreateRafflePage() {
   const [images, setImages] = useState<string[]>([]);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  const { data: kycData } = useQuery(GET_KYC_STATUS, {
+  const { data: kycData } = useQuery<KycStatusData>(GET_KYC_STATUS, {
     skip: !isAuthenticated,
   });
 
