@@ -133,6 +133,17 @@ const BULK_EXTEND_RAFFLES = gql`
   }
 `;
 
+const RELAUNCH_RAFFLE = gql`
+  mutation RelaunchRaffle($input: RelaunchRaffleInput!) {
+    relaunchRaffleWithSuggestedPrice(input: $input) {
+      id
+      titulo
+      precioPorTicket
+      estado
+    }
+  }
+`;
+
 const GET_ONBOARDING_STATUS = gql`
   query GetOnboardingStatus {
     me {
@@ -141,6 +152,7 @@ const GET_ONBOARDING_STATUS = gql`
       apellido
       phone
       mpConnectStatus
+      kycStatus
       street
       city
       province
@@ -190,6 +202,7 @@ interface OnboardingData {
     apellido: string;
     phone?: string;
     mpConnectStatus: string;
+    kycStatus: string;
     street?: string;
     city?: string;
     province?: string;
@@ -211,6 +224,15 @@ export default function MySalesPage() {
   const [isBulkCancelDialogOpen, setIsBulkCancelDialogOpen] = useState(false);
   const [isBulkExtendDialogOpen, setIsBulkExtendDialogOpen] = useState(false);
   const [extendDeadline, setExtendDeadline] = useState('');
+
+  // Relaunch state
+  const [relaunchModalOpen, setRelaunchModalOpen] = useState(false);
+  const [relaunchData, setRelaunchData] = useState<{
+    raffleId: string;
+    priceReductionId: string;
+    raffleName: string;
+    suggestedPrice: number;
+  } | null>(null);
 
   const { data, loading, error, refetch } = useQuery<{ myRafflesAsSeller: RaffleData[] }>(MY_RAFFLES, {
     skip: !isAuthenticated,
@@ -278,11 +300,46 @@ export default function MySalesPage() {
     },
   });
 
+  const [relaunchRaffle, { loading: relaunching }] = useMutation(RELAUNCH_RAFFLE, {
+    onCompleted: (data) => {
+      toast.success('¡Rifa relanzada exitosamente!');
+      setRelaunchModalOpen(false);
+      setRelaunchData(null);
+      // Redirect to new raffle
+      router.push(`/raffle/${data.relaunchRaffleWithSuggestedPrice.id}`);
+    },
+    onError: (err) => {
+      toast.error(err.message || 'Error al relanzar la rifa');
+    },
+  });
+
   useEffect(() => {
     if (!isAuthenticated) {
       router.push('/auth/login');
     }
   }, [isAuthenticated, router]);
+
+  // Handle relaunch action from email
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const action = params.get('action');
+    const raffleId = params.get('raffleId');
+    const priceReductionId = params.get('priceReductionId');
+
+    if (action === 'relaunch' && raffleId && priceReductionId) {
+      // Set dummy data for now (could fetch full data from API)
+      setRelaunchData({
+        raffleId,
+        priceReductionId,
+        raffleName: 'Tu rifa',
+        suggestedPrice: 0,
+      });
+      setRelaunchModalOpen(true);
+
+      // Clear URL params
+      window.history.replaceState({}, '', '/dashboard/sales');
+    }
+  }, []);
 
   // Get data from queries - safe to use here since they're from graphql
   const raffles = data?.myRafflesAsSeller || [];
@@ -319,6 +376,14 @@ export default function MySalesPage() {
         completed: userData?.mpConnectStatus === 'CONNECTED',
         href: '/dashboard/settings?tab=payments',
         icon: CreditCard,
+      },
+      {
+        id: 'kyc',
+        label: 'Verificar identidad (KYC)',
+        description: 'Requerido para crear rifas',
+        completed: userData?.kycStatus === 'VERIFIED',
+        href: '/dashboard/settings?tab=kyc',
+        icon: User,
       },
       {
         id: 'address',
@@ -906,6 +971,56 @@ export default function MySalesPage() {
             </Button>
             <Button onClick={handleBulkExtend} disabled={bulkExtending || !extendDeadline}>
               {bulkExtending ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Extender Rifas'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Relaunch Confirmation Modal */}
+      <Dialog open={relaunchModalOpen} onOpenChange={setRelaunchModalOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>🚀 Relanzar Rifa con Precio Sugerido</DialogTitle>
+          </DialogHeader>
+          {relaunchData && (
+            <div className="py-4">
+              <p className="mb-4">
+                ¿Estás seguro de que deseas relanzar esta rifa con el precio sugerido?
+              </p>
+              <div className="bg-muted p-4 rounded-lg space-y-2">
+                <p className="text-sm">
+                  <strong>Rifa:</strong> {relaunchData.raffleName}
+                </p>
+                {relaunchData.suggestedPrice > 0 && (
+                  <p className="text-sm">
+                    <strong>Precio sugerido:</strong> ${relaunchData.suggestedPrice.toFixed(2)}
+                  </p>
+                )}
+                <p className="text-sm text-muted-foreground">
+                  Se creará una nueva rifa con el mismo producto y el precio ajustado.
+                </p>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setRelaunchModalOpen(false)}>
+              Cancelar
+            </Button>
+            <Button
+              onClick={() => {
+                if (!relaunchData) return;
+                relaunchRaffle({
+                  variables: {
+                    input: {
+                      originalRaffleId: relaunchData.raffleId,
+                      priceReductionId: relaunchData.priceReductionId,
+                    },
+                  },
+                });
+              }}
+              disabled={relaunching}
+            >
+              {relaunching ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : '🚀 Relanzar Rifa'}
             </Button>
           </DialogFooter>
         </DialogContent>

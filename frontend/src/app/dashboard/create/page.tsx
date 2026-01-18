@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { useMutation } from '@apollo/client/react';
+import { useMutation, useQuery } from '@apollo/client/react';
 import { gql } from '@apollo/client/core';
 import { useAuthStore } from '@/store/auth';
 import { Button } from '@/components/ui/button';
@@ -15,6 +15,16 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { ImageUpload } from '@/components/ImageUpload';
 import { Loader2, AlertCircle } from 'lucide-react';
 import { handleError, showSuccess } from '@/lib/error-handler';
+import { toast } from 'sonner';
+
+const GET_KYC_STATUS = gql`
+  query GetKycStatus {
+    me {
+      id
+      kycStatus
+    }
+  }
+`;
 
 const CREATE_RAFFLE = gql`
   mutation CreateRaffle($input: CreateRaffleInput!) {
@@ -64,11 +74,18 @@ export default function CreateRafflePage() {
   const [images, setImages] = useState<string[]>([]);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
+  const { data: kycData } = useQuery(GET_KYC_STATUS, {
+    skip: !isAuthenticated,
+  });
+
   useEffect(() => {
     if (!isAuthenticated) {
       router.push('/auth/login');
+    } else if (kycData?.me?.kycStatus !== 'VERIFIED') {
+      toast.error('Debes verificar tu identidad antes de crear rifas');
+      router.push('/dashboard/settings?tab=kyc');
     }
-  }, [isAuthenticated, router]);
+  }, [isAuthenticated, kycData, router]);
 
   const {
     register,

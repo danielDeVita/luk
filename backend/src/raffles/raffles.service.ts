@@ -14,6 +14,7 @@ import {
   UpdateRaffleInput,
 } from './dto/create-raffle.input';
 import { RaffleFiltersInput } from './dto/raffle-filters.input';
+import { RelaunchRaffleInput } from './dto/relaunch-raffle.input';
 import { Prisma } from '@prisma/client';
 import { RaffleSort } from '../common/enums';
 import {
@@ -109,6 +110,7 @@ export class RafflesService {
       where: { id: sellerId },
       select: {
         mpConnectStatus: true,
+        kycStatus: true,
         defaultSenderAddressId: true,
         shippingAddresses: { take: 1 },
       },
@@ -131,6 +133,13 @@ export class RafflesService {
     ) {
       throw new BadRequestException(
         'Debes agregar una dirección de envío antes de crear una rifa. Ve a tu perfil para agregarla.',
+      );
+    }
+
+    // Check if seller has verified KYC
+    if (seller.kycStatus !== 'VERIFIED') {
+      throw new BadRequestException(
+        'Debes completar y verificar tu identidad (KYC) antes de crear una rifa. Ve a Configuración > Perfil para completar tu verificación.',
       );
     }
 
@@ -704,6 +713,107 @@ export class RafflesService {
       ),
       this.activityService.logDeliveryConfirmed(raffle.winnerId, raffle.id),
     ]);
+  }
+
+  async relaunchWithSuggestedPrice(
+    sellerId: string,
+    input: RelaunchRaffleInput,
+  ) {
+    // 1. Verify the original raffle belongs to this seller
+    const originalRaffle = await this.prisma.raffle.findUnique({
+      where: { id: input.originalRaffleId },
+      include: { product: true },
+    });
+
+    if (!originalRaffle) {
+      throw new NotFoundException('Rifa no encontrada');
+    }
+
+    if (originalRaffle.sellerId !== sellerId) {
+      throw new ForbiddenException('Solo puedes relanzar tus propias rifas');
+    }
+
+    if (originalRaffle.estado !== 'CANCELADA') {
+      throw new BadRequestException('Solo se pueden relanzar rifas canceladas');
+    }
+
+    // 2. Get the price reduction suggestion
+    const priceReduction = await this.prisma.priceReduction.findUnique({
+      where: { id: input.priceReductionId },
+    });
+
+    if (!priceReduction) {
+      throw new NotFoundException('Sugerencia de precio no encontrada');
+    }
+
+    if (priceReduction.raffleId !== input.originalRaffleId) {
+      throw new BadRequestException(
+        'La sugerencia de precio no corresponde a esta rifa',
+      );
+    }
+
+    // 3. Calculate new price (use custom or suggested)
+    const newPrice =
+      input.customPrice || Number(priceReduction.precioSugerido);
+
+    if (newPrice <= 0) {
+      throw new BadRequestException('El precio debe ser mayor a 0');
+    }
+
+    // 4. Calculate deadline (default 30 days)
+    const daysUntil = input.daysUntilDraw || 30;
+    const fechaLimite = new Date();
+    fechaLimite.setDate(fechaLimite.getDate() + daysUntil);
+
+    // 5. Create new raffle with same product data
+    const newRaffle = await this.prisma.raffle.create({
+      data: {
+        titulo: `${originalRaffle.titulo} (Relanzamiento)`,
+        descripcion: originalRaffle.descripcion,
+        sellerId: sellerId,
+        totalTickets: originalRaffle.totalTickets,
+        precioPorTicket: newPrice,
+        fechaLimiteSorteo: fechaLimite,
+        estado: 'ACTIVA',
+        // Create product copy
+        product: {
+          create: {
+            nombre: originalRaffle.product!.nombre,
+            descripcionDetallada:
+              originalRaffle.product!.descripcionDetallada,
+            categoria: originalRaffle.product!.categoria,
+            condicion: originalRaffle.product!.condicion,
+            imagenes: originalRaffle.product!.imagenes,
+            especificacionesTecnicas:
+              originalRaffle.product!.especificacionesTecnicas as any,
+          },
+        },
+      },
+      include: { product: true },
+    });
+
+    // 6. Mark price reduction as accepted
+    await this.prisma.priceReduction.update({
+      where: { id: input.priceReductionId },
+      data: {
+        aceptada: true,
+        fechaRespuesta: new Date(),
+      },
+    });
+
+    // 7. Log activity
+    this.activityService
+      .logRaffleCreated(sellerId, newRaffle.id, newRaffle.titulo)
+      .catch((err) => {
+        this.logger.error(`Failed to log raffle relaunch: ${err.message}`);
+      });
+
+    // 8. Invalidate cache
+    this.invalidateRaffleCache().catch((err) => {
+      this.logger.warn(`Cache invalidation failed: ${err.message}`);
+    });
+
+    return newRaffle;
   }
 
   async selectWinner(raffleId: string) {

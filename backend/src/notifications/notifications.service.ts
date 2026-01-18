@@ -315,21 +315,55 @@ export class NotificationsService {
       currentPrice: number;
       suggestedPrice: number;
       percentageSold: number;
+      raffleId: string;
+      priceReductionId: string;
     },
   ) {
+    const relaunchUrl = `${process.env.FRONTEND_URL}/dashboard/sales?action=relaunch&raffleId=${data.raffleId}&priceReductionId=${data.priceReductionId}`;
+    const percentDiscount = (
+      ((data.currentPrice - data.suggestedPrice) / data.currentPrice) *
+      100
+    ).toFixed(0);
+
     return this.sendEmail({
       to: email,
       subject: `📉 Sugerencia de precio - ${data.raffleName}`,
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
           <h1>Sugerencia de reducción de precio</h1>
-          <p>Tu rifa "${data.raffleName}" no alcanzó el mínimo de ventas.</p>
+          <p>Tu rifa "<strong>${data.raffleName}</strong>" no alcanzó el mínimo de ventas (${(data.percentageSold * 100).toFixed(0)}%). Todos los compradores fueron reembolsados.</p>
+
           <div style="background: #FEF3C7; padding: 15px; border-radius: 8px; margin: 20px 0;">
-            <p style="margin: 5px 0;"><strong>Vendido:</strong> ${(data.percentageSold * 100).toFixed(0)}%</p>
-            <p style="margin: 5px 0;"><strong>Precio actual:</strong> $${data.currentPrice.toFixed(2)}</p>
-            <p style="margin: 5px 0;"><strong>Precio sugerido:</strong> $${data.suggestedPrice.toFixed(2)}</p>
+            <p style="margin: 5px 0;"><strong>Tickets vendidos:</strong> ${(data.percentageSold * 100).toFixed(1)}%</p>
+            <p style="margin: 5px 0;"><strong>Precio anterior:</strong> $${data.currentPrice.toFixed(2)}</p>
+            <p style="margin: 5px 0;"><strong>Precio sugerido:</strong> <span style="color: #16a34a; font-weight: bold;">$${data.suggestedPrice.toFixed(2)}</span></p>
+            <p style="margin: 5px 0;"><strong>Descuento:</strong> ${percentDiscount}%</p>
           </div>
-          <p>Considera relanzar la rifa con el precio sugerido para aumentar ventas.</p>
+
+          <p>Basándonos en el rendimiento de tu rifa, te sugerimos relanzarla con el precio ajustado para aumentar las ventas.</p>
+
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${relaunchUrl}" style="
+              background: #8b5cf6;
+              color: white;
+              padding: 12px 32px;
+              border-radius: 8px;
+              text-decoration: none;
+              font-weight: bold;
+              display: inline-block;
+            ">
+              🚀 Relanzar Rifa con Precio Sugerido
+            </a>
+          </div>
+
+          <p style="color: #666; font-size: 14px;">
+            Al hacer clic, se creará una nueva rifa con el mismo producto y el precio sugerido de $${data.suggestedPrice.toFixed(2)}. Podrás editarla si lo deseas.
+          </p>
+
+          <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
+          <p style="color: #999; font-size: 12px; text-align: center;">
+            Raffle Platform
+          </p>
         </div>
       `,
     });

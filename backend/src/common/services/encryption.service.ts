@@ -11,6 +11,13 @@ export const PII_FIELDS = [
   'mpRefreshToken',
   'documentNumber',
   'cuitCuil',
+  'street',
+  'streetNumber',
+  'apartment',
+  'city',
+  'province',
+  'postalCode',
+  'phone',
 ] as const;
 
 export type PIIField = (typeof PII_FIELDS)[number];

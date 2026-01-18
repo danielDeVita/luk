@@ -7,10 +7,14 @@ import { PrismaService } from '../prisma/prisma.service';
 import { UserRole, SellerLevel, KycStatus } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { UpdateKycInput, AcceptTermsInput } from './dto/update-user.input';
+import { EncryptionService } from '../common/services/encryption.service';
 
 @Injectable()
 export class UsersService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private encryptionService: EncryptionService,
+  ) {}
 
   async findOne(id: string) {
     const user = await this.prisma.user.findUnique({
@@ -33,6 +37,24 @@ export class UsersService {
     return this.prisma.user.findUnique({
       where: { email },
     });
+  }
+
+  async getUserWithDecryptedPII(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new NotFoundException('Usuario no encontrado');
+    }
+
+    // Decrypt PII fields if encryption is enabled
+    const decryptedPII = this.encryptionService.decryptUserPII(user);
+
+    return {
+      ...user,
+      ...decryptedPII,
+    };
   }
 
   async updateProfile(
@@ -61,21 +83,34 @@ export class UsersService {
       );
     }
 
+    // Encrypt sensitive PII fields
+    const encryptedData = this.encryptionService.encryptUserPII({
+      documentNumber: input.documentNumber,
+      cuitCuil: input.cuitCuil,
+      street: input.street,
+      streetNumber: input.streetNumber,
+      apartment: input.apartment,
+      city: input.city,
+      province: input.province,
+      postalCode: input.postalCode,
+      phone: input.phone,
+    });
+
     return this.prisma.user.update({
       where: { id: userId },
       data: {
         documentType: input.documentType,
-        documentNumber: input.documentNumber,
+        documentNumber: encryptedData.documentNumber,
         documentFrontUrl: input.documentFrontUrl,
         documentBackUrl: input.documentBackUrl,
-        street: input.street,
-        streetNumber: input.streetNumber,
-        apartment: input.apartment,
-        city: input.city,
-        province: input.province,
-        postalCode: input.postalCode,
-        phone: input.phone,
-        cuitCuil: input.cuitCuil,
+        street: encryptedData.street,
+        streetNumber: encryptedData.streetNumber,
+        apartment: encryptedData.apartment,
+        city: encryptedData.city,
+        province: encryptedData.province,
+        postalCode: encryptedData.postalCode,
+        phone: encryptedData.phone,
+        cuitCuil: encryptedData.cuitCuil,
         kycStatus: KycStatus.PENDING_REVIEW,
         kycSubmittedAt: new Date(),
       },

@@ -15,7 +15,7 @@ Context for Claude when working on this codebase.
 ## Business Flows
 
 ### Raffle Lifecycle
-1. **ACTIVA** - Seller creates raffle (must have MP Connect + shipping address)
+1. **ACTIVA** - Seller creates raffle (must have KYC verified + MP Connect + shipping address)
 2. Buyers purchase tickets → MP Checkout Pro payment
 3. Draw date reached:
    - If 70%+ tickets sold → Execute draw → **SORTEADA**
@@ -57,8 +57,9 @@ Context for Claude when working on this codebase.
 New sellers see a progress checklist in their dashboard:
 1. **Complete profile** - Name + phone number
 2. **Connect Mercado Pago** - OAuth flow for receiving payments
-3. **Add shipping address** - Street, city, province, postal code (via KYC)
-4. **Create first raffle** - Start selling
+3. **Verify identity (KYC)** - Submit and get admin approval for KYC verification
+4. **Add shipping address** - Street, city, province, postal code
+5. **Create first raffle** - Start selling
 
 Checklist hides automatically when all steps are complete.
 
@@ -156,7 +157,8 @@ MpConnectStatus: NOT_CONNECTED → PENDING → CONNECTED
    - Events: `raffle.completed`, `raffle.drawn`, `ticket.purchased`, `dispute.opened`
    - Listeners handle cross-cutting concerns (notifications, logging)
 
-5. **PII Encryption** - AES-256-GCM for sensitive data (MP tokens, DNI, CUIT)
+5. **PII Encryption** - AES-256-GCM for sensitive data
+   - Encrypted fields: MP tokens, DNI, CUIT, addresses (street, city, province, postal code), phone numbers
    - Requires `ENCRYPTION_KEY` (64 hex chars) in .env
 
 6. **Module Dependencies** - Circular deps require `forwardRef`:

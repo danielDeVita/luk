@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { UserRole } from '@prisma/client';
+import { EncryptionService } from '../common/services/encryption.service';
 
 interface UserFilters {
   role?: UserRole;
@@ -32,7 +33,10 @@ interface TransactionFilters {
 
 @Injectable()
 export class AdminService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private encryptionService: EncryptionService,
+  ) {}
 
   // ==================== MpEvent Viewer ====================
 
@@ -378,27 +382,32 @@ export class AdminService {
     ]);
 
     return {
-      submissions: users.map((u) => ({
-        userId: u.id,
-        email: u.email,
-        nombre: u.nombre,
-        apellido: u.apellido,
-        kycStatus: u.kycStatus,
-        documentType: u.documentType || null,
-        documentNumber: u.documentNumber || null,
-        street: u.street || null,
-        streetNumber: u.streetNumber || null,
-        apartment: u.apartment || null,
-        city: u.city || null,
-        province: u.province || null,
-        postalCode: u.postalCode || null,
-        phone: u.phone || null,
-        cuitCuil: u.cuitCuil || null,
-        kycSubmittedAt: u.kycSubmittedAt || null,
-        kycVerifiedAt: u.kycVerifiedAt || null,
-        kycRejectedReason: u.kycRejectedReason || null,
-        createdAt: u.createdAt,
-      })),
+      submissions: users.map((u) => {
+        // Decrypt PII fields for admin review
+        const decryptedPII = this.encryptionService.decryptUserPII(u);
+
+        return {
+          userId: u.id,
+          email: u.email,
+          nombre: u.nombre,
+          apellido: u.apellido,
+          kycStatus: u.kycStatus,
+          documentType: u.documentType || null,
+          documentNumber: decryptedPII.documentNumber || null,
+          street: decryptedPII.street || null,
+          streetNumber: decryptedPII.streetNumber || null,
+          apartment: decryptedPII.apartment || null,
+          city: decryptedPII.city || null,
+          province: decryptedPII.province || null,
+          postalCode: decryptedPII.postalCode || null,
+          phone: decryptedPII.phone || null,
+          cuitCuil: decryptedPII.cuitCuil || null,
+          kycSubmittedAt: u.kycSubmittedAt || null,
+          kycVerifiedAt: u.kycVerifiedAt || null,
+          kycRejectedReason: u.kycRejectedReason || null,
+          createdAt: u.createdAt,
+        };
+      }),
       total,
     };
   }

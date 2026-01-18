@@ -249,7 +249,7 @@ export class RaffleTasksService {
     const suggestedPrice =
       Math.round(currentPrice * (1 - reductionFactor) * 100) / 100;
 
-    await this.prisma.priceReduction.create({
+    const priceReduction = await this.prisma.priceReduction.create({
       data: {
         raffleId,
         precioAnterior: currentPrice,
@@ -267,6 +267,8 @@ export class RaffleTasksService {
         currentPrice,
         suggestedPrice,
         percentageSold: percentSold,
+        raffleId,
+        priceReductionId: priceReduction.id,
       },
     );
   }

@@ -22,6 +22,7 @@ import {
   UpdateRaffleInput,
 } from './dto/create-raffle.input';
 import { RaffleFiltersInput } from './dto/raffle-filters.input';
+import { RelaunchRaffleInput } from './dto/relaunch-raffle.input';
 import { GqlAuthGuard } from '../auth/guards/gql-auth.guard';
 import { RolesGuard } from '../auth/guards/roles/roles.guard';
 import { Public } from '../auth/decorators/public.decorator';
@@ -153,6 +154,17 @@ export class RafflesResolver {
       user.id,
       new Date(newDeadline),
     );
+  }
+
+  @Mutation(() => Raffle, {
+    description: 'Relaunch a cancelled raffle with suggested price',
+  })
+  @UseGuards(GqlAuthGuard)
+  async relaunchRaffleWithSuggestedPrice(
+    @CurrentUser() user: User,
+    @Args('input') input: RelaunchRaffleInput,
+  ) {
+    return this.rafflesService.relaunchWithSuggestedPrice(user.id, input);
   }
 
   @Mutation(() => Raffle)
