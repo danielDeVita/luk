@@ -210,6 +210,15 @@ interface OnboardingData {
   };
 }
 
+interface RelaunchRaffleResponse {
+  relaunchRaffleWithSuggestedPrice: {
+    id: string;
+    titulo: string;
+    precioPorTicket: number;
+    estado: string;
+  };
+}
+
 const MONTH_NAMES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 
 export default function MySalesPage() {
@@ -300,18 +309,21 @@ export default function MySalesPage() {
     },
   });
 
-  const [relaunchRaffle, { loading: relaunching }] = useMutation(RELAUNCH_RAFFLE, {
-    onCompleted: (data) => {
-      toast.success('¡Rifa relanzada exitosamente!');
-      setRelaunchModalOpen(false);
-      setRelaunchData(null);
-      // Redirect to new raffle
-      router.push(`/raffle/${data.relaunchRaffleWithSuggestedPrice.id}`);
-    },
-    onError: (err) => {
-      toast.error(err.message || 'Error al relanzar la rifa');
-    },
-  });
+  const [relaunchRaffle, { loading: relaunching }] = useMutation<RelaunchRaffleResponse>(
+    RELAUNCH_RAFFLE,
+    {
+      onCompleted: (data) => {
+        toast.success('¡Rifa relanzada exitosamente!');
+        setRelaunchModalOpen(false);
+        setRelaunchData(null);
+        // Redirect to new raffle
+        router.push(`/raffle/${data.relaunchRaffleWithSuggestedPrice.id}`);
+      },
+      onError: (err) => {
+        toast.error(err.message || 'Error al relanzar la rifa');
+      },
+    }
+  );
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -319,27 +331,6 @@ export default function MySalesPage() {
     }
   }, [isAuthenticated, router]);
 
-  // Handle relaunch action from email
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const action = params.get('action');
-    const raffleId = params.get('raffleId');
-    const priceReductionId = params.get('priceReductionId');
-
-    if (action === 'relaunch' && raffleId && priceReductionId) {
-      // Set dummy data for now (could fetch full data from API)
-      setRelaunchData({
-        raffleId,
-        priceReductionId,
-        raffleName: 'Tu rifa',
-        suggestedPrice: 0,
-      });
-      setRelaunchModalOpen(true);
-
-      // Clear URL params
-      window.history.replaceState({}, '', '/dashboard/sales');
-    }
-  }, []);
 
   // Get data from queries - safe to use here since they're from graphql
   const raffles = data?.myRafflesAsSeller || [];
