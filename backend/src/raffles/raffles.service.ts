@@ -753,8 +753,7 @@ export class RafflesService {
     }
 
     // 3. Calculate new price (use custom or suggested)
-    const newPrice =
-      input.customPrice || Number(priceReduction.precioSugerido);
+    const newPrice = input.customPrice || Number(priceReduction.precioSugerido);
 
     if (newPrice <= 0) {
       throw new BadRequestException('El precio debe ser mayor a 0');
@@ -779,13 +778,12 @@ export class RafflesService {
         product: {
           create: {
             nombre: originalRaffle.product!.nombre,
-            descripcionDetallada:
-              originalRaffle.product!.descripcionDetallada,
+            descripcionDetallada: originalRaffle.product!.descripcionDetallada,
             categoria: originalRaffle.product!.categoria,
             condicion: originalRaffle.product!.condicion,
             imagenes: originalRaffle.product!.imagenes,
-            especificacionesTecnicas:
-              originalRaffle.product!.especificacionesTecnicas as any,
+            especificacionesTecnicas: originalRaffle.product!
+              .especificacionesTecnicas as any,
           },
         },
       },

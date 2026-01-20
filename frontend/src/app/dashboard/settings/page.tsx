@@ -17,6 +17,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Loader2, User, Lock, CreditCard, CheckCircle2, XCircle, ExternalLink, Shield, AlertTriangle, Clock, FileCheck, Camera, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { useConfirmDialog } from '@/hooks/use-confirm-dialog';
 import Image from 'next/image';
 import { getOptimizedImageUrl, CLOUDINARY_PRESETS } from '@/lib/cloudinary';
 
@@ -219,6 +220,7 @@ function SettingsContent() {
   const [isDisconnecting, setIsDisconnecting] = useState(false);
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [avatarDeleting, setAvatarDeleting] = useState(false);
+  const confirmDialog = useConfirmDialog();
 
   // All hooks must be called unconditionally, before any early returns
   const { data: userData, loading: userLoading, refetch: refetchUserData } = useQuery<MpStatusData>(GET_USER_DATA, {
@@ -380,9 +382,14 @@ function SettingsContent() {
   };
 
   const handleDisconnectMP = async () => {
-    if (!confirm('¿Estás seguro de desconectar tu cuenta de Mercado Pago? No podrás recibir pagos hasta que la conectes de nuevo.')) {
-      return;
-    }
+    const confirmed = await confirmDialog({
+      title: '¿Desconectar Mercado Pago?',
+      description: 'No podrás recibir pagos hasta que conectes tu cuenta nuevamente.',
+      confirmText: 'Desconectar',
+      cancelText: 'Cancelar',
+      variant: 'destructive',
+    });
+    if (!confirmed) return;
 
     setIsDisconnecting(true);
     try {
@@ -479,7 +486,14 @@ function SettingsContent() {
   };
 
   const handleDeleteAvatar = async () => {
-    if (!confirm('¿Eliminar tu foto de perfil?')) return;
+    const confirmed = await confirmDialog({
+      title: '¿Eliminar foto de perfil?',
+      description: 'Tu foto de perfil será eliminada.',
+      confirmText: 'Eliminar',
+      cancelText: 'Cancelar',
+      variant: 'destructive',
+    });
+    if (!confirmed) return;
     setAvatarDeleting(true);
     try {
       await deleteAvatar();

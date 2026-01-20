@@ -11,6 +11,9 @@ export class RelaunchRaffleInput {
   @Field({ nullable: true, description: 'Override suggested price (optional)' })
   customPrice?: number;
 
-  @Field({ nullable: true, description: 'Days until draw deadline (default: 30)' })
+  @Field({
+    nullable: true,
+    description: 'Days until draw deadline (default: 30)',
+  })
   daysUntilDraw?: number;
 }

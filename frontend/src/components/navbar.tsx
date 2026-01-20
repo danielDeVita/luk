@@ -20,6 +20,7 @@ import {
   Search,
   Sparkles,
   ChevronDown,
+  ShieldCheck,
 } from 'lucide-react';
 import { NotificationsBell } from './notifications-bell';
 import { ThemeToggle } from './ui/theme-toggle';
@@ -254,7 +255,7 @@ export function Navbar() {
                             <DropdownLink
                               key="admin"
                               href="/admin"
-                              icon={<Settings className="h-4 w-4" />}
+                              icon={<ShieldCheck className="h-4 w-4" />}
                               ref={(el) => { menuItemsRef.current[menuIndex++] = el; }}
                             >
                               Panel admin
@@ -370,7 +371,7 @@ export function Navbar() {
               </MobileNavLink>
 
               {user?.role === 'ADMIN' && (
-                <MobileNavLink href="/admin" onClick={closeMobileMenu} icon={<Settings className="h-4 w-4" />}>
+                <MobileNavLink href="/admin" onClick={closeMobileMenu} icon={<ShieldCheck className="h-4 w-4" />}>
                   Panel admin
                 </MobileNavLink>
               )}

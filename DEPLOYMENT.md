@@ -46,6 +46,9 @@ postgresql://neondb_owner:password@ep-xxx-xxx-123456.sa-east-1.aws.neon.tech/neo
 2. Enable "Autosuspend" after 5 min (saves compute hours)
 3. Free tier: 100 compute hours/month, 10GB storage
 
+> **Note**: This Neon database is also used for **local development**. The repository is configured to connect to it by default.
+
+
 ---
 
 ## Step 2: Deploy Backend on Render (10 min)
@@ -150,6 +153,33 @@ DATABASE_URL="your-neon-connection-string" npx prisma db push
 
 ---
 
+## Step 4.5: Reset Database (if needed)
+
+To delete all data and start fresh from a deployed Neon database:
+
+### Option A: SQL Editor (Fastest)
+
+1. Go to [https://console.neon.tech](https://console.neon.tech)
+2. Select your project → **SQL Editor**
+3. Run this command:
+
+```sql
+DROP SCHEMA public CASCADE;
+CREATE SCHEMA public;
+```
+
+4. Redeploy backend on Render to recreate schema
+
+### Option B: Delete & Recreate Branch
+
+1. Go to Neon → **Branches**
+2. Click your main branch → **Delete branch**
+3. Create new branch with same name
+4. Update `DATABASE_URL` in Render env vars if connection string changed
+5. Redeploy backend to run migrations
+
+---
+
 ## Step 5: Configure Mercado Pago (5 min)
 
 Update webhook URLs in [MP Developer Dashboard](https://www.mercadopago.com.ar/developers/panel):
@@ -216,7 +246,7 @@ Use [UptimeRobot](https://uptimerobot.com) (free) to ping your services every 14
 |----------|-------------|
 | `DATABASE_URL` | Neon PostgreSQL connection string |
 | `JWT_SECRET` | Min 32 chars, used for auth tokens |
-| `ENCRYPTION_KEY` | 64 hex chars, for encrypting MP tokens |
+| `ENCRYPTION_KEY` | **Required** - 64 hex chars (run `openssl rand -hex 32` to generate). Encrypts PII: KYC data (DNI, CUIT, addresses, phone) + MP tokens. **Use same value in all deployments.** |
 | `MP_ACCESS_TOKEN` | Mercado Pago API token |
 | `MP_PUBLIC_KEY` | Mercado Pago public key |
 | `MP_CLIENT_ID` | For MP Connect OAuth |
@@ -249,16 +279,29 @@ Use [UptimeRobot](https://uptimerobot.com) (free) to ping your services every 14
 
 ## Pre-Launch Checklist
 
+### Environment & Configuration
+- [ ] Generate and set `ENCRYPTION_KEY` (64 hex chars) - **same value for all deployments**
 - [ ] Get `MP_CLIENT_ID` and `MP_CLIENT_SECRET` from MP Dashboard
 - [ ] Switch to production MP credentials (remove `TEST-` prefix)
 - [ ] Configure MP webhook URL: `https://your-backend.onrender.com/mp/webhook`
 - [ ] Configure MP redirect URL: `https://your-backend.onrender.com/mp/connect/callback`
 - [ ] Configure `RESEND_API_KEY` for email verification
+
+### Feature Testing
 - [ ] Test email verification flow (register → receive code → verify)
-- [ ] Test seller onboarding flow (MP Connect + checklist)
+- [ ] Test KYC submission (profile → verify identity required before creating raffles)
+- [ ] Test seller onboarding flow (profile, MP Connect, KYC approval, address, raffle creation)
 - [ ] Test full raffle lifecycle: create → buy → draw → ship → confirm
+- [ ] Test raffle cancellation and relaunch:
+  - [ ] Create raffle with <70% tickets sold
+  - [ ] Wait for cancellation and email notification
+  - [ ] Seller receives price suggestion email
+  - [ ] Test one-click relaunch button in email
+
+### Infrastructure
 - [ ] Set up UptimeRobot to prevent cold starts
 - [ ] Enable Neon point-in-time recovery (free tier: 7 days)
+- [ ] Verify PII encryption (check database shows encrypted DNI/CUIT values)
 
 ---
 

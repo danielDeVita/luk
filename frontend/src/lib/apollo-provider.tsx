@@ -9,7 +9,6 @@ import { getMainDefinition } from '@apollo/client/utilities';
 import { createClient, Client } from 'graphql-ws';
 import { useAuthStore } from '@/store/auth';
 import { ReactNode, useMemo, createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { toast } from 'sonner';
 
 type ConnectionStatus = 'connecting' | 'connected' | 'disconnected' | 'error';
 
@@ -103,18 +102,19 @@ function createApolloClient(
     wsLink = new GraphQLWsLink(wsClient);
   }
 
+  // Error link - only logs to console, no toasts here to avoid duplicates
+  // Toasts should be handled by components via handleError() or toast.error()
   const errorLink = onError((err: unknown) => {
     const errorObj = err as { graphQLErrors?: Array<{ message: string }>; networkError?: Error };
     const graphQLErrors = errorObj?.graphQLErrors;
     const networkError = errorObj?.networkError;
 
     if (graphQLErrors?.length) {
-      const message = graphQLErrors.map((e) => e.message).join('\n');
-      toast.error(message);
+      console.error('[GraphQL Error]', graphQLErrors.map((e) => e.message).join('\n'));
     }
 
     if (networkError) {
-      toast.error('No se pudo conectar con el servidor.');
+      console.error('[Network Error]', networkError.message);
     }
   });
 

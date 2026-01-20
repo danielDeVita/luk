@@ -129,6 +129,16 @@ FRONTEND_URL="http://localhost:3000"
 ### Self-Healing Sync
 When webhooks fail (no tunnel), the frontend calls `/mp/sync-payment/:paymentId` to manually sync payment status.
 
+## Email Notifications
+
+Emails are sent using [Resend](https://resend.com).
+
+### Styling
+- **Source**: Email styles are defined inline within `src/notifications/notifications.service.ts`.
+- **Palette**: Colors match the frontend `globals.css` (Teal/Amber/Warm White).
+- **Fonts**: Emails use `DM Sans` (Body) and `Fraunces` (Headings) loaded via Google Fonts.
+- **Templates**: The `wrapEmailTemplate` method provides the common header/footer wrapper.
+
 ## Seller Dashboard & Buyer Experience
 
 ### Seller Dashboard Queries/Mutations
@@ -196,6 +206,27 @@ mutation { resendVerificationCode(userId: "...") }
 # Get price change history for a raffle
 query { priceHistory(raffleId: "...") { id previousPrice newPrice changedAt percentChange } }
 ```
+
+### KYC Verification
+```graphql
+# Submit/update KYC data (sellers must do this before creating raffles)
+mutation { updateKyc(input: { documentType: DNI, documentNumber: "12345678", cuitCuil: "20-12345678-5", street: "Av. Corrientes", ... }) { id kycStatus } }
+```
+
+### Raffle Relaunch
+```graphql
+# Relaunch cancelled raffle with suggested price
+mutation { relaunchRaffleWithSuggestedPrice(input: { originalRaffleId: "...", priceReductionId: "..." }) { id titulo precioPorTicket estado } }
+
+# Optional: override suggested price
+mutation { relaunchRaffleWithSuggestedPrice(input: { originalRaffleId: "...", priceReductionId: "...", customPrice: 150.00 }) { id } }
+```
+
+When a raffle is cancelled (<70% sold):
+1. System calculates optimal price reduction
+2. Creates `PriceReduction` record with `precioSugerido`
+3. Sends email to seller with one-click relaunch button
+4. Seller clicks button to instantly create new ACTIVA raffle with same product + suggested price
 
 ## Project Structure
 
@@ -290,6 +321,31 @@ The Prisma schema is at `prisma/schema.prisma`. Key models:
 | EmailVerificationCode | 6-digit codes for email verification (15 min expiry) |
 | PriceHistory | Track price changes on raffles |
 
+## PII Encryption
+
+All personally identifiable information (KYC data) is encrypted at rest using AES-256-GCM:
+
+**Encrypted fields:**
+- Document number (DNI, Passport, etc)
+- CUIT/CUIL (tax ID)
+- Street address
+- City, province, postal code
+- Phone number
+- Mercado Pago tokens
+
+**Encryption Service:** `src/common/services/encryption.service.ts`
+
+**How it works:**
+1. When KYC data is submitted, all PII fields are encrypted before saving to database
+2. When admin reviews KYC, data is decrypted on-the-fly for display
+3. Data stored in DB is unreadable without the `ENCRYPTION_KEY`
+4. Encryption auto-disables if `ENCRYPTION_KEY` is not set (development only)
+
+**Important:**
+- Use same `ENCRYPTION_KEY` across all deployments
+- If key is lost, existing encrypted data cannot be recovered
+- Generate with: `openssl rand -hex 32`
+
 ## Delayed Disbursement
 
 Payments are held for 30 days using MP's `money_release_days` parameter:
@@ -319,7 +375,7 @@ const preference = await this.mercadopago.preferences.create({
 | `CLOUDINARY_*` | Cloudinary credentials |
 | `FRONTEND_URL` | Frontend URL for redirects |
 | `BACKEND_URL` | Backend URL for webhooks |
-| `ENCRYPTION_KEY` | 32-byte hex key for PII encryption |
+| `ENCRYPTION_KEY` | **64 hex chars** - Encrypts PII: KYC data (DNI, CUIT, addresses, phone) + MP tokens using AES-256-GCM. Generate with: `openssl rand -hex 32` |
 
 ## Troubleshooting
 

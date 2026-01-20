@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect,useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -85,10 +85,19 @@ export default function CreateRafflePage() {
     skip: !isAuthenticated,
   });
 
+  // Track if KYC redirect toast was already shown to prevent duplicates
+  const hasShownKycToast = useRef(false);
+
   useEffect(() => {
     if (!isAuthenticated) {
       router.push('/auth/login');
-    } else if (kycData?.me?.kycStatus !== 'VERIFIED') {
+      return;
+    }
+    
+    // Only check KYC status when data is loaded (kycData.me exists)
+    // Use ref to prevent showing toast multiple times
+    if (kycData?.me && kycData.me.kycStatus !== 'VERIFIED' && !hasShownKycToast.current) {
+      hasShownKycToast.current = true;
       toast.error('Debes verificar tu identidad antes de crear rifas');
       router.push('/dashboard/settings?tab=kyc');
     }

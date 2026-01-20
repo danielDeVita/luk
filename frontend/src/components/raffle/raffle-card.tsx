@@ -10,6 +10,7 @@ import { IS_FAVORITE } from '@/lib/graphql/queries';
 import { ADD_FAVORITE, REMOVE_FAVORITE } from '@/lib/graphql/mutations';
 import { Countdown } from '@/components/ui/countdown';
 import { getOptimizedImageUrl, CLOUDINARY_PRESETS } from '@/lib/cloudinary';
+import { useConfirmDialog } from '@/hooks/use-confirm-dialog';
 
 interface RaffleCardProps {
   raffle: {
@@ -43,6 +44,8 @@ export function RaffleCard({ raffle }: RaffleCardProps) {
   const { isAuthenticated } = useAuthStore();
   const [isFavorite, setIsFavorite] = useState(false);
   const [hasRecentPriceDrop, setHasRecentPriceDrop] = useState(false);
+  const confirm = useConfirmDialog();
+
 
   // Check if price was recently reduced (within last 48 hours)
   useEffect(() => {
@@ -80,15 +83,26 @@ export function RaffleCard({ raffle }: RaffleCardProps) {
     },
   });
 
-  const handleFavoriteClick = (e: React.MouseEvent) => {
+  const handleFavoriteClick = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
 
     if (!isAuthenticated) return;
 
     if (isFavorite) {
-      setIsFavorite(false);
-      removeFavorite({ variables: { raffleId: raffle.id } });
+      const confirmed = await confirm({
+        title: '¿Quitar de favoritos?',
+        description: `¿Estás seguro que querés quitar "${raffle.titulo}" de tu lista de favoritos?`,
+        confirmText: 'Quitar',
+        cancelText: 'Cancelar',
+        variant: 'destructive',
+      });
+
+      if (confirmed) {
+        setIsFavorite(false);
+        removeFavorite({ variables: { raffleId: raffle.id } });
+      }
+
     } else {
       setIsFavorite(true);
       addFavorite({ variables: { raffleId: raffle.id } });

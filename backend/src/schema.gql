@@ -27,6 +27,7 @@ type AdminUser {
   email: String!
   id: ID!
   isDeleted: Boolean!
+  kycStatus: String
   mpConnectStatus: MpConnectStatus!
   nombre: String!
   rafflesCreated: Int!
@@ -53,6 +54,8 @@ input AskQuestionInput {
 """Types of admin actions that can be audited"""
 enum AuditAction {
   DISPUTE_RESOLVED
+  KYC_APPROVED
+  KYC_REJECTED
   PAYOUT_RELEASED
   RAFFLE_HIDDEN
   RAFFLE_UNHIDDEN
@@ -243,11 +246,45 @@ The `JSON` scalar type represents JSON values as specified by [ECMA-404](http://
 """
 scalar JSON
 
+type KycApprovalResult {
+  kycStatus: String!
+  message: String
+  success: Boolean!
+  userId: ID!
+}
+
 enum KycStatus {
   NOT_SUBMITTED
   PENDING_REVIEW
   REJECTED
   VERIFIED
+}
+
+type KycSubmission {
+  apartment: String
+  apellido: String!
+  city: String
+  createdAt: DateTime!
+  cuitCuil: String
+  documentNumber: String
+  documentType: String
+  email: String!
+  kycRejectedReason: String
+  kycStatus: String
+  kycSubmittedAt: DateTime
+  kycVerifiedAt: DateTime
+  nombre: String!
+  phone: String
+  postalCode: String
+  province: String
+  street: String
+  streetNumber: String
+  userId: ID!
+}
+
+type KycSubmissionList {
+  submissions: [KycSubmission!]!
+  total: Int!
 }
 
 input LoginInput {
@@ -297,6 +334,9 @@ type Mutation {
   addFavorite(raffleId: String!): Favorite!
   answerQuestion(input: AnswerQuestionInput!): RaffleAnswer!
   applyReferralCode(code: String!): Boolean!
+
+  """Approve a KYC submission"""
+  approveKyc(userId: String!): KycApprovalResult!
   askQuestion(input: AskQuestionInput!): RaffleQuestion!
 
   """Ban a user"""
@@ -328,7 +368,13 @@ type Mutation {
   openDispute(input: OpenDisputeInput!): Dispute!
   processDuePayouts: Boolean!
   register(input: RegisterInput!): RegisterPayload!
+
+  """Reject a KYC submission"""
+  rejectKyc(reason: String!, userId: String!): KycApprovalResult!
   rejectRaffleWinner(raffleId: String!, reason: String!): Raffle!
+
+  """Relaunch a cancelled raffle with suggested price"""
+  relaunchRaffleWithSuggestedPrice(input: RelaunchRaffleInput!): Raffle!
   releasePayoutManually(payoutId: String!, reason: String!): Boolean!
   removeFavorite(raffleId: String!): Boolean!
   reportRaffle(raffleId: String!, reason: String!): Boolean!
@@ -524,6 +570,9 @@ type Query {
   """Debug payment by MP payment ID"""
   paymentDebug(mpPaymentId: String!): PaymentDebugInfo!
   pendingDisputes: [Dispute!]!
+
+  """List pending KYC submissions for review"""
+  pendingKycSubmissions(limit: Int, offset: Int): KycSubmissionList!
   pendingPayouts: [Payout!]!
   priceHistory(raffleId: String!): [PriceHistory!]!
   raffle(id: String!): Raffle!
@@ -677,6 +726,20 @@ type RegisterPayload {
   message: String
   requiresVerification: Boolean!
   user: User!
+}
+
+input RelaunchRaffleInput {
+  """Override suggested price (optional)"""
+  customPrice: Float
+
+  """Days until draw deadline (default: 30)"""
+  daysUntilDraw: Float
+
+  """ID of the cancelled raffle to relaunch"""
+  originalRaffleId: ID!
+
+  """ID of the price reduction suggestion"""
+  priceReductionId: ID!
 }
 
 input ResolveDisputeInput {

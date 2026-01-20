@@ -29,6 +29,7 @@ import { toast } from 'sonner';
 import { DisputeDialog } from '@/components/disputes/dispute-dialog';
 import { Skeleton } from '@/components/ui/skeleton';
 import Image from 'next/image';
+import { useConfirmDialog } from '@/hooks/use-confirm-dialog';
 import { getOptimizedImageUrl, CLOUDINARY_PRESETS } from '@/lib/cloudinary';
 
 const MY_TICKETS = gql`
@@ -244,8 +245,17 @@ export default function MyTicketsPage() {
     });
   }, [tickets, ticketStatus, raffleStatus, showWinsOnly, dateFrom, dateTo, user?.id]);
 
-  const handleConfirmDelivery = (raffleId: string) => {
-    if (confirm('¿Confirmás que recibiste el producto en buen estado? Esto liberará el pago al vendedor.')) {
+  const confirmDialog = useConfirmDialog();
+
+  const handleConfirmDelivery = async (raffleId: string) => {
+    const confirmed = await confirmDialog({
+      title: '¿Confirmar recepción del producto?',
+      description: 'Al confirmar, indicarás que recibiste el producto en buen estado y se liberará el pago al vendedor.',
+      confirmText: 'Confirmar Recepción',
+      cancelText: 'Cancelar',
+      variant: 'default',
+    });
+    if (confirmed) {
       confirmDelivery({ variables: { raffleId } });
     }
   };

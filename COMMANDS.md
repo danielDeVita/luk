@@ -15,7 +15,7 @@ Use Docker for development to avoid Node.js version conflicts.
 | `npm run docker:dev` | Daily development - start all services |
 | `npm run docker:dev:build` | First time setup, or after changing package.json |
 | `Ctrl+C` | Stop all services |
-| `npm run docker:dev:down` | Stop services from another terminal |
+| `npm run docker:dev:down` | Stop services and remove containers |
 
 ### Database Operations
 
@@ -58,7 +58,10 @@ Requires Node.js 22. Use `nvm use` to switch versions (reads from `.nvmrc`).
 
 ```bash
 # Terminal 1: Database
-docker compose up -d postgres
+# NOTE: If using Neon (recommended), you can SKIP this step.
+# Ensure DATABASE_URL in backend/.env points to your Neon instance.
+# Only run this if you specifically want a local Postgres container:
+# docker compose up -d postgres
 
 # Terminal 2: Backend
 cd backend && npm run start:dev
@@ -169,6 +172,38 @@ Run from `/backend`:
 | `npm run db:migrate` | Run Prisma migrations |
 | `npm run db:generate` | Regenerate Prisma client |
 | `npm run db:studio` | Open Prisma Studio |
+
+---
+
+## Database (Deployed - Neon)
+
+### Reset/Delete All Data
+
+**Option 1: Via Neon Dashboard SQL Editor (Recommended)**
+
+1. Go to [https://console.neon.tech](https://console.neon.tech)
+2. Select your project → **SQL Editor**
+3. Run this SQL command:
+
+```sql
+DROP SCHEMA public CASCADE;
+CREATE SCHEMA public;
+```
+
+**Option 2: Via Render Deployment**
+
+1. Go to your Render backend dashboard
+2. Click **Manual Deploy**
+3. Backend will automatically run `npx prisma db push` to recreate schema
+
+**Option 3: Delete & Recreate Database Branch**
+
+1. Go to [https://console.neon.tech](https://console.neon.tech)
+2. Select your project → **Branches**
+3. Click on your main branch → **Delete branch**
+4. Create new branch with same name
+5. Update `DATABASE_URL` in Render if needed
+6. Redeploy backend on Render
 
 ---
 

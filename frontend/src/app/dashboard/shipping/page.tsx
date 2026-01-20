@@ -14,10 +14,12 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { MapPin, Loader2, Plus, Trash2, Star, Edit2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import { toast } from 'sonner';
+import { useConfirmDialog } from '@/hooks/use-confirm-dialog';
 import { GET_MY_SHIPPING_ADDRESSES } from '@/lib/graphql/queries';
 import {
   CREATE_SHIPPING_ADDRESS,
@@ -70,12 +72,20 @@ const initialFormData: AddressFormData = {
   instructions: '',
 };
 
+const PROVINCIAS_ARGENTINA = [
+  'Buenos Aires', 'CABA', 'Catamarca', 'Chaco', 'Chubut', 'Cordoba', 'Corrientes',
+  'Entre Rios', 'Formosa', 'Jujuy', 'La Pampa', 'La Rioja', 'Mendoza', 'Misiones',
+  'Neuquen', 'Rio Negro', 'Salta', 'San Juan', 'San Luis', 'Santa Cruz', 'Santa Fe',
+  'Santiago del Estero', 'Tierra del Fuego', 'Tucuman'
+];
+
 export default function ShippingAddressesPage() {
   const router = useRouter();
   const { isAuthenticated } = useAuthStore();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingAddress, setEditingAddress] = useState<ShippingAddress | null>(null);
   const [formData, setFormData] = useState<AddressFormData>(initialFormData);
+  const confirm = useConfirmDialog();
 
   const { data, loading, refetch } = useQuery<{ myShippingAddresses: ShippingAddress[] }>(
     GET_MY_SHIPPING_ADDRESSES,
@@ -105,11 +115,11 @@ export default function ShippingAddressesPage() {
 
   const [deleteAddress, { loading: deleting }] = useMutation(DELETE_SHIPPING_ADDRESS, {
     onCompleted: () => {
-      toast.success('Dirección eliminada');
       refetch();
     },
     onError: (err) => toast.error(err.message),
   });
+
 
   const [setDefault, { loading: settingDefault }] = useMutation(SET_DEFAULT_SHIPPING_ADDRESS, {
     onCompleted: () => {
@@ -170,8 +180,15 @@ export default function ShippingAddressesPage() {
     setIsDialogOpen(true);
   };
 
-  const handleDelete = (id: string) => {
-    if (confirm('¿Estás seguro de eliminar esta dirección?')) {
+  const handleDelete = async (id: string) => {
+    const confirmed = await confirm({
+      title: '¿Eliminar dirección?',
+      description: 'Esta acción no se puede deshacer. La dirección será eliminada permanentemente.',
+      confirmText: 'Eliminar',
+      cancelText: 'Cancelar',
+      variant: 'destructive',
+    });
+    if (confirmed) {
       deleteAddress({ variables: { id } });
     }
   };
@@ -261,12 +278,19 @@ export default function ShippingAddressesPage() {
                 </div>
                 <div>
                   <Label htmlFor="province">Provincia</Label>
-                  <Input
-                    id="province"
+                  <Select
                     value={formData.province}
-                    onChange={(e) => setFormData({ ...formData, province: e.target.value })}
-                    required
-                  />
+                    onValueChange={(value) => setFormData({ ...formData, province: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Seleccionar provincia..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PROVINCIAS_ARGENTINA.map((prov) => (
+                        <SelectItem key={prov} value={prov}>{prov}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div>
                   <Label htmlFor="postalCode">Código Postal</Label>

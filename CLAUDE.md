@@ -32,6 +32,17 @@ Context for Claude when working on this codebase.
    - `RESUELTA_VENDEDOR`: Full payout to seller
    - `RESUELTA_PARCIAL`: Split (configurable amounts)
 
+### Raffle Relaunch
+When a raffle is cancelled (<70% tickets sold):
+1. System calculates suggested price reduction based on ticket sales performance
+2. `PriceReduction` record created with suggested price
+3. Seller receives email with suggested price and one-click relaunch button
+4. Seller can click to instantly create new ACTIVA raffle with:
+   - Same product data (title, description, images, specs)
+   - Suggested price (or custom price if overridden)
+   - New 30-day deadline
+   - Original raffle remains CANCELADA for audit trail
+
 ### Seller Reputation
 | Level | Requirements | Max Active Raffles |
 |-------|-------------|-------------------|
@@ -96,6 +107,7 @@ Checklist hides automatically when all steps are complete.
 | `MpEvent` | Webhook idempotency |
 | `EmailVerificationCode` | 6-digit codes for email verification |
 | `PriceHistory` | Track price changes on raffles |
+| `PriceReduction` | Suggested prices when raffles cancel + relaunch tracking |
 
 ### Key Enums
 ```
@@ -572,10 +584,14 @@ query { priceHistory(raffleId: "...") { id previousPrice newPrice changedAt perc
 - View count tracked via `sessionStorage` (one increment per session)
 - Dark mode uses `.dark` class on `<html>`, persisted to localStorage
 - Users can browse without auth, must login to buy tickets
-- Seller must have MP Connected + shipping address before creating raffle
+- **Seller Requirements**: Must have verified KYC + MP Connected + shipping address before creating raffles
+- **KYC Verification**: Identity verification required. Sellers cannot create raffles until admin approves KYC
+- **PII Encryption**: All KYC data (DNI, CUIT, addresses, phone) encrypted at rest using AES-256-GCM
 - **Referral Program**: Users get 5% credit of referee's first purchase. Dashboard at `/dashboard/referrals`
 - **Price Alerts**: Users get notified (email + in-app) when favorited raffle prices drop
 - **Email Verification**: Two-step registration with 6-digit code (15 min expiry, max 3 attempts)
-- **Seller Onboarding**: Progress checklist shown until profile, MP Connect, address, and first raffle are complete
+- **Seller Onboarding**: Progress checklist shows 5 steps: profile, MP Connect, KYC verification, address, first raffle
 - **Price History**: Raffle pages show price change history with percentage discounts
 - **Verified Seller Badge**: Sellers with `kycStatus: VERIFIED` show green checkmark badge on profile
+- **Raffle Relaunch**: When raffle cancelled (<70% sales), seller receives email with suggested price and one-click relaunch button
+- **Price Reduction**: System calculates optimal price reduction based on sales performance for relaunch suggestions

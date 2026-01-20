@@ -550,3 +550,101 @@ select:focus {
   margin-left: auto;
   margin-right: auto;
 }
+
+/* Premium Toast Overrides - Matches AlertDialog styling */
+[data-sonner-toast] {
+  --toast-radius: 0.75rem;
+  background: var(--card) !important;
+  color: var(--card-foreground) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: var(--toast-radius) !important;
+  box-shadow: 
+    0 20px 25px -5px rgb(0 0 0 / 0.1), 
+    0 8px 10px -6px rgb(0 0 0 / 0.1) !important;
+  font-family: inherit !important;
+  padding: 16px 20px !important;
+  gap: 12px !important;
+}
+
+.dark [data-sonner-toast] {
+  box-shadow: 
+    0 20px 25px -5px rgb(0 0 0 / 0.3), 
+    0 8px 10px -6px rgb(0 0 0 / 0.2) !important;
+}
+
+[data-sonner-toast] [data-title] {
+  font-weight: 600 !important;
+  font-size: 14px !important;
+  line-height: 1.4 !important;
+}
+
+[data-sonner-toast] [data-description] {
+  font-size: 13px !important;
+  color: var(--muted-foreground) !important;
+  line-height: 1.5 !important;
+}
+
+/* Success toast */
+[data-sonner-toast][data-type="success"] {
+  border-left: 4px solid var(--success) !important;
+}
+
+[data-sonner-toast][data-type="success"] [data-icon] svg {
+  color: var(--success) !important;
+}
+
+/* Error toast */
+[data-sonner-toast][data-type="error"] {
+  border-left: 4px solid var(--destructive) !important;
+}
+
+[data-sonner-toast][data-type="error"] [data-icon] svg {
+  color: var(--destructive) !important;
+}
+
+/* Warning toast */
+[data-sonner-toast][data-type="warning"] {
+  border-left: 4px solid var(--secondary) !important;
+}
+
+[data-sonner-toast][data-type="warning"] [data-icon] svg {
+  color: var(--secondary) !important;
+}
+
+/* Info toast */
+[data-sonner-toast][data-type="info"] {
+  border-left: 4px solid var(--primary) !important;
+}
+
+[data-sonner-toast][data-type="info"] [data-icon] svg {
+  color: var(--primary) !important;
+}
+
+/* Close button styling */
+[data-sonner-toast] [data-close-button] {
+  background: var(--muted) !important;
+  border: 1px solid var(--border) !important;
+  color: var(--muted-foreground) !important;
+  border-radius: 6px !important;
+  transition: all 0.15s ease !important;
+}
+
+[data-sonner-toast] [data-close-button]:hover {
+  background: var(--accent) !important;
+  color: var(--foreground) !important;
+}
+
+/* Action button styling */
+[data-sonner-toast] [data-button] {
+  background: var(--primary) !important;
+  color: var(--primary-foreground) !important;
+  border-radius: 6px !important;
+  font-weight: 500 !important;
+  padding: 6px 12px !important;
+  transition: all 0.15s ease !important;
+}
+
+[data-sonner-toast] [data-button]:hover {
+  opacity: 0.9 !important;
+}
+

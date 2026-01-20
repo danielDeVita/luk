@@ -258,15 +258,31 @@ Two-step registration flow:
 New sellers see a visual progress checklist at the top of their dashboard:
 1. **Complete profile** - Name and phone number
 2. **Connect Mercado Pago** - OAuth flow for payments
-3. **Add shipping address** - Via KYC/verification tab
-4. **Create first raffle** - Start selling
+3. **Verify identity (KYC)** - Submit identity documents and address; admin approval required
+4. **Add shipping address** - Full address details
+5. **Create first raffle** - Start selling
 
 Checklist automatically hides when all steps are complete.
+
+**Important:** Sellers CANNOT create raffles without verified KYC status. After submitting KYC documents, they must wait for admin approval.
 
 ### Verified Seller Badge
 Seller profile pages show verification status:
 - Green "Vendedor Verificado" badge with checkmark icon for KYC-verified sellers
 - Badge appears next to seller name on `/seller/[id]` page
+
+### Raffle Relaunch Feature
+When a raffle is cancelled due to insufficient ticket sales (<70%):
+1. **Automatic Suggestion**: System calculates optimal price reduction based on sales performance
+2. **Email Notification**: Seller receives email with:
+   - Current statistics (percentage sold, original price)
+   - Suggested new price with discount percentage
+   - One-click "Relanzar Rifa" button
+3. **One-Click Relaunch**: Clicking button opens seller dashboard with relaunch confirmation modal
+4. **New Raffle Created**: Instant creation with same product data and suggested price
+5. **Original Raffle**: Remains in CANCELADA status for audit trail
+
+This feature encourages sellers to retry with better pricing and helps maximize platform usage.
 
 ## E2E Testing
 

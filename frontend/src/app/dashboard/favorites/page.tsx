@@ -13,6 +13,9 @@ import { GET_MY_FAVORITES } from '@/lib/graphql/queries';
 import { REMOVE_FAVORITE } from '@/lib/graphql/mutations';
 import Image from 'next/image';
 import { getOptimizedImageUrl, CLOUDINARY_PRESETS } from '@/lib/cloudinary';
+import { useConfirmDialog } from '@/hooks/use-confirm-dialog';
+
+
 
 interface FavoriteData {
   id: string;
@@ -47,6 +50,8 @@ export default function FavoritesPage() {
   const router = useRouter();
   const { isAuthenticated } = useAuthStore();
   const [removingIds, setRemovingIds] = useState<Set<string>>(new Set());
+  const confirm = useConfirmDialog();
+
 
   const { data, loading, refetch } = useQuery<MyFavoritesResult>(GET_MY_FAVORITES, {
     skip: !isAuthenticated,
@@ -54,9 +59,10 @@ export default function FavoritesPage() {
 
   const [removeFavorite] = useMutation(REMOVE_FAVORITE, {
     onCompleted: () => {
-      toast.success('Eliminado de favoritos');
+      // Empty to avoid redundancy with confirmation
     },
     onError: (err) => {
+
       toast.error(err.message);
       // Rollback: clear removing set and refetch to restore
       setRemovingIds(new Set());
@@ -77,10 +83,20 @@ export default function FavoritesPage() {
     (fav) => !removingIds.has(fav.raffleId)
   );
 
-  const handleRemoveFavorite = (raffleId: string) => {
-    // Optimistic update: immediately hide the card
-    setRemovingIds((prev) => new Set(prev).add(raffleId));
-    removeFavorite({ variables: { raffleId } });
+  const handleRemoveFavorite = async (raffleId: string, title?: string) => {
+    const confirmed = await confirm({
+      title: '¿Quitar de favoritos?',
+      description: `¿Estás seguro que querés quitar "${title || 'esta rifa'}" de tu lista de favoritos?`,
+      confirmText: 'Quitar',
+      cancelText: 'Cancelar',
+      variant: 'destructive',
+    });
+
+    if (confirmed) {
+      // Optimistic update: immediately hide the card
+      setRemovingIds((prev) => new Set(prev).add(raffleId));
+      removeFavorite({ variables: { raffleId } });
+    }
   };
 
   return (
@@ -125,8 +141,9 @@ function FavoriteCard({
   onRemove,
 }: {
   favorite: FavoriteData;
-  onRemove: (raffleId: string) => void;
+  onRemove: (raffleId: string, title: string) => void;
 }) {
+
   const { raffle } = favorite;
   const progress = (raffle.ticketsVendidos / raffle.totalTickets) * 100;
   const imageUrl = raffle.product?.imagenes?.[0];
@@ -162,7 +179,8 @@ function FavoriteCard({
           )}
         </Link>
         <button
-          onClick={() => onRemove(raffle.id)}
+          onClick={() => onRemove(raffle.id, raffle.titulo)}
+
           className="absolute top-2 right-2 p-2 rounded-full bg-white/80 hover:bg-white transition-colors shadow-sm"
           title="Quitar de favoritos"
         >

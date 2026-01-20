@@ -21,6 +21,9 @@ import { ADD_FAVORITE, REMOVE_FAVORITE } from '@/lib/graphql/mutations';
 import { getOptimizedImageUrl, CLOUDINARY_PRESETS } from '@/lib/cloudinary';
 import { formatProductCondition } from '@/lib/format-condition';
 import { RaffleQA } from './raffle-qa';
+import { useConfirmDialog } from '@/hooks/use-confirm-dialog';
+
+
 
 const GET_RAFFLE = gql`
   query GetRaffle($id: String!) {
@@ -141,6 +144,8 @@ export function RaffleContent({ id }: RaffleContentProps) {
   const [quantity, setQuantity] = useState(1);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [isFavorite, setIsFavorite] = useState(false);
+  const confirm = useConfirmDialog();
+
 
   const { data, loading, error } = useQuery<RaffleResult>(GET_RAFFLE, {
     variables: { id },
@@ -185,15 +190,26 @@ export function RaffleContent({ id }: RaffleContentProps) {
 
   const isTogglingFavorite = addingFavorite || removingFavorite;
 
-  const handleFavoriteClick = () => {
+  const handleFavoriteClick = async () => {
     if (!isAuthenticated) {
       router.push('/auth/login');
       return;
     }
 
     if (isFavorite) {
-      setIsFavorite(false);
-      removeFavorite({ variables: { raffleId: id } });
+      const confirmed = await confirm({
+        title: '¿Quitar de favoritos?',
+        description: `¿Estás seguro que querés quitar "${raffle.titulo}" de tu lista de favoritos?`,
+        confirmText: 'Quitar',
+        cancelText: 'Cancelar',
+        variant: 'destructive',
+      });
+
+      if (confirmed) {
+        setIsFavorite(false);
+        removeFavorite({ variables: { raffleId: id } });
+      }
+
     } else {
       setIsFavorite(true);
       addFavorite({ variables: { raffleId: id } });

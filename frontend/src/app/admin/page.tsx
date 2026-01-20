@@ -18,6 +18,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { toast } from 'sonner';
+import { useConfirmDialog } from '@/hooks/use-confirm-dialog';
 import {
   Loader2,
   Shield,
@@ -324,6 +325,7 @@ export default function AdminPage() {
   const [kycDialogOpen, setKycDialogOpen] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
   const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
+  const confirmDialog = useConfirmDialog();
 
   // Parsed reports state
   const [reports, setReports] = useState<Report[]>([]);
@@ -477,8 +479,15 @@ export default function AdminPage() {
     banUser({ variables: { userId: selectedUser.id, reason: banReason } });
   };
 
-  const handleUnbanUser = (u: AdminUser) => {
-    if (confirm(`Desbanear a ${u.email}?`)) {
+  const handleUnbanUser = async (u: AdminUser) => {
+    const confirmed = await confirmDialog({
+      title: '¿Desbanear usuario?',
+      description: `El usuario ${u.email} podrá volver a usar la plataforma normalmente.`,
+      confirmText: 'Desbanear',
+      cancelText: 'Cancelar',
+      variant: 'default',
+    });
+    if (confirmed) {
       unbanUser({ variables: { userId: u.id, reason: 'Admin unban' } });
     }
   };
@@ -488,9 +497,16 @@ export default function AdminPage() {
     setKycDialogOpen(true);
   };
 
-  const handleApproveKyc = () => {
+  const handleApproveKyc = async () => {
     if (!selectedKyc) return;
-    if (!confirm(`¿Aprobar KYC para ${selectedKyc.email}?`)) return;
+    const confirmed = await confirmDialog({
+      title: '¿Aprobar verificación KYC?',
+      description: `El usuario ${selectedKyc.email} quedará verificado y podrá operar sin restricciones.`,
+      confirmText: 'Aprobar KYC',
+      cancelText: 'Cancelar',
+      variant: 'default',
+    });
+    if (!confirmed) return;
     approveKyc({ variables: { userId: selectedKyc.userId } });
   };
 
