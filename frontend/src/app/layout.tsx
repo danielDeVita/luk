@@ -94,7 +94,7 @@ export default function RootLayout({
               position="bottom-right"
               richColors
               closeButton
-              theme="inherit"
+              theme="system"
               toastOptions={{
                 className: 'rounded-xl border shadow-lg font-sans',
                 style: {
