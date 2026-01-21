@@ -26,7 +26,13 @@ describe('Raffle Draw Flow (Integration)', () => {
   }, 30000);
 
   describe('Complete Raffle → Draw Winner', () => {
-    let seller: { id: string; email: string; nombre: string; apellido: string; role: string };
+    let seller: {
+      id: string;
+      email: string;
+      nombre: string;
+      apellido: string;
+      role: string;
+    };
     let sellerToken: string;
     let buyers: Array<{ id: string; email: string }>;
     let raffle: { id: string };

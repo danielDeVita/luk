@@ -25,9 +25,26 @@ describe('Ticket Purchase Flow (Integration)', () => {
   }, 30000);
 
   describe('Purchase → Payment → Confirmation', () => {
-    let seller: { id: string; email: string; nombre: string; apellido: string; role: string };
-    let buyer: { id: string; email: string; nombre: string; apellido: string; role: string };
-    let raffle: { id: string; titulo: string; totalTickets: number; precioPorTicket: number };
+    let seller: {
+      id: string;
+      email: string;
+      nombre: string;
+      apellido: string;
+      role: string;
+    };
+    let buyer: {
+      id: string;
+      email: string;
+      nombre: string;
+      apellido: string;
+      role: string;
+    };
+    let raffle: {
+      id: string;
+      titulo: string;
+      totalTickets: number;
+      precioPorTicket: number;
+    };
     let buyerToken: string;
 
     beforeAll(async () => {
@@ -97,8 +114,12 @@ describe('Ticket Purchase Flow (Integration)', () => {
 
       // Either succeeds or returns an error about MP config
       if (response.body.data?.createTicketPreference) {
-        expect(response.body.data.createTicketPreference.preferenceId).toBeDefined();
-        expect(response.body.data.createTicketPreference.initPoint).toBeDefined();
+        expect(
+          response.body.data.createTicketPreference.preferenceId,
+        ).toBeDefined();
+        expect(
+          response.body.data.createTicketPreference.initPoint,
+        ).toBeDefined();
       }
     });
 

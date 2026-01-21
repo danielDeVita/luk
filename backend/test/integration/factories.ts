@@ -1,5 +1,10 @@
 import { PrismaService } from '../../src/prisma/prisma.service';
-import { UserRole, RaffleStatus, ProductCondition, TicketStatus } from '@prisma/client';
+import {
+  UserRole,
+  RaffleStatus,
+  ProductCondition,
+  TicketStatus,
+} from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 
 let userCounter = 0;
@@ -28,7 +33,10 @@ export async function createTestUser(
 }> {
   userCounter++;
   const email = overrides.email ?? `testuser${userCounter}@test.com`;
-  const passwordHash = await bcrypt.hash(overrides.password ?? 'testpassword123', 10);
+  const passwordHash = await bcrypt.hash(
+    overrides.password ?? 'testpassword123',
+    10,
+  );
 
   const user = await prisma.user.create({
     data: {
@@ -158,7 +166,11 @@ export async function createTestTickets(
     mpPaymentId?: string;
   } = {},
 ): Promise<Array<{ id: string; numeroTicket: number; estado: TicketStatus }>> {
-  const tickets: Array<{ id: string; numeroTicket: number; estado: TicketStatus }> = [];
+  const tickets: Array<{
+    id: string;
+    numeroTicket: number;
+    estado: TicketStatus;
+  }> = [];
 
   // Get the next available ticket number
   const lastTicket = await prisma.ticket.findFirst({
@@ -202,10 +214,16 @@ export async function createPaidTicketPurchase(
   tickets: Array<{ id: string; numeroTicket: number }>;
   transactionId: string;
 }> {
-  const tickets = await createTestTickets(prisma, raffleId, buyerId, ticketCount, {
-    estado: TicketStatus.PAGADO,
-    mpPaymentId,
-  });
+  const tickets = await createTestTickets(
+    prisma,
+    raffleId,
+    buyerId,
+    ticketCount,
+    {
+      estado: TicketStatus.PAGADO,
+      mpPaymentId,
+    },
+  );
 
   const transaction = await prisma.transaction.create({
     data: {
@@ -236,7 +254,8 @@ export async function fillRaffleWithTickets(
   tickets: Array<{ id: string; numeroTicket: number; buyerId: string }>;
 }> {
   const buyers: Array<{ id: string; email: string }> = [];
-  const tickets: Array<{ id: string; numeroTicket: number; buyerId: string }> = [];
+  const tickets: Array<{ id: string; numeroTicket: number; buyerId: string }> =
+    [];
 
   // Create buyers and tickets
   const ticketsPerBuyer = 10;
@@ -250,10 +269,16 @@ export async function fillRaffleWithTickets(
     const ticketCount = Math.min(ticketsPerBuyer, remainingTickets);
 
     if (ticketCount > 0) {
-      const newTickets = await createTestTickets(prisma, raffleId, buyer.id, ticketCount, {
-        estado: TicketStatus.PAGADO,
-        mpPaymentId: `test-payment-${i}`,
-      });
+      const newTickets = await createTestTickets(
+        prisma,
+        raffleId,
+        buyer.id,
+        ticketCount,
+        {
+          estado: TicketStatus.PAGADO,
+          mpPaymentId: `test-payment-${i}`,
+        },
+      );
 
       newTickets.forEach((t) => {
         tickets.push({ ...t, buyerId: buyer.id });

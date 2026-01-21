@@ -127,9 +127,13 @@ export class NotificationsService {
 
   // ==================== Email Template Wrapper ====================
 
-  private wrapEmailTemplate(content: string, options?: { showButton?: boolean; buttonText?: string; buttonUrl?: string }): string {
-    const frontendUrl = this.configService.get('FRONTEND_URL') || 'http://localhost:3000';
-    
+  private wrapEmailTemplate(
+    content: string,
+    options?: { showButton?: boolean; buttonText?: string; buttonUrl?: string },
+  ): string {
+    const frontendUrl =
+      this.configService.get('FRONTEND_URL') || 'http://localhost:3000';
+
     // Web Styles Palette
     const colors = {
       primary: '#0F766E', // Teal
@@ -145,7 +149,9 @@ export class NotificationsService {
       destructive: '#EF4444',
     };
 
-    const buttonHtml = options?.showButton && options?.buttonText && options?.buttonUrl ? `
+    const buttonHtml =
+      options?.showButton && options?.buttonText && options?.buttonUrl
+        ? `
       <div style="text-align: center; margin: 32px 0;">
         <a href="${options.buttonUrl}" style="
           display: inline-block;
@@ -161,7 +167,8 @@ export class NotificationsService {
           transition: background-color 0.2s;
         ">${options.buttonText}</a>
       </div>
-    ` : '';
+    `
+        : '';
 
     return `
       <!DOCTYPE html>
@@ -237,9 +244,9 @@ export class NotificationsService {
 
   // ==================== Auth Notifications ====================
 
-
   async sendWelcomeEmail(email: string, data: { userName: string }) {
-    const frontendUrl = this.configService.get('FRONTEND_URL') || 'http://localhost:3000';
+    const frontendUrl =
+      this.configService.get('FRONTEND_URL') || 'http://localhost:3000';
     const content = `
       <h2 style="color: #1F2937; font-family: 'Fraunces', serif; font-size: 24px; font-weight: 700; margin: 0 0 16px 0;">
         ¡Bienvenido, ${data.userName}! 🎉
@@ -269,7 +276,6 @@ export class NotificationsService {
       }),
     });
   }
-
 
   async sendEmailVerificationCode(
     email: string,
@@ -307,7 +313,8 @@ export class NotificationsService {
     email: string,
     data: { raffleName: string; ticketNumbers: number[]; amount: number },
   ) {
-    const frontendUrl = this.configService.get('FRONTEND_URL') || 'http://localhost:3000';
+    const frontendUrl =
+      this.configService.get('FRONTEND_URL') || 'http://localhost:3000';
     const content = `
       <h2 style="color: #10B981; font-family: 'Fraunces', serif; font-size: 24px; font-weight: 700; margin: 0 0 16px 0;">
         ¡Compra confirmada! ✅
@@ -723,10 +730,14 @@ export class NotificationsService {
       <div style="background: #F0FDFA; border: 1px solid #99F6E4; border-radius: 12px; padding: 24px; margin: 24px 0;">
         <p style="color: #0F766E; font-size: 14px; margin: 0 0 8px 0;"><strong>Resolución:</strong></p>
         <p style="color: #1E293B; font-size: 16px; margin: 0 0 ${data.refundAmount ? '16px' : '0'} 0;">${data.resolution}</p>
-        ${data.refundAmount ? `
+        ${
+          data.refundAmount
+            ? `
           <p style="color: #0F766E; font-size: 14px; margin: 0 0 8px 0;"><strong>Reembolso:</strong></p>
           <p style="color: #B91C1C; font-size: 20px; font-weight: 700; margin: 0;">$${data.refundAmount.toFixed(2)}</p>
-        ` : ''}
+        `
+            : ''
+        }
       </div>
     `;
     return this.sendEmail({
@@ -762,7 +773,8 @@ export class NotificationsService {
     email: string,
     data: { userName: string },
   ) {
-    const frontendUrl = this.configService.get('FRONTEND_URL') || 'http://localhost:3000';
+    const frontendUrl =
+      this.configService.get('FRONTEND_URL') || 'http://localhost:3000';
     const content = `
       <h2 style="color: #0F766E; font-family: 'Fraunces', serif; font-size: 24px; font-weight: 700; margin: 0 0 16px 0;">¡Cuenta conectada! ✅</h2>
       <p style="color: #4B5563; font-size: 15px; line-height: 1.6; margin: 0 0 20px 0;">
@@ -829,7 +841,8 @@ export class NotificationsService {
     email: string,
     data: { refereeName: string; amount: number; totalBalance: number },
   ) {
-    const frontendUrl = this.configService.get('FRONTEND_URL') || 'http://localhost:3000';
+    const frontendUrl =
+      this.configService.get('FRONTEND_URL') || 'http://localhost:3000';
     const content = `
       <div style="background: linear-gradient(135deg, #F59E0B, #D97706); border-radius: 12px; padding: 32px; text-align: center; margin-bottom: 24px;">
         <h2 style="color: white; font-family: 'Fraunces', serif; font-size: 24px; font-weight: 800; margin: 0;">💰 ¡GANASTE CRÉDITO!</h2>
@@ -860,7 +873,8 @@ export class NotificationsService {
     email: string,
     data: { userName: string; referrerName: string },
   ) {
-    const frontendUrl = this.configService.get('FRONTEND_URL') || 'http://localhost:3000';
+    const frontendUrl =
+      this.configService.get('FRONTEND_URL') || 'http://localhost:3000';
     const content = `
       <h2 style="color: #1F2937; font-family: 'Fraunces', serif; font-size: 24px; font-weight: 700; margin: 0 0 16px 0;">¡Bienvenido, ${data.userName}! 🎉</h2>
       <p style="color: #4B5563; font-size: 15px; line-height: 1.6; margin: 0 0 20px 0;">
