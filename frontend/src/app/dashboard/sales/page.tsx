@@ -38,7 +38,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, Suspense } from 'react';
 import { toast } from 'sonner';
 import {
   XAxis,
@@ -233,7 +233,7 @@ interface RelaunchRaffleResponse {
 
 const MONTH_NAMES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 
-export default function MySalesPage() {
+function SalesDashboardContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { isAuthenticated } = useAuthStore();
@@ -1082,5 +1082,17 @@ export default function MySalesPage() {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+export default function MySalesPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center min-h-screen">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    }>
+      <SalesDashboardContent />
+    </Suspense>
   );
 }
