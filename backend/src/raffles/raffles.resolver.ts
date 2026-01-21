@@ -17,6 +17,7 @@ import {
   BuyerStats,
 } from './entities/raffle.entity';
 import { PriceHistory } from './entities/price-history.entity';
+import { PriceReduction } from './entities/price-reduction.entity';
 import {
   CreateRaffleInput,
   UpdateRaffleInput,
@@ -297,5 +298,16 @@ export class RafflesResolver {
       user.id,
       newPrice,
     ) as unknown as Raffle;
+  }
+
+  // ==================== PRICE REDUCTION (for email relaunch) ====================
+
+  @Query(() => PriceReduction, { nullable: true })
+  @UseGuards(GqlAuthGuard)
+  async getPriceReduction(
+    @CurrentUser() user: User,
+    @Args('priceReductionId') priceReductionId: string,
+  ): Promise<PriceReduction | null> {
+    return this.rafflesService.getPriceReduction(user.id, priceReductionId);
   }
 }

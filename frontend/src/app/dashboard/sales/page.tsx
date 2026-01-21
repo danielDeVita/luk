@@ -1,6 +1,6 @@
 'use client';
 
-import { useQuery, useMutation } from '@apollo/client/react';
+import { useQuery, useMutation, useLazyQuery } from '@apollo/client/react';
 import { gql } from '@apollo/client/core';
 import { useAuthStore } from '@/store/auth';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -37,7 +37,7 @@ import {
   ArrowRight,
 } from 'lucide-react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState, useMemo } from 'react';
 import { toast } from 'sonner';
 import {
@@ -144,6 +144,18 @@ const RELAUNCH_RAFFLE = gql`
   }
 `;
 
+const GET_PRICE_REDUCTION = gql`
+  query GetPriceReduction($priceReductionId: String!) {
+    getPriceReduction(priceReductionId: $priceReductionId) {
+      id
+      raffleId
+      precioSugerido
+      raffleTitulo
+      aceptada
+    }
+  }
+`;
+
 const GET_ONBOARDING_STATUS = gql`
   query GetOnboardingStatus {
     me {
@@ -223,6 +235,7 @@ const MONTH_NAMES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Se
 
 export default function MySalesPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { isAuthenticated } = useAuthStore();
   const [selectedRaffle, setSelectedRaffle] = useState<string | null>(null);
   const [trackingNumber, setTrackingNumber] = useState('');
@@ -316,6 +329,8 @@ export default function MySalesPage() {
         toast.success('¡Rifa relanzada exitosamente!');
         setRelaunchModalOpen(false);
         setRelaunchData(null);
+        // Clear URL params after successful relaunch
+        router.replace('/dashboard/sales');
         // Redirect to new raffle
         router.push(`/raffle/${data.relaunchRaffleWithSuggestedPrice.id}`);
       },
@@ -324,6 +339,61 @@ export default function MySalesPage() {
       },
     }
   );
+
+  // Lazy query to fetch price reduction data from email link
+  const [fetchPriceReduction, { data: priceReductionData, error: priceReductionError, called: priceReductionCalled }] = useLazyQuery<{
+    getPriceReduction: {
+      id: string;
+      raffleId: string;
+      precioSugerido: number;
+      raffleTitulo: string;
+      aceptada: boolean | null;
+    } | null;
+  }>(GET_PRICE_REDUCTION, {
+    fetchPolicy: 'network-only',
+  });
+
+  // Handle price reduction query result
+  useEffect(() => {
+    if (!priceReductionCalled) return;
+    
+    if (priceReductionError) {
+      toast.error('Error al cargar la información de relaunch');
+      router.replace('/dashboard/sales');
+      return;
+    }
+    
+    if (priceReductionData?.getPriceReduction) {
+      const pr = priceReductionData.getPriceReduction;
+      if (pr.aceptada) {
+        toast.error('Esta sugerencia de precio ya fue utilizada');
+        router.replace('/dashboard/sales');
+        return;
+      }
+      setRelaunchData({
+        raffleId: pr.raffleId,
+        priceReductionId: pr.id,
+        raffleName: pr.raffleTitulo,
+        suggestedPrice: pr.precioSugerido,
+      });
+      setRelaunchModalOpen(true);
+    } else if (priceReductionData && !priceReductionData.getPriceReduction) {
+      toast.error('La sugerencia de precio no existe o no te pertenece');
+      router.replace('/dashboard/sales');
+    }
+  }, [priceReductionData, priceReductionError, priceReductionCalled, router]);
+
+  // Handle relaunch action from email link
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    
+    const action = searchParams.get('action');
+    const priceReductionId = searchParams.get('priceReductionId');
+    
+    if (action === 'relaunch' && priceReductionId) {
+      fetchPriceReduction({ variables: { priceReductionId } });
+    }
+  }, [isAuthenticated, searchParams, fetchPriceReduction]);
 
   useEffect(() => {
     if (!isAuthenticated) {

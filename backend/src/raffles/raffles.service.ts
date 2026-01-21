@@ -989,6 +989,42 @@ export class RafflesService {
     });
   }
 
+  async getPriceReduction(userId: string, priceReductionId: string) {
+    const priceReduction = await this.prisma.priceReduction.findUnique({
+      where: { id: priceReductionId },
+      include: {
+        raffle: {
+          select: {
+            id: true,
+            titulo: true,
+            sellerId: true,
+          },
+        },
+      },
+    });
+
+    if (!priceReduction) {
+      return null;
+    }
+
+    // Verify the user owns the raffle
+    if (priceReduction.raffle.sellerId !== userId) {
+      return null;
+    }
+
+    return {
+      id: priceReduction.id,
+      raffleId: priceReduction.raffleId,
+      precioAnterior: Number(priceReduction.precioAnterior),
+      precioSugerido: Number(priceReduction.precioSugerido),
+      porcentajeReduccion: Number(priceReduction.porcentajeReduccion),
+      ticketsVendidosAlMomento: priceReduction.ticketsVendidosAlMomento,
+      aceptada: priceReduction.aceptada,
+      fechaRespuesta: priceReduction.fechaRespuesta,
+      raffleTitulo: priceReduction.raffle.titulo,
+    };
+  }
+
   calculateCommissions(totalAmount: number) {
     const platformFee = totalAmount * PLATFORM_FEE_RATE;
     const stripeFee = totalAmount * STRIPE_FEE_RATE + STRIPE_FIXED_FEE;
