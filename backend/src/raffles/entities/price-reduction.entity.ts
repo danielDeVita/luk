@@ -20,12 +20,12 @@ export class PriceReduction {
   @Field()
   ticketsVendidosAlMomento!: number;
 
-  @Field({ nullable: true })
+  @Field(() => Boolean, { nullable: true })
   aceptada?: boolean | null;
 
-  @Field({ nullable: true })
+  @Field(() => Date, { nullable: true })
   fechaRespuesta?: Date | null;
 
-  @Field({ nullable: true })
+  @Field(() => String, { nullable: true })
   raffleTitulo?: string;
 }

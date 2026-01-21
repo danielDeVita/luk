@@ -41,16 +41,17 @@
     "docker:clean": "docker compose -f docker-compose.dev.yml down -v --rmi local"
   },
   "devDependencies": {
+    "eslint": "^9.39.2",
     "husky": "^9.1.7",
     "lint-staged": "^15.4.3",
     "tailwindcss": "^4.1.18"
   },
   "lint-staged": {
     "backend/src/**/*.ts": [
-      "eslint --fix"
+      "eslint --fix --config backend/eslint.config.mjs"
     ],
     "frontend/src/**/*.{ts,tsx}": [
-      "eslint --fix"
+      "eslint --fix --config frontend/eslint.config.mjs"
     ]
   },
   "dependencies": {
