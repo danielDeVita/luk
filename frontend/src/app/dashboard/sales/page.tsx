@@ -341,7 +341,7 @@ export default function MySalesPage() {
   );
 
   // Lazy query to fetch price reduction data from email link
-  const [fetchPriceReduction, { data: priceReductionData, error: priceReductionError, called: priceReductionCalled }] = useLazyQuery<{
+  const [fetchPriceReduction] = useLazyQuery<{
     getPriceReduction: {
       id: string;
       raffleId: string;
@@ -353,36 +353,6 @@ export default function MySalesPage() {
     fetchPolicy: 'network-only',
   });
 
-  // Handle price reduction query result
-  useEffect(() => {
-    if (!priceReductionCalled) return;
-    
-    if (priceReductionError) {
-      toast.error('Error al cargar la información de relaunch');
-      router.replace('/dashboard/sales');
-      return;
-    }
-    
-    if (priceReductionData?.getPriceReduction) {
-      const pr = priceReductionData.getPriceReduction;
-      if (pr.aceptada) {
-        toast.error('Esta sugerencia de precio ya fue utilizada');
-        router.replace('/dashboard/sales');
-        return;
-      }
-      setRelaunchData({
-        raffleId: pr.raffleId,
-        priceReductionId: pr.id,
-        raffleName: pr.raffleTitulo,
-        suggestedPrice: pr.precioSugerido,
-      });
-      setRelaunchModalOpen(true);
-    } else if (priceReductionData && !priceReductionData.getPriceReduction) {
-      toast.error('La sugerencia de precio no existe o no te pertenece');
-      router.replace('/dashboard/sales');
-    }
-  }, [priceReductionData, priceReductionError, priceReductionCalled, router]);
-
   // Handle relaunch action from email link
   useEffect(() => {
     if (!isAuthenticated) return;
@@ -391,9 +361,34 @@ export default function MySalesPage() {
     const priceReductionId = searchParams.get('priceReductionId');
     
     if (action === 'relaunch' && priceReductionId) {
-      fetchPriceReduction({ variables: { priceReductionId } });
+      fetchPriceReduction({ variables: { priceReductionId } }).then(({ data, error }) => {
+        if (error) {
+          toast.error('Error al cargar la información de relaunch');
+          router.replace('/dashboard/sales');
+          return;
+        }
+        
+        if (data?.getPriceReduction) {
+          const pr = data.getPriceReduction;
+          if (pr.aceptada) {
+            toast.error('Esta sugerencia de precio ya fue utilizada');
+            router.replace('/dashboard/sales');
+            return;
+          }
+          setRelaunchData({
+            raffleId: pr.raffleId,
+            priceReductionId: pr.id,
+            raffleName: pr.raffleTitulo,
+            suggestedPrice: pr.precioSugerido,
+          });
+          setRelaunchModalOpen(true);
+        } else {
+          toast.error('La sugerencia de precio no existe o no te pertenece');
+          router.replace('/dashboard/sales');
+        }
+      });
     }
-  }, [isAuthenticated, searchParams, fetchPriceReduction]);
+  }, [isAuthenticated, searchParams, fetchPriceReduction, router]);
 
   useEffect(() => {
     if (!isAuthenticated) {
