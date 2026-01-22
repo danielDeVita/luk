@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
+import { ImageUpload } from '@/components/ImageUpload';
 import { Progress } from '@/components/ui/progress';
 import {
   Dialog,
@@ -37,7 +38,6 @@ import {
   MapPin,
   ArrowRight,
   Pencil,
-  X,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -1230,29 +1230,12 @@ function SalesDashboardContent() {
               </div>
 
               <div className="space-y-2">
-                <Label>Imágenes ({editImages.length}/5)</Label>
-                <div className="grid grid-cols-3 gap-2">
-                  {editImages.map((img, index) => (
-                    <div key={index} className="relative aspect-square rounded-md overflow-hidden bg-muted">
-                      <Image
-                        src={getOptimizedImageUrl(img, CLOUDINARY_PRESETS.dashboardThumb)}
-                        alt={`Imagen ${index + 1}`}
-                        fill
-                        className="object-cover"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setEditImages(editImages.filter((_, i) => i !== index))}
-                        className="absolute top-1 right-1 bg-destructive text-destructive-foreground rounded-full p-1 hover:bg-destructive/90"
-                      >
-                        <X className="w-3 h-3" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Para agregar nuevas imágenes, por favor usá la página de detalles de la rifa.
-                </p>
+                <Label>Imágenes del producto</Label>
+                <ImageUpload
+                  images={editImages}
+                  onImagesChange={setEditImages}
+                  maxImages={5}
+                />
               </div>
             </div>
           )}
