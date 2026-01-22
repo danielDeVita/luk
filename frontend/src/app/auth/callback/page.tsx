@@ -37,17 +37,18 @@ function CallbackContent() {
   const successParam = searchParams.get('success');
   const errorParam = searchParams.get('error');
   const tokenParam = searchParams.get('token');
+  const refreshTokenParam = searchParams.get('refreshToken');
 
-  // Store token from URL first (for cross-subdomain where cookies are blocked)
+  // Store tokens from URL first (for cross-subdomain where cookies are blocked)
   useEffect(() => {
     if (tokenParam) {
-      // Token is passed in URL, store it in auth store
+      // Tokens are passed in URL, store them in auth store
       // This enables Authorization header for subsequent requests
-      useAuthStore.setState({ token: tokenParam });
-      // Clear token from URL for security
+      useAuthStore.setState({ token: tokenParam, refreshToken: refreshTokenParam });
+      // Clear tokens from URL for security
       window.history.replaceState({}, '', '/auth/callback?success=true');
     }
-  }, [tokenParam]);
+  }, [tokenParam, refreshTokenParam]);
 
   // Query user data - will use Authorization header from stored token
   const { data, error, loading } = useQuery<MeQueryResult>(ME_QUERY, {
@@ -58,10 +59,10 @@ function CallbackContent() {
   // Handle successful auth
   useEffect(() => {
     if (data?.me && tokenParam) {
-      setAuth(data.me, tokenParam);
+      setAuth(data.me, tokenParam, refreshTokenParam || undefined);
       router.replace('/');
     }
-  }, [data, setAuth, router, tokenParam]);
+  }, [data, setAuth, router, tokenParam, refreshTokenParam]);
 
   // Handle query error
   useEffect(() => {

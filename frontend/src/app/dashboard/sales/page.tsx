@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Progress } from '@/components/ui/progress';
 import {
@@ -35,6 +36,8 @@ import {
   CreditCard,
   MapPin,
   ArrowRight,
+  Pencil,
+  X,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -57,6 +60,7 @@ const MY_RAFFLES = gql`
     myRafflesAsSeller {
       id
       titulo
+      descripcion
       totalTickets
       precioPorTicket
       estado
@@ -144,6 +148,19 @@ const RELAUNCH_RAFFLE = gql`
   }
 `;
 
+const UPDATE_RAFFLE = gql`
+  mutation UpdateRaffle($id: String!, $input: UpdateRaffleInput!) {
+    updateRaffle(id: $id, input: $input) {
+      id
+      titulo
+      descripcion
+      product {
+        imagenes
+      }
+    }
+  }
+`;
+
 const GET_PRICE_REDUCTION = gql`
   query GetPriceReduction($priceReductionId: String!) {
     getPriceReduction(priceReductionId: $priceReductionId) {
@@ -176,6 +193,7 @@ const GET_ONBOARDING_STATUS = gql`
 interface RaffleData {
   id: string;
   titulo: string;
+  descripcion?: string;
   totalTickets: number;
   precioPorTicket: number;
   estado: string;
@@ -255,6 +273,14 @@ function SalesDashboardContent() {
     raffleName: string;
     suggestedPrice: number;
   } | null>(null);
+  const [relaunchDeadline, setRelaunchDeadline] = useState('');
+
+  // Edit raffle state
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [editingRaffle, setEditingRaffle] = useState<RaffleData | null>(null);
+  const [editTitle, setEditTitle] = useState('');
+  const [editDescription, setEditDescription] = useState('');
+  const [editImages, setEditImages] = useState<string[]>([]);
 
   const { data, loading, error, refetch } = useQuery<{ myRafflesAsSeller: RaffleData[] }>(MY_RAFFLES, {
     skip: !isAuthenticated,
@@ -355,6 +381,40 @@ function SalesDashboardContent() {
       },
     }
   );
+
+  const [updateRaffle, { loading: updating }] = useMutation(UPDATE_RAFFLE, {
+    onCompleted: () => {
+      toast.success('Rifa actualizada correctamente');
+      setEditModalOpen(false);
+      setEditingRaffle(null);
+      refetch();
+    },
+    onError: (err) => {
+      toast.error(err.message || 'Error al actualizar la rifa');
+    },
+  });
+
+  const openEditModal = (raffle: RaffleData) => {
+    setEditingRaffle(raffle);
+    setEditTitle(raffle.titulo);
+    setEditDescription(raffle.descripcion || '');
+    setEditImages(raffle.product?.imagenes || []);
+    setEditModalOpen(true);
+  };
+
+  const handleUpdateRaffle = () => {
+    if (!editingRaffle) return;
+    updateRaffle({
+      variables: {
+        id: editingRaffle.id,
+        input: {
+          titulo: editTitle,
+          descripcion: editDescription,
+          imagenes: editImages,
+        },
+      },
+    });
+  };
 
   // Lazy query to fetch price reduction data from email link
   const [fetchPriceReduction] = useLazyQuery<{
@@ -952,6 +1012,13 @@ function SalesDashboardContent() {
                         </Button>
                       </Link>
 
+                      {raffle.estado === 'ACTIVA' && (
+                        <Button variant="outline" size="sm" className="w-full" onClick={() => openEditModal(raffle)}>
+                          <Pencil className="w-4 h-4 mr-2" />
+                          Editar
+                        </Button>
+                      )}
+
                       {raffle.estado === 'SORTEADA' && raffle.deliveryStatus === 'PENDING' && (
                         <Button size="sm" onClick={() => openShipDialog(raffle.id)}>
                           <Truck className="w-4 h-4 mr-2" />
@@ -1049,15 +1116,18 @@ function SalesDashboardContent() {
       </Dialog>
 
       {/* Relaunch Confirmation Modal */}
-      <Dialog open={relaunchModalOpen} onOpenChange={setRelaunchModalOpen}>
+      <Dialog open={relaunchModalOpen} onOpenChange={(open) => {
+        setRelaunchModalOpen(open);
+        if (!open) setRelaunchDeadline('');
+      }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>🚀 Relanzar Rifa con Precio Sugerido</DialogTitle>
+            <DialogTitle>Relanzar Rifa con Precio Sugerido</DialogTitle>
           </DialogHeader>
           {relaunchData && (
-            <div className="py-4">
-              <p className="mb-4">
-                ¿Estás seguro de que deseas relanzar esta rifa con el precio sugerido?
+            <div className="py-4 space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Se creará una nueva rifa con el mismo producto y el precio ajustado.
               </p>
               <div className="bg-muted p-4 rounded-lg space-y-2">
                 <p className="text-sm">
@@ -1068,8 +1138,18 @@ function SalesDashboardContent() {
                     <strong>Precio sugerido:</strong> ${relaunchData.suggestedPrice.toFixed(2)}
                   </p>
                 )}
-                <p className="text-sm text-muted-foreground">
-                  Se creará una nueva rifa con el mismo producto y el precio ajustado.
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="relaunch-deadline">Fecha límite del sorteo</Label>
+                <Input
+                  id="relaunch-deadline"
+                  type="datetime-local"
+                  value={relaunchDeadline}
+                  onChange={(e) => setRelaunchDeadline(e.target.value)}
+                  min={new Date().toISOString().slice(0, 16)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Si no seleccionás una fecha, se usará 30 días a partir de hoy.
                 </p>
               </div>
             </div>
@@ -1086,13 +1166,105 @@ function SalesDashboardContent() {
                     input: {
                       originalRaffleId: relaunchData.raffleId,
                       priceReductionId: relaunchData.priceReductionId,
+                      ...(relaunchDeadline && { fechaLimite: new Date(relaunchDeadline).toISOString() }),
                     },
                   },
                 });
               }}
               disabled={relaunching}
             >
-              {relaunching ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : '🚀 Relanzar Rifa'}
+              {relaunching ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : 'Relanzar Rifa'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Raffle Modal */}
+      <Dialog open={editModalOpen} onOpenChange={(open) => {
+        setEditModalOpen(open);
+        if (!open) {
+          setEditingRaffle(null);
+          setEditTitle('');
+          setEditDescription('');
+          setEditImages([]);
+        }
+      }}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Editar Rifa</DialogTitle>
+            <DialogDescription>
+              Podés modificar el título, descripción e imágenes de tu rifa.
+            </DialogDescription>
+          </DialogHeader>
+          {editingRaffle && (
+            <div className="py-4 space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit-title">Título</Label>
+                <Input
+                  id="edit-title"
+                  value={editTitle}
+                  onChange={(e) => setEditTitle(e.target.value)}
+                  placeholder="Título de la rifa"
+                  minLength={10}
+                  maxLength={100}
+                />
+                <p className="text-xs text-muted-foreground">
+                  {editTitle.length}/100 caracteres (mínimo 10)
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="edit-description">Descripción</Label>
+                <Textarea
+                  id="edit-description"
+                  value={editDescription}
+                  onChange={(e) => setEditDescription(e.target.value)}
+                  placeholder="Descripción detallada de la rifa..."
+                  rows={5}
+                  minLength={50}
+                  maxLength={5000}
+                />
+                <p className="text-xs text-muted-foreground">
+                  {editDescription.length}/5000 caracteres (mínimo 50)
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Imágenes ({editImages.length}/5)</Label>
+                <div className="grid grid-cols-3 gap-2">
+                  {editImages.map((img, index) => (
+                    <div key={index} className="relative aspect-square rounded-md overflow-hidden bg-muted">
+                      <Image
+                        src={getOptimizedImageUrl(img, CLOUDINARY_PRESETS.dashboardThumb)}
+                        alt={`Imagen ${index + 1}`}
+                        fill
+                        className="object-cover"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setEditImages(editImages.filter((_, i) => i !== index))}
+                        className="absolute top-1 right-1 bg-destructive text-destructive-foreground rounded-full p-1 hover:bg-destructive/90"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Para agregar nuevas imágenes, por favor usá la página de detalles de la rifa.
+                </p>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setEditModalOpen(false)}>
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleUpdateRaffle}
+              disabled={updating || editTitle.length < 10 || editDescription.length < 50 || editImages.length === 0}
+            >
+              {updating ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : 'Guardar Cambios'}
             </Button>
           </DialogFooter>
         </DialogContent>

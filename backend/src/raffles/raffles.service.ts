@@ -479,26 +479,38 @@ export class RafflesService {
       throw new ForbiddenException('Solo el vendedor puede modificar la rifa');
     }
 
-    const soldTickets = await this.prisma.ticket.count({
-      where: { raffleId: id, estado: 'PAGADO' },
-    });
-
-    if (soldTickets > 0) {
-      throw new BadRequestException(
-        'No se puede modificar una rifa con tickets vendidos',
-      );
+    // Only allow updates on active raffles
+    if (raffle.estado !== 'ACTIVA') {
+      throw new BadRequestException('Solo se pueden modificar rifas activas');
     }
 
-    return this.prisma.raffle.update({
-      where: { id },
-      data: {
-        titulo: input.titulo,
-        descripcion: input.descripcion,
-        fechaLimiteSorteo: input.fechaLimite
-          ? new Date(input.fechaLimite)
-          : undefined,
-      },
-      include: { product: true, seller: true },
+    // Update raffle (title, description) and product images in a transaction
+    return this.prisma.$transaction(async (tx) => {
+      // Update raffle fields
+      const updatedRaffle = await tx.raffle.update({
+        where: { id },
+        data: {
+          titulo: input.titulo,
+          descripcion: input.descripcion,
+        },
+        include: { product: true, seller: true },
+      });
+
+      // Update product images if provided
+      if (input.imagenes && raffle.product) {
+        await tx.product.update({
+          where: { id: raffle.product.id },
+          data: { imagenes: input.imagenes },
+        });
+
+        // Refetch to get updated product
+        return tx.raffle.findUnique({
+          where: { id },
+          include: { product: true, seller: true },
+        });
+      }
+
+      return updatedRaffle;
     });
   }
 
@@ -759,10 +771,14 @@ export class RafflesService {
       throw new BadRequestException('El precio debe ser mayor a 0');
     }
 
-    // 4. Calculate deadline (default 30 days)
-    const daysUntil = input.daysUntilDraw || 30;
-    const fechaLimite = new Date();
-    fechaLimite.setDate(fechaLimite.getDate() + daysUntil);
+    // 4. Calculate deadline (use provided date or default to 30 days)
+    let fechaLimite: Date;
+    if (input.fechaLimite) {
+      fechaLimite = new Date(input.fechaLimite);
+    } else {
+      fechaLimite = new Date();
+      fechaLimite.setDate(fechaLimite.getDate() + 30);
+    }
 
     // 5. Create new raffle with same product data
     const newRaffle = await this.prisma.raffle.create({

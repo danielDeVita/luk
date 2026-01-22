@@ -19,12 +19,19 @@ const resolvePendingRequests = () => {
 
 const refreshToken = async (): Promise<boolean> => {
   try {
-    const token = useAuthStore.getState().token;
+    // Use refresh token from store (not access token) for the refresh endpoint
+    const storedRefreshToken = useAuthStore.getState().refreshToken;
+
+    if (!storedRefreshToken) {
+      return false;
+    }
+
     const response = await fetch(`${BACKEND_URL}/auth/refresh`, {
       method: 'GET',
       credentials: 'include',
       headers: {
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        // Send refresh token via Authorization header (cross-subdomain support)
+        Authorization: `Bearer ${storedRefreshToken}`,
       },
     });
 
@@ -32,10 +39,10 @@ const refreshToken = async (): Promise<boolean> => {
       return false;
     }
 
-    // Backend returns new token in response
+    // Backend returns new access token (and optionally new refresh token)
     const data = await response.json();
     if (data.token) {
-      useAuthStore.setState({ token: data.token });
+      useAuthStore.getState().setTokens(data.token, data.refreshToken);
     }
     return true;
   } catch {

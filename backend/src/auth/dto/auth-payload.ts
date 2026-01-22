@@ -6,6 +6,12 @@ export class AuthPayload {
   @Field({ nullable: true })
   token?: string;
 
+  @Field({
+    nullable: true,
+    description: 'Refresh token for cross-subdomain deployments',
+  })
+  refreshToken?: string;
+
   @Field(() => User)
   user!: User;
 }

@@ -34,6 +34,7 @@ const VERIFY_EMAIL_MUTATION = gql`
   mutation VerifyEmail($userId: String!, $code: String!, $referralCode: String) {
     verifyEmail(userId: $userId, code: $code, referralCode: $referralCode) {
       token
+      refreshToken
       user {
         id
         email
@@ -106,6 +107,7 @@ interface RegisterResult {
 interface VerifyEmailResult {
   verifyEmail: {
     token: string;
+    refreshToken?: string;
     user: {
       id: string;
       email: string;
@@ -193,7 +195,7 @@ function RegisterPageContent() {
       });
 
       if (result.data?.verifyEmail) {
-        setAuth(result.data.verifyEmail.user, result.data.verifyEmail.token);
+        setAuth(result.data.verifyEmail.user, result.data.verifyEmail.token, result.data.verifyEmail.refreshToken);
         toast.success('¡Email verificado! Bienvenido');
         router.push('/');
       }

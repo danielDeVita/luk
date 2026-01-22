@@ -1,5 +1,13 @@
-import { InputType, Field, ID, Int, Float } from '@nestjs/graphql';
-import { IsString, IsOptional, IsPositive, Min, Max } from 'class-validator';
+import { InputType, Field, ID, Float } from '@nestjs/graphql';
+import {
+  IsString,
+  IsOptional,
+  IsPositive,
+  Min,
+  Max,
+  IsDateString,
+} from 'class-validator';
+import { IsAfter } from '../../common/validators/is-after.validator';
 
 @InputType()
 export class RelaunchRaffleInput {
@@ -21,13 +29,13 @@ export class RelaunchRaffleInput {
   @Max(1000000)
   customPrice?: number;
 
-  @Field(() => Int, {
+  @Field(() => String, {
     nullable: true,
-    description: 'Days until draw deadline (default: 30)',
+    description:
+      'Draw deadline date (ISO string). Defaults to 30 days from now.',
   })
   @IsOptional()
-  @IsPositive()
-  @Min(1)
-  @Max(90)
-  daysUntilDraw?: number;
+  @IsDateString()
+  @IsAfter('now', { message: 'La fecha límite debe ser en el futuro' })
+  fechaLimite?: string;
 }

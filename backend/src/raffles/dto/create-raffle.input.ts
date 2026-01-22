@@ -118,11 +118,13 @@ export class UpdateRaffleInput {
   @MaxLength(5000)
   descripcion?: string;
 
-  @Field(() => String, { nullable: true })
+  @Field(() => [String], { nullable: true })
   @IsOptional()
-  @IsDateString()
-  @IsAfter('now')
-  fechaLimite?: string;
+  @IsArray()
+  @ArrayMinSize(1, { message: 'Debe incluir al menos 1 imagen' })
+  @ArrayMaxSize(5, { message: 'Máximo 5 imágenes permitidas' })
+  @IsUrl({}, { each: true, message: 'Cada imagen debe ser una URL válida' })
+  imagenes?: string[];
 }
 
 @InputType()

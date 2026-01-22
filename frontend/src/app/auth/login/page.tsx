@@ -19,6 +19,7 @@ const LOGIN_MUTATION = gql`
   mutation Login($email: String!, $password: String!) {
     login(input: { email: $email, password: $password }) {
       token
+      refreshToken
       user {
         id
         email
@@ -40,6 +41,7 @@ type LoginForm = z.infer<typeof loginSchema>;
 interface LoginResult {
   login: {
     token: string;
+    refreshToken?: string;
     user: {
       id: string;
       email: string;
@@ -72,10 +74,10 @@ export default function LoginPage() {
 
   const [login, { data, loading, error }] = useMutation<LoginResult>(LOGIN_MUTATION);
 
-  // Handle success - store token for Authorization header (cookies blocked cross-subdomain)
+  // Handle success - store tokens for Authorization header (cookies blocked cross-subdomain)
   useEffect(() => {
     if (data?.login) {
-      setAuth(data.login.user, data.login.token);
+      setAuth(data.login.user, data.login.token, data.login.refreshToken);
       router.push('/');
     }
   }, [data, setAuth, router]);

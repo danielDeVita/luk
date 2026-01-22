@@ -64,9 +64,9 @@ export class AuthGoogleController {
       path: '/auth',
     });
 
-    // Redirect with token in URL (for cross-subdomain where cookies are blocked)
+    // Redirect with tokens in URL (for cross-subdomain where cookies are blocked)
     return res.redirect(
-      `${frontendUrl}/auth/callback?success=true&token=${token}`,
+      `${frontendUrl}/auth/callback?success=true&token=${token}&refreshToken=${refreshToken}`,
     );
   }
 
@@ -91,13 +91,22 @@ export class AuthGoogleController {
   }
 
   /**
-   * POST /auth/refresh
-   * Refreshes the access token using the refresh token from httpOnly cookie
+   * GET /auth/refresh
+   * Refreshes the access token using the refresh token from:
+   * 1. Authorization header (Bearer token) - for cross-subdomain deployments
+   * 2. httpOnly cookie - for same-domain deployments
    */
   @Get('refresh')
   @Public()
   async refreshToken(@Req() req: any, @Res() res: Response) {
-    const refreshTokenValue = req.cookies?.refresh_token;
+    // Try to get refresh token from Authorization header first (cross-subdomain support)
+    const authHeader = req.headers.authorization;
+    const headerToken = authHeader?.startsWith('Bearer ')
+      ? authHeader.substring(7)
+      : null;
+
+    // Fall back to cookie if no header token
+    const refreshTokenValue = headerToken || req.cookies?.refresh_token;
     const isProduction = this.configService.get('NODE_ENV') === 'production';
 
     if (!refreshTokenValue) {
@@ -128,7 +137,8 @@ export class AuthGoogleController {
         path: '/auth',
       });
 
-      return res.json({ token });
+      // Return both tokens in response (for cross-subdomain where cookies don't work)
+      return res.json({ token, refreshToken });
     } catch {
       // Clear invalid cookies
       res.clearCookie('auth_token');
