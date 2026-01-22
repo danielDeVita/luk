@@ -287,10 +287,18 @@ function SalesDashboardContent() {
     onCompleted: (data) => {
       const result = data.bulkCancelRaffles;
       if (result.successCount > 0) {
-        toast.success(`${result.successCount} rifas canceladas correctamente`);
+        toast.success(
+          result.successCount === 1
+            ? '1 rifa cancelada correctamente'
+            : `${result.successCount} rifas canceladas correctamente`
+        );
       }
       if (result.failedCount > 0) {
-        toast.error(`${result.failedCount} rifas no pudieron cancelarse`);
+        toast.error(
+          result.failedCount === 1
+            ? '1 rifa no pudo cancelarse'
+            : `${result.failedCount} rifas no pudieron cancelarse`
+        );
       }
       setIsBulkCancelDialogOpen(false);
       setSelectedRaffleIds([]);
@@ -307,10 +315,18 @@ function SalesDashboardContent() {
     onCompleted: (data) => {
       const result = data.bulkExtendRaffles;
       if (result.successCount > 0) {
-        toast.success(`${result.successCount} rifas extendidas correctamente`);
+        toast.success(
+          result.successCount === 1
+            ? '1 rifa extendida correctamente'
+            : `${result.successCount} rifas extendidas correctamente`
+        );
       }
       if (result.failedCount > 0) {
-        toast.error(`${result.failedCount} rifas no pudieron extenderse`);
+        toast.error(
+          result.failedCount === 1
+            ? '1 rifa no pudo extenderse'
+            : `${result.failedCount} rifas no pudieron extenderse`
+        );
       }
       setIsBulkExtendDialogOpen(false);
       setSelectedRaffleIds([]);
