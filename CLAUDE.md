@@ -498,6 +498,71 @@ If webhooks fail, `/checkout/status` page auto-syncs payment status on load.
 ### Full-text search setup
 Run migration: `psql -f backend/prisma/migrations/20260109_fulltext_search/migration.sql`
 
+### Testing & Quality
+
+**See [TESTING_AUDIT.md](TESTING_AUDIT.md) for complete testing plan and implementation roadmap.**
+
+#### Backend Testing (NestJS + Jest)
+
+**Unit Tests:**
+```bash
+cd backend
+npm run test              # Run all unit tests
+npm run test:watch       # Watch mode
+npm run test:cov         # Coverage report (HTML at coverage/index.html)
+npm run test:debug       # Debug mode
+```
+
+**Integration Tests:**
+```bash
+npm run test:integration  # Run integration tests only
+```
+
+**Test Utilities Available:**
+- `createTestApp()` - Complete NestJS bootstrap for tests
+- `cleanupTestApp()` - DB cleanup in dependency order
+- `generateTestToken()` - JWT token generation for authenticated tests
+- Factories: `createTestUser()`, `createTestSeller()`, `createTestRaffle()`, `createTestTicket()`, etc.
+
+**Location:** `test/` directory with `setup.ts` and `factories.ts`
+
+**Current Coverage:** ~5% (payments module fully tested; see TESTING_AUDIT.md for priority gaps)
+
+#### Frontend E2E Tests (Playwright)
+
+**Run Tests:**
+```bash
+cd frontend
+npm run test:e2e          # Headless tests
+npm run test:e2e:ui       # Interactive UI
+npm run test:e2e:headed   # Visible browser
+```
+
+**Current Tests:** 28 tests covering auth flows and raffle browsing (see TESTING_AUDIT.md for critical gaps)
+
+**Note:** Unit/component tests not yet configured. Use `npm run test:unit` once Vitest is set up (see TESTING_AUDIT.md Sprint 3).
+
+#### Test Writing Best Practices
+
+1. **Service tests** - Use factory functions to create test data
+2. **Integration tests** - Create full test app with real database
+3. **E2E tests** - Navigate actual UI, verify user flows end-to-end
+4. **Mocking** - Mock external services (MP, Resend, Cloudinary) in unit tests
+5. **Coverage** - Aim for >50% coverage on critical modules (auth, payments, disputes, encryption)
+
+#### Pre-commit/Pre-push Verification
+
+```bash
+# Full verification before pushing
+npm run lint      # ESLint on both projects
+npm run typecheck # TypeScript check on both projects
+npm run build     # Full build (catches compile errors)
+
+# Optional: Run tests locally
+cd backend && npm run test
+cd frontend && npm run test:e2e
+```
+
 ---
 
 ## Troubleshooting

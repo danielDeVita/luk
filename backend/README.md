@@ -262,11 +262,82 @@ prisma/
 
 ## Testing
 
+### Running Tests
+
 ```bash
-npm run test        # Unit tests (Jest)
-npm run test:e2e    # E2E tests
-npm run test:cov    # Coverage report
+# Unit tests
+npm run test              # Run all tests once
+npm run test:watch       # Watch mode (re-run on changes)
+npm run test:cov         # With coverage report (HTML at coverage/index.html)
+npm run test:debug       # Debug mode with debugger
+
+# Integration tests
+npm run test:integration # Integration tests only (real database)
+
+# All tests
+npm run test:e2e         # E2E tests (from root)
 ```
+
+### Test Infrastructure
+
+The project uses **Jest** for unit/integration testing with pre-built utilities:
+
+**Test Utilities** (`test/integration/setup.ts` and `test/integration/factories.ts`):
+- `createTestApp()` - Complete NestJS application bootstrap for tests
+- `cleanupTestApp()` - DB cleanup that respects model dependencies
+- `generateTestToken(userId)` - JWT token generation for authenticated requests
+- Factories: `createTestUser()`, `createTestSeller()`, `createTestRaffle()`, `createTestTicket()`, etc.
+
+**Example Test Structure:**
+```typescript
+describe('AuthService', () => {
+  let app: INestApplication;
+  let authService: AuthService;
+
+  beforeAll(async () => {
+    app = await createTestApp();
+    authService = app.get(AuthService);
+  });
+
+  afterAll(async () => {
+    await cleanupTestApp(app);
+  });
+
+  it('should register a user', async () => {
+    const user = await authService.register({ email: 'test@test.com', ... });
+    expect(user.emailVerified).toBe(false);
+  });
+});
+```
+
+### Current Coverage
+
+- **Payments module:** Fully tested (~400 lines of tests)
+- **Overall:** ~5% coverage (see [TESTING_AUDIT.md](../TESTING_AUDIT.md) for gaps)
+
+### Critical Modules to Test (Priority)
+
+See [TESTING_AUDIT.md](../TESTING_AUDIT.md) for complete roadmap:
+
+**Critical (Security + Compliance):**
+- `src/common/services/encryption.service.ts` - PII encryption
+- `src/auth/auth.service.ts` - Login, register, email verification
+- `src/raffles/raffles.service.ts` (drawWinner method) - Lottery draw logic
+- `src/payments/payments.service.ts` (webhooks) - Payment processing
+
+**High Priority (Core Features):**
+- `src/payments/mp-connect.service.ts` - Seller OAuth flow
+- `src/disputes/disputes.service.ts` - Buyer protection
+- `src/referrals/referrals.service.ts` - Referral rewards
+
+### Adding Tests
+
+1. Create `.spec.ts` file next to the service/controller
+2. Use test utilities from `test/integration/`
+3. Import factories for test data
+4. Run `npm run test:watch` while developing
+
+See existing tests in `src/payments/` for examples.
 
 ## Admin Queries/Mutations
 

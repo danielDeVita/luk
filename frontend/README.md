@@ -284,21 +284,117 @@ When a raffle is cancelled due to insufficient ticket sales (<70%):
 
 This feature encourages sellers to retry with better pricing and helps maximize platform usage.
 
-## E2E Testing
+## Testing & E2E
+
+### E2E Tests (Playwright)
 
 ```bash
-# Install browsers (first time)
+# Install browsers (first time only)
 npx playwright install
 
 # Run tests
-npm run test:e2e
+npm run test:e2e              # Headless - all tests
+npm run test:e2e:ui          # Interactive Playwright UI
+npm run test:e2e:headed      # Visible browser while running
 
-# Run with UI
-npm run test:e2e:ui
+# Run specific test file
+npx playwright test e2e/auth.spec.ts
 
-# Run headed (see browser)
-npm run test:e2e:headed
+# Debug mode
+npx playwright test --debug
 ```
+
+**Requirements:**
+- Backend must be running (`npm run docker:dev` or `npm run start:dev` from backend folder)
+- Playwright auto-starts the dev server in local development
+
+### Current E2E Tests
+
+**28 total tests** in `e2e/`:
+
+1. **auth.spec.ts** (11 tests)
+   - Login/register pages
+   - Authentication flow
+   - Protected routes
+   - Logout
+   - IP blocking warning
+
+2. **raffle.spec.ts** (17 tests)
+   - Homepage browsing
+   - Search and filtering
+   - Raffle detail page
+   - Ticket purchase flow (partial)
+   - Seller onboarding
+   - Buyer dashboard
+
+### Unit & Component Tests
+
+**Status:** Not yet configured (see [TESTING_AUDIT.md](../TESTING_AUDIT.md) Sprint 3)
+
+Planned setup:
+- **Framework:** Vitest + React Testing Library
+- **Coverage:** Component unit tests + integration tests
+- **Target:** Enable `npm run test:unit` command
+
+### Critical E2E Gaps (Priority)
+
+See [TESTING_AUDIT.md](../TESTING_AUDIT.md) for complete roadmap:
+
+**Critical Flows (Priority):**
+- `/checkout/status` - Payment result handler
+- Email verification flow (6-digit code entry)
+- KYC verification submission
+- Raffle creation end-to-end
+- Dispute creation/resolution
+- Referral program usage
+
+**Medium Priority:**
+- Price drop alerts
+- Q&A system
+- Avatar upload
+- Dark mode
+- Raffle relaunch feature
+
+### Adding E2E Tests
+
+Example Playwright test:
+
+```typescript
+import { test, expect } from '@playwright/test';
+
+test('should create a raffle', async ({ page }) => {
+  // Login
+  await page.goto('http://localhost:3000/auth/login');
+  await page.fill('[name="email"]', 'seller@test.com');
+  await page.fill('[name="password"]', 'password');
+  await page.click('button:has-text("Login")');
+
+  // Wait for redirect to dashboard
+  await page.waitForURL('**/dashboard/**');
+
+  // Create raffle
+  await page.click('a:has-text("Create Raffle")');
+  await page.fill('[name="title"]', 'iPhone 15');
+  await page.click('button:has-text("Create")');
+
+  // Verify success
+  await expect(page).toHaveURL(/\/raffle\//);
+});
+```
+
+### Best Practices
+
+1. **Use meaningful selectors** - Prefer `role`, `label`, or `data-testid` over generic selectors
+2. **Wait for elements** - Use `waitForURL()`, `waitForSelector()`, or `waitForFunction()`
+3. **Test user flows** - Write tests from the user's perspective
+4. **Keep tests isolated** - Each test should be independent
+5. **Use fixtures** - Create test data helpers for setup/teardown
+
+### Performance Notes
+
+- Playwright runs tests in parallel by default (4 workers)
+- Test runs take ~2-3 minutes total
+- Disable parallelization with `--workers=1` if debugging specific test interactions
 
 ## Local Dev Notes
 

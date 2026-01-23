@@ -2,6 +2,8 @@
 
 Quick reference for all development commands. Run from the project root unless otherwise noted.
 
+> **Testing Plan:** See [TESTING_AUDIT.md](TESTING_AUDIT.md) for complete testing audit, coverage goals, and implementation roadmap.
+
 ---
 
 ## Docker (Recommended)
@@ -139,20 +141,24 @@ Requires [k6](https://k6.io/docs/getting-started/installation/) installed locall
 
 ### From Root (runs both backend + frontend)
 
-| Command | Description |
-|---------|-------------|
-| `npm run lint` | Run ESLint on both projects |
-| `npm run typecheck` | TypeScript type checking |
-| `npm run build` | Build both projects |
+| Command | Description | When to Use |
+|---------|-------------|------------|
+| `npm run lint` | Run ESLint (style/best practices) on both | Check code style issues |
+| `npm run typecheck` | TypeScript type checking on both | Check type errors without building |
+| `npm run build` | Full build (compiles both projects) | **Required before push** - catches TS + compile errors |
 
 ### Individual Projects
 
 | Command | Description |
 |---------|-------------|
-| `npm run lint:backend` | Lint backend only |
-| `npm run lint:frontend` | Lint frontend only |
-| `npm run typecheck:backend` | Typecheck backend only |
-| `npm run typecheck:frontend` | Typecheck frontend only |
+| `npm run lint:backend` | Lint backend only (ESLint) |
+| `npm run lint:frontend` | Lint frontend only (ESLint) |
+| `npm run typecheck:backend` | Typecheck backend only (TypeScript) |
+| `npm run typecheck:frontend` | Typecheck frontend only (TypeScript) |
+
+**Key Difference:**
+- **Lint** (ESLint): Catches style, unused variables, naming conventions
+- **Typecheck/Build**: Catches TypeScript type errors, incompatibilities
 
 ### Backend Specific (run from `/backend`)
 
@@ -234,13 +240,37 @@ npm run docker:dev:build
 npm run docker:db:push
 ```
 
-### Before Committing
+### Before Committing / Pushing
+
+**Important:** Run these checks locally BEFORE pushing to avoid CI/CD failures.
 
 ```bash
-npm run lint                # Check for lint errors
-npm run typecheck           # Check for type errors
-npm run test                # Run backend tests
+# Full verification (recommended)
+npm run lint                # Check for ESLint errors (both projects)
+npm run typecheck           # Check for TypeScript type errors (both projects)
+npm run build               # Full build (compiles both projects - catches TS errors)
+
+# Or run tests too (backend)
+cd backend && npm run test  # Run backend unit tests
 ```
+
+**Quick One-Command Check:**
+
+Add this script to `package.json` if you want a single command:
+```json
+{
+  "scripts": {
+    "precheck": "npm run lint && npm run typecheck && npm run build"
+  }
+}
+```
+
+Then just run:
+```bash
+npm run precheck && git push
+```
+
+**Note:** Husky will run ESLint on staged files automatically on `git push`, but it won't catch TypeScript errors. Running `npm run build` locally prevents CI/CD failures.
 
 ### Running E2E Tests
 

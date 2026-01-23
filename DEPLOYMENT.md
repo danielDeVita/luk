@@ -279,6 +279,20 @@ Use [UptimeRobot](https://uptimerobot.com) (free) to ping your services every 14
 
 ## Pre-Launch Checklist
 
+### Code Quality & Testing
+- [ ] Run full test suite locally:
+  ```bash
+  npm run lint          # All ESLint checks pass
+  npm run typecheck     # All TypeScript checks pass
+  npm run build         # Production build succeeds
+  cd backend && npm run test:cov  # Unit tests pass, coverage >50%
+  cd frontend && npm run test:e2e # E2E tests pass
+  ```
+- [ ] Verify critical modules tested:
+  - [ ] Backend: Auth, Payments, Encryption, Disputes, MP Connect
+  - [ ] Frontend: Payment result handler, email verification flow, raffle creation
+  - [ ] See [TESTING_AUDIT.md](TESTING_AUDIT.md) for complete coverage audit
+
 ### Environment & Configuration
 - [ ] Generate and set `ENCRYPTION_KEY` (64 hex chars) - **same value for all deployments**
 - [ ] Get `MP_CLIENT_ID` and `MP_CLIENT_SECRET` from MP Dashboard
@@ -297,11 +311,14 @@ Use [UptimeRobot](https://uptimerobot.com) (free) to ping your services every 14
   - [ ] Wait for cancellation and email notification
   - [ ] Seller receives price suggestion email
   - [ ] Test one-click relaunch button in email
+- [ ] Test dispute flow (create dispute, seller response, admin resolution)
+- [ ] Test referral program (generate code, apply code, earn rewards)
 
 ### Infrastructure
 - [ ] Set up UptimeRobot to prevent cold starts
 - [ ] Enable Neon point-in-time recovery (free tier: 7 days)
 - [ ] Verify PII encryption (check database shows encrypted DNI/CUIT values)
+- [ ] Verify GitHub Actions CI passes on all commits (lint, build, tests)
 
 ---
 
