@@ -259,7 +259,9 @@ export class PaymentsService {
       data: {
         eventId: paymentId,
         eventType: `payment.${paymentData.status}`,
-        metadata: paymentData as Prisma.InputJsonValue,
+        metadata: JSON.parse(
+          JSON.stringify(paymentData),
+        ) as Prisma.InputJsonValue,
       },
     });
   }
@@ -302,7 +304,9 @@ export class PaymentsService {
           data: {
             eventId: paymentId,
             eventType: `payment.${paymentData.status}`,
-            metadata: paymentData as Prisma.InputJsonValue,
+            metadata: JSON.parse(
+              JSON.stringify(paymentData),
+            ) as Prisma.InputJsonValue,
           },
         });
 

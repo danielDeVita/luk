@@ -62,9 +62,9 @@ export class GqlThrottlerGuard extends ThrottlerGuard {
    * This ensures each user has their own rate limit bucket,
    * preventing one user from consuming another's quota.
    */
-  protected getTracker(req: Record<string, unknown>): string {
+  protected async getTracker(req: Record<string, unknown>): Promise<string> {
     // Check for authenticated user (set by JwtAuthGuard)
-    const user = req.user;
+    const user = req.user as { id?: string } | undefined;
 
     if (user?.id) {
       return `user:${user.id}`;

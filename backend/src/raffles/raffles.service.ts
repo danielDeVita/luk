@@ -1035,14 +1035,16 @@ export class RafflesService {
       );
     }
 
-    // Log activity
-    notifications.push(
-      this.activityService.logRaffleDrawn(
-        raffle.sellerId,
-        raffle.id,
-        raffle.winnerId,
-      ),
-    );
+    // Log activity (winnerId is guaranteed to be set after draw)
+    if (raffle.winnerId) {
+      notifications.push(
+        this.activityService.logRaffleDrawn(
+          raffle.sellerId,
+          raffle.id,
+          raffle.winnerId,
+        ),
+      );
+    }
 
     await Promise.all(notifications);
   }

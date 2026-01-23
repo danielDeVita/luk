@@ -506,7 +506,6 @@ export function RaffleContent({ id }: RaffleContentProps) {
             <ShareButtons
               url={typeof window !== 'undefined' ? window.location.href : ''}
               title={raffle.titulo}
-              description={raffle.descripcion}
             />
           </div>
         </div>

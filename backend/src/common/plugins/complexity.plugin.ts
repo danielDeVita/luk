@@ -8,6 +8,7 @@ import {
   ApolloServerPlugin,
   GraphQLRequestListener,
   GraphQLSchemaContext,
+  BaseContext,
 } from '@apollo/server';
 import { Logger } from '@nestjs/common';
 
@@ -31,22 +32,22 @@ const WARN_COMPLEXITY = 300;
  * - List fields multiply their child complexity by estimated count
  * - Queries exceeding MAX_COMPLEXITY are rejected before execution
  */
-export const complexityPlugin: ApolloServerPlugin = {
-  serverWillStart(): {
-    schemaDidLoadOrUpdate: (schemaContext: GraphQLSchemaContext) => void;
-  } {
+export const complexityPlugin: ApolloServerPlugin<BaseContext> = {
+  async serverWillStart() {
     let _currentSchema: GraphQLSchema;
 
     return {
-      schemaDidLoadOrUpdate({ apiSchema }) {
+      schemaDidLoadOrUpdate({ apiSchema }: GraphQLSchemaContext) {
         _currentSchema = apiSchema;
       },
     };
   },
 
-  requestDidStart({ schema }): GraphQLRequestListener<unknown> {
+  async requestDidStart({
+    schema,
+  }): Promise<GraphQLRequestListener<BaseContext>> {
     return {
-      didResolveOperation({ request, document }): void {
+      async didResolveOperation({ request, document }): Promise<void> {
         const complexity = getComplexity({
           schema,
           operationName: request.operationName,

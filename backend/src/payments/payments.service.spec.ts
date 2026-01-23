@@ -22,6 +22,7 @@ jest.mock('mercadopago', () => ({
 }));
 
 import { Payment } from 'mercadopago';
+import type { PaymentResponse } from 'mercadopago/dist/clients/payment/commonTypes';
 
 describe('PaymentsService', () => {
   let service: PaymentsService;
@@ -109,7 +110,8 @@ describe('PaymentsService', () => {
         reservationId: 'res-789',
       }),
       fee_details: [{ amount: 50 }],
-    };
+      api_response: { status: 200, headers: [] },
+    } as unknown as PaymentResponse;
 
     it('should update tickets to PAGADO on first call', async () => {
       mockPrismaService.ticket.updateMany.mockResolvedValue({ count: 2 });
@@ -183,7 +185,7 @@ describe('PaymentsService', () => {
       const paymentWithoutRef = {
         ...mockPaymentData,
         external_reference: null,
-      };
+      } as unknown as PaymentResponse;
 
       await service.handlePaymentApproved(paymentWithoutRef);
 
@@ -195,7 +197,7 @@ describe('PaymentsService', () => {
       const paymentWithBadRef = {
         ...mockPaymentData,
         external_reference: 'not-valid-json',
-      };
+      } as unknown as PaymentResponse;
 
       await service.handlePaymentApproved(paymentWithBadRef);
 

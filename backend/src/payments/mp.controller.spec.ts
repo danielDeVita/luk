@@ -123,7 +123,7 @@ describe('MpController', () => {
 
     it('should return 200 with ignored=true for missing event type', async () => {
       const res = mockResponse();
-      const body = { some: 'data' };
+      const body = { data: { id: '123' } }; // Missing type/topic
 
       await controller.handleWebhook(body, undefined, undefined, res);
 

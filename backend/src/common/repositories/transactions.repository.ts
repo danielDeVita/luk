@@ -130,7 +130,7 @@ export class TransactionsRepository extends BaseRepository<
         raffleId: data.raffleId,
         monto: data.monto,
         mpPaymentId: data.mpPaymentId,
-        metadata: data.metadata,
+        metadata: data.metadata ?? undefined,
       },
     });
   }

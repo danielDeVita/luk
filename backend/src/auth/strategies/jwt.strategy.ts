@@ -12,11 +12,6 @@ export interface JwtPayload {
   role: UserRole;
 }
 
-// Extend Request to include cookies property
-interface RequestWithCookies extends Request {
-  cookies?: Record<string, string>;
-}
-
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
   constructor(
@@ -26,8 +21,9 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     // Extract JWT from httpOnly cookie first, then fall back to Authorization header
     const jwtFromRequest = ExtractJwt.fromExtractors([
       // 1. Try to extract from httpOnly cookie (new secure method)
-      (req: RequestWithCookies): string | null => {
-        const token = req?.cookies?.auth_token;
+      (req: Request): string | null => {
+        const cookies = req?.cookies as Record<string, string> | undefined;
+        const token = cookies?.auth_token;
         if (token) return token;
         return null;
       },

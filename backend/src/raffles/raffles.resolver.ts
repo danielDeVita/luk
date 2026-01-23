@@ -35,6 +35,7 @@ import {
   UserRole,
   Raffle as PrismaRaffle,
   Ticket as PrismaTicket,
+  TicketStatus,
 } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
 
@@ -45,7 +46,7 @@ type RaffleWithTickets = PrismaRaffle & {
 
 // Type for raffle data passed to resolve fields (may include tickets relation)
 type RaffleWithOptionalTickets = PrismaRaffle & {
-  tickets?: Array<{ estado: string }>;
+  tickets?: Array<{ estado: TicketStatus }>;
 };
 
 @Resolver(() => Raffle)
@@ -81,7 +82,7 @@ export class RafflesResolver {
     const totalPages = Math.ceil(result.total / result.limit);
 
     // Transform Decimal to number for ticket prices (Prisma returns Decimal, GraphQL expects number)
-    const items = result.raffles.map((raffle: RaffleWithTickets) => ({
+    const items = (result.raffles as RaffleWithTickets[]).map((raffle) => ({
       ...raffle,
       tickets: raffle.tickets?.map((ticket: PrismaTicket) => ({
         ...ticket,
@@ -90,7 +91,7 @@ export class RafflesResolver {
             ? Number(ticket.precioPagado)
             : ticket.precioPagado,
       })),
-    })) as Raffle[];
+    })) as unknown as Raffle[];
 
     return {
       items,
@@ -304,16 +305,17 @@ export class RafflesResolver {
 
   @Mutation(() => Raffle)
   @UseGuards(GqlAuthGuard)
-  updateRafflePrice(
+  async updateRafflePrice(
     @CurrentUser() user: User,
     @Args('raffleId') raffleId: string,
     @Args('newPrice', { type: () => Number }) newPrice: number,
   ): Promise<Raffle> {
-    return this.rafflesService.updatePrice(
+    const result = await this.rafflesService.updatePrice(
       raffleId,
       user.id,
       newPrice,
-    ) as unknown as Raffle;
+    );
+    return result as unknown as Raffle;
   }
 
   // ==================== PRICE REDUCTION (for email relaunch) ====================
