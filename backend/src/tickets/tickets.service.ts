@@ -7,9 +7,24 @@ import {
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../prisma/prisma.service';
 import { PaymentsService } from '../payments/payments.service';
-import { Prisma } from '@prisma/client';
+import { Prisma, RaffleStatus } from '@prisma/client';
 import { randomUUID } from 'crypto';
 import { RaffleEvents, TicketsRefundedEvent } from '../common/events';
+
+/**
+ * Type for raw SQL query result when selecting raffle with sold count.
+ * Uses snake_case to match database column names.
+ */
+interface RaffleWithSoldCount {
+  id: string;
+  estado: RaffleStatus;
+  is_hidden: boolean;
+  seller_id: string;
+  total_tickets: number;
+  precio_por_ticket: Prisma.Decimal;
+  titulo: string;
+  sold_count: bigint;
+}
 
 @Injectable()
 export class TicketsService {
@@ -43,11 +58,11 @@ export class TicketsService {
         const reservationId = randomUUID();
 
         // Lock the raffle row for update to prevent concurrent modifications
-        const [raffle] = await tx.$queryRaw<any[]>`
-        SELECT r.*, 
+        const [raffle] = await tx.$queryRaw<RaffleWithSoldCount[]>`
+        SELECT r.*,
                (SELECT COUNT(*) FROM tickets t WHERE t.raffle_id = r.id AND t.estado != 'REEMBOLSADO') as sold_count
-        FROM raffles r 
-        WHERE r.id = ${raffleId} 
+        FROM raffles r
+        WHERE r.id = ${raffleId}
         FOR UPDATE
       `;
 

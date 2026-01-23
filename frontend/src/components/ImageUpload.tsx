@@ -127,7 +127,7 @@ export function ImageUpload({ images, onImagesChange, maxImages = 5 }: ImageUplo
           }
         }
         onImagesChange([...images, ...uploadedUrls]);
-      } catch (err) {
+      } catch {
         setError('Error al subir las imágenes. Intenta de nuevo.');
       } finally {
         setUploading(false);

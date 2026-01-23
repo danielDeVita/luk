@@ -1,9 +1,18 @@
 import { Controller, Get, Req, Res, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { Response } from 'express';
+import { Request, Response } from 'express';
 import { ConfigService } from '@nestjs/config';
 import { AuthService } from './auth.service';
 import { Public } from './decorators/public.decorator';
+import { User } from '@prisma/client';
+
+interface RequestWithUser extends Request {
+  user?: User;
+}
+
+interface RequestWithCookies extends Request {
+  cookies: Record<string, string | undefined>;
+}
 
 @Controller('auth')
 export class AuthGoogleController {
@@ -19,7 +28,7 @@ export class AuthGoogleController {
   @Get('google')
   @Public()
   @UseGuards(AuthGuard('google'))
-  async googleAuth() {
+  googleAuth(): void {
     // Guard redirects to Google
   }
 
@@ -31,9 +40,12 @@ export class AuthGoogleController {
   @Get('google/callback')
   @Public()
   @UseGuards(AuthGuard('google'))
-  async googleAuthCallback(@Req() req: any, @Res() res: Response) {
-    const frontendUrl =
-      this.configService.get('FRONTEND_URL') || 'http://localhost:3000';
+  async googleAuthCallback(
+    @Req() req: RequestWithUser,
+    @Res() res: Response,
+  ): Promise<void> {
+    const frontendUrl: string =
+      this.configService.get<string>('FRONTEND_URL') || 'http://localhost:3000';
     const isProduction = this.configService.get('NODE_ENV') === 'production';
 
     if (!req.user) {
@@ -76,8 +88,11 @@ export class AuthGoogleController {
    */
   @Get('token')
   @Public()
-  async getTokenFromCookie(@Req() req: any, @Res() res: Response) {
-    const token = req.cookies?.auth_token;
+  getTokenFromCookie(
+    @Req() req: RequestWithCookies,
+    @Res() res: Response,
+  ): Response {
+    const token: string | undefined = req.cookies.auth_token;
 
     if (!token) {
       return res.status(401).json({ error: 'No token found' });
@@ -87,7 +102,7 @@ export class AuthGoogleController {
     res.clearCookie('auth_token');
     // Note: refresh_token stays in cookies for auto-refresh
 
-    return res.json({ token });
+    return res.json({ token } as { token: string });
   }
 
   /**
@@ -98,16 +113,22 @@ export class AuthGoogleController {
    */
   @Get('refresh')
   @Public()
-  async refreshToken(@Req() req: any, @Res() res: Response) {
+  async refreshToken(
+    @Req() req: RequestWithCookies,
+    @Res() res: Response,
+  ): Promise<Response> {
     // Try to get refresh token from Authorization header first (cross-subdomain support)
-    const authHeader = req.headers.authorization;
-    const headerToken = authHeader?.startsWith('Bearer ')
-      ? authHeader.substring(7)
-      : null;
+    const authHeader: string | undefined = req.headers.authorization;
+    const headerToken: string | null =
+      authHeader && authHeader.startsWith('Bearer ')
+        ? authHeader.substring(7)
+        : null;
 
     // Fall back to cookie if no header token
-    const refreshTokenValue = headerToken || req.cookies?.refresh_token;
-    const isProduction = this.configService.get('NODE_ENV') === 'production';
+    const refreshTokenValue: string | null | undefined =
+      headerToken || req.cookies.refresh_token;
+    const isProduction: boolean =
+      this.configService.get<string>('NODE_ENV') === 'production';
 
     if (!refreshTokenValue) {
       return res.status(401).json({ error: 'No refresh token found' });
@@ -155,8 +176,11 @@ export class AuthGoogleController {
    */
   @Get('logout')
   @Public()
-  async logout(@Req() req: any, @Res() res: Response) {
-    const refreshTokenValue = req.cookies?.refresh_token;
+  async logout(
+    @Req() req: RequestWithCookies,
+    @Res() res: Response,
+  ): Promise<Response> {
+    const refreshTokenValue: string | undefined = req.cookies.refresh_token;
 
     // Revoke the refresh token if it exists
     if (refreshTokenValue) {

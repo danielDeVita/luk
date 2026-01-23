@@ -1,5 +1,13 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma, Raffle, RaffleStatus, DeliveryStatus } from '@prisma/client';
+import {
+  Prisma,
+  Raffle,
+  RaffleStatus,
+  DeliveryStatus,
+  Product,
+  User,
+  Ticket,
+} from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { BaseRepository } from './base.repository';
 
@@ -7,10 +15,10 @@ import { BaseRepository } from './base.repository';
  * Full raffle type with common relations.
  */
 export type RaffleWithRelations = Raffle & {
-  product?: any;
-  seller?: any;
-  winner?: any;
-  tickets?: any[];
+  product?: Product | null;
+  seller?: User | null;
+  winner?: User | null;
+  tickets?: Ticket[];
 };
 
 /**

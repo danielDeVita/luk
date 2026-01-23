@@ -216,8 +216,8 @@ export default function MyTicketsPage() {
     }
   }, [isAuthenticated, router]);
 
-  // Get data from queries
-  const tickets = data?.myTickets || [];
+  // Get data from queries - wrapped in useMemo to prevent dependency issues
+  const tickets = useMemo(() => data?.myTickets || [], [data?.myTickets]);
   const stats = statsData?.buyerStats;
   const recommendations = recommendedData?.recommendedRaffles || [];
   const favoritesEndingSoon = endingSoonData?.favoritesEndingSoon || [];

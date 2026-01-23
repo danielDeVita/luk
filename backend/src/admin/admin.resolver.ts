@@ -248,7 +248,10 @@ export class AdminResolver {
     for (const disputeId of disputeIds) {
       try {
         await this.disputesService.resolveDispute(admin.id, disputeId, {
-          decision: decision as any,
+          decision: decision as
+            | 'RESUELTA_COMPRADOR'
+            | 'RESUELTA_VENDEDOR'
+            | 'RESUELTA_PARCIAL',
           resolucion,
           adminNotes,
         });

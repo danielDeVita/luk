@@ -9,9 +9,9 @@ export class UploadsController {
   private readonly isConfigured: boolean;
 
   constructor(private configService: ConfigService) {
-    const cloudName = this.configService.get('CLOUDINARY_CLOUD_NAME');
-    const apiKey = this.configService.get('CLOUDINARY_API_KEY');
-    const apiSecret = this.configService.get('CLOUDINARY_API_SECRET');
+    const cloudName = this.configService.get<string>('CLOUDINARY_CLOUD_NAME');
+    const apiKey = this.configService.get<string>('CLOUDINARY_API_KEY');
+    const apiSecret = this.configService.get<string>('CLOUDINARY_API_SECRET');
 
     if (cloudName && apiKey && apiSecret) {
       cloudinary.config({
@@ -64,8 +64,8 @@ export class UploadsController {
     return {
       signature,
       timestamp,
-      cloudName: this.configService.get('CLOUDINARY_CLOUD_NAME'),
-      apiKey: this.configService.get('CLOUDINARY_API_KEY'),
+      cloudName: this.configService.get<string>('CLOUDINARY_CLOUD_NAME'),
+      apiKey: this.configService.get<string>('CLOUDINARY_API_KEY'),
       folder,
     };
   }
@@ -101,8 +101,8 @@ export class UploadsController {
     return {
       signature,
       timestamp,
-      cloudName: this.configService.get('CLOUDINARY_CLOUD_NAME'),
-      apiKey: this.configService.get('CLOUDINARY_API_KEY'),
+      cloudName: this.configService.get<string>('CLOUDINARY_CLOUD_NAME'),
+      apiKey: this.configService.get<string>('CLOUDINARY_API_KEY'),
       folder,
       transformation: 'c_fill,w_200,h_200,g_face',
     };

@@ -1,6 +1,5 @@
 import { Field, InputType, Float } from '@nestjs/graphql';
 import {
-  IsNotEmpty,
   IsOptional,
   IsEnum,
   IsString,

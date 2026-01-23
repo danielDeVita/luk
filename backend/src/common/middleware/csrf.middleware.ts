@@ -65,7 +65,9 @@ export class CsrfMiddleware implements NestMiddleware {
     }
 
     // For state-changing requests (POST, PUT, DELETE, PATCH)
-    const cookieToken = req.cookies?.[CSRF_TOKEN_COOKIE];
+    const cookieToken = (req.cookies as Record<string, string> | undefined)?.[
+      CSRF_TOKEN_COOKIE
+    ];
     const headerToken = req.headers[CSRF_TOKEN_HEADER] as string | undefined;
 
     // Ensure token cookie exists

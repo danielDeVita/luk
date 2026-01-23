@@ -19,16 +19,15 @@ export class GoogleStrategy
     private prisma: PrismaService,
     private notificationsService: NotificationsService,
   ) {
-    const clientID = configService.get('GOOGLE_CLIENT_ID');
-    const clientSecret = configService.get('GOOGLE_CLIENT_SECRET');
+    const clientID = configService.get<string>('GOOGLE_CLIENT_ID');
+    const clientSecret = configService.get<string>('GOOGLE_CLIENT_SECRET');
+    const callbackURL = configService.get<string>('GOOGLE_CALLBACK_URL');
 
     // Pass placeholder values if not configured (strategy won't work but app won't crash)
     super({
-      clientID: clientID || 'not-configured',
-      clientSecret: clientSecret || 'not-configured',
-      callbackURL:
-        configService.get('GOOGLE_CALLBACK_URL') ||
-        'http://localhost:3001/auth/google/callback',
+      clientID: clientID ?? 'not-configured',
+      clientSecret: clientSecret ?? 'not-configured',
+      callbackURL: callbackURL ?? 'http://localhost:3001/auth/google/callback',
       scope: ['email', 'profile'],
     });
 

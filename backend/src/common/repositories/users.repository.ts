@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma, User } from '@prisma/client';
+import { Prisma, User, UserReputation } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { BaseRepository } from './base.repository';
 
@@ -101,11 +101,12 @@ export class UsersRepository extends BaseRepository<
    */
   async findWithReputation(
     userId: string,
-  ): Promise<(User & { reputation: any }) | null> {
-    return this.prisma.user.findUnique({
+  ): Promise<(User & { reputation: UserReputation | null }) | null> {
+    const result = await this.prisma.user.findUnique({
       where: { id: userId },
       include: { reputation: true },
-    }) as any;
+    });
+    return result;
   }
 
   /**

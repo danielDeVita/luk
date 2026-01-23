@@ -9,6 +9,7 @@ import { toast } from 'sonner';
 import { formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { getOptimizedImageUrl, CLOUDINARY_PRESETS } from '@/lib/cloudinary';
+import Image from 'next/image';
 
 // GraphQL queries/mutations
 const GET_RAFFLE_QUESTIONS = gql`
@@ -102,9 +103,11 @@ interface RaffleQAProps {
 function UserAvatar({ avatarUrl, nombre }: { avatarUrl?: string; nombre: string }) {
   if (avatarUrl) {
     return (
-      <img
+      <Image
         src={getOptimizedImageUrl(avatarUrl, CLOUDINARY_PRESETS.avatar)}
         alt={nombre}
+        width={32}
+        height={32}
         className="w-8 h-8 rounded-full object-cover"
       />
     );

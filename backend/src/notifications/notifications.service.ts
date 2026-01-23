@@ -2,6 +2,8 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Resend } from 'resend';
 import { PubSub } from 'graphql-subscriptions';
+import { Notification } from '@prisma/client';
+import { PrismaService } from '../prisma/prisma.service';
 
 interface EmailOptions {
   to: string;
@@ -13,7 +15,6 @@ interface EmailOptions {
  * NotificationsService - Handles all email communications
  * Uses Resend for production email delivery
  */
-import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class NotificationsService {
@@ -131,8 +132,8 @@ export class NotificationsService {
     content: string,
     options?: { showButton?: boolean; buttonText?: string; buttonUrl?: string },
   ): string {
-    const frontendUrl =
-      this.configService.get('FRONTEND_URL') || 'http://localhost:3000';
+    const frontendUrl: string =
+      this.configService.get<string>('FRONTEND_URL') || 'http://localhost:3000';
 
     // Web Styles Palette
     const colors = {
@@ -245,8 +246,8 @@ export class NotificationsService {
   // ==================== Auth Notifications ====================
 
   async sendWelcomeEmail(email: string, data: { userName: string }) {
-    const frontendUrl =
-      this.configService.get('FRONTEND_URL') || 'http://localhost:3000';
+    const frontendUrl: string =
+      this.configService.get<string>('FRONTEND_URL') || 'http://localhost:3000';
     const content = `
       <h2 style="color: #1F2937; font-family: 'Fraunces', serif; font-size: 24px; font-weight: 700; margin: 0 0 16px 0;">
         ¡Bienvenido, ${data.userName}! 🎉
@@ -313,8 +314,8 @@ export class NotificationsService {
     email: string,
     data: { raffleName: string; ticketNumbers: number[]; amount: number },
   ) {
-    const frontendUrl =
-      this.configService.get('FRONTEND_URL') || 'http://localhost:3000';
+    const frontendUrl: string =
+      this.configService.get<string>('FRONTEND_URL') || 'http://localhost:3000';
     const content = `
       <h2 style="color: #10B981; font-family: 'Fraunces', serif; font-size: 24px; font-weight: 700; margin: 0 0 16px 0;">
         ¡Compra confirmada! ✅
@@ -773,8 +774,8 @@ export class NotificationsService {
     email: string,
     data: { userName: string },
   ) {
-    const frontendUrl =
-      this.configService.get('FRONTEND_URL') || 'http://localhost:3000';
+    const frontendUrl: string =
+      this.configService.get<string>('FRONTEND_URL') || 'http://localhost:3000';
     const content = `
       <h2 style="color: #0F766E; font-family: 'Fraunces', serif; font-size: 24px; font-weight: 700; margin: 0 0 16px 0;">¡Cuenta conectada! ✅</h2>
       <p style="color: #4B5563; font-size: 15px; line-height: 1.6; margin: 0 0 20px 0;">
@@ -841,8 +842,8 @@ export class NotificationsService {
     email: string,
     data: { refereeName: string; amount: number; totalBalance: number },
   ) {
-    const frontendUrl =
-      this.configService.get('FRONTEND_URL') || 'http://localhost:3000';
+    const frontendUrl: string =
+      this.configService.get<string>('FRONTEND_URL') || 'http://localhost:3000';
     const content = `
       <div style="background: linear-gradient(135deg, #F59E0B, #D97706); border-radius: 12px; padding: 32px; text-align: center; margin-bottom: 24px;">
         <h2 style="color: white; font-family: 'Fraunces', serif; font-size: 24px; font-weight: 800; margin: 0;">💰 ¡GANASTE CRÉDITO!</h2>
@@ -873,8 +874,8 @@ export class NotificationsService {
     email: string,
     data: { userName: string; referrerName: string },
   ) {
-    const frontendUrl =
-      this.configService.get('FRONTEND_URL') || 'http://localhost:3000';
+    const frontendUrl: string =
+      this.configService.get<string>('FRONTEND_URL') || 'http://localhost:3000';
     const content = `
       <h2 style="color: #1F2937; font-family: 'Fraunces', serif; font-size: 24px; font-weight: 700; margin: 0 0 16px 0;">¡Bienvenido, ${data.userName}! 🎉</h2>
       <p style="color: #4B5563; font-size: 15px; line-height: 1.6; margin: 0 0 20px 0;">

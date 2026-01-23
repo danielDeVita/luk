@@ -17,10 +17,19 @@ export function IsAfter(date: string, validationOptions?: ValidationOptions) {
       constraints: [date],
       options: validationOptions,
       validator: {
-        validate(value: any, args: ValidationArguments) {
-          const [relatedDate] = args.constraints;
+        validate(value: unknown, args: ValidationArguments) {
+          const [relatedDate] = args.constraints as [string];
 
           if (!value) {
+            return false;
+          }
+
+          // Ensure value is a valid date input type
+          if (
+            typeof value !== 'string' &&
+            typeof value !== 'number' &&
+            !(value instanceof Date)
+          ) {
             return false;
           }
 
@@ -31,12 +40,14 @@ export function IsAfter(date: string, validationOptions?: ValidationOptions) {
           }
 
           const compareDate =
-            relatedDate === 'now' ? new Date() : new Date(relatedDate);
+            relatedDate === 'now'
+              ? new Date()
+              : new Date(relatedDate as string | number | Date);
 
           return dateValue > compareDate;
         },
         defaultMessage(args: ValidationArguments) {
-          const [relatedDate] = args.constraints;
+          const [relatedDate] = args.constraints as [string];
           if (relatedDate === 'now') {
             return `${args.property} debe ser una fecha futura`;
           }

@@ -1,6 +1,15 @@
 import { ExecutionContext, Injectable } from '@nestjs/common';
 import { ThrottlerGuard } from '@nestjs/throttler';
 import { GqlExecutionContext } from '@nestjs/graphql';
+import { Request, Response } from 'express';
+
+/**
+ * GraphQL context interface with Express request/response
+ */
+interface GqlContext {
+  req: Request;
+  res: Response;
+}
 
 /**
  * Custom ThrottlerGuard that works with both REST and GraphQL contexts.
@@ -18,21 +27,30 @@ export class GqlThrottlerGuard extends ThrottlerGuard {
    * Handles both GraphQL and REST contexts.
    */
   protected getRequestResponse(context: ExecutionContext): {
-    req: Record<string, any>;
-    res: Record<string, any>;
+    req: Record<string, unknown>;
+    res: Record<string, unknown>;
   } {
     const type = context.getType<string>();
 
     if (type === 'graphql') {
       const gqlCtx = GqlExecutionContext.create(context);
-      const ctx = gqlCtx.getContext();
-      return { req: ctx.req, res: ctx.res };
+      const ctx = gqlCtx.getContext<GqlContext>();
+      return {
+        req: ctx.req as unknown as Record<string, unknown>,
+        res: ctx.res as unknown as Record<string, unknown>,
+      };
     }
 
     // For REST endpoints
     return {
-      req: context.switchToHttp().getRequest(),
-      res: context.switchToHttp().getResponse(),
+      req: context.switchToHttp().getRequest<Request>() as unknown as Record<
+        string,
+        unknown
+      >,
+      res: context.switchToHttp().getResponse<Response>() as unknown as Record<
+        string,
+        unknown
+      >,
     };
   }
 
@@ -44,7 +62,7 @@ export class GqlThrottlerGuard extends ThrottlerGuard {
    * This ensures each user has their own rate limit bucket,
    * preventing one user from consuming another's quota.
    */
-  protected async getTracker(req: Record<string, any>): Promise<string> {
+  protected getTracker(req: Record<string, unknown>): string {
     // Check for authenticated user (set by JwtAuthGuard)
     const user = req.user;
 
@@ -61,9 +79,13 @@ export class GqlThrottlerGuard extends ThrottlerGuard {
    * Extract client IP address from request.
    * Handles common proxy headers (X-Forwarded-For, X-Real-IP).
    */
-  private extractIp(req: Record<string, any>): string {
+  private extractIp(req: Record<string, unknown>): string {
+    const headers = req.headers as
+      | Record<string, string | string[] | undefined>
+      | undefined;
+
     // Check for proxy headers (common in production behind load balancer)
-    const forwardedFor = req.headers?.['x-forwarded-for'];
+    const forwardedFor = headers?.['x-forwarded-for'];
     if (forwardedFor) {
       // X-Forwarded-For can contain multiple IPs: "client, proxy1, proxy2"
       const clientIp = Array.isArray(forwardedFor)
@@ -72,12 +94,21 @@ export class GqlThrottlerGuard extends ThrottlerGuard {
       return clientIp.trim();
     }
 
-    const realIp = req.headers?.['x-real-ip'];
+    const realIp = headers?.['x-real-ip'];
     if (realIp) {
       return Array.isArray(realIp) ? realIp[0] : realIp;
     }
 
     // Fall back to direct connection IP
-    return req.ip || req.socket?.remoteAddress || 'unknown';
+    if (typeof req.ip === 'string') {
+      return req.ip;
+    }
+
+    const socket = req.socket as { remoteAddress?: string } | undefined;
+    if (socket?.remoteAddress) {
+      return socket.remoteAddress;
+    }
+
+    return 'unknown';
   }
 }

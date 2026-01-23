@@ -120,7 +120,7 @@ export class AuthResolver {
 
   @Query(() => User)
   @UseGuards(GqlAuthGuard)
-  async me(@CurrentUser() user: User): Promise<User> {
+  me(@CurrentUser() user: User): User {
     return user;
   }
 }

@@ -16,7 +16,7 @@ export const winstonConfig: winston.LoggerOptions = {
               const metaStr = Object.keys(meta).length
                 ? ` ${JSON.stringify(meta)}`
                 : '';
-              return `${timestamp} [${context || 'Application'}] ${level}: ${message}${metaStr}`;
+              return `${timestamp} [${typeof context === 'string' ? context : 'Application'}] ${level}: ${message}${metaStr}`;
             },
           ),
         ),

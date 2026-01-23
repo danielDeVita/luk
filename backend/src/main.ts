@@ -6,7 +6,7 @@ initSentry();
 
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
-import { ValidationPipe } from '@nestjs/common';
+import { LoggerService, ValidationPipe } from '@nestjs/common';
 import { WINSTON_MODULE_NEST_PROVIDER } from 'nest-winston';
 import helmet from 'helmet';
 import * as cookieParser from 'cookie-parser';
@@ -18,7 +18,7 @@ async function bootstrap() {
   });
 
   // Use Winston as the application logger
-  const logger = app.get(WINSTON_MODULE_NEST_PROVIDER);
+  const logger = app.get<LoggerService>(WINSTON_MODULE_NEST_PROVIDER);
   app.useLogger(logger);
 
   // Enable graceful shutdown hooks
@@ -112,10 +112,10 @@ async function bootstrap() {
     }
   };
 
-  process.on('SIGTERM', () => shutdown('SIGTERM'));
-  process.on('SIGINT', () => shutdown('SIGINT'));
+  process.on('SIGTERM', () => void shutdown('SIGTERM'));
+  process.on('SIGINT', () => void shutdown('SIGINT'));
 
   await app.listen(port);
   logger.log(`Application is running on: http://localhost:${port}/graphql`);
 }
-bootstrap();
+void bootstrap();

@@ -15,13 +15,12 @@ import {
 } from './dto/create-raffle.input';
 import { RaffleFiltersInput } from './dto/raffle-filters.input';
 import { RelaunchRaffleInput } from './dto/relaunch-raffle.input';
-import { Prisma } from '@prisma/client';
+import { Prisma, TicketStatus } from '@prisma/client';
 import { RaffleSort } from '../common/enums';
 import {
   PLATFORM_FEE_RATE,
   STRIPE_FEE_RATE,
   STRIPE_FIXED_FEE,
-  MIN_SALE_THRESHOLD,
 } from '../common/constants/fees.constants';
 import { NotificationsService } from '../notifications/notifications.service';
 import { ActivityService } from '../activity/activity.service';
@@ -35,6 +34,62 @@ import {
   toTsqueryOr,
   escapePostgresString,
 } from '../common/utils/fulltext-search.util';
+
+// Type definitions for raffle data with relations
+type RaffleWithTicketsAndBuyers = Prisma.RaffleGetPayload<{
+  include: {
+    product: true;
+    seller: true;
+    tickets: {
+      where: { estado: 'PAGADO' };
+      include: { buyer: true };
+    };
+  };
+}>;
+
+// Type for raffle with winner and seller for notification methods
+type RaffleWithWinnerAndSeller = Prisma.RaffleGetPayload<{
+  include: {
+    product: true;
+    seller: true;
+    winner: true;
+  };
+}>;
+
+// Type for full raffle data from findOne (used in notifyWinnerRejection)
+type RaffleFromFindOne = Prisma.RaffleGetPayload<{
+  include: {
+    product: true;
+    seller: true;
+    tickets: true;
+    winner: true;
+    dispute: true;
+  };
+}>;
+
+// Type for raffle with tickets for deadline extension notifications
+type RaffleWithTicketsForExtension = Prisma.RaffleGetPayload<{
+  include: {
+    product: true;
+    seller: true;
+    tickets: {
+      where: { estado: 'PAGADO' };
+      include: { buyer: true };
+    };
+  };
+}>;
+
+// Type for ticket with buyer
+type TicketWithBuyer = Prisma.TicketGetPayload<{
+  include: { buyer: true };
+}>;
+
+// Interface for raffle with tickets for getTicketStats
+interface RaffleWithTickets {
+  totalTickets: number;
+  precioPorTicket: Prisma.Decimal | number;
+  tickets?: Array<{ estado: TicketStatus }>;
+}
 
 // Cache configuration
 const CACHE_KEYS = {
@@ -173,13 +228,15 @@ export class RafflesService {
     // Log activity (non-blocking)
     this.activityService
       .logRaffleCreated(sellerId, raffle.id, input.titulo)
-      .catch((err) => {
-        this.logger.error(`Failed to log raffle creation: ${err.message}`);
+      .catch((err: unknown) => {
+        const message = err instanceof Error ? err.message : 'Unknown error';
+        this.logger.error(`Failed to log raffle creation: ${message}`);
       });
 
     // Invalidate cache (non-blocking)
-    this.invalidateRaffleCache().catch((err) => {
-      this.logger.warn(`Cache invalidation failed: ${err.message}`);
+    this.invalidateRaffleCache().catch((err: unknown) => {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      this.logger.warn(`Cache invalidation failed: ${message}`);
     });
 
     return raffle;
@@ -547,16 +604,19 @@ export class RafflesService {
     );
 
     // Notify all buyers who purchased tickets (non-blocking)
-    this.notifyCancellation(cancelledRaffle).catch((err) => {
+    this.notifyCancellation(cancelledRaffle).catch((err: unknown) => {
+      const message = err instanceof Error ? err.message : 'Unknown error';
       this.logger.error(
-        `Failed to send cancellation notifications: ${err.message}`,
+        `Failed to send cancellation notifications: ${message}`,
       );
     });
 
     return cancelledRaffle;
   }
 
-  private async notifyCancellation(raffle: any) {
+  private async notifyCancellation(
+    raffle: RaffleWithTicketsAndBuyers,
+  ): Promise<void> {
     const uniqueBuyers = new Map<string, { id: string; email: string }>();
     for (const ticket of raffle.tickets || []) {
       if (ticket.buyer && !uniqueBuyers.has(ticket.buyerId)) {
@@ -564,7 +624,7 @@ export class RafflesService {
       }
     }
 
-    const notifications: Promise<any>[] = [];
+    const notifications: Promise<unknown>[] = [];
     for (const [buyerId, buyer] of uniqueBuyers) {
       notifications.push(
         this.notifications.sendRaffleCancelledNotification(buyer.email, {
@@ -626,17 +686,18 @@ export class RafflesService {
 
     // Notify winner about shipment (non-blocking)
     if (updatedRaffle.winner) {
-      this.notifyShipment(updatedRaffle).catch((err) => {
-        this.logger.error(
-          `Failed to send shipment notifications: ${err.message}`,
-        );
+      this.notifyShipment(updatedRaffle).catch((err: unknown) => {
+        const message = err instanceof Error ? err.message : 'Unknown error';
+        this.logger.error(`Failed to send shipment notifications: ${message}`);
       });
     }
 
     return updatedRaffle;
   }
 
-  private async notifyShipment(raffle: any) {
+  private async notifyShipment(
+    raffle: RaffleWithWinnerAndSeller,
+  ): Promise<void> {
     const winner = raffle.winner;
     if (!winner) return;
 
@@ -650,7 +711,7 @@ export class RafflesService {
       this.activityService.logDeliveryShipped(
         raffle.sellerId,
         raffle.id,
-        raffle.trackingNumber,
+        raffle.trackingNumber ?? undefined,
       ),
     ]);
   }
@@ -703,16 +764,19 @@ export class RafflesService {
     );
 
     // Notify seller about delivery confirmation (non-blocking)
-    this.notifyDeliveryConfirmed(updatedRaffle).catch((err) => {
+    this.notifyDeliveryConfirmed(updatedRaffle).catch((err: unknown) => {
+      const message = err instanceof Error ? err.message : 'Unknown error';
       this.logger.error(
-        `Failed to send delivery confirmation notifications: ${err.message}`,
+        `Failed to send delivery confirmation notifications: ${message}`,
       );
     });
 
     return updatedRaffle;
   }
 
-  private async notifyDeliveryConfirmed(raffle: any) {
+  private async notifyDeliveryConfirmed(
+    raffle: RaffleWithWinnerAndSeller,
+  ): Promise<void> {
     const seller = raffle.seller;
     if (!seller) return;
 
@@ -723,7 +787,10 @@ export class RafflesService {
         '¡Entrega confirmada!',
         `El ganador ha confirmado la recepción del premio de "${raffle.titulo}". Los fondos serán liberados pronto.`,
       ),
-      this.activityService.logDeliveryConfirmed(raffle.winnerId, raffle.id),
+      this.activityService.logDeliveryConfirmed(
+        raffle.winnerId ?? '',
+        raffle.id,
+      ),
     ]);
   }
 
@@ -798,8 +865,9 @@ export class RafflesService {
             categoria: originalRaffle.product!.categoria,
             condicion: originalRaffle.product!.condicion,
             imagenes: originalRaffle.product!.imagenes,
-            especificacionesTecnicas: originalRaffle.product!
-              .especificacionesTecnicas as any,
+            especificacionesTecnicas:
+              originalRaffle.product!.especificacionesTecnicas ??
+              Prisma.JsonNull,
           },
         },
       },
@@ -818,13 +886,15 @@ export class RafflesService {
     // 7. Log activity
     this.activityService
       .logRaffleCreated(sellerId, newRaffle.id, newRaffle.titulo)
-      .catch((err) => {
-        this.logger.error(`Failed to log raffle relaunch: ${err.message}`);
+      .catch((err: unknown) => {
+        const message = err instanceof Error ? err.message : 'Unknown error';
+        this.logger.error(`Failed to log raffle relaunch: ${message}`);
       });
 
     // 8. Invalidate cache
-    this.invalidateRaffleCache().catch((err) => {
-      this.logger.warn(`Cache invalidation failed: ${err.message}`);
+    this.invalidateRaffleCache().catch((err: unknown) => {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      this.logger.warn(`Cache invalidation failed: ${message}`);
     });
 
     return newRaffle;
@@ -878,9 +948,10 @@ export class RafflesService {
 
     // Notify winner and participants (non-blocking)
     this.notifyDrawResult(updatedRaffle, paidTickets, winningTicket).catch(
-      (err) => {
+      (err: unknown) => {
+        const message = err instanceof Error ? err.message : 'Unknown error';
         this.logger.error(
-          `Failed to send draw result notifications: ${err.message}`,
+          `Failed to send draw result notifications: ${message}`,
         );
       },
     );
@@ -889,11 +960,11 @@ export class RafflesService {
   }
 
   private async notifyDrawResult(
-    raffle: any,
-    paidTickets: any[],
-    winningTicket: any,
-  ) {
-    const notifications: Promise<any>[] = [];
+    raffle: RaffleWithWinnerAndSeller,
+    paidTickets: TicketWithBuyer[],
+    winningTicket: TicketWithBuyer,
+  ): Promise<void> {
+    const notifications: Promise<unknown>[] = [];
 
     // Notify winner via email and in-app
     if (raffle.winner) {
@@ -906,7 +977,7 @@ export class RafflesService {
       );
       notifications.push(
         this.notifications.create(
-          raffle.winnerId,
+          raffle.winnerId ?? '',
           'WIN',
           '🎉 ¡GANASTE!',
           `¡Felicitaciones! Has ganado la rifa "${raffle.titulo}". El vendedor se pondrá en contacto contigo pronto.`,
@@ -1050,9 +1121,9 @@ export class RafflesService {
     return { platformFee, stripeFee, totalFees, netAmount };
   }
 
-  getTicketStats(raffle: any) {
+  getTicketStats(raffle: RaffleWithTickets) {
     const soldTickets =
-      raffle.tickets?.filter((t: any) => t.estado === 'PAGADO').length || 0;
+      raffle.tickets?.filter((t) => t.estado === 'PAGADO').length || 0;
     return {
       ticketsVendidos: soldTickets,
       ticketsDisponibles: raffle.totalTickets - soldTickets,
@@ -1099,16 +1170,22 @@ export class RafflesService {
     });
 
     // Notify ticket holders about deadline extension (non-blocking)
-    this.notifyDeadlineExtension(updatedRaffle, newDeadline).catch((err) => {
-      this.logger.error(
-        `Failed to send deadline extension notifications: ${err.message}`,
-      );
-    });
+    this.notifyDeadlineExtension(updatedRaffle, newDeadline).catch(
+      (err: unknown) => {
+        const message = err instanceof Error ? err.message : 'Unknown error';
+        this.logger.error(
+          `Failed to send deadline extension notifications: ${message}`,
+        );
+      },
+    );
 
     return updatedRaffle;
   }
 
-  private async notifyDeadlineExtension(raffle: any, newDeadline: Date) {
+  private async notifyDeadlineExtension(
+    raffle: RaffleWithTicketsForExtension,
+    newDeadline: Date,
+  ): Promise<void> {
     const uniqueBuyers = new Map<string, { id: string; email: string }>();
     for (const ticket of raffle.tickets || []) {
       if (ticket.buyer && !uniqueBuyers.has(ticket.buyerId)) {
@@ -1116,7 +1193,7 @@ export class RafflesService {
       }
     }
 
-    const notifications: Promise<any>[] = [];
+    const notifications: Promise<unknown>[] = [];
     for (const [buyerId] of uniqueBuyers) {
       notifications.push(
         this.notifications.create(
@@ -1168,9 +1245,10 @@ export class RafflesService {
 
     // Log the rejection and notify affected parties (non-blocking)
     this.notifyWinnerRejection(raffle, previousWinnerId, adminId, reason).catch(
-      (err) => {
+      (err: unknown) => {
+        const message = err instanceof Error ? err.message : 'Unknown error';
         this.logger.error(
-          `Failed to send winner rejection notifications: ${err.message}`,
+          `Failed to send winner rejection notifications: ${message}`,
         );
       },
     );
@@ -1179,12 +1257,12 @@ export class RafflesService {
   }
 
   private async notifyWinnerRejection(
-    raffle: any,
+    raffle: RaffleFromFindOne,
     previousWinnerId: string,
     adminId: string,
     reason: string,
-  ) {
-    const notifications: Promise<any>[] = [];
+  ): Promise<void> {
+    const notifications: Promise<unknown>[] = [];
 
     // Notify previous winner
     notifications.push(
@@ -1344,10 +1422,12 @@ export class RafflesService {
       try {
         await this.cancel(raffleId, sellerId);
         results.successCount++;
-      } catch (error: any) {
+      } catch (error: unknown) {
+        const message =
+          error instanceof Error ? error.message : 'Unknown error';
         results.failedCount++;
         results.failedIds.push(raffleId);
-        results.errors.push(`${raffleId}: ${error.message}`);
+        results.errors.push(`${raffleId}: ${message}`);
       }
     }
 
@@ -1370,10 +1450,12 @@ export class RafflesService {
       try {
         await this.extendRaffleDeadline(raffleId, sellerId, newDeadline);
         results.successCount++;
-      } catch (error: any) {
+      } catch (error: unknown) {
+        const message =
+          error instanceof Error ? error.message : 'Unknown error';
         results.failedCount++;
         results.failedIds.push(raffleId);
-        results.errors.push(`${raffleId}: ${error.message}`);
+        results.errors.push(`${raffleId}: ${message}`);
       }
     }
 
@@ -1459,7 +1541,7 @@ export class RafflesService {
 
     // Get raffles user hasn't participated in, prioritizing top categories
     const participatedRaffleIds = new Set(userTickets.map((t) => t.raffleId));
-    const favoritedRaffleIds = new Set(userFavorites.map((f) => f.raffleId));
+    const _favoritedRaffleIds = new Set(userFavorites.map((f) => f.raffleId));
 
     const recommendations = await this.prisma.raffle.findMany({
       where: {
@@ -1581,16 +1663,18 @@ export class RafflesService {
 
     // Notify users who favorited this raffle (async, non-blocking)
     this.notifyPriceDrop(raffleId, raffle.titulo, oldPrice, newPrice).catch(
-      (err) => {
+      (err: unknown) => {
+        const message = err instanceof Error ? err.message : 'Unknown error';
         this.logger.error(
-          `Failed to send price drop notifications: ${err.message}`,
+          `Failed to send price drop notifications: ${message}`,
         );
       },
     );
 
     // Invalidate cache
-    this.invalidateRaffleCache(raffleId).catch((err) => {
-      this.logger.warn(`Cache invalidation failed: ${err.message}`);
+    this.invalidateRaffleCache(raffleId).catch((err: unknown) => {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      this.logger.warn(`Cache invalidation failed: ${message}`);
     });
 
     return updatedRaffle;
@@ -1624,7 +1708,7 @@ export class RafflesService {
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
     const raffleUrl = `${frontendUrl}/raffle/${raffleId}`;
 
-    const notifications: Promise<any>[] = [];
+    const notifications: Promise<unknown>[] = [];
 
     for (const fav of favorites) {
       // In-app notification

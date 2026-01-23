@@ -108,14 +108,18 @@ export class AuthService {
         code: verificationCode,
         expiresInMinutes: VERIFICATION_CODE_EXPIRY_MINUTES,
       })
-      .catch((err) => {
-        this.logger.error(`Failed to send verification email: ${err.message}`);
+      .catch((err: unknown) => {
+        const message = err instanceof Error ? err.message : 'Unknown error';
+        this.logger.error(`Failed to send verification email: ${message}`);
       });
 
     // Log activity
-    this.activityService.logUserRegistered(user.id, 'email').catch((err) => {
-      this.logger.error(`Failed to log registration: ${err.message}`);
-    });
+    this.activityService
+      .logUserRegistered(user.id, 'email')
+      .catch((err: unknown) => {
+        const message = err instanceof Error ? err.message : 'Unknown error';
+        this.logger.error(`Failed to log registration: ${message}`);
+      });
 
     // Return user without tokens - needs verification first
     return {
@@ -202,8 +206,9 @@ export class AuthService {
     }
 
     // Send welcome notifications
-    this.sendWelcomeNotifications(user, referrerName).catch((err) => {
-      this.logger.error(`Failed to send welcome notifications: ${err.message}`);
+    this.sendWelcomeNotifications(user, referrerName).catch((err: unknown) => {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      this.logger.error(`Failed to send welcome notifications: ${message}`);
     });
 
     // Generate tokens
@@ -375,8 +380,9 @@ export class AuthService {
     const refreshToken = await this.createRefreshToken(user.id, undefined, ip);
 
     // Log login activity (non-blocking)
-    this.activityService.logUserLoggedIn(user.id).catch((err) => {
-      this.logger.error(`Failed to log login activity: ${err.message}`);
+    this.activityService.logUserLoggedIn(user.id).catch((err: unknown) => {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      this.logger.error(`Failed to log login activity: ${message}`);
     });
 
     return { token: accessToken, refreshToken, user };

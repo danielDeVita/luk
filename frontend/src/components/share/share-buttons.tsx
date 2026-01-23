@@ -58,13 +58,12 @@ interface ShareButtonsProps {
   description?: string;
 }
 
-export function ShareButtons({ url, title, description = '' }: ShareButtonsProps) {
+export function ShareButtons({ url, title }: Omit<ShareButtonsProps, 'description'>) {
   const [copied, setCopied] = useState(false);
 
   const shareMessage = `Che, mirá esta rifa: "${title}" - Animate a participar, capaz te llevás un premio increíble!`;
   const encodedUrl = encodeURIComponent(url);
   const encodedMessage = encodeURIComponent(shareMessage);
-  const encodedTitle = encodeURIComponent(title);
 
   const shareLinks = [
     {

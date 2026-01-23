@@ -5,7 +5,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
-import { UserRole } from '@prisma/client';
+import { UserRole, User } from '@prisma/client';
 
 @Resolver()
 export class ReportsResolver {
@@ -14,7 +14,7 @@ export class ReportsResolver {
   @Mutation(() => Boolean)
   @UseGuards(JwtAuthGuard)
   async reportRaffle(
-    @CurrentUser() user: any,
+    @CurrentUser() user: User,
     @Args('raffleId') raffleId: string,
     @Args('reason') reason: string,
   ) {

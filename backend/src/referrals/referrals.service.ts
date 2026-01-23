@@ -200,7 +200,7 @@ export class ReferralsService {
         amount: rewardAmount,
         totalBalance: Number(referrer.referralBalance) + rewardAmount,
       })
-      .catch((err) => {
+      .catch((err: Error) => {
         this.logger.error(
           `Failed to send referral reward notification: ${err.message}`,
         );
@@ -213,7 +213,7 @@ export class ReferralsService {
         '💰 ¡Ganaste crédito de referido!',
         `${referee.nombre} hizo su primera compra. Ganaste $${rewardAmount.toFixed(2)} de crédito.`,
       )
-      .catch((err) => {
+      .catch((err: Error) => {
         this.logger.error(
           `Failed to create in-app notification: ${err.message}`,
         );

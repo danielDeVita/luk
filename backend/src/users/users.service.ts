@@ -4,7 +4,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { UserRole, SellerLevel, KycStatus } from '@prisma/client';
+import { UserRole, KycStatus } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { UpdateKycInput, AcceptTermsInput } from './dto/update-user.input';
 import { EncryptionService } from '../common/services/encryption.service';

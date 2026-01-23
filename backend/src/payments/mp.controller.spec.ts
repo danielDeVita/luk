@@ -8,7 +8,7 @@ import { ThrottlerModule } from '@nestjs/throttler';
 
 describe('MpController', () => {
   let controller: MpController;
-  let paymentsService: jest.Mocked<PaymentsService>;
+  let _paymentsService: jest.Mocked<PaymentsService>;
 
   const mockPaymentsService = {
     handleMpWebhook: jest.fn(),
@@ -42,7 +42,7 @@ describe('MpController', () => {
     }).compile();
 
     controller = module.get<MpController>(MpController);
-    paymentsService = module.get(PaymentsService);
+    _paymentsService = module.get(PaymentsService);
   });
 
   describe('POST /mp/webhook', () => {

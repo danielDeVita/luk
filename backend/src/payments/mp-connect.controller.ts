@@ -18,6 +18,13 @@ import { Public } from '../auth/decorators/public.decorator';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 
+interface JwtPayload {
+  sub: string;
+  email?: string;
+  iat?: number;
+  exp?: number;
+}
+
 @Controller('mp/connect')
 export class MpConnectController {
   private readonly logger = new Logger(MpConnectController.name);
@@ -35,11 +42,11 @@ export class MpConnectController {
    */
   @Get()
   @Public() // Public because we handle auth manually to support query param token
-  async startConnect(
+  startConnect(
     @Query('token') tokenParam: string,
     @Req() req: Request,
     @Res() res: Response,
-  ) {
+  ): void {
     const frontendUrl =
       this.configService.get<string>('FRONTEND_URL') || 'http://localhost:3000';
 
@@ -50,7 +57,7 @@ export class MpConnectController {
       // 1. Try query param token (for cross-subdomain deployments)
       if (tokenParam) {
         try {
-          const payload = this.jwtService.verify(tokenParam);
+          const payload = this.jwtService.verify<JwtPayload>(tokenParam);
           userId = payload.sub;
         } catch {
           this.logger.warn('Invalid token in query param');
@@ -60,7 +67,9 @@ export class MpConnectController {
       // 2. Try cookie
       if (!userId && req.cookies?.auth_token) {
         try {
-          const payload = this.jwtService.verify(req.cookies.auth_token);
+          const payload = this.jwtService.verify<JwtPayload>(
+            req.cookies.auth_token as string,
+          );
           userId = payload.sub;
         } catch {
           this.logger.warn('Invalid token in cookie');
@@ -73,7 +82,7 @@ export class MpConnectController {
         if (authHeader?.startsWith('Bearer ')) {
           try {
             const token = authHeader.substring(7);
-            const payload = this.jwtService.verify(token);
+            const payload = this.jwtService.verify<JwtPayload>(token);
             userId = payload.sub;
           } catch {
             this.logger.warn('Invalid token in header');

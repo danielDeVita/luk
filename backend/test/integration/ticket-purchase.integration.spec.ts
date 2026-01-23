@@ -13,6 +13,46 @@ import {
 } from './factories';
 import { TicketStatus } from '@prisma/client';
 
+// GraphQL response types for type safety
+interface GraphQLError {
+  message: string;
+}
+
+interface GraphQLResponse<T> {
+  data?: T;
+  errors?: GraphQLError[];
+}
+
+interface RaffleData {
+  raffle: {
+    id: string;
+    titulo: string;
+    totalTickets: number;
+    precioPorTicket: number;
+    estado: string;
+    ticketsDisponibles: number;
+  };
+}
+
+interface CreateTicketPreferenceData {
+  createTicketPreference: {
+    preferenceId: string;
+    initPoint: string;
+  };
+}
+
+interface MyTicketsData {
+  myTickets: Array<{
+    id: string;
+    numeroTicket: number;
+    estado: string;
+  }>;
+}
+
+interface WebhookResponse {
+  received: boolean;
+}
+
 describe('Ticket Purchase Flow (Integration)', () => {
   let ctx: TestContext;
 
@@ -83,9 +123,10 @@ describe('Ticket Purchase Flow (Integration)', () => {
         });
 
       expect(response.status).toBe(200);
-      expect(response.body.data.raffle).toBeDefined();
-      expect(response.body.data.raffle.id).toBe(raffle.id);
-      expect(response.body.data.raffle.ticketsDisponibles).toBe(100);
+      const result = response.body as GraphQLResponse<RaffleData>;
+      expect(result.data?.raffle).toBeDefined();
+      expect(result.data?.raffle.id).toBe(raffle.id);
+      expect(result.data?.raffle.ticketsDisponibles).toBe(100);
     });
 
     it('should create preference for ticket purchase', async () => {
@@ -111,15 +152,13 @@ describe('Ticket Purchase Flow (Integration)', () => {
 
       // Note: This may fail if MP is not configured, but structure should be correct
       expect(response.status).toBe(200);
+      const result =
+        response.body as GraphQLResponse<CreateTicketPreferenceData>;
 
       // Either succeeds or returns an error about MP config
-      if (response.body.data?.createTicketPreference) {
-        expect(
-          response.body.data.createTicketPreference.preferenceId,
-        ).toBeDefined();
-        expect(
-          response.body.data.createTicketPreference.initPoint,
-        ).toBeDefined();
+      if (result.data?.createTicketPreference) {
+        expect(result.data.createTicketPreference.preferenceId).toBeDefined();
+        expect(result.data.createTicketPreference.initPoint).toBeDefined();
       }
     });
 
@@ -154,7 +193,8 @@ describe('Ticket Purchase Flow (Integration)', () => {
 
       // Webhook should return 200 (MP requirement)
       expect(webhookResponse.status).toBe(200);
-      expect(webhookResponse.body.received).toBe(true);
+      const webhookResult = webhookResponse.body as WebhookResponse;
+      expect(webhookResult.received).toBe(true);
     });
 
     it('should show correct ticket count after purchases', async () => {
@@ -189,8 +229,9 @@ describe('Ticket Purchase Flow (Integration)', () => {
         });
 
       expect(response.status).toBe(200);
-      if (response.body.data?.myTickets) {
-        expect(response.body.data.myTickets.length).toBe(ticketCount);
+      const result = response.body as GraphQLResponse<MyTicketsData>;
+      if (result.data?.myTickets) {
+        expect(result.data.myTickets.length).toBe(ticketCount);
       }
     });
   });
@@ -216,8 +257,10 @@ describe('Ticket Purchase Flow (Integration)', () => {
         });
 
       expect(response.status).toBe(200);
-      expect(response.body.errors).toBeDefined();
-      expect(response.body.errors[0].message).toContain('Unauthorized');
+      const result =
+        response.body as GraphQLResponse<CreateTicketPreferenceData>;
+      expect(result.errors).toBeDefined();
+      expect(result.errors?.[0].message).toContain('Unauthorized');
     });
 
     it('should reject purchase for non-existent raffle', async () => {
@@ -244,7 +287,7 @@ describe('Ticket Purchase Flow (Integration)', () => {
         });
 
       expect(response.status).toBe(200);
-      expect(response.body.errors).toBeDefined();
+      expect((response.body as GraphQLResponse<unknown>).errors).toBeDefined();
     });
 
     it('should reject seller buying own raffle tickets', async () => {

@@ -32,21 +32,21 @@ const WARN_COMPLEXITY = 300;
  * - Queries exceeding MAX_COMPLEXITY are rejected before execution
  */
 export const complexityPlugin: ApolloServerPlugin = {
-  async serverWillStart(): Promise<{
+  serverWillStart(): {
     schemaDidLoadOrUpdate: (schemaContext: GraphQLSchemaContext) => void;
-  }> {
-    let currentSchema: GraphQLSchema;
+  } {
+    let _currentSchema: GraphQLSchema;
 
     return {
       schemaDidLoadOrUpdate({ apiSchema }) {
-        currentSchema = apiSchema;
+        _currentSchema = apiSchema;
       },
     };
   },
 
-  async requestDidStart({ schema }): Promise<GraphQLRequestListener<any>> {
+  requestDidStart({ schema }): GraphQLRequestListener<unknown> {
     return {
-      async didResolveOperation({ request, document }) {
+      didResolveOperation({ request, document }): void {
         const complexity = getComplexity({
           schema,
           operationName: request.operationName,

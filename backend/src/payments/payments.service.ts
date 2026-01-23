@@ -9,6 +9,12 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { MercadoPagoConfig, Preference, Payment } from 'mercadopago';
+import type {
+  PreferenceRequest,
+  PreferenceResponse,
+} from 'mercadopago/dist/clients/preference/commonTypes';
+import type { PaymentResponse } from 'mercadopago/dist/clients/payment/commonTypes';
+import type { Prisma } from '@prisma/client';
 import {
   PLATFORM_FEE_RATE,
   MP_FEE_ESTIMATE_RATE,
@@ -21,6 +27,34 @@ import {
   TicketsPurchasedEvent,
   RaffleCompletedEvent,
 } from '../common/events';
+
+// Extend PreferenceRequest with money_release_days (not in SDK types but supported by MP API)
+interface ExtendedPreferenceRequest extends PreferenceRequest {
+  money_release_days?: number;
+}
+
+// Type guard to check if an error has a message property
+function isErrorWithMessage(error: unknown): error is { message: string } {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'message' in error &&
+    typeof (error as { message: unknown }).message === 'string'
+  );
+}
+
+// Interface for parsed external reference data
+interface ExternalReferenceData {
+  raffleId: string;
+  buyerId: string;
+  cantidad: number;
+  reservationId?: string;
+}
+
+// Interface for MP API error response (used in releaseFundsToSeller)
+interface MpApiErrorResponse {
+  message?: string;
+}
 
 // Default hold period: funds held until manual release or auto-release after delivery
 const DEFAULT_MONEY_RELEASE_DAYS = 30; // Max hold period allowed by MP
@@ -113,8 +147,8 @@ export class PaymentsService {
 
     try {
       // Build preference body with delayed disbursement
-      // money_release_date is not in SDK types but is supported by MP API
-      const preferenceBody = {
+      // money_release_days is not in SDK types but is supported by MP API
+      const preferenceBody: ExtendedPreferenceRequest = {
         items: [
           {
             id: data.raffleId,
@@ -146,8 +180,8 @@ export class PaymentsService {
         money_release_days: DEFAULT_MONEY_RELEASE_DAYS,
       };
 
-      const preferenceResponse = await preference.create({
-        body: preferenceBody as any,
+      const preferenceResponse: PreferenceResponse = await preference.create({
+        body: preferenceBody,
       });
 
       this.logger.log(
@@ -158,8 +192,10 @@ export class PaymentsService {
         initPoint: preferenceResponse.init_point!,
         preferenceId: preferenceResponse.id!,
       };
-    } catch (error: any) {
-      const details = error?.message || 'Mercado Pago preference create failed';
+    } catch (error: unknown) {
+      const details = isErrorWithMessage(error)
+        ? error.message
+        : 'Mercado Pago preference create failed';
       this.logger.error(`MP preference create failed: ${details}`);
       throw new BadRequestException(details);
     }
@@ -223,7 +259,7 @@ export class PaymentsService {
       data: {
         eventId: paymentId,
         eventType: `payment.${paymentData.status}`,
-        metadata: paymentData as any,
+        metadata: paymentData as Prisma.InputJsonValue,
       },
     });
   }
@@ -266,7 +302,7 @@ export class PaymentsService {
           data: {
             eventId: paymentId,
             eventType: `payment.${paymentData.status}`,
-            metadata: paymentData as any,
+            metadata: paymentData as Prisma.InputJsonValue,
           },
         });
 
@@ -297,27 +333,22 @@ export class PaymentsService {
   /**
    * Handles approved payment - confirms tickets and records transaction.
    */
-  async handlePaymentApproved(paymentData: any): Promise<void> {
+  async handlePaymentApproved(paymentData: PaymentResponse): Promise<void> {
     const externalRef = paymentData.external_reference;
     if (!externalRef) {
       this.logger.warn('Payment approved but no external_reference found');
       return;
     }
 
-    let refData: {
-      raffleId: string;
-      buyerId: string;
-      cantidad: number;
-      reservationId?: string;
-    };
+    let refData: ExternalReferenceData;
     try {
-      refData = JSON.parse(externalRef);
+      refData = JSON.parse(externalRef) as ExternalReferenceData;
     } catch {
       this.logger.error(`Failed to parse external_reference: ${externalRef}`);
       return;
     }
 
-    const { raffleId, buyerId, cantidad } = refData;
+    const { raffleId, buyerId, cantidad: _cantidad } = refData;
     const reservationId = refData.reservationId;
     const mpPaymentId = String(paymentData.id);
 
@@ -364,10 +395,17 @@ export class PaymentsService {
       return;
     }
 
-    const totalAmount = Number(paymentData.transaction_amount);
+    const totalAmount = Number(paymentData.transaction_amount ?? 0);
     const platformFee = totalAmount * this.platformFeeRate;
-    const mpFee = Number(paymentData.fee_details?.[0]?.amount || 0);
+    const mpFee = Number(paymentData.fee_details?.[0]?.amount ?? 0);
     const netAmount = totalAmount - platformFee - mpFee;
+
+    const transactionMetadata: Prisma.InputJsonValue = {
+      externalReference: externalRef,
+      reservationId: reservationId ?? null,
+      status: paymentData.status ?? null,
+      statusDetail: paymentData.status_detail ?? null,
+    };
 
     await this.prisma.transaction.create({
       data: {
@@ -380,12 +418,7 @@ export class PaymentsService {
         montoNeto: netAmount,
         mpPaymentId,
         estado: 'COMPLETADO',
-        metadata: {
-          externalReference: externalRef,
-          reservationId: reservationId ?? null,
-          status: paymentData.status ?? null,
-          statusDetail: paymentData.status_detail ?? null,
-        } as any,
+        metadata: transactionMetadata,
       },
     });
 
@@ -451,17 +484,19 @@ export class PaymentsService {
         // Process referral reward if this is the user's first purchase
         this.referralsService
           .processFirstPurchaseReward(buyerId, totalAmount, tickets[0]?.id)
-          .catch((err) => {
-            this.logger.error(
-              `Failed to process referral reward: ${err.message}`,
-            );
+          .catch((err: unknown) => {
+            const errorMsg = isErrorWithMessage(err)
+              ? err.message
+              : 'Unknown error';
+            this.logger.error(`Failed to process referral reward: ${errorMsg}`);
           });
       }
-    } catch (notifError) {
+    } catch (notifError: unknown) {
       // Don't fail payment processing if notifications fail
-      this.logger.error(
-        `Failed to send purchase notifications: ${(notifError as Error).message}`,
-      );
+      const errorMsg = isErrorWithMessage(notifError)
+        ? notifError.message
+        : 'Unknown error';
+      this.logger.error(`Failed to send purchase notifications: ${errorMsg}`);
     }
 
     // Check raffle completion
@@ -616,8 +651,10 @@ export class PaymentsService {
           releasedPayments++;
           this.logger.log(`Released funds for payment ${ticket.mpPaymentId}`);
         } else {
-          const errorData = await response.json().catch(() => ({}));
-          const errorMsg = errorData.message || response.statusText;
+          const errorData = (await response
+            .json()
+            .catch(() => ({}))) as MpApiErrorResponse;
+          const errorMsg: string = errorData.message || response.statusText;
 
           // If already released, count as success
           if (

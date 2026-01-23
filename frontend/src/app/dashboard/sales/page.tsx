@@ -473,8 +473,8 @@ function SalesDashboardContent() {
   }, [isAuthenticated, router]);
 
 
-  // Get data from queries - safe to use here since they're from graphql
-  const raffles = data?.myRafflesAsSeller || [];
+  // Get data from queries - wrapped in useMemo to prevent dependency issues
+  const raffles = useMemo(() => data?.myRafflesAsSeller || [], [data?.myRafflesAsSeller]);
   const stats = statsData?.sellerDashboardStats;
 
   // Chart data (useMemo before any returns)

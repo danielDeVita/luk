@@ -11,6 +11,7 @@ import { complexityPlugin } from './common/plugins/complexity.plugin';
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { SentryInterceptor } from './common/interceptors/sentry.interceptor';
 import { join } from 'path';
+import { Request, Response } from 'express';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { PrismaModule } from './prisma/prisma.module';
@@ -44,6 +45,31 @@ import { CommonModule } from './common/common.module';
 import { CacheModule } from './common/cache';
 // CSRF middleware removed - not needed for JWT-based authentication
 // import { CsrfMiddleware } from './common/middleware';
+
+/** Context passed to GraphQL resolvers */
+interface GqlContext {
+  req: Request;
+  res: Response;
+  [key: string]: unknown;
+}
+
+/** WebSocket connection parameters for subscriptions */
+interface WsConnectionParams {
+  Authorization?: string;
+  authorization?: string;
+}
+
+/** Context passed to WebSocket onConnect handler */
+interface WsConnectionContext {
+  connectionParams?: WsConnectionParams;
+}
+
+/** JWT payload structure */
+interface JwtPayload {
+  sub: string;
+  email: string;
+  role: string;
+}
 
 @Module({
   imports: [
@@ -97,16 +123,18 @@ import { CacheModule } from './common/cache';
             res,
             extra,
           }: {
-            req: any;
-            res: any;
-            extra?: Record<string, any>;
-          }) => ({ req, res, ...(extra || {}) }),
+            req: Request;
+            res: Response;
+            extra?: Record<string, unknown>;
+          }): GqlContext => ({ req, res, ...(extra || {}) }),
           subscriptions: {
             'graphql-ws': {
-              onConnect: async (ctx: any) => {
+              onConnect: (
+                ctx: WsConnectionContext,
+              ): Record<string, unknown> => {
                 const raw =
-                  ctx?.connectionParams?.Authorization ??
-                  ctx?.connectionParams?.authorization ??
+                  ctx.connectionParams?.Authorization ??
+                  ctx.connectionParams?.authorization ??
                   '';
                 const token =
                   typeof raw === 'string' ? raw.replace(/^Bearer\s+/i, '') : '';
@@ -114,7 +142,7 @@ import { CacheModule } from './common/cache';
                 if (!token) return {};
 
                 try {
-                  const payload: any = jwtService.verify(token, {
+                  const payload = jwtService.verify<JwtPayload>(token, {
                     secret: config.getOrThrow<string>('JWT_SECRET'),
                   });
                   return {

@@ -47,11 +47,13 @@ export class LoginThrottlerGuard implements CanActivate {
 
     if (type === 'graphql') {
       const gqlCtx = GqlExecutionContext.create(context);
-      const req = gqlCtx.getContext().req;
-      return this.getIpFromRequest(req);
+      const gqlContext = gqlCtx.getContext<{
+        req: Record<string, unknown>;
+      }>();
+      return this.getIpFromRequest(gqlContext.req);
     }
 
-    const req = context.switchToHttp().getRequest();
+    const req = context.switchToHttp().getRequest<Record<string, unknown>>();
     return this.getIpFromRequest(req);
   }
 

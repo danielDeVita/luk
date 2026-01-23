@@ -1,18 +1,27 @@
 import { Resolver, Query, Mutation, Args, Subscription } from '@nestjs/graphql';
-import { UseGuards } from '@nestjs/common';
+import { UseGuards, Inject } from '@nestjs/common';
 import { NotificationsService } from './notifications.service';
 import { Notification } from './entities/notification.entity';
 import { GqlAuthGuard } from '../auth/guards/gql-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { User } from '../users/entities/user.entity';
-import { Inject } from '@nestjs/common';
-import { PubSub } from 'graphql-subscriptions';
+import { PubSubEngine } from 'graphql-subscriptions';
+
+// Type definitions for subscription payload and context
+interface NotificationPayload {
+  notificationAdded: Notification & { userId: string };
+}
+
+interface SubscriptionContext {
+  user?: { id: string };
+  req?: { user?: { id: string } };
+}
 
 @Resolver(() => Notification)
 export class NotificationsResolver {
   constructor(
     private readonly notificationsService: NotificationsService,
-    @Inject('PUB_SUB') private readonly pubSub: PubSub,
+    @Inject('PUB_SUB') private readonly pubSub: PubSubEngine,
   ) {}
 
   @Query(() => [Notification])
@@ -44,13 +53,19 @@ export class NotificationsResolver {
 
   @Subscription(() => Notification, {
     name: 'notificationAdded',
-    filter: (payload: any, _variables: any, context: any) => {
+    filter: (
+      payload: NotificationPayload,
+      _variables: Record<string, unknown>,
+      context: SubscriptionContext,
+    ) => {
       const userId = context?.user?.id ?? context?.req?.user?.id;
       return !!userId && payload?.notificationAdded?.userId === userId;
     },
-    resolve: (payload: any) => payload.notificationAdded,
+    resolve: (payload: NotificationPayload) => payload.notificationAdded,
   })
-  notificationAdded() {
-    return (this.pubSub as any).asyncIterator('notificationAdded');
+  notificationAdded(): AsyncIterableIterator<NotificationPayload> {
+    return this.pubSub.asyncIterableIterator<NotificationPayload>(
+      'notificationAdded',
+    );
   }
 }

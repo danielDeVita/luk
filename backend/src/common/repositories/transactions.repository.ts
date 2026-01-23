@@ -120,7 +120,7 @@ export class TransactionsRepository extends BaseRepository<
     raffleId: string;
     monto: number;
     mpPaymentId?: string;
-    metadata?: any;
+    metadata?: Prisma.JsonValue;
   }): Promise<Transaction> {
     return this.prisma.transaction.create({
       data: {

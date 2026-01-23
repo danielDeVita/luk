@@ -1,6 +1,5 @@
 import { Field, InputType, Int, Float } from '@nestjs/graphql';
 import {
-  IsNotEmpty,
   IsPositive,
   Min,
   Max,
@@ -15,11 +14,9 @@ import {
   ArrayMinSize,
   ArrayMaxSize,
   ValidateNested,
-  IsUUID,
 } from 'class-validator';
 import { Type } from 'class-transformer';
-import { ProductCondition, RaffleStatus } from '../../common/enums';
-import { RaffleSort } from '../../common/enums';
+import { ProductCondition } from '../../common/enums';
 import { IsAfter } from '../../common/validators/is-after.validator';
 import GraphQLJSON from 'graphql-type-json';
 
@@ -60,7 +57,7 @@ export class ProductInput {
 
   @Field(() => GraphQLJSON, { nullable: true })
   @IsOptional()
-  especificacionesTecnicas?: Record<string, any>;
+  especificacionesTecnicas?: Record<string, unknown>;
 }
 
 @InputType()

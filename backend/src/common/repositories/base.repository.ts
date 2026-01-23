@@ -26,17 +26,20 @@ export interface PaginatedResult<T> {
 /**
  * Generic type for Prisma model delegates.
  * This allows us to work with any Prisma model generically.
+ *
+ * The generic parameter T represents the entity type returned by this delegate.
+ * We use unknown for args since the specific argument types vary by model.
  */
-type PrismaDelegate = {
-  findUnique: (args: any) => Promise<any>;
-  findFirst: (args: any) => Promise<any>;
-  findMany: (args: any) => Promise<any[]>;
-  create: (args: any) => Promise<any>;
-  update: (args: any) => Promise<any>;
-  delete: (args: any) => Promise<any>;
-  count: (args: any) => Promise<number>;
-  upsert: (args: any) => Promise<any>;
-};
+interface PrismaDelegate<T> {
+  findUnique: (args: unknown) => Promise<T | null>;
+  findFirst: (args: unknown) => Promise<T | null>;
+  findMany: (args: unknown) => Promise<T[]>;
+  create: (args: unknown) => Promise<T>;
+  update: (args: unknown) => Promise<T>;
+  delete: (args: unknown) => Promise<T>;
+  count: (args: unknown) => Promise<number>;
+  upsert: (args: unknown) => Promise<T>;
+}
 
 /**
  * Abstract base repository providing common CRUD operations.
@@ -56,13 +59,13 @@ type PrismaDelegate = {
  */
 export abstract class BaseRepository<
   T,
-  CreateInput = any,
-  UpdateInput = any,
-  WhereInput = any,
-  OrderByInput = any,
-  IncludeInput = any,
+  CreateInput extends object = object,
+  UpdateInput extends object = object,
+  WhereInput extends object = object,
+  OrderByInput extends object = object,
+  IncludeInput extends object = object,
 > {
-  protected abstract get delegate(): PrismaDelegate;
+  protected abstract get delegate(): PrismaDelegate<T>;
 
   constructor(protected readonly prisma: PrismaService) {}
 

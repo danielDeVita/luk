@@ -18,6 +18,79 @@ import { PaymentsService } from './payments.service';
 import { Public } from '../auth/decorators/public.decorator';
 import { verifyWebhookSignature } from './utils/webhook-signature.util';
 
+/**
+ * Mercado Pago webhook payload structure.
+ * MP sends various formats depending on the notification type.
+ */
+interface MpWebhookPayload {
+  id?: string | number;
+  type?: string;
+  topic?: string;
+  action?: string;
+  data?: {
+    id?: string | number;
+  };
+}
+
+/**
+ * Type guard to check if the payload has a nested data.id
+ */
+function hasDataId(
+  payload: unknown,
+): payload is { data: { id: string | number } } {
+  return (
+    typeof payload === 'object' &&
+    payload !== null &&
+    'data' in payload &&
+    typeof (payload as Record<string, unknown>).data === 'object' &&
+    (payload as Record<string, unknown>).data !== null &&
+    'id' in
+      ((payload as Record<string, unknown>).data as Record<string, unknown>)
+  );
+}
+
+/**
+ * Type guard to check if the payload has a top-level id
+ */
+function hasTopLevelId(payload: unknown): payload is { id: string | number } {
+  return (
+    typeof payload === 'object' &&
+    payload !== null &&
+    'id' in payload &&
+    (typeof (payload as Record<string, unknown>).id === 'string' ||
+      typeof (payload as Record<string, unknown>).id === 'number')
+  );
+}
+
+/**
+ * Extract event ID from webhook payload using type guards
+ */
+function extractEventId(payload: unknown): string | number | undefined {
+  if (hasDataId(payload)) {
+    return payload.data.id;
+  }
+  if (hasTopLevelId(payload)) {
+    return payload.id;
+  }
+  return undefined;
+}
+
+/**
+ * Extract event type from webhook payload
+ */
+function extractEventType(payload: MpWebhookPayload): string | undefined {
+  if (typeof payload.type === 'string') {
+    return payload.type;
+  }
+  if (typeof payload.topic === 'string') {
+    return payload.topic;
+  }
+  if (typeof payload.action === 'string') {
+    return payload.action.split('.')[0];
+  }
+  return undefined;
+}
+
 @Controller('mp')
 export class MpController {
   private readonly logger = new Logger(MpController.name);
@@ -35,18 +108,13 @@ export class MpController {
   @Post('webhook')
   @Public()
   async handleWebhook(
-    @Body() body: any,
+    @Body() body: MpWebhookPayload,
     @Headers('x-signature') xSignature: string | undefined,
     @Headers('x-request-id') xRequestId: string | undefined,
     @Res() res: Response,
   ) {
-    const eventId = body?.data?.id ?? body?.id;
-    const eventType =
-      body?.type ??
-      body?.topic ??
-      (typeof body?.action === 'string'
-        ? body.action.split('.')[0]
-        : undefined);
+    const eventId = extractEventId(body);
+    const eventType = extractEventType(body);
 
     this.logger.log(
       `Received MP webhook: type=${eventType ?? 'unknown'} id=${eventId ?? 'unknown'}`,

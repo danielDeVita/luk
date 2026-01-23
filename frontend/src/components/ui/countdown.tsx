@@ -63,7 +63,6 @@ export function Countdown({
     setTimeLeft(initialTimeLeft);
 
     if (initialTimeLeft.total <= 0) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setIsComplete(true);
       onComplete?.();
       return;

@@ -1,5 +1,12 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma, Dispute, DisputeStatus, DisputeType } from '@prisma/client';
+import {
+  Prisma,
+  Dispute,
+  DisputeStatus,
+  DisputeType,
+  Raffle,
+  User,
+} from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { BaseRepository } from './base.repository';
 
@@ -7,8 +14,8 @@ import { BaseRepository } from './base.repository';
  * Dispute with common relations.
  */
 export type DisputeWithRelations = Dispute & {
-  raffle?: any;
-  reporter?: any;
+  raffle?: Raffle;
+  reporter?: User;
 };
 
 /**

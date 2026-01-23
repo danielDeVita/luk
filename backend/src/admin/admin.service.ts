@@ -348,7 +348,7 @@ export class AdminService {
   // ==================== KYC Management ====================
 
   async getPendingKycSubmissions(limit = 50, offset = 0) {
-    const where = { kycStatus: 'PENDING_REVIEW' as any, isDeleted: false };
+    const where = { kycStatus: 'PENDING_REVIEW' as const, isDeleted: false };
 
     const [users, total] = await Promise.all([
       this.prisma.user.findMany({

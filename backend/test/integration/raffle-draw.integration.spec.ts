@@ -14,6 +14,40 @@ import {
 } from './factories';
 import { RaffleStatus, TicketStatus } from '@prisma/client';
 
+// GraphQL response types for type safety
+interface GraphQLError {
+  message: string;
+}
+
+interface GraphQLResponse<T> {
+  data?: T;
+  errors?: GraphQLError[];
+}
+
+interface RaffleData {
+  raffle: {
+    id: string;
+    estado: string;
+    ticketsDisponibles: number;
+  };
+}
+
+interface DrawWinnerData {
+  drawWinner: {
+    id: string;
+    estado: string;
+    winner: {
+      id: string;
+      nombre: string;
+    };
+    drawResult: {
+      winningTicketId: string;
+      method: string;
+      totalParticipants: number;
+    };
+  };
+}
+
 describe('Raffle Draw Flow (Integration)', () => {
   let ctx: TestContext;
 
@@ -92,8 +126,9 @@ describe('Raffle Draw Flow (Integration)', () => {
         });
 
       expect(response.status).toBe(200);
-      expect(response.body.data.raffle.estado).toBe('COMPLETADA');
-      expect(response.body.data.raffle.ticketsDisponibles).toBe(0);
+      const result = response.body as GraphQLResponse<RaffleData>;
+      expect(result.data?.raffle.estado).toBe('COMPLETADA');
+      expect(result.data?.raffle.ticketsDisponibles).toBe(0);
     });
 
     it('should allow seller to draw winner', async () => {
@@ -124,21 +159,22 @@ describe('Raffle Draw Flow (Integration)', () => {
         });
 
       expect(response.status).toBe(200);
+      const result = response.body as GraphQLResponse<DrawWinnerData>;
 
-      if (response.body.data?.drawWinner) {
-        const result = response.body.data.drawWinner;
-        expect(result.estado).toBe('SORTEADA');
-        expect(result.winner).toBeDefined();
-        expect(result.winner.id).toBeDefined();
-        expect(result.drawResult).toBeDefined();
-        expect(result.drawResult.totalParticipants).toBe(5); // 5 unique buyers
+      if (result.data?.drawWinner) {
+        const drawResult = result.data.drawWinner;
+        expect(drawResult.estado).toBe('SORTEADA');
+        expect(drawResult.winner).toBeDefined();
+        expect(drawResult.winner.id).toBeDefined();
+        expect(drawResult.drawResult).toBeDefined();
+        expect(drawResult.drawResult.totalParticipants).toBe(5); // 5 unique buyers
 
         // Verify winner is one of the buyers
         const winnerIds = buyers.map((b) => b.id);
-        expect(winnerIds).toContain(result.winner.id);
-      } else if (response.body.errors) {
+        expect(winnerIds).toContain(drawResult.winner.id);
+      } else if (result.errors) {
         // May error if business logic prevents draw
-        console.log('Draw error:', response.body.errors[0].message);
+        console.log('Draw error:', result.errors[0].message);
       }
     });
 
@@ -208,7 +244,10 @@ describe('Raffle Draw Flow (Integration)', () => {
         });
 
       expect(response.status).toBe(200);
-      expect(response.body.errors).toBeDefined();
+      const result = response.body as GraphQLResponse<{
+        drawWinner: { id: string };
+      }>;
+      expect(result.errors).toBeDefined();
     });
 
     it('should reject draw by non-seller', async () => {
@@ -243,7 +282,10 @@ describe('Raffle Draw Flow (Integration)', () => {
         });
 
       expect(response.status).toBe(200);
-      expect(response.body.errors).toBeDefined();
+      const result = response.body as GraphQLResponse<{
+        drawWinner: { id: string };
+      }>;
+      expect(result.errors).toBeDefined();
     });
 
     it('should reject duplicate draws', async () => {
@@ -272,7 +314,10 @@ describe('Raffle Draw Flow (Integration)', () => {
         });
 
       expect(response.status).toBe(200);
-      expect(response.body.errors).toBeDefined();
+      const result = response.body as GraphQLResponse<{
+        drawWinner: { id: string };
+      }>;
+      expect(result.errors).toBeDefined();
     });
   });
 });

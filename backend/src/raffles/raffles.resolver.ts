@@ -31,7 +31,22 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { User } from '../users/entities/user.entity';
 import { PaginationInput } from '../common/dto/pagination.input';
-import { UserRole } from '@prisma/client';
+import {
+  UserRole,
+  Raffle as PrismaRaffle,
+  Ticket as PrismaTicket,
+} from '@prisma/client';
+import { Decimal } from '@prisma/client/runtime/library';
+
+// Type for raffle with tickets from Prisma (used in pagination transform)
+type RaffleWithTickets = PrismaRaffle & {
+  tickets?: PrismaTicket[];
+};
+
+// Type for raffle data passed to resolve fields (may include tickets relation)
+type RaffleWithOptionalTickets = PrismaRaffle & {
+  tickets?: Array<{ estado: string }>;
+};
 
 @Resolver(() => Raffle)
 export class RafflesResolver {
@@ -66,11 +81,14 @@ export class RafflesResolver {
     const totalPages = Math.ceil(result.total / result.limit);
 
     // Transform Decimal to number for ticket prices (Prisma returns Decimal, GraphQL expects number)
-    const items = result.raffles.map((raffle: any) => ({
+    const items = result.raffles.map((raffle: RaffleWithTickets) => ({
       ...raffle,
-      tickets: raffle.tickets?.map((ticket: any) => ({
+      tickets: raffle.tickets?.map((ticket: PrismaTicket) => ({
         ...ticket,
-        precioPagado: Number(ticket.precioPagado),
+        precioPagado:
+          ticket.precioPagado instanceof Decimal
+            ? Number(ticket.precioPagado)
+            : ticket.precioPagado,
       })),
     })) as Raffle[];
 
@@ -180,17 +198,17 @@ export class RafflesResolver {
   }
 
   @ResolveField(() => Int)
-  ticketsVendidos(@Parent() raffle: any) {
+  ticketsVendidos(@Parent() raffle: RaffleWithOptionalTickets) {
     return this.rafflesService.getTicketStats(raffle).ticketsVendidos;
   }
 
   @ResolveField(() => Int)
-  ticketsDisponibles(@Parent() raffle: any) {
+  ticketsDisponibles(@Parent() raffle: RaffleWithOptionalTickets) {
     return this.rafflesService.getTicketStats(raffle).ticketsDisponibles;
   }
 
   @ResolveField(() => Int)
-  maxTicketsPorUsuario(@Parent() raffle: any) {
+  maxTicketsPorUsuario(@Parent() raffle: RaffleWithOptionalTickets) {
     return this.rafflesService.getTicketStats(raffle).maxTicketsPorUsuario;
   }
 
@@ -246,7 +264,7 @@ export class RafflesResolver {
 
   @Query(() => [Raffle])
   @UseGuards(GqlAuthGuard)
-  async recommendedRaffles(
+  recommendedRaffles(
     @CurrentUser() user: User,
     @Args('limit', { type: () => Int, nullable: true, defaultValue: 6 })
     limit: number,
@@ -254,12 +272,12 @@ export class RafflesResolver {
     return this.rafflesService.getRecommendedRaffles(
       user.id,
       limit,
-    ) as unknown as Raffle[];
+    ) as unknown as Promise<Raffle[]>;
   }
 
   @Query(() => [Raffle])
   @UseGuards(GqlAuthGuard)
-  async favoritesEndingSoon(
+  favoritesEndingSoon(
     @CurrentUser() user: User,
     @Args('hoursThreshold', {
       type: () => Int,
@@ -271,24 +289,22 @@ export class RafflesResolver {
     return this.rafflesService.getFavoritesEndingSoon(
       user.id,
       hoursThreshold,
-    ) as unknown as Raffle[];
+    ) as unknown as Promise<Raffle[]>;
   }
 
   // ==================== PRICE ALERTS ====================
 
   @Public()
   @Query(() => [PriceHistory])
-  async priceHistory(
-    @Args('raffleId') raffleId: string,
-  ): Promise<PriceHistory[]> {
-    return this.rafflesService.getPriceHistory(
-      raffleId,
-    ) as unknown as PriceHistory[];
+  priceHistory(@Args('raffleId') raffleId: string): Promise<PriceHistory[]> {
+    return this.rafflesService.getPriceHistory(raffleId) as unknown as Promise<
+      PriceHistory[]
+    >;
   }
 
   @Mutation(() => Raffle)
   @UseGuards(GqlAuthGuard)
-  async updateRafflePrice(
+  updateRafflePrice(
     @CurrentUser() user: User,
     @Args('raffleId') raffleId: string,
     @Args('newPrice', { type: () => Number }) newPrice: number,

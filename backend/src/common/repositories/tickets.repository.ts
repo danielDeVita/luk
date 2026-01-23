@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma, Ticket, TicketStatus } from '@prisma/client';
+import { Prisma, Ticket, TicketStatus, User, Raffle } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { BaseRepository } from './base.repository';
 
@@ -7,8 +7,8 @@ import { BaseRepository } from './base.repository';
  * Ticket with common relations.
  */
 export type TicketWithRelations = Ticket & {
-  buyer?: any;
-  raffle?: any;
+  buyer?: User;
+  raffle?: Raffle;
 };
 
 /**

@@ -7,6 +7,62 @@ import {
 import { GqlExecutionContext } from '@nestjs/graphql';
 import { Observable, tap } from 'rxjs';
 import * as Sentry from '@sentry/node';
+import { Request } from 'express';
+
+/**
+ * Type definitions for GraphQL info object
+ */
+interface GraphQLParentType {
+  name?: string;
+}
+
+interface GraphQLPath {
+  key: string | number;
+  prev?: GraphQLPath;
+  typename?: string;
+}
+
+interface GraphQLInfo {
+  fieldName?: string;
+  parentType?: GraphQLParentType;
+  path?: GraphQLPath;
+}
+
+/**
+ * Type for authenticated user attached to request
+ */
+interface AuthenticatedUser {
+  id: string;
+  email: string;
+}
+
+/**
+ * Type guard to check if a value is an AuthenticatedUser
+ */
+function isAuthenticatedUser(value: unknown): value is AuthenticatedUser {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'id' in value &&
+    'email' in value &&
+    typeof (value as AuthenticatedUser).id === 'string' &&
+    typeof (value as AuthenticatedUser).email === 'string'
+  );
+}
+
+/**
+ * Type for HTTP request with optional user
+ */
+interface AuthenticatedRequest extends Request {
+  user?: AuthenticatedUser;
+}
+
+/**
+ * Type for GraphQL context
+ */
+interface GqlContext {
+  req?: AuthenticatedRequest;
+}
 
 /**
  * Sentry Interceptor for NestJS
@@ -38,14 +94,18 @@ export class SentryInterceptor implements NestInterceptor {
     next: CallHandler,
   ): Observable<unknown> {
     const gqlContext = GqlExecutionContext.create(context);
-    const info = gqlContext.getInfo();
-    const req = gqlContext.getContext().req;
+    const info = gqlContext.getInfo<GraphQLInfo>();
+    const gqlCtx = gqlContext.getContext<GqlContext>();
+    const req = gqlCtx.req;
     const user = req?.user;
+
+    const fieldName = info?.fieldName ?? 'unknown';
+    const parentTypeName = info?.parentType?.name ?? 'unknown';
 
     // Set Sentry context
     Sentry.withScope((scope) => {
       // User context
-      if (user) {
+      if (isAuthenticatedUser(user)) {
         scope.setUser({
           id: user.id,
           email: user.email,
@@ -54,24 +114,24 @@ export class SentryInterceptor implements NestInterceptor {
 
       // GraphQL operation context
       scope.setContext('graphql', {
-        operationName: info?.fieldName,
-        operationType: info?.parentType?.name,
+        operationName: fieldName,
+        operationType: parentTypeName,
         path: info?.path,
       });
 
       // Add operation as a tag for filtering
-      scope.setTag('graphql.operation', info?.fieldName || 'unknown');
-      scope.setTag('graphql.type', info?.parentType?.name || 'unknown');
+      scope.setTag('graphql.operation', fieldName);
+      scope.setTag('graphql.type', parentTypeName);
     });
 
     return next.handle().pipe(
       tap({
-        error: (error) => {
+        error: (error: unknown) => {
           // Only capture 5xx-like errors
           if (this.shouldCaptureError(error)) {
             Sentry.captureException(error, {
               extra: {
-                operationName: info?.fieldName,
+                operationName: fieldName,
                 variables: gqlContext.getArgs(),
               },
             });
@@ -85,11 +145,16 @@ export class SentryInterceptor implements NestInterceptor {
     context: ExecutionContext,
     next: CallHandler,
   ): Observable<unknown> {
-    const request = context.switchToHttp().getRequest();
+    const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
     const user = request.user;
 
+    const method = request.method;
+    const url = request.url;
+    const userAgent = request.headers['user-agent'];
+    const body: unknown = request.body;
+
     Sentry.withScope((scope) => {
-      if (user) {
+      if (isAuthenticatedUser(user)) {
         scope.setUser({
           id: user.id,
           email: user.email,
@@ -97,23 +162,23 @@ export class SentryInterceptor implements NestInterceptor {
       }
 
       scope.setContext('http', {
-        method: request.method,
-        url: request.url,
+        method,
+        url,
         headers: {
-          'user-agent': request.headers['user-agent'],
+          'user-agent': userAgent,
         },
       });
     });
 
     return next.handle().pipe(
       tap({
-        error: (error) => {
+        error: (error: unknown) => {
           if (this.shouldCaptureError(error)) {
             Sentry.captureException(error, {
               extra: {
-                url: request.url,
-                method: request.method,
-                body: request.body,
+                url,
+                method,
+                body,
               },
             });
           }

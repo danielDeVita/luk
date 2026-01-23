@@ -6,6 +6,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import { Prisma, DisputeStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   OpenDisputeInput,
@@ -20,6 +21,14 @@ import {
   DisputeOpenedEvent,
   DisputeResolvedEvent,
 } from '../common/events';
+
+// Type for raffle with included relations needed for dispute refund processing
+type RaffleWithTicketsAndWinner = Prisma.RaffleGetPayload<{
+  include: {
+    tickets: true;
+    winner: true;
+  };
+}>;
 
 @Injectable()
 export class DisputesService {
@@ -175,7 +184,7 @@ export class DisputesService {
     disputeId: string,
     input: ResolveDisputeInput,
   ) {
-    const dispute = await this.findOne(disputeId);
+    await this.findOne(disputeId); // Verify dispute exists
 
     const validStatuses = [
       'RESUELTA_COMPRADOR',
@@ -326,21 +335,24 @@ export class DisputesService {
     });
   }
 
-  private async processDisputeRefund(raffle: any, amount: number) {
+  private async processDisputeRefund(
+    raffle: RaffleWithTicketsAndWinner,
+    amount: number,
+  ) {
     // Find tickets to refund
-    const tickets = raffle.tickets?.filter(
-      (t: any) => t.estado === 'PAGADO' && t.mpPaymentId,
+    const tickets = raffle.tickets.filter(
+      (t) => t.estado === 'PAGADO' && t.mpPaymentId,
     );
 
-    if (!tickets || tickets.length === 0) {
+    if (tickets.length === 0) {
       this.logger.warn(
         `No paid tickets found for raffle ${raffle.id} to refund`,
       );
       return;
     }
 
-    // Calculate proportional refund per ticket
-    const refundPerTicket = amount / tickets.length;
+    // Calculate proportional refund per ticket (for future use in partial refunds)
+    const _refundPerTicket = amount / tickets.length;
 
     for (const ticket of tickets) {
       try {
@@ -348,7 +360,7 @@ export class DisputesService {
         if (ticket.mpPaymentId) {
           await this.paymentsService.refundPayment(ticket.mpPaymentId);
         }
-      } catch (error) {
+      } catch (error: unknown) {
         const message =
           error instanceof Error ? error.message : 'Unknown error';
         this.logger.error(`Failed to refund ticket ${ticket.id}: ${message}`);
@@ -409,7 +421,9 @@ export class DisputesService {
   }
 
   async findAll(estado?: string, page = 1, limit = 10) {
-    const where = estado ? { estado: estado as any } : {};
+    const where: Prisma.DisputeWhereInput = estado
+      ? { estado: estado as DisputeStatus }
+      : {};
 
     const [disputes, total] = await Promise.all([
       this.prisma.dispute.findMany({

@@ -6,7 +6,14 @@ import {
   Logger,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { Request } from 'express';
 import Stripe from 'stripe';
+
+// Extend Request to include rawBody and stripeEvent
+interface StripeWebhookRequest extends Request {
+  rawBody?: Buffer;
+  stripeEvent?: Stripe.Event;
+}
 
 @Injectable()
 export class StripeWebhookGuard implements CanActivate {
@@ -22,8 +29,8 @@ export class StripeWebhookGuard implements CanActivate {
       this.configService.get<string>('STRIPE_WEBHOOK_SECRET') || '';
   }
 
-  async canActivate(context: ExecutionContext): Promise<boolean> {
-    const request = context.switchToHttp().getRequest();
+  canActivate(context: ExecutionContext): boolean {
+    const request = context.switchToHttp().getRequest<StripeWebhookRequest>();
     const signature = request.headers['stripe-signature'];
 
     if (!signature) {

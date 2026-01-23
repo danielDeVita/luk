@@ -14,6 +14,10 @@ interface MpTokenResponse {
   public_key: string;
 }
 
+interface MpErrorResponse {
+  message?: string;
+}
+
 @Injectable()
 export class MpConnectService {
   private readonly logger = new Logger(MpConnectService.name);
@@ -135,7 +139,9 @@ export class MpConnectService {
     });
 
     if (!response.ok) {
-      const error = await response.json().catch(() => ({}));
+      const error = (await response
+        .json()
+        .catch(() => ({}))) as MpErrorResponse;
       this.logger.error(`MP token exchange failed: ${JSON.stringify(error)}`);
       throw new BadRequestException(
         error.message ||
@@ -143,7 +149,7 @@ export class MpConnectService {
       );
     }
 
-    const tokens: MpTokenResponse = await response.json();
+    const tokens = (await response.json()) as MpTokenResponse;
 
     // Update user with MP credentials (encrypt sensitive tokens)
     await this.prisma.user.update({
@@ -214,7 +220,7 @@ export class MpConnectService {
       return false;
     }
 
-    const tokens: MpTokenResponse = await response.json();
+    const tokens = (await response.json()) as MpTokenResponse;
 
     // Encrypt new tokens before storing
     await this.prisma.user.update({

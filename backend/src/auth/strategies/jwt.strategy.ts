@@ -2,6 +2,7 @@ import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
+import { Request } from 'express';
 import { PrismaService } from '../../prisma/prisma.service';
 import { UserRole } from '@prisma/client';
 
@@ -9,6 +10,11 @@ export interface JwtPayload {
   sub: string;
   email: string;
   role: UserRole;
+}
+
+// Extend Request to include cookies property
+interface RequestWithCookies extends Request {
+  cookies?: Record<string, string>;
 }
 
 @Injectable()
@@ -20,15 +26,14 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     // Extract JWT from httpOnly cookie first, then fall back to Authorization header
     const jwtFromRequest = ExtractJwt.fromExtractors([
       // 1. Try to extract from httpOnly cookie (new secure method)
-      (req: any) => {
+      (req: RequestWithCookies): string | null => {
         const token = req?.cookies?.auth_token;
         if (token) return token;
         return null;
       },
       // 2. Fall back to Authorization header (for backwards compatibility)
-      (req: any) => {
-        const authHeader =
-          req?.headers?.authorization ?? req?.headers?.Authorization;
+      (req: Request): string | null => {
+        const authHeader = req?.headers?.authorization;
         if (typeof authHeader !== 'string') return null;
         return authHeader.replace(/^Bearer\s+/i, '');
       },
