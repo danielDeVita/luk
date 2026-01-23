@@ -136,19 +136,28 @@ const errorLink = onError(({ graphQLErrors, networkError, operation, forward }: 
 
       handleRefresh().then((success) => {
         if (success) {
-          // Token was refreshed (new cookie set by backend)
-          // Retry the request - cookies will be sent automatically
+          // Token was refreshed - retry the request with new token
+          // The authLink will pick up the new token from the store
           forward(operation).subscribe({
             next: observer.next.bind(observer),
             error: observer.error.bind(observer),
             complete: observer.complete.bind(observer),
           });
         } else {
-          // Refresh failed - redirect to login
+          // Refresh failed - clear auth state and redirect to login
+          // Don't call observer.error() to avoid showing error modal before redirect
+          // Clear state directly (don't use async logout which makes a network call)
+          useAuthStore.setState({
+            user: null,
+            token: null,
+            refreshToken: null,
+            isAuthenticated: false,
+          });
           if (!window.location.pathname.includes('/auth')) {
             window.location.href = '/auth/login';
           }
-          observer.error(new Error('Session expired'));
+          // Complete the observable without error to prevent error toasts
+          observer.complete();
         }
       });
     });
