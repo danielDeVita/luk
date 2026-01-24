@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, Suspense } from 'react';
+import { useEffect, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuthStore } from '@/store/auth';
 import { useQuery } from '@apollo/client/react';
@@ -33,36 +33,49 @@ function CallbackContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const setAuth = useAuthStore((state) => state.setAuth);
+  const storeToken = useAuthStore((state) => state.token);
+  const tokensProcessedRef = useRef(false);
 
   const successParam = searchParams.get('success');
   const errorParam = searchParams.get('error');
   const tokenParam = searchParams.get('token');
   const refreshTokenParam = searchParams.get('refreshToken');
 
-  // Store tokens from URL first (for cross-subdomain where cookies are blocked)
+  // Store tokens from URL synchronously on mount (for cross-subdomain where cookies are blocked)
+  // Using ref to track processing and avoid re-runs - no setState in effect needed
+  if (tokenParam && !tokensProcessedRef.current) {
+    tokensProcessedRef.current = true;
+    // Store tokens synchronously before render completes
+    useAuthStore.setState({ token: tokenParam, refreshToken: refreshTokenParam });
+  }
+
+  // Clear tokens from URL for security (after initial render)
   useEffect(() => {
-    if (tokenParam) {
-      // Tokens are passed in URL, store them in auth store
-      // This enables Authorization header for subsequent requests
-      useAuthStore.setState({ token: tokenParam, refreshToken: refreshTokenParam });
-      // Clear tokens from URL for security
+    if (tokensProcessedRef.current && tokenParam) {
       window.history.replaceState({}, '', '/auth/callback?success=true');
     }
-  }, [tokenParam, refreshTokenParam]);
+  }, [tokenParam]);
+
+  // Check if we have a valid token (either just stored or from persisted state)
+  const hasToken = Boolean(storeToken || tokenParam);
 
   // Query user data - will use Authorization header from stored token
   const { data, error, loading } = useQuery<MeQueryResult>(ME_QUERY, {
-    skip: successParam !== 'true' || !tokenParam,
+    skip: !hasToken,
     fetchPolicy: 'network-only',
   });
 
   // Handle successful auth
   useEffect(() => {
-    if (data?.me && tokenParam) {
-      setAuth(data.me, tokenParam, refreshTokenParam || undefined);
-      router.replace('/');
+    if (data?.me) {
+      const storedToken = useAuthStore.getState().token;
+      const storedRefreshToken = useAuthStore.getState().refreshToken;
+      if (storedToken) {
+        setAuth(data.me, storedToken, storedRefreshToken || undefined);
+        router.replace('/');
+      }
     }
-  }, [data, setAuth, router, tokenParam, refreshTokenParam]);
+  }, [data, setAuth, router]);
 
   // Handle query error
   useEffect(() => {
