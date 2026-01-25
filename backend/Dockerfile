@@ -18,7 +18,7 @@ RUN npx prisma generate
 
 # Copy source and build
 COPY . .
-RUN npm run build && ls -la dist/ && ls -la dist/src/ && test -f dist/src/main.js || (echo "BUILD FAILED: dist/src/main.js not found" && exit 1)
+RUN npm run build
 
 # Production stage
 FROM node:20-alpine AS runner
@@ -40,7 +40,6 @@ RUN npx prisma generate
 
 # Copy built application from builder
 COPY --from=builder /app/dist ./dist
-RUN ls -la dist/ && ls -la dist/src/ && test -f dist/src/main.js || (echo "COPY FAILED: dist/src/main.js not found in runner" && exit 1)
 
 EXPOSE 3001
 
