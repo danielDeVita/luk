@@ -44,4 +44,4 @@ COPY --from=builder /app/dist ./dist
 EXPOSE 3001
 
 # Sync schema and start the app
-CMD ["sh", "-c", "npx prisma db push --skip-generate && ls -la dist/ && node dist/src/main.js"]
+CMD ["sh", "-c", "npx prisma db push --skip-generate && ls -la dist/ && node dist/main.js"]
