@@ -18,7 +18,7 @@ RUN npx prisma generate
 
 # Copy source and build
 COPY . .
-RUN npm run build
+RUN npm run build && ls -la dist/ && test -f dist/main.js || (echo "BUILD FAILED: dist/main.js not found" && exit 1)
 
 # Production stage
 FROM node:20-alpine AS runner
@@ -33,15 +33,16 @@ COPY package*.json ./
 COPY prisma ./prisma/
 
 # Install only production dependencies
-RUN npm ci --only=production
+RUN npm ci --omit=dev
 
 # Generate Prisma client for production
 RUN npx prisma generate
 
 # Copy built application from builder
 COPY --from=builder /app/dist ./dist
+RUN ls -la dist/ && test -f dist/main.js || (echo "COPY FAILED: dist/main.js not found in runner" && exit 1)
 
 EXPOSE 3001
 
 # Sync schema and start the app
-CMD ["sh", "-c", "npx prisma db push --skip-generate && node dist/src/main.js"]
+CMD ["sh", "-c", "npx prisma db push --skip-generate && node dist/main.js"]
