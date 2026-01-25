@@ -67,8 +67,8 @@ export class NotificationsService {
     if (this.isProduction) {
       this.transporter = nodemailer.createTransport({
         host: this.configService.get<string>('SMTP_HOST') || 'smtp.gmail.com',
-        port: parseInt(this.configService.get<string>('SMTP_PORT') || '465'),
-        secure: this.configService.get<string>('SMTP_SECURE') === 'true', // true for 465, false for other ports
+        // port: parseInt(this.configService.get<string>('SMTP_PORT') || '465'),
+        //  secure: this.configService.get<string>('SMTP_SECURE') === 'true', // true for 465, false for other ports
         auth: {
           user: smtpUser,
           pass: smtpPass,

@@ -78,6 +78,8 @@ type AuditLog {
 }
 
 type AuthPayload {
+  """Refresh token for cross-subdomain deployments"""
+  refreshToken: String
   token: String
   user: User!
 }
@@ -485,6 +487,18 @@ type PriceHistory {
   raffleId: String!
 }
 
+type PriceReduction {
+  aceptada: Boolean
+  fechaRespuesta: DateTime
+  id: ID!
+  porcentajeReduccion: Float!
+  precioAnterior: Float!
+  precioSugerido: Float!
+  raffleId: String!
+  raffleTitulo: String
+  ticketsVendidosAlMomento: Float!
+}
+
 type Product {
   categoria: String
   condicion: ProductCondition!
@@ -544,6 +558,7 @@ type Query {
   conversation(id: String!): Conversation!
   dispute(id: String!): Dispute!
   favoritesEndingSoon(hoursThreshold: Int = 48): [Raffle!]!
+  getPriceReduction(priceReductionId: String!): PriceReduction
   getReports(raffleId: String, reviewed: Boolean): String!
   isFavorite(raffleId: String!): Boolean!
   me: User!
@@ -732,8 +747,8 @@ input RelaunchRaffleInput {
   """Override suggested price (optional)"""
   customPrice: Float
 
-  """Days until draw deadline (default: 30)"""
-  daysUntilDraw: Float
+  """Draw deadline date (ISO string). Defaults to 30 days from now."""
+  fechaLimite: String
 
   """ID of the cancelled raffle to relaunch"""
   originalRaffleId: ID!
@@ -861,7 +876,7 @@ input UpdateProfileInput {
 
 input UpdateRaffleInput {
   descripcion: String
-  fechaLimite: String
+  imagenes: [String!]
   titulo: String
 }
 
