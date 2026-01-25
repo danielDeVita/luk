@@ -1,6 +1,6 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import * as nodemailer from 'nodemailer';
+import * as Brevo from '@getbrevo/brevo';
 import { PubSub } from 'graphql-subscriptions';
 import { PrismaService } from '../prisma/prisma.service';
 import {
@@ -36,13 +36,13 @@ interface EmailOptions {
 
 /**
  * NotificationsService - Handles all email communications
- * Uses Nodemailer (Gmail/SMTP) for email delivery
+ * Uses Brevo (formerly Sendinblue) for email delivery via HTTP API
  */
 
 @Injectable()
 export class NotificationsService {
   private readonly logger = new Logger(NotificationsService.name);
-  private readonly transporter: nodemailer.Transporter | null;
+  private readonly brevoApi: Brevo.TransactionalEmailsApi | null;
   private readonly fromEmail: string;
   private readonly fromName: string;
   private readonly isProduction: boolean;
@@ -58,28 +58,21 @@ export class NotificationsService {
       this.configService.get<string>('EMAIL_FROM_NAME') ||
       'Plataforma de Rifas';
 
-    // Check if we have SMTP credentials
-    const smtpUser = this.configService.get<string>('SMTP_USER');
-    const smtpPass = this.configService.get<string>('SMTP_PASS');
+    // Check if we have Brevo API key
+    const brevoApiKey = this.configService.get<string>('BREVO_API_KEY');
 
-    this.isProduction = !!smtpUser && !!smtpPass && smtpUser !== 'mock';
+    this.isProduction = !!brevoApiKey && brevoApiKey !== 'mock';
 
-    if (this.isProduction) {
-      this.transporter = nodemailer.createTransport({
-        host: this.configService.get<string>('SMTP_HOST') || 'smtp.gmail.com',
-        // port: parseInt(this.configService.get<string>('SMTP_PORT') || '465'),
-        //  secure: this.configService.get<string>('SMTP_SECURE') === 'true', // true for 465, false for other ports
-        auth: {
-          user: smtpUser,
-          pass: smtpPass,
-        },
-      });
-      this.logger.log('✅ Nodemailer service initialized');
-    } else {
-      this.transporter = null;
-      this.logger.warn(
-        '⚠️ Email service in MOCK mode (no SMTP_USER/SMTP_PASS)',
+    if (this.isProduction && brevoApiKey) {
+      this.brevoApi = new Brevo.TransactionalEmailsApi();
+      this.brevoApi.setApiKey(
+        Brevo.TransactionalEmailsApiApiKeys.apiKey,
+        brevoApiKey,
       );
+      this.logger.log('✅ Brevo email service initialized');
+    } else {
+      this.brevoApi = null;
+      this.logger.warn('⚠️ Email service in MOCK mode (no BREVO_API_KEY)');
     }
   }
 
@@ -126,19 +119,18 @@ export class NotificationsService {
   // ==================== Core Email Method ====================
 
   private async sendEmail(options: EmailOptions): Promise<boolean> {
-    const from = `"${this.fromName}" <${this.fromEmail}>`;
-
-    if (this.transporter && this.isProduction) {
+    if (this.brevoApi && this.isProduction) {
       try {
-        const info = await this.transporter.sendMail({
-          from,
-          to: options.to,
-          subject: options.subject,
-          html: options.html,
-        });
+        const sendSmtpEmail = new Brevo.SendSmtpEmail();
+        sendSmtpEmail.sender = { name: this.fromName, email: this.fromEmail };
+        sendSmtpEmail.to = [{ email: options.to }];
+        sendSmtpEmail.subject = options.subject;
+        sendSmtpEmail.htmlContent = options.html;
+
+        const result = await this.brevoApi.sendTransacEmail(sendSmtpEmail);
 
         this.logger.log(
-          `📧 Email sent: ${options.subject} -> ${options.to} (ID: ${info.messageId})`,
+          `📧 Email sent: ${options.subject} -> ${options.to} (ID: ${result.body.messageId})`,
         );
         return true;
       } catch (error) {
