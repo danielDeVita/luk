@@ -74,13 +74,30 @@ export class EnvironmentVariables {
   @IsOptional()
   CLOUDINARY_UPLOAD_PRESET: string = 'raffle_images';
 
-  // Email (Resend) - Critical
+  // Email (Nodemailer) - Critical
   @IsString()
-  RESEND_API_KEY!: string;
+  @IsOptional()
+  SMTP_HOST: string = 'smtp.gmail.com';
+
+  @IsNumber()
+  @IsOptional()
+  SMTP_PORT: number = 465;
 
   @IsString()
   @IsOptional()
-  EMAIL_FROM: string = 'rifas@tudominio.com';
+  SMTP_USER!: string; // Make optional if you want to allow full mock mode without these, but typically 'mock' string is used
+
+  @IsString()
+  @IsOptional()
+  SMTP_PASS!: string;
+
+  @IsBoolean()
+  @IsOptional()
+  SMTP_SECURE: boolean = true;
+
+  @IsString()
+  @IsOptional()
+  EMAIL_FROM: string = 'danielitodevita@gmail.com';
 
   @IsString()
   @IsOptional()

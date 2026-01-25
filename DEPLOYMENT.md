@@ -260,8 +260,9 @@ Use [UptimeRobot](https://uptimerobot.com) (free) to ping your services every 14
 
 | Variable | Description |
 |----------|-------------|
-| `GOOGLE_CLIENT_ID` | Google OAuth login |
-| `GOOGLE_CLIENT_SECRET` | Google OAuth login |
+| `GOOGLE_CLIENT_ID` | Google OAuth Client ID (from Google Cloud Console) |
+| `GOOGLE_CLIENT_SECRET` | Google OAuth Client Secret |
+| `GOOGLE_CALLBACK_URL` | Callback URL for OAuth (e.g., `https://your-backend.onrender.com/auth/google/callback`) |
 | `SENTRY_DSN` | Error tracking |
 | `REDIS_URL` | Caching (falls back to in-memory) |
 

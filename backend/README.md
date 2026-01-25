@@ -91,7 +91,25 @@ MP_CLIENT_ID="..."           # For MP Connect OAuth
 MP_CLIENT_SECRET="..."       # For MP Connect OAuth
 BACKEND_URL="http://localhost:3001"
 FRONTEND_URL="http://localhost:3000"
+
+# Google OAuth (optional)
+GOOGLE_CLIENT_ID="xxx.apps.googleusercontent.com"
+GOOGLE_CLIENT_SECRET="GOCSPX-xxx"
+GOOGLE_CALLBACK_URL="http://localhost:3001/auth/google/callback"
 ```
+
+### Google OAuth Setup
+
+To enable Google login:
+1. Go to [Google Cloud Console](https://console.cloud.google.com) → APIs & Services → Credentials
+2. Create OAuth 2.0 Client ID (Web application)
+3. Add redirect URI: `http://localhost:3001/auth/google/callback` (or production URL)
+4. Copy Client ID and Secret to `.env`
+5. In OAuth consent screen, add your email as Test user (required while app is in Testing mode)
+
+On startup, check logs for:
+- `✅ Google OAuth configured` - Success
+- `⚠️ Google OAuth NOT configured` - Missing credentials
 
 ## API Endpoints
 
@@ -460,3 +478,12 @@ npx prisma db push --force-reset
 # Check circular dependency issues
 # Use forwardRef pattern (see Module Dependencies above)
 ```
+
+### Google OAuth 401 invalid_client
+This error means OAuth credentials are misconfigured in Google Cloud Console:
+1. Verify redirect URI matches `GOOGLE_CALLBACK_URL` exactly (including http vs https)
+2. Ensure Client ID and Secret are correct
+3. If app is in "Testing" mode, add your email as a Test user
+4. Check credentials haven't been deleted or regenerated
+
+See [DEPLOYMENT.md](../DEPLOYMENT.md) Step 5.5 for full setup guide.

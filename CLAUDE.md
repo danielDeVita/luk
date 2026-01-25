@@ -365,6 +365,11 @@ CLOUDINARY_API_KEY="..."
 CLOUDINARY_API_SECRET="..."
 ENCRYPTION_KEY="64-hex-chars" # For PII encryption
 
+# Google OAuth (optional)
+GOOGLE_CLIENT_ID="xxx.apps.googleusercontent.com"
+GOOGLE_CLIENT_SECRET="GOCSPX-xxx"
+GOOGLE_CALLBACK_URL="http://localhost:3001/auth/google/callback"  # Use production URL for Render
+
 # URLs
 FRONTEND_URL="http://localhost:3000"
 BACKEND_URL="http://localhost:3001"
@@ -574,6 +579,37 @@ Brave Shields or AdBlock blocking MP scripts. Use Chrome without extensions.
 1. Check `BACKEND_URL` is public (use ngrok)
 2. Tunnel may have expired (restart ngrok)
 3. Workaround: Visit `/checkout/status?payment_id=XXX` to sync
+
+### Google OAuth 401 invalid_client
+This error means Google OAuth credentials are misconfigured.
+
+**Verify in [Google Cloud Console](https://console.cloud.google.com):**
+1. **OAuth consent screen** (APIs & Services → OAuth consent screen):
+   - If app is in "Testing" status, add your email as a **Test user**
+   - Check consent screen is configured (app name, support email)
+
+2. **OAuth credentials** (APIs & Services → Credentials):
+   - Find your OAuth 2.0 Client ID
+   - Verify **Authorized redirect URIs** includes:
+     - Local: `http://localhost:3001/auth/google/callback`
+     - Production: `https://your-backend.onrender.com/auth/google/callback`
+   - Verify Client Secret matches `.env`
+
+3. **If credentials are broken**, create new ones:
+   - APIs & Services → Credentials → Create Credentials → OAuth client ID
+   - Application type: Web application
+   - Add redirect URIs as above
+   - Copy new Client ID and Secret to `.env`
+
+**Check backend logs on startup:**
+- `✅ Google OAuth configured` - Credentials loaded
+- `⚠️ Google OAuth NOT configured` - Missing `GOOGLE_CLIENT_ID` or `GOOGLE_CLIENT_SECRET`
+
+### Google OAuth callback stuck on "Completando inicio de sesión"
+The callback page completed loading but didn't redirect home. This could mean:
+1. Token storage failed - Check browser console for errors
+2. Backend returned invalid tokens - Check backend logs
+3. Apollo query failed - Check network tab for GraphQL errors
 
 ### TypeScript errors after pulling
 ```bash
