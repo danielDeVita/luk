@@ -2,9 +2,7 @@
 
 GraphQL API built with NestJS, Prisma, and PostgreSQL.
 
-> **Full documentation**: See [CLAUDE.md](../CLAUDE.md) for business flows, database models, enums, and complete API reference.
->
-> **All commands**: See [COMMANDS.md](../COMMANDS.md) for Docker, testing, and development commands.
+> **Full documentation**: See [CLAUDE.md](../CLAUDE.md) for business flows, database models, and complete setup guide.
 
 ## Quick Start (Docker - Recommended)
 
@@ -48,7 +46,7 @@ npm run start:dev
 | `tickets/` | Ticket reservation and purchase |
 | `payments/` | Mercado Pago integration + MP Connect OAuth |
 | `disputes/` | Buyer protection system |
-| `notifications/` | Email (Resend) + in-app notifications |
+| `notifications/` | Email (Brevo) + in-app notifications |
 | `uploads/` | Cloudinary upload signatures |
 | `admin/` | Admin panel, user management, bulk dispute resolution, stats |
 | `categories/` | Raffle categories management |
@@ -149,13 +147,12 @@ When webhooks fail (no tunnel), the frontend calls `/mp/sync-payment/:paymentId`
 
 ## Email Notifications
 
-Emails are sent using [Resend](https://resend.com).
+Emails are sent using [Brevo](https://brevo.com) via HTTP API (works on cloud platforms like Render).
 
 ### Styling
 - **Source**: Email styles are defined inline within `src/notifications/notifications.service.ts`.
 - **Palette**: Colors match the frontend `globals.css` (Teal/Amber/Warm White).
 - **Fonts**: Emails use `DM Sans` (Body) and `Fraunces` (Headings) loaded via Google Fonts.
-- **Templates**: The `wrapEmailTemplate` method provides the common header/footer wrapper.
 
 ## Seller Dashboard & Buyer Experience
 
@@ -382,7 +379,7 @@ mutation { bulkResolveDisputes(disputeIds: ["..."], resolution: RESUELTA_COMPRAD
 | RafflesService | `src/raffles/raffles.service.ts` | Core raffle CRUD, seller dashboard, buyer experience, price history |
 | PaymentsService | `src/payments/payments.service.ts` | MP Checkout Pro, webhooks, payment sync |
 | MpConnectService | `src/payments/mp-connect.service.ts` | OAuth flow with PKCE for seller onboarding |
-| NotificationsService | `src/notifications/notifications.service.ts` | Email (Resend) + in-app notifications + verification emails |
+| NotificationsService | `src/notifications/notifications.service.ts` | Email (Brevo) + in-app notifications + verification emails |
 | ActivityService | `src/activity/activity.service.ts` | Audit logging for all actions |
 | AdminService | `src/admin/admin.service.ts` | Admin-only operations |
 | DisputesService | `src/disputes/disputes.service.ts` | Buyer protection workflow |
@@ -460,7 +457,7 @@ const preference = await this.mercadopago.preferences.create({
 | `MP_PUBLIC_KEY` | Mercado Pago public key |
 | `MP_CLIENT_ID` | MP OAuth Client ID (for MP Connect) |
 | `MP_CLIENT_SECRET` | MP OAuth Client Secret |
-| `RESEND_API_KEY` | Resend email API key |
+| `BREVO_API_KEY` | Brevo email API key (must be REST API key `xkeysib-...`, not SMTP key) |
 | `CLOUDINARY_*` | Cloudinary credentials |
 | `FRONTEND_URL` | Frontend URL for redirects |
 | `BACKEND_URL` | Backend URL for webhooks |
@@ -486,4 +483,4 @@ This error means OAuth credentials are misconfigured in Google Cloud Console:
 3. If app is in "Testing" mode, add your email as a Test user
 4. Check credentials haven't been deleted or regenerated
 
-See [DEPLOYMENT.md](../DEPLOYMENT.md) Step 5.5 for full setup guide.
+See CLAUDE.md Troubleshooting section for Google OAuth setup guide.
