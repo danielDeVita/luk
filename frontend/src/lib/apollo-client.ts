@@ -8,6 +8,33 @@ import { useAuthStore } from '@/store/auth';
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
 const GRAPHQL_URL = process.env.NEXT_PUBLIC_GRAPHQL_URL || 'http://localhost:3001/graphql';
 
+// Token expiry buffer - refresh 2 minutes before expiry
+const TOKEN_REFRESH_BUFFER_MS = 2 * 60 * 1000;
+
+/**
+ * Decode JWT payload without verification (just to check expiry)
+ */
+const decodeJwtPayload = (token: string): { exp?: number } | null => {
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return null;
+    const payload = JSON.parse(atob(parts[1]));
+    return payload;
+  } catch {
+    return null;
+  }
+};
+
+/**
+ * Check if token is expired or about to expire
+ */
+const isTokenExpiringSoon = (token: string): boolean => {
+  const payload = decodeJwtPayload(token);
+  if (!payload?.exp) return true; // If can't decode, treat as expired
+  const expiryTime = payload.exp * 1000; // Convert to milliseconds
+  return Date.now() >= expiryTime - TOKEN_REFRESH_BUFFER_MS;
+};
+
 // Track if we're currently refreshing to prevent multiple refresh calls
 let isRefreshing = false;
 let pendingRequests: (() => void)[] = [];
@@ -52,9 +79,28 @@ const refreshToken = async (): Promise<boolean> => {
 
 // Auth link - adds Authorization header from localStorage token
 // (httpOnly cookies don't work with third-party cookie blocking on different subdomains)
-const authLink = setContext((_, { headers }) => {
+// Also proactively refreshes token if it's about to expire
+const authLink = setContext(async (_, { headers }) => {
   // Get token from Zustand store (works outside React components)
-  const token = useAuthStore.getState().token;
+  let token = useAuthStore.getState().token;
+  const storedRefreshToken = useAuthStore.getState().refreshToken;
+
+  // Proactively refresh if token is about to expire
+  if (token && storedRefreshToken && isTokenExpiringSoon(token)) {
+    // Try to refresh before the request
+    if (!isRefreshing) {
+      isRefreshing = true;
+      try {
+        const success = await refreshToken();
+        if (success) {
+          token = useAuthStore.getState().token; // Get the new token
+        }
+      } finally {
+        isRefreshing = false;
+        resolvePendingRequests();
+      }
+    }
+  }
 
   return {
     headers: {
@@ -107,10 +153,21 @@ const errorLink = onError(({ graphQLErrors, networkError, operation, forward }: 
     });
   }
 
-  // Check for authentication errors
+  // Check for authentication errors (JWT expired, invalid token, unauthorized)
   const isAuthError = graphQLErrors?.some(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (err: any) => err.extensions?.code === 'UNAUTHENTICATED' || err.message?.includes('Unauthorized')
+    (err: any) => {
+      const code = err.extensions?.code;
+      const message = err.message?.toLowerCase() || '';
+      return (
+        code === 'UNAUTHENTICATED' ||
+        message.includes('unauthorized') ||
+        message.includes('jwt expired') ||
+        message.includes('invalid token') ||
+        message.includes('jwt malformed') ||
+        message.includes('no authorization')
+      );
+    }
   ) || (networkError?.statusCode === 401);
 
   if (isAuthError && typeof window !== 'undefined') {
