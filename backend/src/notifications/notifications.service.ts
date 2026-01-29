@@ -4,14 +4,19 @@ import * as Brevo from '@getbrevo/brevo';
 import { PubSub } from 'graphql-subscriptions';
 import { PrismaService } from '../prisma/prisma.service';
 import {
+  getAdminNewKycSubmissionContent,
   getDeliveryReminderToWinnerContent,
   getDisputeOpenedToBuyerContent,
   getDisputeOpenedToSellerContent,
   getDisputeResolvedNotificationContent,
   getEmailVerificationCodeContent,
+  getKycApprovedContent,
+  getKycRejectedContent,
+  getNewQuestionNotificationContent,
   getPaymentWillBeReleasedNotificationContent,
   getPriceDropAlertContent,
   getPriceReductionSuggestionContent,
+  getQuestionAnsweredNotificationContent,
   getRaffleCancelledNotificationContent,
   getRaffleCompletedNotificationContent,
   getRaffleParticipantNotificationContent,
@@ -21,6 +26,7 @@ import {
   getSellerMustContactWinnerContent,
   getSellerMustRespondDisputeContent,
   getSellerPaymentNotificationContent,
+  getSellerTicketPurchasedContent,
   getStripeConnectSuccessNotificationContent,
   getTicketPurchaseConfirmationContent,
   getWelcomeEmailContent,
@@ -458,6 +464,105 @@ export class NotificationsService {
     return this.sendEmail({
       to: email,
       subject: '¡Bienvenido! Fuiste invitado por un amigo',
+      html,
+    });
+  }
+
+  // ==================== KYC Notifications ====================
+
+  async sendAdminNewKycSubmission(
+    email: string,
+    data: { userName: string; userEmail: string; submittedAt: Date },
+  ) {
+    const html = getAdminNewKycSubmissionContent(data, this.configService);
+    return this.sendEmail({
+      to: email,
+      subject: '📋 Nueva solicitud de KYC pendiente de revisión',
+      html,
+    });
+  }
+
+  async sendKycApprovedNotification(email: string, data: { userName: string }) {
+    const html = getKycApprovedContent(data, this.configService);
+    return this.sendEmail({
+      to: email,
+      subject: '✅ ¡Tu verificación KYC fue aprobada!',
+      html,
+    });
+  }
+
+  async sendKycRejectedNotification(
+    email: string,
+    data: { userName: string; rejectionReason: string },
+  ) {
+    const html = getKycRejectedContent(data, this.configService);
+    return this.sendEmail({
+      to: email,
+      subject: '❌ Tu verificación KYC necesita correcciones',
+      html,
+    });
+  }
+
+  // ==================== Question Notifications ====================
+
+  async sendNewQuestionNotification(
+    email: string,
+    data: {
+      sellerName: string;
+      raffleName: string;
+      questionContent: string;
+      askerName: string;
+      raffleId: string;
+    },
+  ) {
+    const html = getNewQuestionNotificationContent(data, this.configService);
+    return this.sendEmail({
+      to: email,
+      subject: `💬 Nueva pregunta en "${data.raffleName}"`,
+      html,
+    });
+  }
+
+  async sendQuestionAnsweredNotification(
+    email: string,
+    data: {
+      buyerName: string;
+      raffleName: string;
+      questionContent: string;
+      answerContent: string;
+      sellerName: string;
+      raffleId: string;
+    },
+  ) {
+    const html = getQuestionAnsweredNotificationContent(
+      data,
+      this.configService,
+    );
+    return this.sendEmail({
+      to: email,
+      subject: `✅ Tu pregunta en "${data.raffleName}" fue respondida`,
+      html,
+    });
+  }
+
+  // ==================== Seller Ticket Purchase Notification ====================
+
+  async sendSellerTicketPurchasedNotification(
+    email: string,
+    data: {
+      sellerName: string;
+      raffleName: string;
+      ticketCount: number;
+      amount: number;
+      soldTickets: number;
+      totalTickets: number;
+      raffleId: string;
+    },
+  ) {
+    const html = getSellerTicketPurchasedContent(data, this.configService);
+    return this.sendEmail({
+      to: email,
+      subject: `🎉 ¡Nueva venta! ${data.ticketCount} ticket(s) en "${data.raffleName}"`,
       html,
     });
   }

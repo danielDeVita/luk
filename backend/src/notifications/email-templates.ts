@@ -685,3 +685,240 @@ export const getWelcomeWithReferralBonusEmailContent = (
     buttonUrl: frontendUrl,
   });
 };
+
+// ==================== KYC Notifications ====================
+
+export const getAdminNewKycSubmissionContent = (
+  data: { userName: string; userEmail: string; submittedAt: Date },
+  configService: ConfigService,
+) => {
+  const frontendUrl = getFrontendUrl(configService);
+  const formattedDate = data.submittedAt.toLocaleDateString('es-AR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+  const content = `
+    <h2 style="color: #D97706; font-family: 'Fraunces', serif; font-size: 24px; font-weight: 700; margin: 0 0 16px 0;">
+      Nueva solicitud de KYC 📋
+    </h2>
+    <p style="color: #4B5563; font-size: 15px; line-height: 1.6; margin: 0 0 24px 0;">
+      Un usuario ha enviado su documentación de verificación de identidad para revisión.
+    </p>
+    <div style="background: #FFFBEB; border: 1px solid #FEF3C7; border-radius: 12px; padding: 24px; margin: 24px 0;">
+      <table width="100%" cellpadding="0" cellspacing="0">
+        <tr>
+          <td style="color: #92400E; font-size: 14px; padding-bottom: 12px;"><strong>Usuario:</strong></td>
+          <td align="right" style="color: #1E293B; font-size: 14px; padding-bottom: 12px;">${data.userName}</td>
+        </tr>
+        <tr>
+          <td style="color: #92400E; font-size: 14px; padding-bottom: 12px;"><strong>Email:</strong></td>
+          <td align="right" style="color: #1E293B; font-size: 14px; padding-bottom: 12px;">${data.userEmail}</td>
+        </tr>
+        <tr>
+          <td style="color: #92400E; font-size: 14px;"><strong>Fecha de envío:</strong></td>
+          <td align="right" style="color: #1E293B; font-size: 14px;">${formattedDate}</td>
+        </tr>
+      </table>
+    </div>
+    <p style="color: #6B7280; font-size: 14px; line-height: 1.6;">
+      Por favor, revisá la documentación y aprobá o rechazá la solicitud.
+    </p>
+  `;
+  return wrapEmailTemplate(content, configService, {
+    showButton: true,
+    buttonText: 'Revisar KYC',
+    buttonUrl: `${frontendUrl}/admin?tab=kyc`,
+  });
+};
+
+export const getKycApprovedContent = (
+  data: { userName: string },
+  configService: ConfigService,
+) => {
+  const frontendUrl = getFrontendUrl(configService);
+  const content = `
+    <div style="background: linear-gradient(135deg, #10B981, #059669); border-radius: 12px; padding: 32px; text-align: center; margin-bottom: 24px;">
+      <h2 style="color: white; font-family: 'Fraunces', serif; font-size: 28px; font-weight: 800; margin: 0;">✅ ¡KYC APROBADO!</h2>
+    </div>
+    <p style="color: #4B5563; font-size: 15px; line-height: 1.6; margin: 0 0 20px 0;">
+      ¡Felicitaciones, ${data.userName}! Tu verificación de identidad ha sido aprobada exitosamente.
+    </p>
+    <div style="background: #F0FDFA; border: 1px solid #99F6E4; border-radius: 12px; padding: 20px; margin: 24px 0;">
+      <p style="color: #0F766E; font-size: 14px; font-weight: 600; margin: 0 0 12px 0;">Ahora podés:</p>
+      <ul style="color: #0F766E; font-size: 14px; margin: 0; padding-left: 20px; line-height: 1.8;">
+        <li>Crear y publicar rifas en la plataforma</li>
+        <li>Recibir pagos de tus ventas</li>
+        <li>Acceder a todas las funcionalidades de vendedor</li>
+      </ul>
+    </div>
+    <p style="color: #6B7280; font-size: 14px; line-height: 1.6;">
+      Si aún no conectaste tu cuenta de Mercado Pago, hacelo desde la configuración para poder recibir tus pagos.
+    </p>
+  `;
+  return wrapEmailTemplate(content, configService, {
+    showButton: true,
+    buttonText: 'Ir a Configuración',
+    buttonUrl: `${frontendUrl}/dashboard/settings?tab=verificacion`,
+  });
+};
+
+export const getKycRejectedContent = (
+  data: { userName: string; rejectionReason: string },
+  configService: ConfigService,
+) => {
+  const frontendUrl = getFrontendUrl(configService);
+  const content = `
+    <h2 style="color: #EF4444; font-family: 'Fraunces', serif; font-size: 24px; font-weight: 700; margin: 0 0 16px 0;">
+      KYC Rechazado ❌
+    </h2>
+    <p style="color: #4B5563; font-size: 15px; line-height: 1.6; margin: 0 0 20px 0;">
+      Hola ${data.userName}, lamentamos informarte que tu verificación de identidad no pudo ser aprobada.
+    </p>
+    <div style="background: #FEF2F2; border: 1px solid #FECACA; border-radius: 12px; padding: 24px; margin: 24px 0;">
+      <p style="color: #B91C1C; font-size: 14px; margin: 0 0 8px 0;"><strong>Motivo del rechazo:</strong></p>
+      <p style="color: #1E293B; font-size: 15px; margin: 0;">${data.rejectionReason}</p>
+    </div>
+    <p style="color: #4B5563; font-size: 15px; line-height: 1.6; margin: 0 0 20px 0;">
+      Podés corregir los datos y volver a enviar tu documentación desde la configuración de tu cuenta.
+    </p>
+    <p style="color: #6B7280; font-size: 14px; line-height: 1.6;">
+      Si tenés dudas, no dudes en contactarnos.
+    </p>
+  `;
+  return wrapEmailTemplate(content, configService, {
+    showButton: true,
+    buttonText: 'Volver a Enviar KYC',
+    buttonUrl: `${frontendUrl}/dashboard/settings?tab=verificacion`,
+  });
+};
+
+// ==================== Question Notifications ====================
+
+export const getNewQuestionNotificationContent = (
+  data: {
+    sellerName: string;
+    raffleName: string;
+    questionContent: string;
+    askerName: string;
+    raffleId: string;
+  },
+  configService: ConfigService,
+) => {
+  const frontendUrl = getFrontendUrl(configService);
+  const content = `
+    <h2 style="color: #0F766E; font-family: 'Fraunces', serif; font-size: 24px; font-weight: 700; margin: 0 0 16px 0;">
+      Nueva pregunta en tu rifa 💬
+    </h2>
+    <p style="color: #4B5563; font-size: 15px; line-height: 1.6; margin: 0 0 20px 0;">
+      Hola ${data.sellerName}, <strong>${data.askerName}</strong> hizo una pregunta en tu rifa "<strong>${data.raffleName}</strong>".
+    </p>
+    <div style="background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 12px; padding: 24px; margin: 24px 0;">
+      <p style="color: #64748B; font-size: 12px; text-transform: uppercase; margin: 0 0 8px 0;">Pregunta:</p>
+      <p style="color: #1E293B; font-size: 16px; font-style: italic; margin: 0;">"${data.questionContent}"</p>
+    </div>
+    <p style="color: #6B7280; font-size: 14px; line-height: 1.6;">
+      Respondé rápido para aumentar las posibilidades de venta. Las respuestas rápidas generan más confianza.
+    </p>
+  `;
+  return wrapEmailTemplate(content, configService, {
+    showButton: true,
+    buttonText: 'Responder Pregunta',
+    buttonUrl: `${frontendUrl}/raffle/${data.raffleId}`,
+  });
+};
+
+export const getQuestionAnsweredNotificationContent = (
+  data: {
+    buyerName: string;
+    raffleName: string;
+    questionContent: string;
+    answerContent: string;
+    sellerName: string;
+    raffleId: string;
+  },
+  configService: ConfigService,
+) => {
+  const frontendUrl = getFrontendUrl(configService);
+  const content = `
+    <h2 style="color: #0F766E; font-family: 'Fraunces', serif; font-size: 24px; font-weight: 700; margin: 0 0 16px 0;">
+      Tu pregunta fue respondida ✅
+    </h2>
+    <p style="color: #4B5563; font-size: 15px; line-height: 1.6; margin: 0 0 20px 0;">
+      Hola ${data.buyerName}, <strong>${data.sellerName}</strong> respondió tu pregunta en la rifa "<strong>${data.raffleName}</strong>".
+    </p>
+    <div style="background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 12px; padding: 24px; margin: 24px 0;">
+      <p style="color: #64748B; font-size: 12px; text-transform: uppercase; margin: 0 0 8px 0;">Tu pregunta:</p>
+      <p style="color: #6B7280; font-size: 14px; font-style: italic; margin: 0 0 16px 0;">"${data.questionContent}"</p>
+      <div style="border-top: 1px solid #E2E8F0; padding-top: 16px;">
+        <p style="color: #64748B; font-size: 12px; text-transform: uppercase; margin: 0 0 8px 0;">Respuesta:</p>
+        <p style="color: #1E293B; font-size: 16px; margin: 0;">"${data.answerContent}"</p>
+      </div>
+    </div>
+  `;
+  return wrapEmailTemplate(content, configService, {
+    showButton: true,
+    buttonText: 'Ver Rifa',
+    buttonUrl: `${frontendUrl}/raffle/${data.raffleId}`,
+  });
+};
+
+// ==================== Seller Ticket Purchase Notification ====================
+
+export const getSellerTicketPurchasedContent = (
+  data: {
+    sellerName: string;
+    raffleName: string;
+    ticketCount: number;
+    amount: number;
+    soldTickets: number;
+    totalTickets: number;
+    raffleId: string;
+  },
+  configService: ConfigService,
+) => {
+  const frontendUrl = getFrontendUrl(configService);
+  const progressPercent = Math.round(
+    (data.soldTickets / data.totalTickets) * 100,
+  );
+  const content = `
+    <h2 style="color: #10B981; font-family: 'Fraunces', serif; font-size: 24px; font-weight: 700; margin: 0 0 16px 0;">
+      ¡Nueva venta! 🎉
+    </h2>
+    <p style="color: #4B5563; font-size: 15px; line-height: 1.6; margin: 0 0 20px 0;">
+      Hola ${data.sellerName}, alguien compró tickets en tu rifa "<strong>${data.raffleName}</strong>".
+    </p>
+    <div style="background: #F0FDFA; border: 1px solid #99F6E4; border-radius: 12px; padding: 24px; margin: 24px 0;">
+      <table width="100%" cellpadding="0" cellspacing="0">
+        <tr>
+          <td style="color: #0F766E; font-size: 14px; padding-bottom: 12px;">Tickets vendidos:</td>
+          <td align="right" style="color: #1E293B; font-size: 14px; font-weight: 700; padding-bottom: 12px;">${data.ticketCount}</td>
+        </tr>
+        <tr>
+          <td style="color: #0F766E; font-size: 14px; padding-bottom: 16px;">Monto:</td>
+          <td align="right" style="color: #059669; font-size: 18px; font-weight: 800; padding-bottom: 16px;">$${data.amount.toFixed(2)}</td>
+        </tr>
+        <tr>
+          <td colspan="2">
+            <div style="background: #E2E8F0; border-radius: 9999px; height: 8px; overflow: hidden;">
+              <div style="background: linear-gradient(90deg, #10B981, #059669); height: 100%; width: ${progressPercent}%;"></div>
+            </div>
+            <p style="color: #64748B; font-size: 12px; text-align: center; margin: 8px 0 0 0;">
+              Progreso: ${data.soldTickets}/${data.totalTickets} tickets (${progressPercent}%)
+            </p>
+          </td>
+        </tr>
+      </table>
+    </div>
+    <p style="color: #6B7280; font-size: 14px; line-height: 1.6;">
+      ¡Seguí así! Compartí tu rifa para vender más rápido.
+    </p>
+  `;
+  return wrapEmailTemplate(content, configService, {
+    showButton: true,
+    buttonText: 'Ver mi Rifa',
+    buttonUrl: `${frontendUrl}/raffle/${data.raffleId}`,
+  });
+};

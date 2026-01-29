@@ -313,9 +313,18 @@ export default function AdminPage() {
 
   // User management state
   const [userSearch, setUserSearch] = useState('');
+  const [debouncedUserSearch, setDebouncedUserSearch] = useState('');
   const [userRoleFilter, setUserRoleFilter] = useState<string>('ALL');
   const [includeDeleted, setIncludeDeleted] = useState(false);
   const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null);
+
+  // Debounce user search input
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedUserSearch(userSearch);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [userSearch]);
   const [activityDialogOpen, setActivityDialogOpen] = useState(false);
   const [banDialogOpen, setBanDialogOpen] = useState(false);
   const [banReason, setBanReason] = useState('');
@@ -359,9 +368,10 @@ export default function AdminPage() {
 
   const { data: usersData, loading: usersLoading, refetch: refetchUsers } = useQuery<AdminUsersData>(GET_ADMIN_USERS, {
     skip: !isAuthenticated || user?.role !== 'ADMIN',
+    fetchPolicy: 'cache-and-network',
     variables: {
       role: userRoleFilter === 'ALL' ? undefined : userRoleFilter,
-      search: userSearch || undefined,
+      search: debouncedUserSearch.trim() || undefined,
       includeDeleted,
       limit: 50,
     },

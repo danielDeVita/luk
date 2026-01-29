@@ -12,11 +12,13 @@ import { LoginThrottlerService, LoginThrottlerGuard } from '@/common/guards';
 import { PrismaModule } from '../prisma/prisma.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { ReferralsModule } from '../referrals/referrals.module';
+import { UsersModule } from '../users/users.module';
 
 @Module({
   imports: [
     PrismaModule,
     NotificationsModule,
+    UsersModule,
     forwardRef(() => ReferralsModule),
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.registerAsync({

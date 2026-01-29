@@ -2,12 +2,15 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { AdminService } from './admin.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { EncryptionService } from '../common/services/encryption.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { NotFoundException } from '@nestjs/common';
 import { UserRole } from '@prisma/client';
 
 describe('AdminService', () => {
   let service: AdminService;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let prisma: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let encryptionService: any;
 
   const mockPrismaService = () => ({
@@ -57,6 +60,12 @@ describe('AdminService', () => {
     })),
   };
 
+  const mockNotificationsService = {
+    sendKycApprovedNotification: jest.fn().mockResolvedValue(true),
+    sendKycRejectedNotification: jest.fn().mockResolvedValue(true),
+    create: jest.fn().mockResolvedValue({}),
+  };
+
   const createTestUser = (overrides = {}) => ({
     id: 'user-1',
     email: 'test@example.com',
@@ -78,6 +87,7 @@ describe('AdminService', () => {
         AdminService,
         { provide: PrismaService, useValue: mockPrismaService() },
         { provide: EncryptionService, useValue: mockEncryptionService },
+        { provide: NotificationsService, useValue: mockNotificationsService },
       ],
     }).compile();
 

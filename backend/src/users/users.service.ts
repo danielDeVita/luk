@@ -2,18 +2,23 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  Logger,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { UserRole, KycStatus } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { UpdateKycInput, AcceptTermsInput } from './dto/update-user.input';
 import { EncryptionService } from '../common/services/encryption.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class UsersService {
+  private readonly logger = new Logger(UsersService.name);
+
   constructor(
     private prisma: PrismaService,
     private encryptionService: EncryptionService,
+    private notificationsService: NotificationsService,
   ) {}
 
   async findOne(id: string) {
@@ -96,7 +101,9 @@ export class UsersService {
       phone: input.phone,
     });
 
-    return this.prisma.user.update({
+    const submittedAt = new Date();
+
+    const updatedUser = await this.prisma.user.update({
       where: { id: userId },
       data: {
         documentType: input.documentType,
@@ -112,9 +119,49 @@ export class UsersService {
         phone: encryptedData.phone,
         cuitCuil: encryptedData.cuitCuil,
         kycStatus: KycStatus.PENDING_REVIEW,
-        kycSubmittedAt: new Date(),
+        kycSubmittedAt: submittedAt,
       },
     });
+
+    // Notify all admins about new KYC submission
+    this.notifyAdminsAboutNewKyc(user, submittedAt).catch((error: unknown) => {
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Failed to notify admins about KYC: ${errorMsg}`);
+    });
+
+    return updatedUser;
+  }
+
+  /**
+   * Notifies all admin users about a new KYC submission
+   */
+  private async notifyAdminsAboutNewKyc(
+    user: { id: string; nombre: string; apellido: string; email: string },
+    submittedAt: Date,
+  ) {
+    const admins = await this.prisma.user.findMany({
+      where: { role: UserRole.ADMIN, isDeleted: false },
+      select: { id: true, email: true },
+    });
+
+    const userName = `${user.nombre} ${user.apellido}`;
+
+    for (const admin of admins) {
+      // Send email notification
+      await this.notificationsService.sendAdminNewKycSubmission(admin.email, {
+        userName,
+        userEmail: user.email,
+        submittedAt,
+      });
+
+      // Create in-app notification
+      await this.notificationsService.create(
+        admin.id,
+        'SYSTEM',
+        'Nueva solicitud de KYC',
+        `${userName} (${user.email}) envió su documentación de KYC para revisión.`,
+      );
+    }
   }
 
   async acceptTerms(userId: string, input: AcceptTermsInput) {

@@ -1,7 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { UserRole } from '@prisma/client';
 import { EncryptionService } from '../common/services/encryption.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 interface UserFilters {
   role?: UserRole;
@@ -33,9 +34,12 @@ interface TransactionFilters {
 
 @Injectable()
 export class AdminService {
+  private readonly logger = new Logger(AdminService.name);
+
   constructor(
     private prisma: PrismaService,
     private encryptionService: EncryptionService,
+    private notificationsService: NotificationsService,
   ) {}
 
   // ==================== MpEvent Viewer ====================
@@ -432,12 +436,43 @@ export class AdminService {
       },
     });
 
+    // Send notification to user
+    const userName = `${user.nombre} ${user.apellido}`;
+    this.notifyKycApproved(user.id, user.email, userName).catch(
+      (error: unknown) => {
+        const errorMsg =
+          error instanceof Error ? error.message : 'Unknown error';
+        this.logger.error(
+          `Failed to send KYC approved notification: ${errorMsg}`,
+        );
+      },
+    );
+
     return {
       userId: updated.id,
       kycStatus: updated.kycStatus,
       success: true,
       message: 'KYC verificado exitosamente',
     };
+  }
+
+  private async notifyKycApproved(
+    userId: string,
+    email: string,
+    userName: string,
+  ) {
+    // Send email notification
+    await this.notificationsService.sendKycApprovedNotification(email, {
+      userName,
+    });
+
+    // Create in-app notification
+    await this.notificationsService.create(
+      userId,
+      'INFO',
+      '¡KYC Aprobado!',
+      'Tu verificación de identidad fue aprobada. Ya podés crear rifas y recibir pagos.',
+    );
   }
 
   async rejectKyc(userId: string, reason: string) {
@@ -463,11 +498,44 @@ export class AdminService {
       },
     });
 
+    // Send notification to user
+    const userName = `${user.nombre} ${user.apellido}`;
+    this.notifyKycRejected(user.id, user.email, userName, reason).catch(
+      (error: unknown) => {
+        const errorMsg =
+          error instanceof Error ? error.message : 'Unknown error';
+        this.logger.error(
+          `Failed to send KYC rejected notification: ${errorMsg}`,
+        );
+      },
+    );
+
     return {
       userId: updated.id,
       kycStatus: updated.kycStatus,
       success: true,
       message: 'KYC rechazado',
     };
+  }
+
+  private async notifyKycRejected(
+    userId: string,
+    email: string,
+    userName: string,
+    rejectionReason: string,
+  ) {
+    // Send email notification
+    await this.notificationsService.sendKycRejectedNotification(email, {
+      userName,
+      rejectionReason,
+    });
+
+    // Create in-app notification
+    await this.notificationsService.create(
+      userId,
+      'INFO',
+      'KYC Rechazado',
+      `Tu verificación de identidad fue rechazada. Motivo: ${rejectionReason}`,
+    );
   }
 }

@@ -435,7 +435,19 @@ export class PaymentsService {
         }),
         this.prisma.raffle.findUnique({
           where: { id: raffleId },
-          select: { titulo: true, sellerId: true },
+          select: {
+            id: true,
+            titulo: true,
+            sellerId: true,
+            totalTickets: true,
+            seller: {
+              select: { id: true, email: true, nombre: true, apellido: true },
+            },
+            tickets: {
+              where: { estado: 'PAGADO' },
+              select: { id: true },
+            },
+          },
         }),
         this.prisma.ticket.findMany({
           where: { raffleId, buyerId, mpPaymentId },
@@ -446,7 +458,7 @@ export class PaymentsService {
       if (buyer && raffle) {
         const ticketNumbers = tickets.map((t) => t.numeroTicket);
 
-        // Send purchase confirmation email
+        // Send purchase confirmation email to buyer
         await this.notificationsService.sendTicketPurchaseConfirmation(
           buyer.email,
           {
@@ -456,13 +468,41 @@ export class PaymentsService {
           },
         );
 
-        // Create in-app notification
+        // Create in-app notification for buyer
         await this.notificationsService.create(
           buyerId,
           'PURCHASE',
           '¡Compra confirmada!',
           `Compraste ${ticketNumbers.length} ticket(s) para "${raffle.titulo}". Números: ${ticketNumbers.join(', ')}`,
         );
+
+        // Send notification to seller about the sale
+        if (raffle.seller) {
+          const soldTickets = raffle.tickets.length;
+          const sellerName = `${raffle.seller.nombre} ${raffle.seller.apellido}`;
+
+          // Send email notification to seller
+          await this.notificationsService.sendSellerTicketPurchasedNotification(
+            raffle.seller.email,
+            {
+              sellerName,
+              raffleName: raffle.titulo,
+              ticketCount: ticketNumbers.length,
+              amount: totalAmount,
+              soldTickets,
+              totalTickets: raffle.totalTickets,
+              raffleId: raffle.id,
+            },
+          );
+
+          // Create in-app notification for seller
+          await this.notificationsService.create(
+            raffle.seller.id,
+            'INFO',
+            '¡Nueva venta!',
+            `Vendiste ${ticketNumbers.length} ticket(s) en "${raffle.titulo}" por $${totalAmount.toFixed(2)}. Progreso: ${soldTickets}/${raffle.totalTickets}`,
+          );
+        }
 
         // Log activity
         await this.activityService.logTicketsPurchased(

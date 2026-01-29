@@ -9,6 +9,7 @@ import { GqlAuthGuard } from './guards/gql-auth.guard';
 import { LoginThrottlerGuard } from '@/common/guards';
 import { CurrentUser } from './decorators/current-user.decorator';
 import { Public } from './decorators/public.decorator';
+import { UsersService } from '../users/users.service';
 
 // Cookie configuration constants
 const ACCESS_TOKEN_MAX_AGE = 15 * 60 * 1000; // 15 minutes
@@ -16,7 +17,10 @@ const REFRESH_TOKEN_MAX_AGE = 7 * 24 * 60 * 60 * 1000; // 7 days
 
 @Resolver()
 export class AuthResolver {
-  constructor(private authService: AuthService) {}
+  constructor(
+    private authService: AuthService,
+    private usersService: UsersService,
+  ) {}
 
   private setAuthCookies(
     res: Response,
@@ -120,7 +124,8 @@ export class AuthResolver {
 
   @Query(() => User)
   @UseGuards(GqlAuthGuard)
-  me(@CurrentUser() user: User): User {
-    return user;
+  async me(@CurrentUser() user: User): Promise<User> {
+    // Return user with decrypted PII fields (for KYC data display)
+    return this.usersService.getUserWithDecryptedPII(user.id);
   }
 }

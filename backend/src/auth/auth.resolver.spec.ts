@@ -1,19 +1,27 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { AuthResolver } from './auth.resolver';
 import { AuthService } from './auth.service';
+import { UsersService } from '../users/users.service';
 import { Response } from 'express';
 import { UserRole, MpConnectStatus, KycStatus } from '@prisma/client';
 import { LoginThrottlerGuard } from '@/common/guards';
 
 describe('AuthResolver', () => {
   let resolver: AuthResolver;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let authService: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let usersService: any;
 
   const mockAuthService = {
     register: jest.fn(),
     verifyEmail: jest.fn(),
     resendVerificationCode: jest.fn(),
     login: jest.fn(),
+  };
+
+  const mockUsersService = {
+    getUserWithDecryptedPII: jest.fn(),
   };
 
   const mockResponse = () =>
@@ -43,6 +51,7 @@ describe('AuthResolver', () => {
       providers: [
         AuthResolver,
         { provide: AuthService, useValue: mockAuthService },
+        { provide: UsersService, useValue: mockUsersService },
       ],
     })
       .overrideGuard(LoginThrottlerGuard)
@@ -51,6 +60,7 @@ describe('AuthResolver', () => {
 
     resolver = module.get<AuthResolver>(AuthResolver);
     authService = module.get(AuthService);
+    usersService = module.get(UsersService);
   });
 
   describe('register', () => {
@@ -306,15 +316,25 @@ describe('AuthResolver', () => {
   });
 
   describe('me', () => {
-    it('should return current user', () => {
+    it('should return current user with decrypted PII', async () => {
       const user = createTestUser();
+      const decryptedUser = {
+        ...user,
+        documentNumber: '12345678',
+        street: 'Av. Corrientes',
+      };
 
-      const result = resolver.me(user);
+      mockUsersService.getUserWithDecryptedPII.mockResolvedValue(decryptedUser);
 
-      expect(result).toEqual(user);
+      const result = await resolver.me(user);
+
+      expect(result).toEqual(decryptedUser);
+      expect(mockUsersService.getUserWithDecryptedPII).toHaveBeenCalledWith(
+        user.id,
+      );
     });
 
-    it('should return user with all properties', () => {
+    it('should return user with all properties decrypted', async () => {
       const user = createTestUser({
         id: 'custom-id',
         email: 'custom@example.com',
@@ -322,8 +342,15 @@ describe('AuthResolver', () => {
         apellido: 'Name',
         role: UserRole.ADMIN,
       });
+      const decryptedUser = {
+        ...user,
+        documentNumber: '87654321',
+        cuitCuil: '20-87654321-9',
+      };
 
-      const result = resolver.me(user);
+      mockUsersService.getUserWithDecryptedPII.mockResolvedValue(decryptedUser);
+
+      const result = await resolver.me(user);
 
       expect(result.id).toBe('custom-id');
       expect(result.email).toBe('custom@example.com');
