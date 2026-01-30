@@ -169,7 +169,6 @@ describe('PaymentsService', () => {
       await service.handlePaymentApproved(mockPaymentData);
 
       expect(mockPrismaService.transaction.create).toHaveBeenCalledWith({
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
         data: expect.objectContaining({
           tipo: 'COMPRA_TICKET',
           userId: 'buyer-456',
@@ -269,7 +268,6 @@ describe('PaymentsService', () => {
       });
 
       expect(mockPrismaService.mpEvent.create).toHaveBeenCalledWith({
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
         data: expect.objectContaining({
           eventId: '12345678',
           eventType: 'payment.approved',

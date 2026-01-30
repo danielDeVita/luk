@@ -8,10 +8,10 @@ import { LoginThrottlerGuard } from '@/common/guards';
 
 describe('AuthResolver', () => {
   let resolver: AuthResolver;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
   let authService: any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let usersService: any;
+
+  let _usersService: any;
 
   const mockAuthService = {
     register: jest.fn(),
@@ -60,7 +60,7 @@ describe('AuthResolver', () => {
 
     resolver = module.get<AuthResolver>(AuthResolver);
     authService = module.get(AuthService);
-    usersService = module.get(UsersService);
+    _usersService = module.get(UsersService);
   });
 
   describe('register', () => {

@@ -254,7 +254,7 @@ const MONTH_NAMES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Se
 function SalesDashboardContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { isAuthenticated } = useAuthStore();
+  const { isAuthenticated, hasHydrated } = useAuthStore();
   const [selectedRaffle, setSelectedRaffle] = useState<string | null>(null);
   const [trackingNumber, setTrackingNumber] = useState('');
   const [isShipDialogOpen, setIsShipDialogOpen] = useState(false);
@@ -282,17 +282,19 @@ function SalesDashboardContent() {
   const [editDescription, setEditDescription] = useState('');
   const [editImages, setEditImages] = useState<string[]>([]);
 
+  const shouldSkipQueries = !isAuthenticated || !hasHydrated;
+
   const { data, loading, error, refetch } = useQuery<{ myRafflesAsSeller: RaffleData[] }>(MY_RAFFLES, {
-    skip: !isAuthenticated,
+    skip: shouldSkipQueries,
   });
 
   const { data: statsData } = useQuery<{ sellerDashboardStats: SellerDashboardStats }>(
     SELLER_DASHBOARD_STATS,
-    { skip: !isAuthenticated }
+    { skip: shouldSkipQueries }
   );
 
-  const { data: onboardingData } = useQuery<OnboardingData>(GET_ONBOARDING_STATUS, {
-    skip: !isAuthenticated,
+  const { data: onboardingData, loading: onboardingLoading } = useQuery<OnboardingData>(GET_ONBOARDING_STATUS, {
+    skip: shouldSkipQueries,
   });
 
   const [markAsShipped, { loading: marking }] = useMutation(MARK_AS_SHIPPED, {
@@ -649,7 +651,7 @@ function SalesDashboardContent() {
     toast.success('Archivo CSV descargado');
   };
 
-  if (!isAuthenticated) return null;
+  if (!hasHydrated || !isAuthenticated) return null;
 
   if (error) {
     return (
@@ -681,8 +683,8 @@ function SalesDashboardContent() {
         </div>
       </div>
 
-      {/* Onboarding Checklist */}
-      {!onboardingSteps.allComplete && (
+      {/* Onboarding Checklist - only show when data is loaded and onboarding is incomplete */}
+      {!onboardingLoading && !onboardingSteps.allComplete && (
         <Card className="mb-8 border-primary/20 bg-gradient-to-r from-primary/5 to-transparent">
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">

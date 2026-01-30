@@ -326,7 +326,7 @@ describe('ReferralsService', () => {
       });
 
       // Mock transaction to execute the operations
-      prisma.$transaction.mockImplementation(async (operations: any) => {
+      prisma.$transaction.mockImplementation(async (_operations: any) => {
         // Execute the operations and return results
         return [mockCredit, { ...referrer, referralBalance: 150 }];
       });

@@ -10,8 +10,8 @@ global.fetch = jest.fn();
 
 describe('MpConnectService', () => {
   let service: MpConnectService;
-  let configService: jest.Mocked<ConfigService>;
-  let prisma: jest.Mocked<PrismaService>;
+  let _configService: jest.Mocked<ConfigService>;
+  let _prisma: jest.Mocked<PrismaService>;
   let encryption: jest.Mocked<EncryptionService>;
 
   const mockConfigService = {
@@ -68,8 +68,8 @@ describe('MpConnectService', () => {
     }).compile();
 
     service = module.get<MpConnectService>(MpConnectService);
-    configService = module.get(ConfigService);
-    prisma = module.get(PrismaService);
+    _configService = module.get(ConfigService);
+    _prisma = module.get(PrismaService);
     encryption = module.get(EncryptionService);
   });
 

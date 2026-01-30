@@ -15,10 +15,10 @@ jest.mock('bcrypt');
 
 describe('AuthService', () => {
   let service: AuthService;
-  let prisma: jest.Mocked<PrismaService>;
-  let jwtService: jest.Mocked<JwtService>;
-  let loginThrottler: jest.Mocked<LoginThrottlerService>;
-  let notificationsService: jest.Mocked<NotificationsService>;
+  let _prisma: jest.Mocked<PrismaService>;
+  let _jwtService: jest.Mocked<JwtService>;
+  let _loginThrottler: jest.Mocked<LoginThrottlerService>;
+  let _notificationsService: jest.Mocked<NotificationsService>;
 
   const mockPrismaService = {
     user: {
@@ -119,10 +119,10 @@ describe('AuthService', () => {
     }).compile();
 
     service = module.get<AuthService>(AuthService);
-    prisma = module.get(PrismaService);
-    jwtService = module.get(JwtService);
-    loginThrottler = module.get(LoginThrottlerService);
-    notificationsService = module.get(NotificationsService);
+    _prisma = module.get(PrismaService);
+    _jwtService = module.get(JwtService);
+    _loginThrottler = module.get(LoginThrottlerService);
+    _notificationsService = module.get(NotificationsService);
   });
 
   describe('register', () => {

@@ -4,7 +4,7 @@ import { EncryptionService, PII_FIELDS } from './encryption.service';
 
 describe('EncryptionService', () => {
   let service: EncryptionService;
-  let configService: jest.Mocked<ConfigService>;
+  let _configService: jest.Mocked<ConfigService>;
 
   const VALID_ENCRYPTION_KEY = 'a'.repeat(64);
 
@@ -32,7 +32,7 @@ describe('EncryptionService', () => {
       }).compile();
 
       service = module.get<EncryptionService>(EncryptionService);
-      configService = module.get(ConfigService);
+      _configService = module.get(ConfigService);
       service.onModuleInit();
     });
 

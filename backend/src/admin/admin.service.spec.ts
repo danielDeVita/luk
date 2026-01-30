@@ -6,14 +6,50 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { NotFoundException } from '@nestjs/common';
 import { UserRole } from '@prisma/client';
 
+// Type for our mock PrismaService
+type MockPrismaService = {
+  mpEvent: {
+    findMany: jest.Mock;
+    findFirst: jest.Mock;
+    findUnique: jest.Mock;
+    count: jest.Mock;
+  };
+  transaction: {
+    findMany: jest.Mock;
+    findFirst: jest.Mock;
+    count: jest.Mock;
+  };
+  ticket: {
+    findMany: jest.Mock;
+    aggregate: jest.Mock;
+  };
+  user: {
+    findUnique: jest.Mock;
+    findMany: jest.Mock;
+    count: jest.Mock;
+    update: jest.Mock;
+  };
+  raffle: {
+    count: jest.Mock;
+  };
+  dispute: {
+    count: jest.Mock;
+  };
+  activityLog: {
+    findMany: jest.Mock;
+  };
+};
+
+type MockEncryptionService = {
+  decryptUserPII: jest.Mock;
+};
+
 describe('AdminService', () => {
   let service: AdminService;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let prisma: any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let encryptionService: any;
+  let prisma: MockPrismaService;
+  let encryptionService: MockEncryptionService;
 
-  const mockPrismaService = () => ({
+  const mockPrismaService = (): MockPrismaService => ({
     mpEvent: {
       findMany: jest.fn(),
       findFirst: jest.fn(),
@@ -46,8 +82,8 @@ describe('AdminService', () => {
     },
   });
 
-  const mockEncryptionService = {
-    decryptUserPII: jest.fn((user) => ({
+  const mockEncryptionService: MockEncryptionService = {
+    decryptUserPII: jest.fn(() => ({
       documentNumber: 'DECRYPTED_DOC',
       street: 'Decrypted Street',
       streetNumber: '123',
@@ -92,8 +128,10 @@ describe('AdminService', () => {
     }).compile();
 
     service = module.get<AdminService>(AdminService);
-    prisma = module.get(PrismaService);
-    encryptionService = module.get(EncryptionService);
+    prisma = module.get(PrismaService) as unknown as MockPrismaService;
+    encryptionService = module.get(
+      EncryptionService,
+    ) as unknown as MockEncryptionService;
   });
 
   describe('getMpEvents', () => {

@@ -186,7 +186,7 @@ describe('TicketsResolver', () => {
 
   describe('ticket', () => {
     it('should return ticket by ID', async () => {
-      const user = createTestUser();
+      const _user = createTestUser();
       const ticket = createTestTicket({ id: 'ticket-123' });
 
       ticketsService.findOne.mockResolvedValue(ticket);
@@ -198,7 +198,7 @@ describe('TicketsResolver', () => {
     });
 
     it('should return ticket with all properties', async () => {
-      const user = createTestUser();
+      const _user = createTestUser();
       const ticket = createTestTicket({
         id: 'ticket-456',
         numeroTicket: 42,

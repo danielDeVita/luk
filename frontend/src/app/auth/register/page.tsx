@@ -163,7 +163,6 @@ function RegisterPageContent() {
 
   const onRegisterSubmit = async (formData: RegisterForm) => {
     setErrorMsg(null);
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { confirmPassword: _, referralCode, ...registerData } = formData;
 
     try {
