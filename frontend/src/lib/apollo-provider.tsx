@@ -1,6 +1,6 @@
 'use client';
 
-import { ApolloClient, InMemoryCache, createHttpLink, split, from } from '@apollo/client';
+import { ApolloClient, InMemoryCache, createHttpLink, split, from, Observable, FetchResult } from '@apollo/client';
 import { ApolloProvider } from '@apollo/client/react';
 import { setContext } from '@apollo/client/link/context';
 import { onError } from '@apollo/client/link/error';
@@ -9,6 +9,107 @@ import { getMainDefinition } from '@apollo/client/utilities';
 import { createClient, Client } from 'graphql-ws';
 import { useAuthStore } from '@/store/auth';
 import { ReactNode, useMemo, createContext, useContext, useState, useEffect, useCallback } from 'react';
+
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
+
+// Token expiry buffer - refresh 2 minutes before expiry
+const TOKEN_REFRESH_BUFFER_MS = 2 * 60 * 1000;
+
+/**
+ * Decode JWT payload without verification (just to check expiry)
+ */
+const decodeJwtPayload = (token: string): { exp?: number } | null => {
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return null;
+    const payload = JSON.parse(atob(parts[1]));
+    return payload;
+  } catch {
+    return null;
+  }
+};
+
+/**
+ * Check if token is expired or about to expire
+ */
+const isTokenExpiringSoon = (token: string): boolean => {
+  const payload = decodeJwtPayload(token);
+  if (!payload?.exp) return true; // If can't decode, treat as expired
+  const expiryTime = payload.exp * 1000; // Convert to milliseconds
+  return Date.now() >= expiryTime - TOKEN_REFRESH_BUFFER_MS;
+};
+
+// Track if we're currently refreshing to prevent multiple refresh calls
+let isRefreshing = false;
+let refreshPromise: Promise<boolean> | null = null;
+let pendingRequests: (() => void)[] = [];
+
+const resolvePendingRequests = () => {
+  pendingRequests.forEach((callback) => callback());
+  pendingRequests = [];
+};
+
+/**
+ * Perform the actual refresh token request
+ */
+const doRefreshToken = async (): Promise<boolean> => {
+  try {
+    const storedRefreshToken = useAuthStore.getState().refreshToken;
+
+    if (!storedRefreshToken) {
+      console.warn('[Auth] No refresh token available');
+      return false;
+    }
+
+    console.log('[Auth] Refreshing access token...');
+    const response = await fetch(`${BACKEND_URL}/auth/refresh`, {
+      method: 'GET',
+      credentials: 'include',
+      headers: {
+        Authorization: `Bearer ${storedRefreshToken}`,
+      },
+    });
+
+    if (!response.ok) {
+      console.warn('[Auth] Refresh failed with status:', response.status);
+      return false;
+    }
+
+    const data = await response.json();
+    if (data.token) {
+      useAuthStore.getState().setTokens(data.token, data.refreshToken);
+      console.log('[Auth] Token refreshed successfully');
+      return true;
+    }
+    return false;
+  } catch (error) {
+    console.error('[Auth] Refresh error:', error);
+    return false;
+  }
+};
+
+/**
+ * Get or create a refresh token promise (singleton pattern)
+ * This ensures all concurrent requests wait for the same refresh
+ */
+const getOrCreateRefreshPromise = (): Promise<boolean> => {
+  if (!refreshPromise) {
+    isRefreshing = true;
+    refreshPromise = doRefreshToken().finally(() => {
+      isRefreshing = false;
+      refreshPromise = null;
+      resolvePendingRequests();
+    });
+  }
+  return refreshPromise;
+};
+
+/**
+ * Refresh token - waits for any ongoing refresh or starts a new one
+ */
+const refreshToken = async (): Promise<boolean> => {
+  return getOrCreateRefreshPromise();
+};
 
 type ConnectionStatus = 'connecting' | 'connected' | 'disconnected' | 'error';
 
@@ -45,8 +146,24 @@ function createApolloClient(
   const wsUri = process.env.NEXT_PUBLIC_GRAPHQL_WS_URL || toWsUrl(httpUri);
 
   // Auth link - adds Authorization header from localStorage token
-  const authLink = setContext((_, { headers }) => {
-    const token = useAuthStore.getState().token;
+  // Also proactively refreshes token if it's about to expire
+  const authLink = setContext(async (_, { headers }) => {
+    let token = useAuthStore.getState().token;
+    const storedRefreshToken = useAuthStore.getState().refreshToken;
+
+    // Proactively refresh if token is about to expire
+    if (token && storedRefreshToken && isTokenExpiringSoon(token)) {
+      // Wait for refresh (all concurrent requests share the same promise)
+      const success = await refreshToken();
+      if (success) {
+        token = useAuthStore.getState().token; // Get the new token
+      }
+    } else if (isRefreshing && refreshPromise) {
+      // If another request is refreshing, wait for it
+      await refreshPromise;
+      token = useAuthStore.getState().token;
+    }
+
     return {
       headers: {
         ...headers,
@@ -102,19 +219,64 @@ function createApolloClient(
     wsLink = new GraphQLWsLink(wsClient);
   }
 
-  // Error link - only logs to console, no toasts here to avoid duplicates
-  // Toasts should be handled by components via handleError() or toast.error()
-  const errorLink = onError((err: unknown) => {
-    const errorObj = err as { graphQLErrors?: Array<{ message: string }>; networkError?: Error };
-    const graphQLErrors = errorObj?.graphQLErrors;
-    const networkError = errorObj?.networkError;
-
+  // Error link - handles auth errors with token refresh and retry
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const errorLink = onError(({ graphQLErrors, networkError, operation, forward }: any) => {
     if (graphQLErrors?.length) {
-      console.error('[GraphQL Error]', graphQLErrors.map((e) => e.message).join('\n'));
+      console.error('[GraphQL Error]', graphQLErrors.map((e: { message: string }) => e.message).join('\n'));
     }
 
     if (networkError) {
       console.error('[Network Error]', networkError.message);
+    }
+
+    // Check for authentication errors (JWT expired, invalid token, unauthorized)
+    const isAuthError = graphQLErrors?.some(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (err: any) => {
+        const code = err.extensions?.code;
+        const message = err.message?.toLowerCase() || '';
+        return (
+          code === 'UNAUTHENTICATED' ||
+          message.includes('unauthorized') ||
+          message.includes('jwt expired') ||
+          message.includes('invalid token') ||
+          message.includes('jwt malformed') ||
+          message.includes('no authorization')
+        );
+      }
+    ) || (networkError?.statusCode === 401);
+
+    if (isAuthError && typeof window !== 'undefined') {
+      // Return an Observable that handles the token refresh
+      return new Observable<FetchResult>((observer) => {
+        // Use the shared refresh function (handles concurrent requests)
+        refreshToken().then((success) => {
+          if (success) {
+            // Token was refreshed - retry the request with new token
+            // The authLink will pick up the new token from the store
+            forward(operation).subscribe({
+              next: observer.next.bind(observer),
+              error: observer.error.bind(observer),
+              complete: observer.complete.bind(observer),
+            });
+          } else {
+            // Refresh failed - clear auth state and redirect to login
+            console.warn('[Auth] Refresh failed, redirecting to login');
+            useAuthStore.setState({
+              user: null,
+              token: null,
+              refreshToken: null,
+              isAuthenticated: false,
+            });
+            if (!window.location.pathname.includes('/auth')) {
+              window.location.href = '/auth/login';
+            }
+            // Complete the observable without error to prevent error toasts
+            observer.complete();
+          }
+        });
+      });
     }
   });
 
