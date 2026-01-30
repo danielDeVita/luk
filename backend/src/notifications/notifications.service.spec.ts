@@ -1,0 +1,474 @@
+import { Test, TestingModule } from '@nestjs/testing';
+import { ConfigService } from '@nestjs/config';
+import { NotificationsService } from './notifications.service';
+import { PrismaService } from '../prisma/prisma.service';
+
+type MockPrismaService = {
+  notification: {
+    create: jest.Mock;
+    findMany: jest.Mock;
+    update: jest.Mock;
+    updateMany: jest.Mock;
+  };
+};
+
+type MockPubSub = {
+  publish: jest.Mock;
+  asyncIterableIterator: jest.Mock;
+};
+
+describe('NotificationsService', () => {
+  let service: NotificationsService;
+  let prisma: MockPrismaService;
+  let pubSub: MockPubSub;
+  let configService: ConfigService;
+
+  const mockPrismaService = (): MockPrismaService => ({
+    notification: {
+      create: jest.fn(),
+      findMany: jest.fn(),
+      update: jest.fn(),
+      updateMany: jest.fn(),
+    },
+  });
+
+  const mockPubSub = (): MockPubSub => ({
+    publish: jest.fn(),
+    asyncIterableIterator: jest.fn(),
+  });
+
+  const mockConfigService = {
+    get: jest.fn((key: string) => {
+      const config: Record<string, string> = {
+        EMAIL_FROM: 'test@example.com',
+        EMAIL_FROM_NAME: 'Test Service',
+        BREVO_API_KEY: 'mock', // Mock mode for testing
+      };
+      return config[key];
+    }),
+  };
+
+  beforeEach(async () => {
+    jest.clearAllMocks();
+
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        NotificationsService,
+        { provide: PrismaService, useValue: mockPrismaService() },
+        { provide: ConfigService, useValue: mockConfigService },
+        { provide: 'PUB_SUB', useValue: mockPubSub() },
+      ],
+    }).compile();
+
+    service = module.get<NotificationsService>(NotificationsService);
+    prisma = module.get(PrismaService) as unknown as MockPrismaService;
+    pubSub = module.get('PUB_SUB') as unknown as MockPubSub;
+    configService = module.get<ConfigService>(ConfigService);
+  });
+
+  describe('In-App Notifications', () => {
+    describe('create', () => {
+      it('should create notification and publish to PubSub', async () => {
+        const mockNotification = {
+          id: 'notif-1',
+          userId: 'user-1',
+          type: 'TICKET_PURCHASED',
+          title: 'Ticket comprado',
+          message: 'Compraste 3 tickets',
+          read: false,
+          createdAt: new Date(),
+        };
+
+        prisma.notification.create.mockResolvedValue(mockNotification);
+
+        await service.create(
+          'user-1',
+          'TICKET_PURCHASED',
+          'Ticket comprado',
+          'Compraste 3 tickets',
+        );
+
+        expect(prisma.notification.create).toHaveBeenCalledWith({
+          data: {
+            userId: 'user-1',
+            type: 'TICKET_PURCHASED',
+            title: 'Ticket comprado',
+            message: 'Compraste 3 tickets',
+          },
+        });
+
+        expect(pubSub.publish).toHaveBeenCalledWith('notificationAdded', {
+          notificationAdded: mockNotification,
+        });
+      });
+    });
+
+    describe('findAll', () => {
+      it('should return user notifications ordered by createdAt desc', async () => {
+        const mockNotifications = [
+          {
+            id: 'notif-2',
+            userId: 'user-1',
+            title: 'Test 2',
+            createdAt: new Date('2025-01-02'),
+          },
+          {
+            id: 'notif-1',
+            userId: 'user-1',
+            title: 'Test 1',
+            createdAt: new Date('2025-01-01'),
+          },
+        ];
+
+        prisma.notification.findMany.mockResolvedValue(mockNotifications);
+
+        const result = await service.findAll('user-1');
+
+        expect(result).toEqual(mockNotifications);
+        expect(prisma.notification.findMany).toHaveBeenCalledWith({
+          where: { userId: 'user-1' },
+          orderBy: { createdAt: 'desc' },
+        });
+      });
+    });
+
+    describe('markAsRead', () => {
+      it('should update notification read status', async () => {
+        const mockNotification = { id: 'notif-1', read: true };
+        prisma.notification.update.mockResolvedValue(mockNotification);
+
+        await service.markAsRead('notif-1');
+
+        expect(prisma.notification.update).toHaveBeenCalledWith({
+          where: { id: 'notif-1' },
+          data: { read: true },
+        });
+      });
+    });
+
+    describe('markAllAsRead', () => {
+      it('should batch update all unread notifications', async () => {
+        prisma.notification.updateMany.mockResolvedValue({ count: 5 });
+
+        await service.markAllAsRead('user-1');
+
+        expect(prisma.notification.updateMany).toHaveBeenCalledWith({
+          where: { userId: 'user-1', read: false },
+          data: { read: true },
+        });
+      });
+    });
+  });
+
+  describe('Email Sending', () => {
+    describe('sendWelcomeEmail', () => {
+      it('should send welcome email with user name', async () => {
+        const result = await service.sendWelcomeEmail('test@example.com', {
+          userName: 'Juan',
+        });
+
+        // In mock mode, should return true
+        expect(result).toBe(true);
+      });
+    });
+
+    describe('sendEmailVerificationCode', () => {
+      it('should send verification code email', async () => {
+        const result = await service.sendEmailVerificationCode(
+          'test@example.com',
+          {
+            userName: 'Juan',
+            code: '123456',
+            expiresInMinutes: 15,
+          },
+        );
+
+        expect(result).toBe(true);
+      });
+    });
+
+    describe('sendTicketPurchaseConfirmation', () => {
+      it('should send ticket purchase confirmation', async () => {
+        const result = await service.sendTicketPurchaseConfirmation(
+          'test@example.com',
+          {
+            raffleName: 'iPhone 15 Pro',
+            ticketNumbers: [1, 2, 3],
+            amount: 1500,
+          },
+        );
+
+        expect(result).toBe(true);
+      });
+    });
+
+    describe('sendRaffleCompletedNotification', () => {
+      it('should send raffle completed notification', async () => {
+        const result = await service.sendRaffleCompletedNotification(
+          'test@example.com',
+          {
+            raffleName: 'iPhone 15 Pro',
+          },
+        );
+
+        expect(result).toBe(true);
+      });
+    });
+
+    describe('sendWinnerNotification', () => {
+      it('should send winner notification', async () => {
+        const result = await service.sendWinnerNotification(
+          'winner@example.com',
+          {
+            raffleName: 'iPhone 15 Pro',
+            productName: 'iPhone 15 Pro 256GB',
+            sellerEmail: 'seller@example.com',
+          },
+        );
+
+        expect(result).toBe(true);
+      });
+    });
+
+    describe('sendRaffleParticipantNotification', () => {
+      it('should send notification to non-winners', async () => {
+        const result = await service.sendRaffleParticipantNotification(
+          'buyer@example.com',
+          {
+            raffleName: 'iPhone 15 Pro',
+            winnerName: 'Juan Pérez',
+          },
+        );
+
+        expect(result).toBe(true);
+      });
+    });
+
+    describe('sendRefundNotification', () => {
+      it('should send refund notification', async () => {
+        const result = await service.sendRefundNotification(
+          'buyer@example.com',
+          {
+            raffleName: 'iPhone 15 Pro',
+            amount: 1500,
+            reason: 'Rifa cancelada por no alcanzar el 70% de ventas',
+          },
+        );
+
+        expect(result).toBe(true);
+      });
+    });
+
+    describe('sendSellerPaymentNotification', () => {
+      it('should send seller payment notification', async () => {
+        const result = await service.sendSellerPaymentNotification(
+          'seller@example.com',
+          {
+            raffleName: 'iPhone 15 Pro',
+            amount: 45000,
+            fees: 4500,
+          },
+        );
+
+        expect(result).toBe(true);
+      });
+    });
+
+    describe('sendRaffleCancelledNotification', () => {
+      it('should send raffle cancelled notification', async () => {
+        const result = await service.sendRaffleCancelledNotification(
+          'seller@example.com',
+          {
+            raffleName: 'iPhone 15 Pro',
+            reason: 'No se alcanzó el 70% de tickets vendidos',
+          },
+        );
+
+        expect(result).toBe(true);
+      });
+    });
+
+    describe('sendPriceReductionSuggestion', () => {
+      it('should send price reduction suggestion to seller', async () => {
+        const result = await service.sendPriceReductionSuggestion(
+          'seller@example.com',
+          {
+            raffleName: 'iPhone 15 Pro',
+            currentPrice: 500,
+            suggestedPrice: 350,
+            percentageSold: 45,
+            raffleId: 'raffle-1',
+            priceReductionId: 'pr-1',
+          },
+        );
+
+        expect(result).toBe(true);
+      });
+    });
+  });
+
+  describe('Delivery Notifications', () => {
+    describe('sendSellerMustContactWinner', () => {
+      it('should send notification to seller to contact winner', async () => {
+        const result = await service.sendSellerMustContactWinner(
+          'seller@example.com',
+          {
+            raffleName: 'iPhone 15 Pro',
+            winnerEmail: 'winner@example.com',
+          },
+        );
+
+        expect(result).toBe(true);
+      });
+    });
+
+    describe('sendDeliveryReminderToWinner', () => {
+      it('should send delivery reminder to winner', async () => {
+        const result = await service.sendDeliveryReminderToWinner(
+          'winner@example.com',
+          {
+            raffleName: 'iPhone 15 Pro',
+            daysSinceShipped: 3,
+          },
+        );
+
+        expect(result).toBe(true);
+      });
+    });
+
+    describe('sendPaymentWillBeReleasedNotification', () => {
+      it('should send payment release warning', async () => {
+        const result = await service.sendPaymentWillBeReleasedNotification(
+          'winner@example.com',
+          {
+            raffleName: 'iPhone 15 Pro',
+            daysRemaining: 2,
+          },
+        );
+
+        expect(result).toBe(true);
+      });
+    });
+  });
+
+  describe('Dispute Notifications', () => {
+    describe('sendDisputeOpenedToSeller', () => {
+      it('should notify seller of new dispute', async () => {
+        const result = await service.sendDisputeOpenedToSeller(
+          'seller@example.com',
+          {
+            raffleName: 'iPhone 15 Pro',
+            disputeType: 'PRODUCTO_NO_RECIBIDO',
+            disputeTitle: 'No recibí el producto',
+          },
+        );
+
+        expect(result).toBe(true);
+      });
+    });
+
+    describe('sendDisputeOpenedToBuyer', () => {
+      it('should notify buyer that dispute was opened', async () => {
+        const result = await service.sendDisputeOpenedToBuyer(
+          'buyer@example.com',
+          {
+            raffleName: 'iPhone 15 Pro',
+            disputeId: 'dispute-1',
+          },
+        );
+
+        expect(result).toBe(true);
+      });
+    });
+
+    describe('sendSellerMustRespondDispute', () => {
+      it('should send reminder to seller to respond', async () => {
+        const result = await service.sendSellerMustRespondDispute(
+          'seller@example.com',
+          {
+            raffleName: 'iPhone 15 Pro',
+            hoursRemaining: 24,
+          },
+        );
+
+        expect(result).toBe(true);
+      });
+    });
+
+    describe('sendDisputeResolvedNotification', () => {
+      it('should send resolution notification', async () => {
+        const result = await service.sendDisputeResolvedNotification(
+          'buyer@example.com',
+          {
+            raffleName: 'iPhone 15 Pro',
+            resolution: 'RESUELTA_COMPRADOR',
+            refundAmount: 5000,
+          },
+        );
+
+        expect(result).toBe(true);
+      });
+    });
+
+    describe('sendRefundDueToDisputeNotification', () => {
+      it('should send refund notification due to dispute', async () => {
+        const result = await service.sendRefundDueToDisputeNotification(
+          'buyer@example.com',
+          {
+            raffleName: 'iPhone 15 Pro',
+            amount: 5000,
+          },
+        );
+
+        expect(result).toBe(true);
+      });
+    });
+  });
+
+  describe('KYC Notifications', () => {
+    describe('sendKycApprovedNotification', () => {
+      it('should send KYC approval notification', async () => {
+        const result = await service.sendKycApprovedNotification(
+          'seller@example.com',
+          {
+            userName: 'Juan',
+          },
+        );
+
+        expect(result).toBe(true);
+      });
+    });
+
+    describe('sendKycRejectedNotification', () => {
+      it('should send KYC rejection notification', async () => {
+        const result = await service.sendKycRejectedNotification(
+          'seller@example.com',
+          {
+            userName: 'Juan',
+            rejectionReason: 'Documento ilegible, por favor volver a subir',
+          },
+        );
+
+        expect(result).toBe(true);
+      });
+    });
+  });
+
+  describe('Configuration', () => {
+    it('should initialize with correct email settings', () => {
+      expect(configService.get).toHaveBeenCalledWith('EMAIL_FROM');
+      expect(configService.get).toHaveBeenCalledWith('EMAIL_FROM_NAME');
+      expect(configService.get).toHaveBeenCalledWith('BREVO_API_KEY');
+    });
+
+    it('should work in mock mode when BREVO_API_KEY is "mock"', async () => {
+      // Service is already in mock mode from beforeEach
+      const result = await service.sendWelcomeEmail('test@example.com', {
+        userName: 'Test',
+      });
+
+      // Should return true in mock mode
+      expect(result).toBe(true);
+    });
+  });
+});
