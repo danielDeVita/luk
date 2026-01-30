@@ -18,6 +18,7 @@ import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { useConnectionStatus } from '@/lib/apollo-provider';
+import { useAuthStore } from '@/store/auth';
 
 const GET_NOTIFICATIONS = gql`
   query MyNotifications {
@@ -75,21 +76,26 @@ type MyNotificationsData = {
 
 export function NotificationsBell() {
   const { status: connectionStatus, retryConnection } = useConnectionStatus();
+  const { isAuthenticated, hasHydrated } = useAuthStore();
 
   // Use faster polling when WebSocket is disconnected
   const pollInterval = connectionStatus === 'connected' ? 60000 : 15000;
 
+  // Skip query until store is hydrated and user is authenticated
+  const shouldSkip = !hasHydrated || !isAuthenticated;
+
   const { data, refetch } = useQuery<MyNotificationsData>(GET_NOTIFICATIONS, {
     pollInterval,
     fetchPolicy: 'network-only',
+    skip: shouldSkip,
   });
 
   useSubscription(NOTIFICATION_ADDED, {
     onData: () => {
       refetch();
     },
-    // Skip subscription if not connected (will use polling fallback)
-    skip: connectionStatus === 'error' || connectionStatus === 'disconnected',
+    // Skip subscription if not connected or not authenticated
+    skip: shouldSkip || connectionStatus === 'error' || connectionStatus === 'disconnected',
   });
 
   const [markRead] = useMutation(MARK_READ);

@@ -37,6 +37,7 @@ const isTokenExpiringSoon = (token: string): boolean => {
 
 // Track if we're currently refreshing to prevent multiple refresh calls
 let isRefreshing = false;
+let refreshPromise: Promise<boolean> | null = null;
 let pendingRequests: (() => void)[] = [];
 
 const resolvePendingRequests = () => {
@@ -44,37 +45,66 @@ const resolvePendingRequests = () => {
   pendingRequests = [];
 };
 
-const refreshToken = async (): Promise<boolean> => {
+/**
+ * Perform the actual refresh token request
+ */
+const doRefreshToken = async (): Promise<boolean> => {
   try {
-    // Use refresh token from store (not access token) for the refresh endpoint
     const storedRefreshToken = useAuthStore.getState().refreshToken;
 
     if (!storedRefreshToken) {
+      console.warn('[Auth] No refresh token available');
       return false;
     }
 
+    console.log('[Auth] Refreshing access token...');
     const response = await fetch(`${BACKEND_URL}/auth/refresh`, {
       method: 'GET',
       credentials: 'include',
       headers: {
-        // Send refresh token via Authorization header (cross-subdomain support)
         Authorization: `Bearer ${storedRefreshToken}`,
       },
     });
 
     if (!response.ok) {
+      console.warn('[Auth] Refresh failed with status:', response.status);
       return false;
     }
 
-    // Backend returns new access token (and optionally new refresh token)
     const data = await response.json();
     if (data.token) {
       useAuthStore.getState().setTokens(data.token, data.refreshToken);
+      console.log('[Auth] Token refreshed successfully');
+      return true;
     }
-    return true;
-  } catch {
+    return false;
+  } catch (error) {
+    console.error('[Auth] Refresh error:', error);
     return false;
   }
+};
+
+/**
+ * Get or create a refresh token promise (singleton pattern)
+ * This ensures all concurrent requests wait for the same refresh
+ */
+const getOrCreateRefreshPromise = (): Promise<boolean> => {
+  if (!refreshPromise) {
+    isRefreshing = true;
+    refreshPromise = doRefreshToken().finally(() => {
+      isRefreshing = false;
+      refreshPromise = null;
+      resolvePendingRequests();
+    });
+  }
+  return refreshPromise;
+};
+
+/**
+ * Refresh token - waits for any ongoing refresh or starts a new one
+ */
+const refreshToken = async (): Promise<boolean> => {
+  return getOrCreateRefreshPromise();
 };
 
 // Auth link - adds Authorization header from localStorage token
@@ -87,19 +117,15 @@ const authLink = setContext(async (_, { headers }) => {
 
   // Proactively refresh if token is about to expire
   if (token && storedRefreshToken && isTokenExpiringSoon(token)) {
-    // Try to refresh before the request
-    if (!isRefreshing) {
-      isRefreshing = true;
-      try {
-        const success = await refreshToken();
-        if (success) {
-          token = useAuthStore.getState().token; // Get the new token
-        }
-      } finally {
-        isRefreshing = false;
-        resolvePendingRequests();
-      }
+    // Wait for refresh (all concurrent requests share the same promise)
+    const success = await refreshToken();
+    if (success) {
+      token = useAuthStore.getState().token; // Get the new token
     }
+  } else if (isRefreshing && refreshPromise) {
+    // If another request is refreshing, wait for it
+    await refreshPromise;
+    token = useAuthStore.getState().token;
   }
 
   return {
@@ -173,25 +199,8 @@ const errorLink = onError(({ graphQLErrors, networkError, operation, forward }: 
   if (isAuthError && typeof window !== 'undefined') {
     // Return an Observable that handles the token refresh
     return new Observable<FetchResult>((observer) => {
-      const handleRefresh = async () => {
-        // If already refreshing, queue this request
-        if (isRefreshing) {
-          return new Promise<boolean>((resolve) => {
-            pendingRequests.push(() => resolve(true));
-          });
-        }
-
-        isRefreshing = true;
-        try {
-          const success = await refreshToken();
-          resolvePendingRequests();
-          return success;
-        } finally {
-          isRefreshing = false;
-        }
-      };
-
-      handleRefresh().then((success) => {
+      // Use the shared refresh function (handles concurrent requests)
+      refreshToken().then((success) => {
         if (success) {
           // Token was refreshed - retry the request with new token
           // The authLink will pick up the new token from the store
@@ -202,8 +211,7 @@ const errorLink = onError(({ graphQLErrors, networkError, operation, forward }: 
           });
         } else {
           // Refresh failed - clear auth state and redirect to login
-          // Don't call observer.error() to avoid showing error modal before redirect
-          // Clear state directly (don't use async logout which makes a network call)
+          console.warn('[Auth] Refresh failed, redirecting to login');
           useAuthStore.setState({
             user: null,
             token: null,
