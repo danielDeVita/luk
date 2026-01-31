@@ -193,7 +193,7 @@ jobs:
 
       - name: Install Playwright browsers
         working-directory: frontend
-        run: npx playwright install --with-deps chromium firefox webkit
+        run: npx playwright install --with-deps chromium
 
       - name: Wait for backend
         run: |
@@ -205,7 +205,12 @@ jobs:
 
       - name: Start frontend
         working-directory: frontend
-        run: npm start &
+        run: |
+          # Copy static assets for standalone mode
+          cp -r .next/static .next/standalone/.next/static
+          cp -r public .next/standalone/public
+          # Start standalone server
+          node .next/standalone/server.js &
         env:
           NEXT_PUBLIC_GRAPHQL_URL: http://localhost:3001/graphql
           NEXT_PUBLIC_GRAPHQL_WS_URL: ws://localhost:3001/graphql
