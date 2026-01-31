@@ -233,7 +233,7 @@ jobs:
 
       - name: Run E2E tests
         working-directory: frontend
-        run: npm run test:e2e
+        run: npx playwright test --max-failures=10
         env:
           PLAYWRIGHT_BASE_URL: http://localhost:3000
           NEXT_PUBLIC_GRAPHQL_URL: http://localhost:3001/graphql
