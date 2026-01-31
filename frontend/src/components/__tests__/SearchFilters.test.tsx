@@ -8,9 +8,27 @@ describe('SearchFilters', () => {
   const mockUseQuery = vi.mocked(useQuery);
 
   const mockCategories = [
-    { id: '1', nombre: 'Electrónica', descripcion: 'Dispositivos electrónicos', icono: '📱', orden: 1 },
-    { id: '2', nombre: 'Deportes', descripcion: 'Artículos deportivos', icono: '⚽', orden: 2 },
-    { id: '3', nombre: 'Hogar', descripcion: 'Artículos para el hogar', icono: '🏠', orden: 3 },
+    {
+      id: '1',
+      nombre: 'Electrónica',
+      descripcion: 'Dispositivos electrónicos',
+      icono: '📱',
+      orden: 1,
+    },
+    {
+      id: '2',
+      nombre: 'Deportes',
+      descripcion: 'Artículos deportivos',
+      icono: '⚽',
+      orden: 2,
+    },
+    {
+      id: '3',
+      nombre: 'Hogar',
+      descripcion: 'Artículos para el hogar',
+      icono: '🏠',
+      orden: 3,
+    },
   ];
 
   beforeEach(() => {
@@ -21,13 +39,15 @@ describe('SearchFilters', () => {
       loading: false,
       error: undefined,
       refetch: vi.fn(),
-    } as ReturnType<typeof useQuery>);
+    } as unknown as ReturnType<typeof useQuery>);
   });
 
   it('should render search input', () => {
     render(<SearchFilters onSearch={mockOnSearch} />);
 
-    expect(screen.getByPlaceholderText(/Buscar rifas/i)).toBeInTheDocument();
+    expect(
+      screen.getByPlaceholderText(/Buscar rifas/i),
+    ).toBeInTheDocument();
   });
 
   it('should render category dropdown', () => {
@@ -52,7 +72,9 @@ describe('SearchFilters', () => {
   it('should render clear filters button', () => {
     render(<SearchFilters onSearch={mockOnSearch} />);
 
-    expect(screen.getByRole('button', { name: /Limpiar/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /Limpiar/i }),
+    ).toBeInTheDocument();
   });
 
   it('should update search term on input change', () => {
@@ -74,7 +96,7 @@ describe('SearchFilters', () => {
     expect(mockOnSearch).toHaveBeenCalledWith(
       expect.objectContaining({
         searchTerm: 'iPhone',
-      })
+      }),
     );
   });
 
@@ -88,7 +110,7 @@ describe('SearchFilters', () => {
     expect(mockOnSearch).toHaveBeenCalledWith(
       expect.objectContaining({
         searchTerm: 'Laptop',
-      })
+      }),
     );
   });
 
@@ -100,7 +122,9 @@ describe('SearchFilters', () => {
     fireEvent.change(searchInput, { target: { value: 'Test' } });
 
     // Click clear button
-    const clearButton = screen.getByRole('button', { name: /Limpiar/i });
+    const clearButton = screen.getByRole('button', {
+      name: /Limpiar/i,
+    });
     fireEvent.click(clearButton);
 
     // Search input should be empty

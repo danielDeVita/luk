@@ -1,6 +1,10 @@
 import { render, screen } from '@testing-library/react';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
-import { useQuery, useMutation, useSubscription } from '@apollo/client/react';
+import {
+  useQuery,
+  useMutation,
+  useSubscription,
+} from '@apollo/client/react';
 import { useAuthStore } from '@/store/auth';
 import { NotificationsBell } from '../notifications-bell';
 
@@ -38,12 +42,12 @@ describe('NotificationsBell', () => {
       loading: false,
       error: undefined,
       refetch: mockRefetch,
-    } as ReturnType<typeof useQuery>);
+    } as unknown as ReturnType<typeof useQuery>);
 
     mockUseMutation.mockReturnValue([
       mockMarkRead,
       { data: undefined, loading: false, error: undefined },
-    ] as ReturnType<typeof useMutation>);
+    ] as unknown as ReturnType<typeof useMutation>);
 
     mockUseSubscription.mockReturnValue({
       data: undefined,
@@ -68,9 +72,30 @@ describe('NotificationsBell', () => {
 
   it('should show unread count badge when there are unread notifications', () => {
     const mockNotifications = [
-      { id: '1', type: 'info', title: 'Notification 1', message: 'Message 1', read: false, createdAt: new Date().toISOString() },
-      { id: '2', type: 'info', title: 'Notification 2', message: 'Message 2', read: false, createdAt: new Date().toISOString() },
-      { id: '3', type: 'info', title: 'Notification 3', message: 'Message 3', read: true, createdAt: new Date().toISOString() },
+      {
+        id: '1',
+        type: 'info',
+        title: 'Notification 1',
+        message: 'Message 1',
+        read: false,
+        createdAt: new Date().toISOString(),
+      },
+      {
+        id: '2',
+        type: 'info',
+        title: 'Notification 2',
+        message: 'Message 2',
+        read: false,
+        createdAt: new Date().toISOString(),
+      },
+      {
+        id: '3',
+        type: 'info',
+        title: 'Notification 3',
+        message: 'Message 3',
+        read: true,
+        createdAt: new Date().toISOString(),
+      },
     ];
 
     mockUseQuery.mockReturnValue({
@@ -78,7 +103,7 @@ describe('NotificationsBell', () => {
       loading: false,
       error: undefined,
       refetch: mockRefetch,
-    } as ReturnType<typeof useQuery>);
+    } as unknown as ReturnType<typeof useQuery>);
 
     render(<NotificationsBell />);
 
@@ -101,7 +126,7 @@ describe('NotificationsBell', () => {
     // Query should be called with skip: true
     expect(mockUseQuery).toHaveBeenCalledWith(
       expect.anything(),
-      expect.objectContaining({ skip: true })
+      expect.objectContaining({ skip: true }),
     );
   });
 
@@ -120,7 +145,7 @@ describe('NotificationsBell', () => {
     // Query should be called with skip: true
     expect(mockUseQuery).toHaveBeenCalledWith(
       expect.anything(),
-      expect.objectContaining({ skip: true })
+      expect.objectContaining({ skip: true }),
     );
   });
 
@@ -129,7 +154,7 @@ describe('NotificationsBell', () => {
 
     expect(mockUseQuery).toHaveBeenCalledWith(
       expect.anything(),
-      expect.objectContaining({ fetchPolicy: 'network-only' })
+      expect.objectContaining({ fetchPolicy: 'network-only' }),
     );
   });
 
@@ -138,7 +163,7 @@ describe('NotificationsBell', () => {
 
     expect(mockUseQuery).toHaveBeenCalledWith(
       expect.anything(),
-      expect.objectContaining({ pollInterval: 60000 })
+      expect.objectContaining({ pollInterval: 60000 }),
     );
   });
 

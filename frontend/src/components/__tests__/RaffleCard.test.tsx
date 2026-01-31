@@ -1,4 +1,9 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import {
+  render,
+  screen,
+  fireEvent,
+  waitFor,
+} from '@testing-library/react';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 import { useQuery, useMutation } from '@apollo/client/react';
 import { useAuthStore } from '@/store/auth';
@@ -64,19 +69,21 @@ describe('RaffleCard', () => {
       loading: false,
       error: undefined,
       refetch: vi.fn(),
-    } as ReturnType<typeof useQuery>);
+    } as unknown as ReturnType<typeof useQuery>);
 
     mockUseMutation.mockReturnValue([
       vi.fn(),
       { data: undefined, loading: false, error: undefined },
-    ] as ReturnType<typeof useMutation>);
+    ] as unknown as ReturnType<typeof useMutation>);
   });
 
   it('should render raffle title and product name', () => {
     render(<RaffleCard raffle={mockRaffle} />);
 
     expect(screen.getByText('iPhone 15 Pro Max')).toBeInTheDocument();
-    expect(screen.getByText('iPhone 15 Pro Max 256GB')).toBeInTheDocument();
+    expect(
+      screen.getByText('iPhone 15 Pro Max 256GB'),
+    ).toBeInTheDocument();
   });
 
   it('should display price per ticket', () => {
@@ -113,7 +120,9 @@ describe('RaffleCard', () => {
 
     const { container } = render(<RaffleCard raffle={mockRaffle} />);
 
-    const favoriteButton = container.querySelector('button[title*="favoritos"]');
+    const favoriteButton = container.querySelector(
+      'button[title*="favoritos"]',
+    );
     expect(favoriteButton).toBeInTheDocument();
   });
 
@@ -129,7 +138,9 @@ describe('RaffleCard', () => {
 
     const { container } = render(<RaffleCard raffle={mockRaffle} />);
 
-    const favoriteButton = container.querySelector('button[title*="favoritos"]');
+    const favoriteButton = container.querySelector(
+      'button[title*="favoritos"]',
+    );
     expect(favoriteButton).not.toBeInTheDocument();
   });
 
@@ -147,11 +158,13 @@ describe('RaffleCard', () => {
     mockUseMutation.mockReturnValue([
       mockAddFavorite,
       { data: undefined, loading: false, error: undefined },
-    ] as ReturnType<typeof useMutation>);
+    ] as unknown as ReturnType<typeof useMutation>);
 
     const { container } = render(<RaffleCard raffle={mockRaffle} />);
 
-    const favoriteButton = container.querySelector('button[title*="favoritos"]');
+    const favoriteButton = container.querySelector(
+      'button[title*="favoritos"]',
+    );
     if (favoriteButton) {
       fireEvent.click(favoriteButton);
 
