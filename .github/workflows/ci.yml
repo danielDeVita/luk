@@ -174,11 +174,22 @@ jobs:
         env:
           DATABASE_URL: postgresql://raffle_user:raffle_password@localhost:5432/raffle_db
           JWT_SECRET: test-jwt-secret-for-ci-pipeline
+          ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
           PORT: 3001
 
       - name: Install frontend dependencies
         working-directory: frontend
         run: npm ci
+
+      - name: Build frontend
+        working-directory: frontend
+        run: npm run build
+        env:
+          NEXT_PUBLIC_GRAPHQL_URL: http://localhost:3001/graphql
+          NEXT_PUBLIC_GRAPHQL_WS_URL: ws://localhost:3001/graphql
+          NEXT_PUBLIC_BACKEND_URL: http://localhost:3001
+          NEXT_PUBLIC_MP_PUBLIC_KEY: TEST-placeholder
+          NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME: placeholder
 
       - name: Install Playwright browsers
         working-directory: frontend
@@ -192,10 +203,30 @@ jobs:
             sleep 2
           done
 
+      - name: Start frontend
+        working-directory: frontend
+        run: npm start &
+        env:
+          NEXT_PUBLIC_GRAPHQL_URL: http://localhost:3001/graphql
+          NEXT_PUBLIC_GRAPHQL_WS_URL: ws://localhost:3001/graphql
+          NEXT_PUBLIC_BACKEND_URL: http://localhost:3001
+          NEXT_PUBLIC_MP_PUBLIC_KEY: TEST-placeholder
+          NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME: placeholder
+          PORT: 3000
+
+      - name: Wait for frontend
+        run: |
+          for i in {1..30}; do
+            curl -s http://localhost:3000 && break
+            echo "Waiting for frontend..."
+            sleep 2
+          done
+
       - name: Run E2E tests
         working-directory: frontend
         run: npm run test:e2e
         env:
+          PLAYWRIGHT_BASE_URL: http://localhost:3000
           NEXT_PUBLIC_GRAPHQL_URL: http://localhost:3001/graphql
           NEXT_PUBLIC_GRAPHQL_WS_URL: ws://localhost:3001/graphql
           NEXT_PUBLIC_BACKEND_URL: http://localhost:3001
