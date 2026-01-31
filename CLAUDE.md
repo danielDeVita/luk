@@ -169,16 +169,36 @@ npx prisma studio
 ```
 
 ### Testing
+
+**Coverage:** 769 backend tests (42%+), 50 component tests (80%+), 172 E2E tests
+
 ```bash
-# Backend
-npm run test              # Unit tests
-npm run test:cov          # Coverage
+# Run all tests (from root)
+npm run test              # Backend + Frontend component tests
+npm run test:backend      # Backend unit tests (769 tests)
+npm run test:frontend     # Frontend component tests (50 tests)
+
+# Backend (cd backend/)
+npm run test              # Unit tests (769 tests)
+npm run test:cov          # With coverage (42%+)
 npm run test:integration  # Integration tests
 
-# Frontend
-npm run test:e2e          # Playwright
-npm run test:e2e:ui       # Interactive
+# Frontend Component Tests (cd frontend/)
+npm run test:unit         # Vitest component tests (50 tests)
+npm run test:unit:ui      # Interactive UI
+npm run test:unit -- --coverage  # Coverage report (80%+)
+
+# Frontend E2E Tests (cd frontend/)
+npm run test:e2e          # All browsers (172 tests × 3 = 516 executions)
+npm run test:e2e:ui       # Interactive mode
+npm run test:e2e -- --project=chromium  # Specific browser
+npm run test:e2e -- legal-pages.spec.ts # Specific file
 ```
+
+**Test Files:**
+- Backend: 49 spec files (services, controllers, resolvers)
+- Frontend: 7 component test files, 17 E2E spec files
+- Total: ~991 tests across 73 test files
 
 ---
 

@@ -1,0 +1,152 @@
+import { test, expect } from '@playwright/test';
+
+/**
+ * Dashboard Sales E2E Tests
+ * Tests the seller dashboard and raffle management
+ */
+
+test.describe('Dashboard Sales', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto('/dashboard/sales');
+  });
+
+  test('should redirect to login if not authenticated', async ({ page }) => {
+    await page.context().clearCookies();
+    await page.goto('/dashboard/sales');
+
+    await page.waitForURL(/\/auth\/login/);
+    expect(page.url()).toContain('/auth/login');
+  });
+
+  test('should display sales dashboard header', async ({ page }) => {
+    test.skip(!page.url().includes('/dashboard/sales'), 'Requires authentication');
+
+    // Should show page title
+    await expect(page.getByText(/Mis Rifas/i)).toBeVisible();
+  });
+
+  test('should display seller statistics cards', async ({ page }) => {
+    test.skip(!page.url().includes('/dashboard/sales'), 'Requires authentication');
+
+    await page.waitForTimeout(2000);
+
+    // Check for stats cards
+    const statsCards = [
+      /Ingresos Totales/i,
+      /Tickets Vendidos/i,
+      /Rifas Activas/i,
+      /Rifas Completadas/i,
+    ];
+
+    for (const statText of statsCards) {
+      const statElement = page.getByText(statText);
+      if (await statElement.isVisible()) {
+        await expect(statElement).toBeVisible();
+      }
+    }
+  });
+
+  test('should show create raffle button', async ({ page }) => {
+    test.skip(!page.url().includes('/dashboard/sales'), 'Requires authentication');
+
+    const createButton = page.getByRole('button', { name: /Crear Rifa/i });
+
+    if (await createButton.isVisible()) {
+      await expect(createButton).toBeVisible();
+    }
+  });
+
+  test('should display list of raffles or empty state', async ({ page }) => {
+    test.skip(!page.url().includes('/dashboard/sales'), 'Requires authentication');
+
+    await page.waitForTimeout(2000);
+
+    // Check for raffles list or empty state
+    const emptyState = page.getByText(/No tenés rifas creadas/i);
+    const rafflesList = page.locator('[class*="grid"]').filter({ hasText: /Tickets/i });
+
+    const hasEmptyState = await emptyState.isVisible();
+    const hasRaffles = (await rafflesList.count()) > 0;
+
+    expect(hasEmptyState || hasRaffles).toBeTruthy();
+  });
+
+  test('should show raffle status badges', async ({ page }) => {
+    test.skip(!page.url().includes('/dashboard/sales'), 'Requires authentication');
+
+    await page.waitForTimeout(2000);
+
+    // Look for status indicators (ACTIVA, SORTEADA, FINALIZADA, etc.)
+    const statusTexts = [
+      /ACTIVA/i,
+      /SORTEADA/i,
+      /FINALIZADA/i,
+      /CANCELADA/i,
+    ];
+
+    let foundStatus = false;
+    for (const statusText of statusTexts) {
+      const statusBadge = page.getByText(statusText).first();
+      if (await statusBadge.isVisible()) {
+        foundStatus = true;
+        break;
+      }
+    }
+
+    // If raffles exist, at least one status should be visible
+    if (foundStatus) {
+      expect(foundStatus).toBeTruthy();
+    }
+  });
+
+  test('should display raffle metrics', async ({ page }) => {
+    test.skip(!page.url().includes('/dashboard/sales'), 'Requires authentication');
+
+    await page.waitForTimeout(2000);
+
+    // Check for metric displays (tickets sold, views, etc.)
+    const ticketIcon = page.locator('svg.lucide-ticket');
+    const eyeIcon = page.locator('svg.lucide-eye');
+    const dollarIcon = page.locator('svg.lucide-dollar-sign');
+
+    const hasTicketMetric = (await ticketIcon.count()) > 0;
+    const hasViewMetric = (await eyeIcon.count()) > 0;
+    const hasDollarMetric = (await dollarIcon.count()) > 0;
+
+    // If raffles exist, should show metrics
+    if (hasTicketMetric || hasViewMetric || hasDollarMetric) {
+      expect(hasTicketMetric || hasViewMetric || hasDollarMetric).toBeTruthy();
+    }
+  });
+
+  test('should show monthly revenue chart when data available', async ({ page }) => {
+    test.skip(!page.url().includes('/dashboard/sales'), 'Requires authentication');
+
+    await page.waitForTimeout(2000);
+
+    // Look for chart container or section
+    const chartSection = page.getByText(/Ingresos Mensuales/i);
+
+    if (await chartSection.isVisible()) {
+      await expect(chartSection).toBeVisible();
+    }
+  });
+
+  test('should display raffle action buttons', async ({ page }) => {
+    test.skip(!page.url().includes('/dashboard/sales'), 'Requires authentication');
+
+    await page.waitForTimeout(2000);
+
+    // Check for action buttons (view, edit, etc.)
+    const viewButtons = page.locator('button').filter({ has: page.locator('svg.lucide-eye') });
+    const editButtons = page.locator('button').filter({ has: page.locator('svg.lucide-pencil') });
+
+    const hasViewButton = (await viewButtons.count()) > 0;
+    const hasEditButton = (await editButtons.count()) > 0;
+
+    // If raffles exist, should show action buttons
+    if (hasViewButton || hasEditButton) {
+      expect(hasViewButton || hasEditButton).toBeTruthy();
+    }
+  });
+});

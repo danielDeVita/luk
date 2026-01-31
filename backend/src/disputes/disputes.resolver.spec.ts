@@ -189,10 +189,15 @@ describe('DisputesResolver', () => {
         resolucion: 'Notes that meet minimum length requirement here',
       };
 
-      await expect(
-        resolver.resolveDispute(user, disputeId, input),
-      ).rejects.toThrow('Unauthorized');
+      let thrownError: Error | null = null;
+      try {
+        await resolver.resolveDispute(user, disputeId, input);
+      } catch (e) {
+        thrownError = e as Error;
+      }
 
+      expect(thrownError).not.toBeNull();
+      expect(thrownError?.message).toBe('Unauthorized');
       expect(disputesService.resolveDispute).not.toHaveBeenCalled();
     });
 
@@ -246,10 +251,15 @@ describe('DisputesResolver', () => {
     it('should throw error when non-admin tries to access', async () => {
       const user = createTestUser({ role: UserRole.USER });
 
-      await expect(resolver.pendingDisputes(user)).rejects.toThrow(
-        'Unauthorized',
-      );
+      let thrownError: Error | null = null;
+      try {
+        await resolver.pendingDisputes(user);
+      } catch (e) {
+        thrownError = e as Error;
+      }
 
+      expect(thrownError).not.toBeNull();
+      expect(thrownError?.message).toBe('Unauthorized');
       expect(disputesService.findAllPending).not.toHaveBeenCalled();
     });
   });

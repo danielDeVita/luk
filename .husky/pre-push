@@ -1,1 +1,16 @@
+#!/usr/bin/env sh
+. "$(dirname -- "$0")/_/husky.sh"
+
+echo "🔍 Running type checks and linting..."
 npm run typecheck && npm run lint
+
+echo ""
+echo "🧪 Running backend tests..."
+cd backend && npm run test -- --bail --maxWorkers=4 || exit 1
+
+echo ""
+echo "🧪 Running frontend component tests..."
+cd ../frontend && npm run test:unit -- --run || exit 1
+
+echo ""
+echo "✅ All checks passed! Pushing to remote..."
