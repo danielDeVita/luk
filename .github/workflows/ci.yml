@@ -168,6 +168,10 @@ jobs:
         env:
           DATABASE_URL: postgresql://raffle_user:raffle_password@localhost:5432/raffle_db
 
+      - name: Build backend
+        working-directory: backend
+        run: npm run build
+
       - name: Start backend
         working-directory: backend
         run: npm run start:prod &
