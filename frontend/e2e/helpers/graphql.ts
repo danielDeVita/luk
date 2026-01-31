@@ -17,11 +17,12 @@ export interface TestUser {
 export async function executeGraphQL(
   page: Page,
   query: string,
-  variables?: Record<string, any>,
+  variables?: Record<string, unknown>,
   token?: string,
 ) {
   const graphqlUrl =
-    process.env.NEXT_PUBLIC_GRAPHQL_URL || 'http://localhost:3001/graphql';
+    process.env.NEXT_PUBLIC_GRAPHQL_URL ||
+    'http://localhost:3001/graphql';
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -153,7 +154,8 @@ export async function createTestDispute(
     input: {
       raffleId,
       tipo: overrides?.tipo || 'PRODUCTO_NO_RECIBIDO',
-      descripcion: overrides?.descripcion || 'Test dispute description',
+      descripcion:
+        overrides?.descripcion || 'Test dispute description',
     },
   };
 
@@ -164,7 +166,9 @@ export async function createTestDispute(
 /**
  * Get user token from localStorage after login
  */
-export async function getUserToken(page: Page): Promise<string | null> {
+export async function getUserToken(
+  page: Page,
+): Promise<string | null> {
   return await page.evaluate(() => {
     return localStorage.getItem('auth_token');
   });
@@ -181,7 +185,10 @@ export async function waitForGraphQL(
   return page.waitForResponse(
     (response) => {
       if (!response.url().includes('/graphql')) return false;
-      return response.request().postDataJSON()?.operationName === operationName;
+      return (
+        response.request().postDataJSON()?.operationName ===
+        operationName
+      );
     },
     { timeout },
   );

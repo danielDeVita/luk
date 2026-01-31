@@ -1,4 +1,4 @@
-import { test, expect, Page } from '@playwright/test';
+import { test, expect } from '@playwright/test';
 
 /**
  * Email Verification E2E Tests
@@ -6,7 +6,9 @@ import { test, expect, Page } from '@playwright/test';
  */
 
 test.describe('Email Verification', () => {
-  test('should show verification page after registration', async ({ page }) => {
+  test('should show verification page after registration', async ({
+    page,
+  }) => {
     await page.goto('/auth/register');
 
     // Fill registration form
@@ -29,7 +31,7 @@ test.describe('Email Verification', () => {
   });
 
   test('should auto-login with correct verification code', async ({
-    page,
+    page: _page,
   }) => {
     // Note: This test requires either:
     // 1. A test email service that can retrieve codes
@@ -43,7 +45,9 @@ test.describe('Email Verification', () => {
     );
   });
 
-  test('should show error for wrong verification code', async ({ page }) => {
+  test('should show error for wrong verification code', async ({
+    page,
+  }) => {
     // Navigate directly to verify page (assumes user is in verification flow)
     await page.goto('/auth/verify-email');
 
@@ -57,7 +61,9 @@ test.describe('Email Verification', () => {
     });
   });
 
-  test('should show resend button after timeout', async ({ page }) => {
+  test('should show resend button after timeout', async ({
+    page,
+  }) => {
     await page.goto('/auth/verify-email');
 
     // Should show resend option
@@ -66,7 +72,9 @@ test.describe('Email Verification', () => {
     ).toBeVisible();
   });
 
-  test('should allow resending verification code', async ({ page }) => {
+  test('should allow resending verification code', async ({
+    page,
+  }) => {
     await page.goto('/auth/verify-email');
 
     const resendButton = page.getByRole('button', {
@@ -76,15 +84,15 @@ test.describe('Email Verification', () => {
       await resendButton.click();
 
       // Should show success message
-      await expect(
-        page.getByText(/código reenviado/i),
-      ).toBeVisible();
+      await expect(page.getByText(/código reenviado/i)).toBeVisible();
     } else {
       test.skip(true, 'Resend button not visible yet');
     }
   });
 
-  test('should enforce max 3 verification attempts', async ({ page }) => {
+  test('should enforce max 3 verification attempts', async ({
+    page: _page,
+  }) => {
     test.skip(
       true,
       'Requires backend test endpoint to simulate failed attempts',
@@ -93,7 +101,9 @@ test.describe('Email Verification', () => {
     // After 3 failed attempts, should show lockout message
   });
 
-  test('should show code expiry message after 15 minutes', async ({ page }) => {
+  test('should show code expiry message after 15 minutes', async ({
+    page: _page,
+  }) => {
     test.skip(true, 'Requires time manipulation in test environment');
     // Would need to mock/manipulate time to test 15-minute expiry
   });
