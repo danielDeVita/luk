@@ -168,6 +168,12 @@ jobs:
         env:
           DATABASE_URL: postgresql://raffle_user:raffle_password@localhost:5432/raffle_db
 
+      - name: Seed database with test users
+        working-directory: backend
+        run: npx ts-node prisma/seed.ts
+        env:
+          DATABASE_URL: postgresql://raffle_user:raffle_password@localhost:5432/raffle_db
+
       - name: Build backend
         working-directory: backend
         run: npm run build

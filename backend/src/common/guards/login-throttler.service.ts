@@ -44,6 +44,11 @@ export class LoginThrottlerService {
     remainingMs: number;
     retryAfter: Date | null;
   } {
+    // Bypass throttling in development mode to avoid blocking E2E tests
+    if (process.env.NODE_ENV === 'development') {
+      return { blocked: false, remainingMs: 0, retryAfter: null };
+    }
+
     const attempt = this.attempts.get(ip);
 
     if (!attempt) {
@@ -70,6 +75,11 @@ export class LoginThrottlerService {
     remainingAttempts: number | null;
     blocked: boolean;
   } {
+    // Bypass throttling in development mode to avoid blocking E2E tests
+    if (process.env.NODE_ENV === 'development') {
+      return { remainingAttempts: this.MAX_ATTEMPTS, blocked: false };
+    }
+
     const now = Date.now();
     let attempt = this.attempts.get(ip);
 
