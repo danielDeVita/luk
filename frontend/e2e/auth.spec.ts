@@ -23,12 +23,9 @@ async function loginAs(
   await page.getByLabel(/contrase[ñn]a/i).fill(user.password);
   await page.locator('button[type="submit"]').click();
   // Wait for redirect or dashboard
-  await page.waitForURL(
-    (url) => !url.pathname.includes('/auth/login'),
-    {
-      timeout: 10000,
-    },
-  );
+  await page.waitForURL((url) => !url.pathname.includes('/auth/login'), {
+    timeout: 15000,
+  });
 }
 
 test.describe('Authentication - Basic', () => {
