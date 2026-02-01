@@ -247,7 +247,11 @@ function createApolloClient(
       }
     ) || (networkError?.statusCode === 401);
 
-    if (isAuthError && typeof window !== 'undefined') {
+    // Only attempt token refresh if we have a refresh token
+    // This prevents swallowing login errors (which also have UNAUTHENTICATED code)
+    const hasRefreshToken = !!useAuthStore.getState().refreshToken;
+
+    if (isAuthError && hasRefreshToken && typeof window !== 'undefined') {
       // Return an Observable that handles the token refresh
       return new Observable<FetchResult>((observer) => {
         // Use the shared refresh function (handles concurrent requests)
@@ -278,6 +282,9 @@ function createApolloClient(
         });
       });
     }
+
+    // For auth errors without a refresh token (like login failures),
+    // let the error propagate normally so it can be displayed to the user
   });
 
   // Combine auth link with http link
