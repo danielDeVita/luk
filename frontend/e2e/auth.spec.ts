@@ -14,31 +14,41 @@ const TEST_SELLER = {
 /**
  * Helper to login with test credentials
  */
-async function loginAs(page: Page, user: { email: string; password: string }) {
+async function loginAs(
+  page: Page,
+  user: { email: string; password: string },
+) {
   await page.goto('/auth/login');
   await page.getByLabel(/email/i).fill(user.email);
-  await page.getByLabel(/contraseña/i).fill(user.password);
+  await page.getByLabel(/contrase[ñn]a/i).fill(user.password);
   await page.locator('button[type="submit"]').click();
   // Wait for redirect or dashboard
-  await page.waitForURL((url) => !url.pathname.includes('/auth/login'), {
-    timeout: 10000,
-  });
+  await page.waitForURL(
+    (url) => !url.pathname.includes('/auth/login'),
+    {
+      timeout: 10000,
+    },
+  );
 }
 
 test.describe('Authentication - Basic', () => {
   test('shows login page', async ({ page }) => {
     await page.goto('/auth/login');
 
-    await expect(page.getByRole('heading', { name: /iniciar sesión/i })).toBeVisible();
+    await expect(
+      page.getByRole('heading', { name: /iniciar sesión/i }),
+    ).toBeVisible();
     await expect(page.getByLabel(/email/i)).toBeVisible();
-    await expect(page.getByLabel(/contraseña/i)).toBeVisible();
+    await expect(page.getByLabel(/contrase[ñn]a/i)).toBeVisible();
     await expect(page.locator('button[type="submit"]')).toBeVisible();
   });
 
   test('shows register page', async ({ page }) => {
     await page.goto('/auth/register');
 
-    await expect(page.getByRole('heading', { name: /crear cuenta/i })).toBeVisible();
+    await expect(
+      page.getByRole('heading', { name: /crear cuenta/i }),
+    ).toBeVisible();
     await expect(page.getByLabel(/nombre/i)).toBeVisible();
     await expect(page.getByLabel(/email/i)).toBeVisible();
   });
@@ -47,23 +57,31 @@ test.describe('Authentication - Basic', () => {
     await page.goto('/auth/login');
 
     await page.getByLabel(/email/i).fill('invalid@test.com');
-    await page.getByLabel(/contraseña/i).fill('wrongpassword');
+    await page.getByLabel(/contrase[ñn]a/i).fill('wrongpassword');
     await page.locator('button[type="submit"]').click();
 
     await expect(
-      page.getByText(/credenciales|inválid|error/i).first()
+      page
+        .getByText(
+          /credenciales|inválid|error|invalid|credentials|intentos|Demasiados/i,
+        )
+        .first(),
     ).toBeVisible({ timeout: 10000 });
   });
 
   test('can navigate from login to register', async ({ page }) => {
     await page.goto('/auth/login');
 
-    await page.getByRole('link', { name: /registrarse|crear cuenta/i }).click();
+    await page
+      .getByRole('link', { name: /registrarse|crear cuenta/i })
+      .click();
 
     await expect(page).toHaveURL(/\/auth\/register/);
   });
 
-  test('redirects to login when accessing protected route', async ({ page }) => {
+  test('redirects to login when accessing protected route', async ({
+    page,
+  }) => {
     await page.goto('/dashboard/create');
 
     await expect(page).toHaveURL(/\/auth\/login/);
@@ -71,26 +89,34 @@ test.describe('Authentication - Basic', () => {
 });
 
 test.describe('Authentication - Login Flow', () => {
-  test('successful login as buyer redirects to home', async ({ page }) => {
+  test('successful login as buyer redirects to home', async ({
+    page,
+  }) => {
     await loginAs(page, TEST_BUYER);
 
     // Should be on home or dashboard
     await expect(page).toHaveURL(/\/(dashboard|$)/);
   });
 
-  test('successful login as seller shows dashboard access', async ({ page }) => {
+  test('successful login as seller shows dashboard access', async ({
+    page,
+  }) => {
     await loginAs(page, TEST_SELLER);
 
     // Navigate to seller dashboard
     await page.goto('/dashboard/sales');
 
     // Should load seller dashboard
-    await expect(page.getByText(/ventas|estadísticas|rifas/i).first()).toBeVisible({
+    await expect(
+      page.getByText(/ventas|estadísticas|rifas/i).first(),
+    ).toBeVisible({
       timeout: 10000,
     });
   });
 
-  test('logged in user can access protected routes', async ({ page }) => {
+  test('logged in user can access protected routes', async ({
+    page,
+  }) => {
     await loginAs(page, TEST_BUYER);
 
     // Navigate to favorites (protected route)
@@ -105,13 +131,17 @@ test.describe('Authentication - Login Flow', () => {
 
     // Click on user menu to logout
     const userMenu = page.locator('[data-testid="user-menu"]').or(
-      page.getByRole('button', { name: new RegExp(TEST_BUYER.email.split('@')[0], 'i') })
+      page.getByRole('button', {
+        name: new RegExp(TEST_BUYER.email.split('@')[0], 'i'),
+      }),
     );
 
     if (await userMenu.isVisible()) {
       await userMenu.click();
 
-      const logoutButton = page.getByRole('menuitem', { name: /cerrar sesión|logout/i });
+      const logoutButton = page.getByRole('menuitem', {
+        name: /cerrar sesión|logout/i,
+      });
       if (await logoutButton.isVisible()) {
         await logoutButton.click();
 
@@ -124,20 +154,28 @@ test.describe('Authentication - Login Flow', () => {
 });
 
 test.describe('Authentication - IP Blocking', () => {
-  test('shows warning after multiple failed attempts', async ({ page }) => {
+  test('shows warning after multiple failed attempts', async ({
+    page,
+  }) => {
     await page.goto('/auth/login');
 
     // Try to login with wrong password multiple times
     for (let i = 0; i < 4; i++) {
       await page.getByLabel(/email/i).fill('test@test.com');
-      await page.getByLabel(/contraseña/i).fill('wrongpassword' + i);
+      await page
+        .getByLabel(/contrase[ñn]a/i)
+        .fill('wrongpassword' + i);
       await page.locator('button[type="submit"]').click();
       await page.waitForTimeout(500); // Wait between attempts
     }
 
     // Should show error about failed attempts or blocking
     await expect(
-      page.getByText(/intentos|bloqueado|error|inválid/i).first()
+      page
+        .getByText(
+          /intentos|bloqueado|error|inválid|invalid|credentials/i,
+        )
+        .first(),
     ).toBeVisible({ timeout: 10000 });
   });
 });

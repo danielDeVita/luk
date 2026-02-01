@@ -17,19 +17,21 @@ const TEST_ADMIN = {
 async function loginAsAdmin(page: Page) {
   await page.goto('/auth/login');
   await page.getByLabel(/email/i).fill(TEST_ADMIN.email);
-  await page.getByLabel(/contraseña/i).fill(TEST_ADMIN.password);
+  await page.getByLabel(/contrase[ñn]a/i).fill(TEST_ADMIN.password);
   await page.locator('button[type="submit"]').click();
-  await page.waitForURL((url) => !url.pathname.includes('/auth/login'), {
-    timeout: 10000,
-  });
+  await page.waitForURL(
+    (url) => !url.pathname.includes('/auth/login'),
+    {
+      timeout: 10000,
+    },
+  );
 }
 
 test.describe('Admin Disputes', () => {
-  test('should show disputes admin panel for admin users', async ({ page }) => {
-    test.skip(
-      true,
-      'Requires test admin user in database',
-    );
+  test('should show disputes admin panel for admin users', async ({
+    page,
+  }) => {
+    test.skip(true, 'Requires test admin user in database');
 
     await loginAsAdmin(page);
     await page.goto('/admin/disputes');
@@ -44,10 +46,12 @@ test.describe('Admin Disputes', () => {
     // Login as regular user
     await page.goto('/auth/login');
     await page.getByLabel(/email/i).fill('comprador@test.com');
-    await page.getByLabel(/contraseña/i).fill('Password123!');
+    await page.getByLabel(/contrase[ñn]a/i).fill('Password123!');
     await page.locator('button[type="submit"]').click();
 
-    await page.waitForURL((url) => !url.pathname.includes('/auth/login'));
+    await page.waitForURL(
+      (url) => !url.pathname.includes('/auth/login'),
+    );
 
     // Try to access admin panel
     await page.goto('/admin/disputes');
@@ -97,7 +101,9 @@ test.describe('Admin Disputes', () => {
     await page.goto('/admin/disputes');
 
     // Select type filter
-    await page.getByLabel(/tipo/i).selectOption('PRODUCTO_NO_RECIBIDO');
+    await page
+      .getByLabel(/tipo/i)
+      .selectOption('PRODUCTO_NO_RECIBIDO');
 
     // Should show filtered disputes
     await expect(
@@ -119,7 +125,9 @@ test.describe('Admin Disputes', () => {
 
     // Should show modal with details
     await expect(page.getByRole('dialog')).toBeVisible();
-    await expect(page.getByText(/detalles del reclamo/i)).toBeVisible();
+    await expect(
+      page.getByText(/detalles del reclamo/i),
+    ).toBeVisible();
   });
 
   test('should resolve dispute in buyer favor with refund', async ({
@@ -137,7 +145,9 @@ test.describe('Admin Disputes', () => {
     await page.locator('table tbody tr').first().click();
 
     // Select resolution
-    await page.getByLabel(/decisión/i).selectOption('RESUELTA_COMPRADOR');
+    await page
+      .getByLabel(/decisión/i)
+      .selectOption('RESUELTA_COMPRADOR');
     await page
       .getByLabel(/resolución/i)
       .fill('Evidencia clara de fraude');
@@ -164,7 +174,9 @@ test.describe('Admin Disputes', () => {
     await page.locator('table tbody tr').first().click();
 
     // Select seller favor
-    await page.getByLabel(/decisión/i).selectOption('RESUELTA_VENDEDOR');
+    await page
+      .getByLabel(/decisión/i)
+      .selectOption('RESUELTA_VENDEDOR');
     await page
       .getByLabel(/resolución/i)
       .fill('Comprador recibió el producto');
@@ -179,10 +191,7 @@ test.describe('Admin Disputes', () => {
   });
 
   test('should handle partial resolution', async ({ page }) => {
-    test.skip(
-      true,
-      'Requires test admin user and test dispute',
-    );
+    test.skip(true, 'Requires test admin user and test dispute');
 
     await loginAsAdmin(page);
     await page.goto('/admin/disputes');
@@ -191,17 +200,18 @@ test.describe('Admin Disputes', () => {
     await page.locator('table tbody tr').first().click();
 
     // Select partial resolution
-    await page.getByLabel(/decisión/i).selectOption('RESUELTA_PARCIAL');
+    await page
+      .getByLabel(/decisión/i)
+      .selectOption('RESUELTA_PARCIAL');
 
     // Should show amount input
     await expect(page.getByLabel(/monto reembolso/i)).toBeVisible();
   });
 
-  test('should allow adding admin notes to dispute', async ({ page }) => {
-    test.skip(
-      true,
-      'Requires test admin user and test dispute',
-    );
+  test('should allow adding admin notes to dispute', async ({
+    page,
+  }) => {
+    test.skip(true, 'Requires test admin user and test dispute');
 
     await loginAsAdmin(page);
     await page.goto('/admin/disputes');
@@ -215,17 +225,16 @@ test.describe('Admin Disputes', () => {
       .fill('Contacté al vendedor por teléfono');
 
     // Save
-    await page.getByRole('button', { name: /guardar notas/i }).click();
+    await page
+      .getByRole('button', { name: /guardar notas/i })
+      .click();
 
     // Should save successfully
     await expect(page.getByText(/notas guardadas/i)).toBeVisible();
   });
 
   test('should show dispute history timeline', async ({ page }) => {
-    test.skip(
-      true,
-      'Requires test dispute with history',
-    );
+    test.skip(true, 'Requires test dispute with history');
 
     await loginAsAdmin(page);
     await page.goto('/admin/disputes');
@@ -235,14 +244,13 @@ test.describe('Admin Disputes', () => {
 
     // Should show timeline
     await expect(page.getByText(/historial/i)).toBeVisible();
-    await expect(page.locator('.timeline-item').first()).toBeVisible();
+    await expect(
+      page.locator('.timeline-item').first(),
+    ).toBeVisible();
   });
 
   test('should support bulk dispute resolution', async ({ page }) => {
-    test.skip(
-      true,
-      'Requires test admin user and multiple disputes',
-    );
+    test.skip(true, 'Requires test admin user and multiple disputes');
 
     await loginAsAdmin(page);
     await page.goto('/admin/disputes');
@@ -260,10 +268,7 @@ test.describe('Admin Disputes', () => {
   test('should validate resolution form before submission', async ({
     page,
   }) => {
-    test.skip(
-      true,
-      'Requires test admin user and test dispute',
-    );
+    test.skip(true, 'Requires test admin user and test dispute');
 
     await loginAsAdmin(page);
     await page.goto('/admin/disputes');
@@ -275,16 +280,15 @@ test.describe('Admin Disputes', () => {
     await page.getByRole('button', { name: /resolver/i }).click();
 
     // Should show validation error
-    await expect(page.getByText(/debe seleccionar una decisión/i)).toBeVisible();
+    await expect(
+      page.getByText(/debe seleccionar una decisión/i),
+    ).toBeVisible();
   });
 
   test('should show confirmation dialog for critical actions', async ({
     page,
   }) => {
-    test.skip(
-      true,
-      'Requires test admin user and test dispute',
-    );
+    test.skip(true, 'Requires test admin user and test dispute');
 
     await loginAsAdmin(page);
     await page.goto('/admin/disputes');
@@ -293,7 +297,9 @@ test.describe('Admin Disputes', () => {
     await page.locator('table tbody tr').first().click();
 
     // Select resolution
-    await page.getByLabel(/decisión/i).selectOption('RESUELTA_COMPRADOR');
+    await page
+      .getByLabel(/decisión/i)
+      .selectOption('RESUELTA_COMPRADOR');
     await page.getByLabel(/resolución/i).fill('Test resolution');
     await page.getByRole('button', { name: /resolver/i }).click();
 

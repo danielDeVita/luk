@@ -17,15 +17,22 @@ const TEST_SELLER_UNVERIFIED = {
 async function loginAsUnverifiedSeller(page: Page) {
   await page.goto('/auth/login');
   await page.getByLabel(/email/i).fill(TEST_SELLER_UNVERIFIED.email);
-  await page.getByLabel(/contraseña/i).fill(TEST_SELLER_UNVERIFIED.password);
+  await page
+    .getByLabel(/contrase[ñn]a/i)
+    .fill(TEST_SELLER_UNVERIFIED.password);
   await page.locator('button[type="submit"]').click();
-  await page.waitForURL((url) => !url.pathname.includes('/auth/login'), {
-    timeout: 10000,
-  });
+  await page.waitForURL(
+    (url) => !url.pathname.includes('/auth/login'),
+    {
+      timeout: 10000,
+    },
+  );
 }
 
 test.describe('KYC Submission', () => {
-  test('should show KYC form in seller dashboard', async ({ page }) => {
+  test('should show KYC form in seller dashboard', async ({
+    page,
+  }) => {
     test.skip(
       true,
       'Requires test user with KYC NOT_SUBMITTED status in database',
@@ -47,7 +54,9 @@ test.describe('KYC Submission', () => {
     await page.locator('button[type="submit"]').click();
 
     // Should show validation errors
-    await expect(page.getByText(/este campo es obligatorio/i).first()).toBeVisible();
+    await expect(
+      page.getByText(/este campo es obligatorio/i).first(),
+    ).toBeVisible();
   });
 
   test('should validate DNI format', async ({ page }) => {
@@ -63,7 +72,9 @@ test.describe('KYC Submission', () => {
     ).toBeVisible();
   });
 
-  test('should fill KYC form and set status to pending', async ({ page }) => {
+  test('should fill KYC form and set status to pending', async ({
+    page,
+  }) => {
     test.skip(
       true,
       'Requires test user with KYC NOT_SUBMITTED and file upload capability',
@@ -92,7 +103,9 @@ test.describe('KYC Submission', () => {
     ).toBeVisible();
   });
 
-  test('should show pending status after KYC submission', async ({ page }) => {
+  test('should show pending status after KYC submission', async ({
+    page,
+  }) => {
     test.skip(
       true,
       'Requires test user with KYC PENDING_REVIEW status',
@@ -124,7 +137,9 @@ test.describe('KYC Submission', () => {
     ).toBeVisible();
   });
 
-  test('should show success message after admin approval', async ({ page }) => {
+  test('should show success message after admin approval', async ({
+    page,
+  }) => {
     test.skip(
       true,
       'Requires admin to approve KYC or test endpoint to simulate approval',
@@ -139,14 +154,18 @@ test.describe('KYC Submission', () => {
     ).toBeVisible();
   });
 
-  test('should allow raffle creation after KYC approval', async ({ page }) => {
+  test('should allow raffle creation after KYC approval', async ({
+    page,
+  }) => {
     // Use verified seller from seed data
     await page.goto('/auth/login');
     await page.getByLabel(/email/i).fill('vendedor@test.com');
-    await page.getByLabel(/contraseña/i).fill('Password123!');
+    await page.getByLabel(/contrase[ñn]a/i).fill('Password123!');
     await page.locator('button[type="submit"]').click();
 
-    await page.waitForURL((url) => !url.pathname.includes('/auth/login'));
+    await page.waitForURL(
+      (url) => !url.pathname.includes('/auth/login'),
+    );
     await page.goto('/dashboard/seller/create-raffle');
 
     // Should be able to access form
@@ -170,16 +189,13 @@ test.describe('KYC Submission', () => {
     ).toBeVisible();
 
     // Should show reason
-    await expect(
-      page.getByText(/motivo:/i),
-    ).toBeVisible();
+    await expect(page.getByText(/motivo:/i)).toBeVisible();
   });
 
-  test('should allow resubmission after rejection', async ({ page }) => {
-    test.skip(
-      true,
-      'Requires test user with KYC REJECTED status',
-    );
+  test('should allow resubmission after rejection', async ({
+    page,
+  }) => {
+    test.skip(true, 'Requires test user with KYC REJECTED status');
 
     await loginAsUnverifiedSeller(page);
     await page.goto('/dashboard/seller/kyc');

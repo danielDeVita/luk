@@ -17,7 +17,7 @@ test.describe('Email Verification', () => {
     await page
       .getByLabel(/email/i)
       .fill(`test-${Date.now()}@example.com`);
-    await page.getByLabel(/contraseña/i).fill('Password123!');
+    await page.getByLabel(/contrase[ñn]a/i).fill('Password123!');
     await page
       .locator('button[type="submit"]')
       .getByText(/crear cuenta/i)
@@ -119,7 +119,7 @@ test.describe('Email Verification', () => {
     await page
       .getByLabel(/email/i)
       .fill(`test-ref-${Date.now()}@example.com`);
-    await page.getByLabel(/contraseña/i).fill('Password123!');
+    await page.getByLabel(/contrase[ñn]a/i).fill('Password123!');
     await page
       .locator('button[type="submit"]')
       .getByText(/crear cuenta/i)

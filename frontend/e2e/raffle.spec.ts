@@ -14,25 +14,33 @@ const TEST_BUYER = {
 /**
  * Helper to login with test credentials
  */
-async function loginAs(page: Page, user: { email: string; password: string }) {
+async function loginAs(
+  page: Page,
+  user: { email: string; password: string },
+) {
   await page.goto('/auth/login');
   await page.getByLabel(/email/i).fill(user.email);
-  await page.getByLabel(/contraseña/i).fill(user.password);
+  await page.getByLabel(/contrase[ñn]a/i).fill(user.password);
   await page.locator('button[type="submit"]').click();
-  await page.waitForURL((url) => !url.pathname.includes('/auth/login'), {
-    timeout: 10000,
-  });
+  await page.waitForURL(
+    (url) => !url.pathname.includes('/auth/login'),
+    {
+      timeout: 10000,
+    },
+  );
 }
 
 test.describe('Raffle Browsing', () => {
-  test('homepage loads with featured raffles section', async ({ page }) => {
+  test('homepage loads with featured raffles section', async ({
+    page,
+  }) => {
     await page.goto('/');
 
     // Should show the page content
     await expect(page.locator('body')).toBeVisible();
     // Look for raffle cards or featured section
     await expect(
-      page.getByText(/rifas|explor|particip/i).first()
+      page.getByText(/rifas|explor|particip/i).first(),
     ).toBeVisible({ timeout: 10000 });
   });
 
@@ -40,23 +48,29 @@ test.describe('Raffle Browsing', () => {
     await page.goto('/search');
 
     // Should show filters
-    await expect(page.getByText(/explorar rifas|buscar/i).first()).toBeVisible({
+    await expect(
+      page.getByText(/explorar rifas|buscar/i).first(),
+    ).toBeVisible({
       timeout: 10000,
     });
   });
 
-  test('search page supports category filtering', async ({ page }) => {
+  test('search page supports category filtering', async ({
+    page,
+  }) => {
     await page.goto('/search');
 
     // Look for category filter
-    const categoryFilter = page.getByRole('combobox').or(
-      page.getByPlaceholder(/categoría/i)
-    );
+    const categoryFilter = page
+      .getByRole('combobox')
+      .or(page.getByPlaceholder(/categoría/i));
 
     if (await categoryFilter.isVisible()) {
       await categoryFilter.click();
       // Categories should appear
-      await expect(page.getByRole('option').first()).toBeVisible({ timeout: 5000 });
+      await expect(page.getByRole('option').first()).toBeVisible({
+        timeout: 5000,
+      });
     }
   });
 
@@ -64,24 +78,26 @@ test.describe('Raffle Browsing', () => {
     await page.goto('/search');
 
     // Look for sort selector
-    const sortButton = page.getByRole('combobox').or(
-      page.getByText(/ordenar/i)
-    );
+    const sortButton = page
+      .getByRole('combobox')
+      .or(page.getByText(/ordenar/i));
 
     if (await sortButton.isVisible()) {
       await sortButton.click();
       // Sort options should appear
       await expect(
-        page.getByText(/precio|fecha|recient/i).first()
+        page.getByText(/precio|fecha|recient/i).first(),
       ).toBeVisible({ timeout: 5000 });
     }
   });
 
-  test('raffle detail page shows error for invalid ID', async ({ page }) => {
+  test('raffle detail page shows error for invalid ID', async ({
+    page,
+  }) => {
     await page.goto('/raffle/invalid-raffle-id-12345');
 
     await expect(
-      page.getByText(/no encontrad|error|not found/i).first()
+      page.getByText(/no encontrad|error|not found/i).first(),
     ).toBeVisible({ timeout: 10000 });
   });
 
@@ -92,17 +108,23 @@ test.describe('Raffle Browsing', () => {
     await page.waitForTimeout(2000);
 
     // Scroll to bottom
-    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+    await page.evaluate(() =>
+      window.scrollTo(0, document.body.scrollHeight),
+    );
 
     // Should show loading indicator or more results
     await expect(
-      page.getByText(/cargando|loading/i).or(page.locator('[href^="/raffle/"]'))
+      page
+        .getByText(/cargando|loading/i)
+        .or(page.locator('[href^="/raffle/"]')),
     ).toBeVisible({ timeout: 5000 });
   });
 });
 
 test.describe('Ticket Purchase Flow', () => {
-  test('buy button redirects to login for unauthenticated users', async ({ page }) => {
+  test('buy button redirects to login for unauthenticated users', async ({
+    page,
+  }) => {
     await page.goto('/search');
 
     const raffleCard = page.locator('[href^="/raffle/"]').first();
@@ -111,16 +133,22 @@ test.describe('Ticket Purchase Flow', () => {
       await raffleCard.click();
       await page.waitForURL(/\/raffle\//);
 
-      const buyButton = page.getByRole('button', { name: /comprar/i });
+      const buyButton = page.getByRole('button', {
+        name: /comprar/i,
+      });
 
       if (await buyButton.isVisible()) {
         await buyButton.click();
-        await expect(page).toHaveURL(/\/auth\/login/, { timeout: 5000 });
+        await expect(page).toHaveURL(/\/auth\/login/, {
+          timeout: 5000,
+        });
       }
     }
   });
 
-  test('authenticated user sees buy button enabled', async ({ page }) => {
+  test('authenticated user sees buy button enabled', async ({
+    page,
+  }) => {
     await loginAs(page, TEST_BUYER);
     await page.goto('/search');
 
@@ -131,14 +159,18 @@ test.describe('Ticket Purchase Flow', () => {
       await page.waitForURL(/\/raffle\//);
 
       // Buy button should be visible and not redirect to login
-      const buyButton = page.getByRole('button', { name: /comprar/i });
+      const buyButton = page.getByRole('button', {
+        name: /comprar/i,
+      });
       if (await buyButton.isVisible()) {
         await expect(buyButton).toBeEnabled();
       }
     }
   });
 
-  test('can add raffle to favorites when logged in', async ({ page }) => {
+  test('can add raffle to favorites when logged in', async ({
+    page,
+  }) => {
     await loginAs(page, TEST_BUYER);
     await page.goto('/search');
 
@@ -149,15 +181,15 @@ test.describe('Ticket Purchase Flow', () => {
       await page.waitForURL(/\/raffle\//);
 
       // Look for favorite button
-      const favoriteButton = page.getByRole('button', { name: /favorit|guardar/i }).or(
-        page.locator('[aria-label*="favorit"]')
-      );
+      const favoriteButton = page
+        .getByRole('button', { name: /favorit|guardar/i })
+        .or(page.locator('[aria-label*="favorit"]'));
 
       if (await favoriteButton.isVisible()) {
         await favoriteButton.click();
         // Should show success feedback
         await expect(
-          page.getByText(/agregad|guardad|favorit/i).first()
+          page.getByText(/agregad|guardad|favorit/i).first(),
         ).toBeVisible({ timeout: 5000 });
       }
     }
@@ -171,7 +203,9 @@ test.describe('Seller Onboarding', () => {
     await page.goto('/dashboard/create');
 
     // Should show create raffle form
-    await expect(page.getByText(/crear|nueva rifa/i).first()).toBeVisible({
+    await expect(
+      page.getByText(/crear|nueva rifa/i).first(),
+    ).toBeVisible({
       timeout: 10000,
     });
   });
@@ -181,8 +215,12 @@ test.describe('Seller Onboarding', () => {
     await page.goto('/dashboard/create');
 
     // Check for required form fields
-    await expect(page.getByLabel(/título|nombre/i).first()).toBeVisible({ timeout: 10000 });
-    await expect(page.getByLabel(/descripción/i).first()).toBeVisible();
+    await expect(
+      page.getByLabel(/título|nombre/i).first(),
+    ).toBeVisible({ timeout: 10000 });
+    await expect(
+      page.getByLabel(/descripción/i).first(),
+    ).toBeVisible();
     await expect(page.getByLabel(/precio/i).first()).toBeVisible();
   });
 
@@ -192,7 +230,7 @@ test.describe('Seller Onboarding', () => {
 
     // Should show seller stats
     await expect(
-      page.getByText(/ingresos|ventas|tickets|rifas/i).first()
+      page.getByText(/ingresos|ventas|tickets|rifas/i).first(),
     ).toBeVisible({ timeout: 10000 });
   });
 
@@ -202,7 +240,7 @@ test.describe('Seller Onboarding', () => {
 
     // Should show raffle list or empty state
     await expect(
-      page.getByText(/mis rifas|rifas activ|no tienes/i).first()
+      page.getByText(/mis rifas|rifas activ|no tienes/i).first(),
     ).toBeVisible({ timeout: 10000 });
   });
 });
@@ -213,16 +251,16 @@ test.describe('MP Connect Flow', () => {
     await page.goto('/dashboard/settings');
 
     // Navigate to payments tab
-    const paymentsTab = page.getByRole('tab', { name: /pagos|payment/i }).or(
-      page.getByText(/mercado pago|pagos/i)
-    );
+    const paymentsTab = page
+      .getByRole('tab', { name: /pagos|payment/i })
+      .or(page.getByText(/mercado pago|pagos/i));
 
     if (await paymentsTab.isVisible()) {
       await paymentsTab.click();
 
       // Should show MP Connect button or status
       await expect(
-        page.getByText(/conectar|mercado pago|vincular/i).first()
+        page.getByText(/conectar|mercado pago|vincular/i).first(),
       ).toBeVisible({ timeout: 10000 });
     }
   });
@@ -238,9 +276,9 @@ test.describe('MP Connect Flow', () => {
     }
 
     // Find and click connect button
-    const connectButton = page.getByRole('button', { name: /conectar/i }).or(
-      page.getByRole('link', { name: /conectar/i })
-    );
+    const connectButton = page
+      .getByRole('button', { name: /conectar/i })
+      .or(page.getByRole('link', { name: /conectar/i }));
 
     if (await connectButton.isVisible()) {
       // Just verify it's clickable, don't actually click (would redirect to MP)
@@ -256,7 +294,7 @@ test.describe('Buyer Dashboard', () => {
 
     // Should show tickets or empty state
     await expect(
-      page.getByText(/mis tickets|compras|no tienes/i).first()
+      page.getByText(/mis tickets|compras|no tienes/i).first(),
     ).toBeVisible({ timeout: 10000 });
   });
 
@@ -266,7 +304,7 @@ test.describe('Buyer Dashboard', () => {
 
     // Should show favorites or empty state
     await expect(
-      page.getByText(/favoritos|guardad|no tienes/i).first()
+      page.getByText(/favoritos|guardad|no tienes/i).first(),
     ).toBeVisible({ timeout: 10000 });
   });
 
@@ -276,33 +314,41 @@ test.describe('Buyer Dashboard', () => {
 
     // Should show stats cards
     await expect(
-      page.getByText(/tickets|participaciones|ganados/i).first()
+      page.getByText(/tickets|participaciones|ganados/i).first(),
     ).toBeVisible({ timeout: 10000 });
   });
 });
 
 test.describe('Raffle Creation Flow', () => {
-  test('redirects unauthenticated users to login', async ({ page }) => {
+  test('redirects unauthenticated users to login', async ({
+    page,
+  }) => {
     await page.goto('/dashboard/create');
 
     // Should redirect to login
     await expect(page).toHaveURL(/\/auth\/login/, { timeout: 10000 });
   });
 
-  test('shows form validation errors for empty submission', async ({ page }) => {
+  test('shows form validation errors for empty submission', async ({
+    page,
+  }) => {
     await loginAs(page, TEST_SELLER);
     await page.goto('/dashboard/create');
 
     // Wait for form to load
-    await page.waitForSelector('button[type="submit"]', { timeout: 10000 });
+    await page.waitForSelector('button[type="submit"]', {
+      timeout: 10000,
+    });
 
     // Try to submit empty form
-    const submitButton = page.locator('button[type="submit"]').first();
+    const submitButton = page
+      .locator('button[type="submit"]')
+      .first();
     await submitButton.click();
 
     // Should show validation errors
     await expect(
-      page.getByText(/mínimo|requerido|obligatorio/i).first()
+      page.getByText(/mínimo|requerido|obligatorio/i).first(),
     ).toBeVisible({ timeout: 5000 });
   });
 
@@ -318,12 +364,14 @@ test.describe('Raffle Creation Flow', () => {
     await page.locator('button[type="submit"]').first().click();
 
     // Should show minimum length error
-    await expect(
-      page.getByText(/mínimo 10/i).first()
-    ).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText(/mínimo 10/i).first()).toBeVisible({
+      timeout: 5000,
+    });
   });
 
-  test('shows validation error for short description', async ({ page }) => {
+  test('shows validation error for short description', async ({
+    page,
+  }) => {
     await loginAs(page, TEST_SELLER);
     await page.goto('/dashboard/create');
 
@@ -336,11 +384,13 @@ test.describe('Raffle Creation Flow', () => {
 
     // Should show minimum length error
     await expect(
-      page.getByText(/mínimo 50|mínimo 20/i).first()
+      page.getByText(/mínimo 50|mínimo 20/i).first(),
     ).toBeVisible({ timeout: 5000 });
   });
 
-  test('shows validation error for invalid ticket price', async ({ page }) => {
+  test('shows validation error for invalid ticket price', async ({
+    page,
+  }) => {
     await loginAs(page, TEST_SELLER);
     await page.goto('/dashboard/create');
 
@@ -352,17 +402,21 @@ test.describe('Raffle Creation Flow', () => {
     await page.locator('button[type="submit"]').first().click();
 
     // Should show minimum price error
-    await expect(
-      page.getByText(/mínimo/i).first()
-    ).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText(/mínimo/i).first()).toBeVisible({
+      timeout: 5000,
+    });
   });
 
-  test('shows validation error for invalid ticket count', async ({ page }) => {
+  test('shows validation error for invalid ticket count', async ({
+    page,
+  }) => {
     await loginAs(page, TEST_SELLER);
     await page.goto('/dashboard/create');
 
     // Find tickets input
-    const ticketsInput = page.getByLabel(/tickets|número de tickets|cantidad/i).first();
+    const ticketsInput = page
+      .getByLabel(/tickets|número de tickets|cantidad/i)
+      .first();
     if (await ticketsInput.isVisible()) {
       await ticketsInput.fill('5'); // Less than minimum (10)
 
@@ -371,7 +425,7 @@ test.describe('Raffle Creation Flow', () => {
 
       // Should show minimum tickets error
       await expect(
-        page.getByText(/mínimo 10|mínimo/i).first()
+        page.getByText(/mínimo 10|mínimo/i).first(),
       ).toBeVisible({ timeout: 5000 });
     }
   });
@@ -384,21 +438,23 @@ test.describe('Raffle Creation Flow', () => {
     await page.waitForTimeout(1000);
 
     // Find category select/dropdown
-    const categorySelect = page.locator('select[name="categoria"]').or(
-      page.getByLabel(/categoría/i)
-    );
+    const categorySelect = page
+      .locator('select[name="categoria"]')
+      .or(page.getByLabel(/categoría/i));
 
     if (await categorySelect.isVisible()) {
       await categorySelect.click();
 
       // Should show category options
       await expect(
-        page.getByText(/electrónica|moda|hogar|deportes/i).first()
+        page.getByText(/electrónica|moda|hogar|deportes/i).first(),
       ).toBeVisible({ timeout: 5000 });
     }
   });
 
-  test('condition dropdown shows correct options', async ({ page }) => {
+  test('condition dropdown shows correct options', async ({
+    page,
+  }) => {
     await loginAs(page, TEST_SELLER);
     await page.goto('/dashboard/create');
 
@@ -406,21 +462,23 @@ test.describe('Raffle Creation Flow', () => {
     await page.waitForTimeout(1000);
 
     // Find condition select
-    const conditionSelect = page.locator('select[name="condicion"]').or(
-      page.getByLabel(/condición|estado/i)
-    );
+    const conditionSelect = page
+      .locator('select[name="condicion"]')
+      .or(page.getByLabel(/condición|estado/i));
 
     if (await conditionSelect.isVisible()) {
       await conditionSelect.click();
 
       // Should show condition options (NUEVO, USADO, etc.)
       await expect(
-        page.getByText(/nuevo|usado/i).first()
+        page.getByText(/nuevo|usado/i).first(),
       ).toBeVisible({ timeout: 5000 });
     }
   });
 
-  test('successfully creates raffle with valid data', async ({ page }) => {
+  test('successfully creates raffle with valid data', async ({
+    page,
+  }) => {
     await loginAs(page, TEST_SELLER);
     await page.goto('/dashboard/create');
 
@@ -433,20 +491,24 @@ test.describe('Raffle Creation Flow', () => {
 
     const descriptionInput = page.getByLabel(/descripción/i).first();
     await descriptionInput.fill(
-      'iPhone 15 Pro Max de 256GB completamente nuevo, sellado de fábrica. Incluye todos los accesorios originales, garantía oficial de Apple Argentina por 12 meses. Color: Titanio Natural. IMEI libre, listo para usar con cualquier compañía.'
+      'iPhone 15 Pro Max de 256GB completamente nuevo, sellado de fábrica. Incluye todos los accesorios originales, garantía oficial de Apple Argentina por 12 meses. Color: Titanio Natural. IMEI libre, listo para usar con cualquier compañía.',
     );
 
     // Fill product name
-    const productNameInput = page.getByLabel(/nombre del producto|producto/i).first();
+    const productNameInput = page
+      .getByLabel(/nombre del producto|producto/i)
+      .first();
     if (await productNameInput.isVisible()) {
       await productNameInput.fill('iPhone 15 Pro Max 256GB');
     }
 
     // Fill product description
-    const productDescInput = page.getByLabel(/descripción del producto/i).first();
+    const productDescInput = page
+      .getByLabel(/descripción del producto/i)
+      .first();
     if (await productDescInput.isVisible()) {
       await productDescInput.fill(
-        'Smartphone Apple iPhone 15 Pro Max con pantalla de 6.7 pulgadas, chip A17 Pro, cámara principal de 48MP.'
+        'Smartphone Apple iPhone 15 Pro Max con pantalla de 6.7 pulgadas, chip A17 Pro, cámara principal de 48MP.',
       );
     }
 
@@ -467,15 +529,17 @@ test.describe('Raffle Creation Flow', () => {
     await priceInput.fill('150');
 
     // Fill ticket count
-    const ticketsInput = page.getByLabel(/tickets|número|cantidad/i).first();
+    const ticketsInput = page
+      .getByLabel(/tickets|número|cantidad/i)
+      .first();
     if (await ticketsInput.isVisible()) {
       await ticketsInput.fill('100');
     }
 
     // Fill date (tomorrow's date)
-    const dateInput = page.locator('input[type="date"]').or(
-      page.getByLabel(/fecha|límite/i)
-    );
+    const dateInput = page
+      .locator('input[type="date"]')
+      .or(page.getByLabel(/fecha|límite/i));
     if (await dateInput.isVisible()) {
       const tomorrow = new Date();
       tomorrow.setDate(tomorrow.getDate() + 30);
@@ -484,19 +548,27 @@ test.describe('Raffle Creation Flow', () => {
     }
 
     // Submit form
-    const submitButton = page.locator('button[type="submit"]').first();
+    const submitButton = page
+      .locator('button[type="submit"]')
+      .first();
     await submitButton.click();
 
     // Should show success message or redirect to raffle detail
     await expect(
-      page.getByText(/éxito|creada|exitosamente/i).or(page.locator('body'))
+      page
+        .getByText(/éxito|creada|exitosamente/i)
+        .or(page.locator('body')),
     ).toBeVisible({ timeout: 15000 });
 
     // Should redirect to raffle detail page or dashboard
-    await page.waitForURL(/\/(raffle|dashboard)\//, { timeout: 15000 });
+    await page.waitForURL(/\/(raffle|dashboard)\//, {
+      timeout: 15000,
+    });
   });
 
-  test('submit button is disabled during submission', async ({ page }) => {
+  test('submit button is disabled during submission', async ({
+    page,
+  }) => {
     await loginAs(page, TEST_SELLER);
     await page.goto('/dashboard/create');
 
@@ -504,61 +576,92 @@ test.describe('Raffle Creation Flow', () => {
     await page.waitForTimeout(2000);
 
     // Fill minimal valid data
-    await page.getByLabel(/título/i).first().fill('Test Raffle Creation Flow E2E');
-    await page.getByLabel(/descripción/i).first().fill(
-      'This is a test description for the raffle creation E2E test. It needs to be at least 50 characters long to pass validation.'
-    );
+    await page
+      .getByLabel(/título/i)
+      .first()
+      .fill('Test Raffle Creation Flow E2E');
+    await page
+      .getByLabel(/descripción/i)
+      .first()
+      .fill(
+        'This is a test description for the raffle creation E2E test. It needs to be at least 50 characters long to pass validation.',
+      );
 
-    const productNameInput = page.getByLabel(/nombre del producto/i).first();
+    const productNameInput = page
+      .getByLabel(/nombre del producto/i)
+      .first();
     if (await productNameInput.isVisible()) {
       await productNameInput.fill('Test Product');
-      await page.getByLabel(/descripción del producto/i).first().fill(
-        'Test product description for E2E testing.'
-      );
+      await page
+        .getByLabel(/descripción del producto/i)
+        .first()
+        .fill('Test product description for E2E testing.');
     }
 
-    await page.getByLabel(/precio/i).first().fill('50');
+    await page
+      .getByLabel(/precio/i)
+      .first()
+      .fill('50');
 
     // Get submit button
-    const submitButton = page.locator('button[type="submit"]').first();
+    const submitButton = page
+      .locator('button[type="submit"]')
+      .first();
 
     // Submit
     await submitButton.click();
 
     // Button should show loading state or be disabled
-    await expect(submitButton).toBeDisabled({ timeout: 2000 }).catch(() => {
-      // If not disabled, at least check for loading text
-      expect(
-        page.getByText(/creando|enviando|guardando/i).first()
-      ).toBeVisible();
-    });
+    await expect(submitButton)
+      .toBeDisabled({ timeout: 2000 })
+      .catch(() => {
+        // If not disabled, at least check for loading text
+        expect(
+          page.getByText(/creando|enviando|guardando/i).first(),
+        ).toBeVisible();
+      });
   });
 
-  test('displays error message when creation fails', async ({ page }) => {
+  test('displays error message when creation fails', async ({
+    page,
+  }) => {
     await loginAs(page, TEST_SELLER);
     await page.goto('/dashboard/create');
 
     // Fill form with data that might cause an error
     // (e.g., missing required fields after form changes)
-    await page.getByLabel(/título/i).first().fill('a'.repeat(101)); // Exceeds max length
+    await page
+      .getByLabel(/título/i)
+      .first()
+      .fill('a'.repeat(101)); // Exceeds max length
 
-    const submitButton = page.locator('button[type="submit"]').first();
+    const submitButton = page
+      .locator('button[type="submit"]')
+      .first();
     await submitButton.click();
 
     // Should show error message
     await expect(
-      page.getByText(/error|máximo|inválido/i).first()
+      page.getByText(/error|máximo|inválido/i).first(),
     ).toBeVisible({ timeout: 10000 });
   });
 
-  test('form preserves data after validation error', async ({ page }) => {
+  test('form preserves data after validation error', async ({
+    page,
+  }) => {
     await loginAs(page, TEST_SELLER);
     await page.goto('/dashboard/create');
 
     // Fill some fields
     const testTitle = 'My Test Raffle Title For E2E';
-    await page.getByLabel(/título/i).first().fill(testTitle);
-    await page.getByLabel(/precio/i).first().fill('100');
+    await page
+      .getByLabel(/título/i)
+      .first()
+      .fill(testTitle);
+    await page
+      .getByLabel(/precio/i)
+      .first()
+      .fill('100');
 
     // Submit with missing required field (description)
     await page.locator('button[type="submit"]').first().click();
