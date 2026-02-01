@@ -139,13 +139,14 @@ describe('AuthResolver', () => {
         code,
         undefined,
       );
+      // In test environment (no SECURE_COOKIES and not production+CI), cookies use lax/insecure
       expect(res.cookie).toHaveBeenCalledWith(
         'auth_token',
         'access-token',
         expect.objectContaining({
           httpOnly: true,
-          secure: true,
-          sameSite: 'none',
+          secure: false,
+          sameSite: 'lax',
           path: '/',
         }),
       );
@@ -154,8 +155,8 @@ describe('AuthResolver', () => {
         'refresh-token',
         expect.objectContaining({
           httpOnly: true,
-          secure: true,
-          sameSite: 'none',
+          secure: false,
+          sameSite: 'lax',
           path: '/auth',
         }),
       );

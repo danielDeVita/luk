@@ -197,6 +197,7 @@ jobs:
           PORT: 3001
           NODE_ENV: production
           CI: 'true'
+          SECURE_COOKIES: 'false'
           MP_ACCESS_TOKEN: TEST-placeholder
           MP_PUBLIC_KEY: TEST-placeholder
           BREVO_API_KEY: test-brevo-key

@@ -27,13 +27,20 @@ export class AuthResolver {
     token: string,
     refreshToken: string,
   ): void {
-    // sameSite: 'none' allows cross-origin requests (required for separate frontend/backend domains)
-    // secure: true ensures cookies only sent over HTTPS
-    // httpOnly: true prevents JavaScript access (XSS protection)
+    // Determine if we should use secure cookies based on environment
+    // In CI or development over HTTP, we need to disable secure flag
+    const isSecureEnvironment =
+      process.env.SECURE_COOKIES === 'true' ||
+      (process.env.NODE_ENV === 'production' && process.env.CI !== 'true');
+
+    // sameSite: 'none' requires secure: true, so use 'lax' for HTTP environments
+    // 'lax' allows cookies on same-site requests and top-level navigation
+    const sameSiteValue: 'none' | 'lax' = isSecureEnvironment ? 'none' : 'lax';
+
     res.cookie('auth_token', token, {
       httpOnly: true,
-      secure: true,
-      sameSite: 'none',
+      secure: isSecureEnvironment,
+      sameSite: sameSiteValue,
       maxAge: ACCESS_TOKEN_MAX_AGE,
       path: '/',
     });
@@ -41,8 +48,8 @@ export class AuthResolver {
     // Set refresh token as httpOnly cookie
     res.cookie('refresh_token', refreshToken, {
       httpOnly: true,
-      secure: true,
-      sameSite: 'none',
+      secure: isSecureEnvironment,
+      sameSite: sameSiteValue,
       maxAge: REFRESH_TOKEN_MAX_AGE,
       path: '/auth',
     });
