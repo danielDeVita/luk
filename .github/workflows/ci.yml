@@ -181,14 +181,27 @@ jobs:
 
       - name: Start backend
         working-directory: backend
-        run: npm run start:prod &
+        run: |
+          # Start backend and redirect output to a log file
+          npm run start:prod > backend.log 2>&1 &
+          echo $! > backend.pid
+          # Give it a moment to start
+          sleep 5
+          # Show initial log output
+          echo "=== Backend startup log ==="
+          cat backend.log || true
         env:
           DATABASE_URL: postgresql://raffle_user:raffle_password@localhost:5432/raffle_db
           JWT_SECRET: test-jwt-secret-for-ci-pipeline
           ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
           PORT: 3001
-          NODE_ENV: test
+          NODE_ENV: production
           CI: 'true'
+          MP_ACCESS_TOKEN: TEST-placeholder
+          MP_PUBLIC_KEY: TEST-placeholder
+          BREVO_API_KEY: test-brevo-key
+          EMAIL_FROM: test@example.com
+          CORS_ORIGIN: http://localhost:3000
 
       - name: Install frontend dependencies
         working-directory: frontend
@@ -209,6 +222,7 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       - name: Wait for backend
+        working-directory: backend
         run: |
           echo "Waiting for backend to be ready..."
           for i in {1..30}; do
@@ -224,9 +238,16 @@ jobs:
             sleep 2
           done
           # Final verification
-          curl -s -X POST http://localhost:3001/graphql \
+          if ! curl -s -X POST http://localhost:3001/graphql \
             -H "Content-Type: application/json" \
-            -d '{"query":"{ __typename }"}' || (echo "Backend failed to start!" && exit 1)
+            -d '{"query":"{ __typename }"}' | grep -q "Query"; then
+            echo "=== Backend failed to start! Showing logs ==="
+            cat backend.log || true
+            echo "=== Checking if process is running ==="
+            ps aux | grep node || true
+            exit 1
+          fi
+          echo "Backend verification passed!"
 
       - name: Start frontend
         working-directory: frontend
