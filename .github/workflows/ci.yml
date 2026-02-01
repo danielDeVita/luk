@@ -170,12 +170,7 @@ jobs:
 
       - name: Seed database with test users
         working-directory: backend
-        run: |
-          npx ts-node prisma/seed.ts
-          echo "Verifying seed data..."
-          npx prisma db execute --stdin <<EOF
-          SELECT email FROM "User" WHERE email IN ('comprador@test.com', 'vendedor@test.com', 'admin@test.com');
-          EOF
+        run: npx ts-node prisma/seed.ts
         env:
           DATABASE_URL: postgresql://raffle_user:raffle_password@localhost:5432/raffle_db
           ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
