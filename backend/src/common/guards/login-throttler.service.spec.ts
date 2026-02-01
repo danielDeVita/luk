@@ -3,10 +3,14 @@ import { LoginThrottlerService } from './login-throttler.service';
 
 describe('LoginThrottlerService', () => {
   let service: LoginThrottlerService;
+  const originalEnv = process.env;
 
   beforeEach(async () => {
     jest.clearAllMocks();
     jest.useFakeTimers();
+
+    // Disable CI/development bypass for testing
+    process.env = { ...originalEnv, CI: undefined, NODE_ENV: 'test' };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [LoginThrottlerService],
@@ -17,6 +21,7 @@ describe('LoginThrottlerService', () => {
 
   afterEach(() => {
     jest.useRealTimers();
+    process.env = originalEnv;
   });
 
   describe('isBlocked', () => {
