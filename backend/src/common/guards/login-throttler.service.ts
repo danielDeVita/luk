@@ -44,8 +44,12 @@ export class LoginThrottlerService {
     remainingMs: number;
     retryAfter: Date | null;
   } {
-    // Bypass throttling in development or CI mode to avoid blocking E2E tests
-    if (process.env.NODE_ENV === 'development' || process.env.CI === 'true') {
+    // Bypass throttling in development, test, or CI mode to avoid blocking E2E tests
+    if (
+      process.env.NODE_ENV === 'development' ||
+      process.env.NODE_ENV === 'test' ||
+      process.env.CI === 'true'
+    ) {
       return { blocked: false, remainingMs: 0, retryAfter: null };
     }
 
@@ -75,8 +79,12 @@ export class LoginThrottlerService {
     remainingAttempts: number | null;
     blocked: boolean;
   } {
-    // Bypass throttling in development or CI mode to avoid blocking E2E tests
-    if (process.env.NODE_ENV === 'development' || process.env.CI === 'true') {
+    // Bypass throttling in development, test, or CI mode to avoid blocking E2E tests
+    if (
+      process.env.NODE_ENV === 'development' ||
+      process.env.NODE_ENV === 'test' ||
+      process.env.CI === 'true'
+    ) {
       return { remainingAttempts: this.MAX_ATTEMPTS, blocked: false };
     }
 

@@ -9,8 +9,8 @@ describe('LoginThrottlerService', () => {
     jest.clearAllMocks();
     jest.useFakeTimers();
 
-    // Disable CI/development bypass for testing
-    process.env = { ...originalEnv, CI: undefined, NODE_ENV: 'test' };
+    // Disable CI/development/test bypass for testing - use production-like environment
+    process.env = { ...originalEnv, CI: undefined, NODE_ENV: 'production' };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [LoginThrottlerService],

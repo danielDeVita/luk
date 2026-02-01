@@ -170,7 +170,12 @@ jobs:
 
       - name: Seed database with test users
         working-directory: backend
-        run: npx ts-node prisma/seed.ts
+        run: |
+          npx ts-node prisma/seed.ts
+          echo "Verifying seed data..."
+          npx prisma db execute --stdin <<EOF
+          SELECT email FROM "User" WHERE email IN ('comprador@test.com', 'vendedor@test.com', 'admin@test.com');
+          EOF
         env:
           DATABASE_URL: postgresql://raffle_user:raffle_password@localhost:5432/raffle_db
           ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
@@ -187,6 +192,8 @@ jobs:
           JWT_SECRET: test-jwt-secret-for-ci-pipeline
           ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
           PORT: 3001
+          NODE_ENV: test
+          CI: 'true'
 
       - name: Install frontend dependencies
         working-directory: frontend
@@ -208,11 +215,23 @@ jobs:
 
       - name: Wait for backend
         run: |
+          echo "Waiting for backend to be ready..."
           for i in {1..30}; do
-            curl -s http://localhost:3001/graphql && break
-            echo "Waiting for backend..."
+            # Check if GraphQL endpoint responds with expected content
+            RESPONSE=$(curl -s -X POST http://localhost:3001/graphql \
+              -H "Content-Type: application/json" \
+              -d '{"query":"{ __typename }"}' 2>/dev/null || echo "")
+            if echo "$RESPONSE" | grep -q "Query"; then
+              echo "Backend is ready!"
+              break
+            fi
+            echo "Attempt $i: Backend not ready yet..."
             sleep 2
           done
+          # Final verification
+          curl -s -X POST http://localhost:3001/graphql \
+            -H "Content-Type: application/json" \
+            -d '{"query":"{ __typename }"}' || (echo "Backend failed to start!" && exit 1)
 
       - name: Start frontend
         working-directory: frontend
@@ -232,11 +251,19 @@ jobs:
 
       - name: Wait for frontend
         run: |
+          echo "Waiting for frontend to be ready..."
           for i in {1..30}; do
-            curl -s http://localhost:3000 && break
-            echo "Waiting for frontend..."
+            if curl -s http://localhost:3000 | grep -q "<html"; then
+              echo "Frontend is ready!"
+              # Give it a few more seconds to fully initialize
+              sleep 3
+              break
+            fi
+            echo "Attempt $i: Frontend not ready yet..."
             sleep 2
           done
+          # Final verification
+          curl -s http://localhost:3000 | head -50 || (echo "Frontend failed to start!" && exit 1)
 
       - name: Run E2E tests
         working-directory: frontend
