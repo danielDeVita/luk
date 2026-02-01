@@ -247,11 +247,21 @@ function createApolloClient(
       }
     ) || (networkError?.statusCode === 401);
 
-    // Only attempt token refresh if we have a refresh token
-    // This prevents swallowing login errors (which also have UNAUTHENTICATED code)
-    const hasRefreshToken = !!useAuthStore.getState().refreshToken;
+    // Only attempt token refresh if:
+    // 1. There's an auth error
+    // 2. We have a refresh token stored
+    // 3. We're not on an auth page (login/register mutations don't need refresh)
+    // 4. We're in a browser environment
+    const storedRefreshToken = useAuthStore.getState().refreshToken;
+    const isOnAuthPage = typeof window !== 'undefined' && window.location.pathname.includes('/auth');
 
-    if (isAuthError && hasRefreshToken && typeof window !== 'undefined') {
+    // Don't intercept errors on auth pages - let them propagate to show error messages
+    if (isOnAuthPage) {
+      console.log('[Auth] On auth page, letting error propagate:', graphQLErrors?.[0]?.message || networkError?.message);
+      return; // Let error propagate normally
+    }
+
+    if (isAuthError && storedRefreshToken && typeof window !== 'undefined') {
       // Return an Observable that handles the token refresh
       return new Observable<FetchResult>((observer) => {
         // Use the shared refresh function (handles concurrent requests)
@@ -273,9 +283,7 @@ function createApolloClient(
               refreshToken: null,
               isAuthenticated: false,
             });
-            if (!window.location.pathname.includes('/auth')) {
-              window.location.href = '/auth/login';
-            }
+            window.location.href = '/auth/login';
             // Complete the observable without error to prevent error toasts
             observer.complete();
           }
@@ -283,7 +291,7 @@ function createApolloClient(
       });
     }
 
-    // For auth errors without a refresh token (like login failures),
+    // For all other errors (including auth errors without refresh token),
     // let the error propagate normally so it can be displayed to the user
   });
 

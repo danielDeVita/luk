@@ -72,22 +72,33 @@ export default function LoginPage() {
     resolver: zodResolver(loginSchema),
   });
 
-  const [login, { data, loading, error }] = useMutation<LoginResult>(LOGIN_MUTATION);
-
-  // Handle success - store tokens for Authorization header (cookies blocked cross-subdomain)
-  useEffect(() => {
-    if (data?.login) {
-      setAuth(data.login.user, data.login.token, data.login.refreshToken);
-      router.push('/');
-    }
-  }, [data, setAuth, router]);
+  const [login, { loading, error }] = useMutation<LoginResult>(LOGIN_MUTATION, {
+    onCompleted: (data) => {
+      if (data?.login) {
+        setAuth(data.login.user, data.login.token, data.login.refreshToken);
+        router.push('/');
+      }
+    },
+    onError: (err) => {
+      // Ensure errors are captured even if the error link doesn't propagate them
+      console.error('[Login Error]', err.message);
+      setErrorMsg(err.message || 'Error al iniciar sesión');
+    },
+  });
 
   // Derive error message from Apollo error
   const derivedError = error?.message || null;
 
-  const onSubmit = (formData: LoginForm) => {
+  const onSubmit = async (formData: LoginForm) => {
     setErrorMsg(null);
-    login({ variables: formData });
+    try {
+      await login({ variables: formData });
+    } catch (err) {
+      // Catch any errors that might slip through
+      const message = err instanceof Error ? err.message : 'Error al iniciar sesión';
+      console.error('[Login Catch]', message);
+      setErrorMsg(message);
+    }
   };
 
   const handleGoogleLogin = () => {
