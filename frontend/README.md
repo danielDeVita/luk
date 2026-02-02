@@ -308,50 +308,39 @@ npx playwright test --debug
 
 ### Current E2E Tests
 
-**28 total tests** in `e2e/`:
+**172 E2E tests** across 17 spec files in `e2e/`:
 
-1. **auth.spec.ts** (11 tests)
-   - Login/register pages
-   - Authentication flow
-   - Protected routes
-   - Logout
-   - IP blocking warning
+- **auth.spec.ts** - Login/register pages, authentication flow, protected routes
+- **raffle.spec.ts** - Homepage, search, raffle details, ticket purchase
+- **dashboard-*.spec.ts** - All dashboard pages (favorites, settings, sales, messages, etc.)
+- **admin-disputes.spec.ts** - Admin dispute management
+- **email-verification.spec.ts** - Email verification flow
+- **kyc-submission.spec.ts** - KYC verification
+- **legal-pages.spec.ts** - Terms of Service, Privacy Policy
+- **social-sharing.spec.ts** - Social media sharing
+- And more...
 
-2. **raffle.spec.ts** (17 tests)
-   - Homepage browsing
-   - Search and filtering
-   - Raffle detail page
-   - Ticket purchase flow (partial)
-   - Seller onboarding
-   - Buyer dashboard
+### Component Tests (Vitest)
 
-### Unit & Component Tests
+**50 component tests** across 7 test files:
 
-**Status:** Not yet configured (see [TESTING_AUDIT.md](../TESTING_AUDIT.md) Sprint 3)
+```bash
+npm run test:unit         # Run component tests
+npm run test:unit:ui      # Interactive UI mode
+npm run test:unit -- --coverage  # With coverage (80%+)
+```
 
-Planned setup:
-- **Framework:** Vitest + React Testing Library
-- **Coverage:** Component unit tests + integration tests
-- **Target:** Enable `npm run test:unit` command
+Tested components: ImageUpload, RaffleCard, SearchFilters, DisputeDialog, ShareButtons, NotificationsBell, Navbar
 
-### Critical E2E Gaps (Priority)
+### CI/CD Notes
 
-See [TESTING_AUDIT.md](../TESTING_AUDIT.md) for complete roadmap:
+**Important:** Some E2E tests that require authentication are skipped in CI environments due to GraphQL mutation reliability issues over localhost HTTP. These tests run normally in local development.
 
-**Critical Flows (Priority):**
-- `/checkout/status` - Payment result handler
-- Email verification flow (6-digit code entry)
-- KYC verification submission
-- Raffle creation end-to-end
-- Dispute creation/resolution
-- Referral program usage
+Tests affected:
+- Login flow tests (credential validation)
+- Dashboard tests requiring authenticated state
 
-**Medium Priority:**
-- Price drop alerts
-- Q&A system
-- Avatar upload
-- Dark mode
-- Raffle relaunch feature
+Non-auth tests (public pages, redirects) run in CI across 3 browsers (Chromium, Firefox, WebKit).
 
 ### Adding E2E Tests
 

@@ -327,23 +327,14 @@ describe('AuthService', () => {
 
 ### Current Coverage
 
-- **Payments module:** Fully tested (~400 lines of tests)
-- **Overall:** ~5% coverage (see [TESTING_AUDIT.md](../TESTING_AUDIT.md) for gaps)
+- **Overall:** 42%+ coverage with 769 passing tests across 49 spec files
+- **Key modules tested:** auth, payments, raffles, tickets, disputes, notifications, users, and more
 
-### Critical Modules to Test (Priority)
-
-See [TESTING_AUDIT.md](../TESTING_AUDIT.md) for complete roadmap:
-
-**Critical (Security + Compliance):**
-- `src/common/services/encryption.service.ts` - PII encryption
-- `src/auth/auth.service.ts` - Login, register, email verification
-- `src/raffles/raffles.service.ts` (drawWinner method) - Lottery draw logic
-- `src/payments/payments.service.ts` (webhooks) - Payment processing
-
-**High Priority (Core Features):**
-- `src/payments/mp-connect.service.ts` - Seller OAuth flow
-- `src/disputes/disputes.service.ts` - Buyer protection
-- `src/referrals/referrals.service.ts` - Referral rewards
+Run coverage report:
+```bash
+npm run test:cov
+# Open coverage/lcov-report/index.html for detailed report
+```
 
 ### Adding Tests
 
