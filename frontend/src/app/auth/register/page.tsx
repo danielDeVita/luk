@@ -14,6 +14,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Loader2, Check, AlertTriangle, Gift, Mail, RefreshCw } from 'lucide-react';
+import { PasswordInput } from '@/components/ui/password-input';
 import { toast } from 'sonner';
 
 const REGISTER_MUTATION = gql`
@@ -399,9 +400,8 @@ function RegisterPageContent() {
 
             <div className="space-y-2">
               <Label htmlFor="password">Contraseña</Label>
-              <Input
+              <PasswordInput
                 id="password"
-                type="password"
                 placeholder="********"
                 {...register('password')}
               />
@@ -417,9 +417,8 @@ function RegisterPageContent() {
 
             <div className="space-y-2">
               <Label htmlFor="confirmPassword">Confirmar Contraseña</Label>
-              <Input
+              <PasswordInput
                 id="confirmPassword"
-                type="password"
                 placeholder="********"
                 {...register('confirmPassword')}
               />

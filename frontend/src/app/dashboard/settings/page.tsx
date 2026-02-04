@@ -16,6 +16,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Loader2, User, Lock, CreditCard, CheckCircle2, XCircle, ExternalLink, Shield, AlertTriangle, Clock, FileCheck, Camera, Trash2 } from 'lucide-react';
+import { PasswordInput } from '@/components/ui/password-input';
 import { toast } from 'sonner';
 import { useConfirmDialog } from '@/hooks/use-confirm-dialog';
 import Image from 'next/image';
@@ -909,9 +910,8 @@ function SettingsContent() {
               <form onSubmit={handlePassSubmit(onPassSubmit)} className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="oldPassword">Contraseña Actual</Label>
-                  <Input
+                  <PasswordInput
                     id="oldPassword"
-                    type="password"
                     {...registerPass('oldPassword')}
                   />
                   {passErrors.oldPassword && (
@@ -921,9 +921,8 @@ function SettingsContent() {
 
                 <div className="space-y-2">
                   <Label htmlFor="newPassword">Nueva Contraseña</Label>
-                  <Input
+                  <PasswordInput
                     id="newPassword"
-                    type="password"
                     {...registerPass('newPassword')}
                   />
                   {passErrors.newPassword && (
