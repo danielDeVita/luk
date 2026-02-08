@@ -9,6 +9,7 @@ test.describe('Email Verification', () => {
   test('should show verification page after registration', async ({
     page,
   }) => {
+    test.skip(!!process.env.CI, 'Registration requires real email service in CI');
     await page.goto('/auth/register');
 
     // Fill registration form

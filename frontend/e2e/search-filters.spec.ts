@@ -62,16 +62,16 @@ test.describe('Search & Filters', () => {
   });
 
   test('should display search results or empty state', async ({ page }) => {
-    await page.waitForTimeout(2000);
-
-    // Look for results or no results message
+    // Wait for GraphQL query to complete (may take longer in CI)
     const noResults = page.getByText(/no se encontraron|no results|sin resultados/i);
     const raffleCards = page.locator('a[href*="/raffle/"]');
 
-    const hasNoResults = await noResults.isVisible();
-    const hasResults = (await raffleCards.count()) > 0;
-
-    expect(hasNoResults || hasResults).toBeTruthy();
+    // Use auto-retry to wait for loading to finish and content to appear
+    await expect(async () => {
+      const hasNoResults = await noResults.isVisible();
+      const hasResults = (await raffleCards.count()) > 0;
+      expect(hasNoResults || hasResults).toBeTruthy();
+    }).toPass({ timeout: 10000 });
   });
 
   test('should update results when applying filters', async ({ page }) => {

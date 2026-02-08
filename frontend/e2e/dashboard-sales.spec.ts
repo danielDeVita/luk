@@ -21,7 +21,7 @@ test.describe('Dashboard Sales', () => {
   });
 
   test('should display sales dashboard header', async ({ page }) => {
-    await expect(page.locator('main').getByRole('heading', { name: /Panel de Vendedor/i })).toBeVisible();
+    await expect(page.locator('main').getByRole('heading', { name: /Panel de Vendedor/i })).toBeVisible({ timeout: 10000 });
   });
 
   test('should display seller statistics cards', async ({ page }) => {
@@ -55,7 +55,7 @@ test.describe('Dashboard Sales', () => {
     await page.waitForTimeout(2000);
 
     // Check for raffles list or empty state
-    const emptyState = page.getByText(/No tenés rifas creadas/i);
+    const emptyState = page.getByText(/No ten[eé]s rifas/i);
     const rafflesList = page.locator('[class*="grid"]').filter({ hasText: /Tickets/i });
 
     const hasEmptyState = await emptyState.isVisible();

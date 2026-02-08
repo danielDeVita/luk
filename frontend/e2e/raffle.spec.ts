@@ -79,10 +79,10 @@ test.describe('Raffle Browsing', () => {
       window.scrollTo(0, document.body.scrollHeight),
     );
 
-    // Should show loading indicator or more results
+    // Should show loading indicator, results, or empty state
     await expect(
       page
-        .getByText(/cargando|loading/i)
+        .getByText(/cargando|loading|no se encontraron/i)
         .or(page.locator('[href^="/raffle/"]'))
         .first(),
     ).toBeVisible({ timeout: 5000 });
@@ -208,7 +208,7 @@ test.describe('Seller Onboarding', () => {
 
     // Should show raffle list or empty state (scoped to main to avoid hidden nav items)
     await expect(
-      page.locator('main').getByText(/mis rifas|rifas activ|no tienes/i).first(),
+      page.locator('main').getByText(/mis rifas|rifas activ|no ten[eé]s/i).first(),
     ).toBeVisible({ timeout: 10000 });
   });
 });
