@@ -469,10 +469,10 @@ function SalesDashboardContent() {
   }, [isAuthenticated, searchParams, fetchPriceReduction, router]);
 
   useEffect(() => {
-    if (!isAuthenticated) {
+    if (hasHydrated && !isAuthenticated) {
       router.push('/auth/login');
     }
-  }, [isAuthenticated, router]);
+  }, [hasHydrated, isAuthenticated, router]);
 
 
   // Get data from queries - wrapped in useMemo to prevent dependency issues

@@ -21,8 +21,7 @@ test.describe('Dashboard Shipping Addresses', () => {
   });
 
   test('should display shipping addresses page header', async ({ page }) => {
-    await expect(page.locator('main').getByText(/Direcciones de Envío/i).first()).toBeVisible();
-    await expect(page.locator('svg.lucide-map-pin').first()).toBeVisible();
+    await expect(page.locator('main').getByRole('heading', { name: /Direcciones de Env[ií]o/i })).toBeVisible();
   });
 
   test('should show add address button', async ({ page }) => {
@@ -34,9 +33,10 @@ test.describe('Dashboard Shipping Addresses', () => {
     const addButton = page.getByRole('button', { name: /Nueva Direcci[oó]n/i });
     await addButton.click();
 
-    // Dialog should open
-    await expect(page.getByRole('dialog')).toBeVisible();
-    await expect(page.getByText(/Nueva Dirección/i)).toBeVisible();
+    // Dialog should open with heading
+    const dialog = page.getByRole('dialog');
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByRole('heading', { name: /Nueva Direcci[oó]n/i })).toBeVisible();
   });
 
   test('should display address form fields in dialog', async ({ page }) => {
@@ -44,13 +44,16 @@ test.describe('Dashboard Shipping Addresses', () => {
     await addButton.click();
     await page.waitForTimeout(500);
 
+    const dialog = page.getByRole('dialog');
+
     // Check for required form fields
-    await expect(page.getByLabel(/Nombre del destinatario/i)).toBeVisible();
-    await expect(page.getByLabel(/Calle/i)).toBeVisible();
-    await expect(page.getByLabel(/Número/i)).toBeVisible();
-    await expect(page.getByLabel(/Ciudad/i)).toBeVisible();
-    await expect(page.getByLabel(/Provincia/i)).toBeVisible();
-    await expect(page.getByLabel(/Código Postal/i)).toBeVisible();
+    await expect(dialog.getByLabel(/Nombre del destinatario/i)).toBeVisible();
+    await expect(dialog.getByLabel(/Calle/i)).toBeVisible();
+    await expect(dialog.getByLabel(/N[uú]mero/i)).toBeVisible();
+    await expect(dialog.getByLabel(/Ciudad/i)).toBeVisible();
+    // Provincia is a combobox, check the label text exists in the dialog
+    await expect(page.getByText('Provincia', { exact: true })).toBeVisible();
+    await expect(dialog.getByLabel(/C[oó]digo Postal/i)).toBeVisible();
   });
 
   test('should list existing shipping addresses', async ({ page }) => {

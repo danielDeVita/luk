@@ -71,10 +71,12 @@ test.describe('Dashboard Messages', () => {
     // Wait for page to load
     await page.waitForTimeout(2000);
 
-    // Select first conversation if available
-    const firstConversation = page.locator('button[class*="hover:bg-muted"]').first();
-    if (await firstConversation.isVisible()) {
-      await firstConversation.click();
+    // Select first conversation if available (scoped to main content)
+    const conversationButtons = page.locator('main button.w-full');
+    const convCount = await conversationButtons.count();
+
+    if (convCount > 0) {
+      await conversationButtons.first().click();
 
       // Wait for conversation to load
       await page.waitForTimeout(1000);
@@ -92,10 +94,10 @@ test.describe('Dashboard Messages', () => {
   test('should disable send button when message is empty', async ({ page }) => {
     // Wait and select first conversation
     await page.waitForTimeout(2000);
-    const firstConversation = page.locator('button[class*="hover:bg-muted"]').first();
+    const conversationButtons = page.locator('main button.w-full');
 
-    if (await firstConversation.isVisible()) {
-      await firstConversation.click();
+    if ((await conversationButtons.count()) > 0) {
+      await conversationButtons.first().click();
       await page.waitForTimeout(1000);
 
       // Send button should be disabled when input is empty

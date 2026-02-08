@@ -30,7 +30,7 @@ test.describe('Dashboard Referrals', () => {
 
     // Should show either existing code or button to generate
     const generateButton = page.getByRole('button', { name: /Generar.*c[oó]digo/i });
-    const referralCode = page.getByText(/Tu c[oó]digo/i);
+    const referralCode = page.getByText(/Tu c[oó]digo/i).first();
 
     const hasGenerateButton = await generateButton.isVisible();
     const hasReferralCode = await referralCode.isVisible();
@@ -83,7 +83,7 @@ test.describe('Dashboard Referrals', () => {
 
     // Check for referred users list or empty state
     const emptyState = page.getByText(/no invitaste|no referiste/i);
-    const usersList = page.getByText(/Tus invitados|invitados/i);
+    const usersList = page.getByText(/Tus invitados|invitados/i).first();
 
     const hasEmptyState = await emptyState.isVisible();
     const hasUsersList = await usersList.isVisible();

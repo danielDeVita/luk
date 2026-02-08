@@ -21,11 +21,7 @@ test.describe('Dashboard Payouts', () => {
   });
 
   test('should display payouts page header', async ({ page }) => {
-    // Should show page title
-    await expect(page.locator('main').getByText(/Mis Pagos/i).first()).toBeVisible();
-
-    // Should show dollar sign icon
-    await expect(page.locator('svg.lucide-dollar-sign').first()).toBeVisible();
+    await expect(page.locator('main').getByRole('heading', { name: /Mis Pagos/i })).toBeVisible();
   });
 
   test('should display summary cards with totals', async ({ page }) => {

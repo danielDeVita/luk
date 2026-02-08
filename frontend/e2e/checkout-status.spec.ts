@@ -236,13 +236,8 @@ test.describe('Checkout Status Page', () => {
       await retryButton.click();
 
       // Should show loading state (button becomes disabled or shows spinner)
-      // The loading state might be very quick, so check if button was clicked successfully
       await expect(
-        page.getByRole('button', { name: /verificando/i }).or(
-          page.locator('.animate-spin')
-        ).or(
-          page.getByRole('button', { name: /verificar estado/i })
-        )
+        page.getByRole('button', { name: /verificando|verificar estado/i }).first()
       ).toBeVisible({ timeout: 5000 });
     });
   });

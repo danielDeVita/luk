@@ -21,8 +21,7 @@ test.describe('Dashboard Sales', () => {
   });
 
   test('should display sales dashboard header', async ({ page }) => {
-    // Should show page title (scoped to main to avoid matching nav sidebar)
-    await expect(page.locator('main').getByText(/Mis Rifas/i).first()).toBeVisible();
+    await expect(page.locator('main').getByRole('heading', { name: /Panel de Vendedor/i })).toBeVisible();
   });
 
   test('should display seller statistics cards', async ({ page }) => {

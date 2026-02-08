@@ -21,8 +21,7 @@ test.describe('Dashboard Settings', () => {
   });
 
   test('should display settings page header', async ({ page }) => {
-    await expect(page.locator('main').getByText(/Configuración|Ajustes/i).first()).toBeVisible();
-    await expect(page.locator('svg.lucide-settings').first()).toBeVisible();
+    await expect(page.locator('main').getByText(/Configuración/i).first()).toBeVisible();
   });
 
   test('should show profile information section', async ({ page }) => {

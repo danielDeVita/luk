@@ -199,6 +199,7 @@ jobs:
           NODE_ENV: production
           CI: 'true'
           SECURE_COOKIES: 'false'
+          THROTTLE_LIMIT: 1000
           MP_ACCESS_TOKEN: TEST-placeholder
           MP_PUBLIC_KEY: TEST-placeholder
           BREVO_API_KEY: test-brevo-key
