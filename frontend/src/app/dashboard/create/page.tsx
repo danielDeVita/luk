@@ -77,7 +77,7 @@ interface CreateRaffleResult {
 
 export default function CreateRafflePage() {
   const router = useRouter();
-  const { isAuthenticated } = useAuthStore();
+  const { isAuthenticated, hasHydrated } = useAuthStore();
   const [images, setImages] = useState<string[]>([]);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -89,11 +89,11 @@ export default function CreateRafflePage() {
   const hasShownKycToast = useRef(false);
 
   useEffect(() => {
-    if (!isAuthenticated) {
+    if (hasHydrated && !isAuthenticated) {
       router.push('/auth/login');
       return;
     }
-    
+
     // Only check KYC status when data is loaded (kycData.me exists)
     // Use ref to prevent showing toast multiple times
     if (kycData?.me && kycData.me.kycStatus !== 'VERIFIED' && !hasShownKycToast.current) {
@@ -101,7 +101,7 @@ export default function CreateRafflePage() {
       toast.error('Debes verificar tu identidad antes de crear rifas');
       router.push('/dashboard/settings?tab=kyc');
     }
-  }, [isAuthenticated, kycData, router]);
+  }, [hasHydrated, isAuthenticated, kycData, router]);
 
   const {
     register,
@@ -180,7 +180,7 @@ export default function CreateRafflePage() {
 
 
 
-  if (!isAuthenticated) return null;
+  if (!hasHydrated || !isAuthenticated) return null;
 
   const onError = () => {
     handleError('Por favor corrige los errores en el formulario');

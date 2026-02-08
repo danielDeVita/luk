@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { apiLogin, TEST_BUYER } from './helpers/auth';
 
 /**
  * Dashboard Messages E2E Tests
@@ -7,39 +8,25 @@ import { test, expect } from '@playwright/test';
 
 test.describe('Dashboard Messages', () => {
   test.beforeEach(async ({ page }, testInfo) => {
-    // Skip tests that require authenticated state in CI (GraphQL mutations don't work reliably)
-    const requiresAuth = !testInfo.title.includes('redirect to login');
-    if (process.env.CI === 'true' && requiresAuth) {
-      testInfo.skip(true, 'Requires authentication - GraphQL unreliable in CI');
-      return;
+    if (!testInfo.title.includes('redirect to login')) {
+      await apiLogin(page, TEST_BUYER);
+      await page.goto('/dashboard/messages');
     }
-    // Note: Requires user to be authenticated
-    // In a real scenario, you'd use loginAs() helper or setup auth
-    await page.goto('/dashboard/messages');
   });
 
   test('should redirect to login if not authenticated', async ({ page }) => {
-    // Clear any existing auth
-    await page.context().clearCookies();
     await page.goto('/dashboard/messages');
-
-    // Should redirect to login
     await page.waitForURL(/\/auth\/login/);
     expect(page.url()).toContain('/auth/login');
   });
 
   test('should display conversations list', async ({ page }) => {
-    // Skip if not authenticated (depends on test setup)
-    test.skip(!page.url().includes('/dashboard/messages'), 'Requires authentication');
-
     // Should show conversations header
-    await expect(page.getByText(/Mensajes/i)).toBeVisible();
-    await expect(page.getByText(/Conversaciones/i)).toBeVisible();
+    await expect(page.locator('main').getByText(/Mensajes/i).first()).toBeVisible();
+    await expect(page.locator('main').getByText(/Conversaciones/i).first()).toBeVisible();
   });
 
   test('should show empty state when no conversations', async ({ page }) => {
-    test.skip(!page.url().includes('/dashboard/messages'), 'Requires authentication');
-
     // Wait for loading to finish
     await page.waitForTimeout(2000);
 
@@ -51,8 +38,6 @@ test.describe('Dashboard Messages', () => {
   });
 
   test('should display conversation with unread count badge', async ({ page }) => {
-    test.skip(!page.url().includes('/dashboard/messages'), 'Requires authentication');
-
     // Wait for conversations to load
     await page.waitForTimeout(2000);
 
@@ -67,8 +52,6 @@ test.describe('Dashboard Messages', () => {
   });
 
   test('should select and view conversation details', async ({ page }) => {
-    test.skip(!page.url().includes('/dashboard/messages'), 'Requires authentication');
-
     // Wait for conversations to load
     await page.waitForTimeout(2000);
 
@@ -85,8 +68,6 @@ test.describe('Dashboard Messages', () => {
   });
 
   test('should show message input and send button', async ({ page }) => {
-    test.skip(!page.url().includes('/dashboard/messages'), 'Requires authentication');
-
     // Wait for page to load
     await page.waitForTimeout(2000);
 
@@ -109,8 +90,6 @@ test.describe('Dashboard Messages', () => {
   });
 
   test('should disable send button when message is empty', async ({ page }) => {
-    test.skip(!page.url().includes('/dashboard/messages'), 'Requires authentication');
-
     // Wait and select first conversation
     await page.waitForTimeout(2000);
     const firstConversation = page.locator('button[class*="hover:bg-muted"]').first();
@@ -128,8 +107,6 @@ test.describe('Dashboard Messages', () => {
   });
 
   test('should show closed conversation message when inactive', async ({ page }) => {
-    test.skip(!page.url().includes('/dashboard/messages'), 'Requires authentication');
-
     // This test checks for closed conversations
     await page.waitForTimeout(2000);
 

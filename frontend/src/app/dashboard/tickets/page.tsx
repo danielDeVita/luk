@@ -172,7 +172,7 @@ function formatTimeRemaining(deadline: string): string {
 
 export default function MyTicketsPage() {
   const router = useRouter();
-  const { isAuthenticated, user } = useAuthStore();
+  const { isAuthenticated, hasHydrated, user } = useAuthStore();
 
   // Filter states
   const [ticketStatus, setTicketStatus] = useState<TicketStatus>('ALL');
@@ -211,10 +211,10 @@ export default function MyTicketsPage() {
   });
 
   useEffect(() => {
-    if (!isAuthenticated) {
+    if (hasHydrated && !isAuthenticated) {
       router.push('/auth/login');
     }
-  }, [isAuthenticated, router]);
+  }, [hasHydrated, isAuthenticated, router]);
 
   // Get data from queries - wrapped in useMemo to prevent dependency issues
   const tickets = useMemo(() => data?.myTickets || [], [data?.myTickets]);
@@ -260,7 +260,7 @@ export default function MyTicketsPage() {
     }
   };
 
-  if (!isAuthenticated) return null;
+  if (!hasHydrated || !isAuthenticated) return null;
 
   const hasActiveFilters = ticketStatus !== 'ALL' || raffleStatus !== 'ALL' || showWinsOnly || dateFrom || dateTo;
 

@@ -1,34 +1,5 @@
-import { test, expect, Page } from '@playwright/test';
-
-// Test user credentials (from seed data)
-const TEST_SELLER = {
-  email: 'vendedor@test.com',
-  password: 'Password123!',
-};
-
-const TEST_BUYER = {
-  email: 'comprador@test.com',
-  password: 'Password123!',
-};
-
-/**
- * Helper to login with test credentials
- */
-async function loginAs(
-  page: Page,
-  user: { email: string; password: string },
-) {
-  await page.goto('/auth/login');
-  await page.getByLabel(/email/i).fill(user.email);
-  await page.getByLabel(/contrase[ñn]a/i).fill(user.password);
-  await page.locator('button[type="submit"]').click();
-  await page.waitForURL(
-    (url) => !url.pathname.includes('/auth/login'),
-    {
-      timeout: 10000,
-    },
-  );
-}
+import { test, expect } from '@playwright/test';
+import { apiLogin, TEST_SELLER, TEST_BUYER } from './helpers/auth';
 
 test.describe('Raffle Browsing', () => {
   test('homepage loads with featured raffles section', async ({
@@ -60,10 +31,8 @@ test.describe('Raffle Browsing', () => {
   }) => {
     await page.goto('/search');
 
-    // Look for category filter
-    const categoryFilter = page
-      .getByRole('combobox')
-      .or(page.getByPlaceholder(/categoría/i));
+    // Look for category filter (first combobox on search page)
+    const categoryFilter = page.locator('main').getByRole('combobox').first();
 
     if (await categoryFilter.isVisible()) {
       await categoryFilter.click();
@@ -77,10 +46,8 @@ test.describe('Raffle Browsing', () => {
   test('search page supports sorting', async ({ page }) => {
     await page.goto('/search');
 
-    // Look for sort selector
-    const sortButton = page
-      .getByRole('combobox')
-      .or(page.getByText(/ordenar/i));
+    // Look for sort selector (last combobox on search page)
+    const sortButton = page.locator('main').getByRole('combobox').last();
 
     if (await sortButton.isVisible()) {
       await sortButton.click();
@@ -116,7 +83,8 @@ test.describe('Raffle Browsing', () => {
     await expect(
       page
         .getByText(/cargando|loading/i)
-        .or(page.locator('[href^="/raffle/"]')),
+        .or(page.locator('[href^="/raffle/"]'))
+        .first(),
     ).toBeVisible({ timeout: 5000 });
   });
 });
@@ -149,7 +117,7 @@ test.describe('Ticket Purchase Flow', () => {
   test('authenticated user sees buy button enabled', async ({
     page,
   }) => {
-    await loginAs(page, TEST_BUYER);
+    await apiLogin(page, TEST_BUYER);
     await page.goto('/search');
 
     const raffleCard = page.locator('[href^="/raffle/"]').first();
@@ -171,7 +139,7 @@ test.describe('Ticket Purchase Flow', () => {
   test('can add raffle to favorites when logged in', async ({
     page,
   }) => {
-    await loginAs(page, TEST_BUYER);
+    await apiLogin(page, TEST_BUYER);
     await page.goto('/search');
 
     const raffleCard = page.locator('[href^="/raffle/"]').first();
@@ -198,7 +166,7 @@ test.describe('Ticket Purchase Flow', () => {
 
 test.describe('Seller Onboarding', () => {
   test('seller can access create raffle page', async ({ page }) => {
-    await loginAs(page, TEST_SELLER);
+    await apiLogin(page, TEST_SELLER);
 
     await page.goto('/dashboard/create');
 
@@ -211,7 +179,7 @@ test.describe('Seller Onboarding', () => {
   });
 
   test('create raffle form has required fields', async ({ page }) => {
-    await loginAs(page, TEST_SELLER);
+    await apiLogin(page, TEST_SELLER);
     await page.goto('/dashboard/create');
 
     // Check for required form fields
@@ -225,7 +193,7 @@ test.describe('Seller Onboarding', () => {
   });
 
   test('seller dashboard shows stats', async ({ page }) => {
-    await loginAs(page, TEST_SELLER);
+    await apiLogin(page, TEST_SELLER);
     await page.goto('/dashboard/sales');
 
     // Should show seller stats
@@ -235,25 +203,26 @@ test.describe('Seller Onboarding', () => {
   });
 
   test('seller can view their raffles list', async ({ page }) => {
-    await loginAs(page, TEST_SELLER);
+    await apiLogin(page, TEST_SELLER);
     await page.goto('/dashboard/sales');
 
-    // Should show raffle list or empty state
+    // Should show raffle list or empty state (scoped to main to avoid hidden nav items)
     await expect(
-      page.getByText(/mis rifas|rifas activ|no tienes/i).first(),
+      page.locator('main').getByText(/mis rifas|rifas activ|no tienes/i).first(),
     ).toBeVisible({ timeout: 10000 });
   });
 });
 
 test.describe('MP Connect Flow', () => {
   test('settings page shows MP Connect option', async ({ page }) => {
-    await loginAs(page, TEST_SELLER);
+    await apiLogin(page, TEST_SELLER);
     await page.goto('/dashboard/settings');
 
-    // Navigate to payments tab
-    const paymentsTab = page
+    // Navigate to payments tab (scoped to main to avoid nav items)
+    const paymentsTab = page.locator('main')
       .getByRole('tab', { name: /pagos|payment/i })
-      .or(page.getByText(/mercado pago|pagos/i));
+      .or(page.locator('main').getByText(/mercado pago|pagos/i))
+      .first();
 
     if (await paymentsTab.isVisible()) {
       await paymentsTab.click();
@@ -266,7 +235,7 @@ test.describe('MP Connect Flow', () => {
   });
 
   test('MP Connect button initiates OAuth flow', async ({ page }) => {
-    await loginAs(page, TEST_SELLER);
+    await apiLogin(page, TEST_SELLER);
     await page.goto('/dashboard/settings');
 
     // Navigate to payments section
@@ -289,7 +258,7 @@ test.describe('MP Connect Flow', () => {
 
 test.describe('Buyer Dashboard', () => {
   test('buyer can view their tickets', async ({ page }) => {
-    await loginAs(page, TEST_BUYER);
+    await apiLogin(page, TEST_BUYER);
     await page.goto('/dashboard/tickets');
 
     // Should show tickets or empty state
@@ -299,17 +268,17 @@ test.describe('Buyer Dashboard', () => {
   });
 
   test('buyer can view favorites', async ({ page }) => {
-    await loginAs(page, TEST_BUYER);
+    await apiLogin(page, TEST_BUYER);
     await page.goto('/dashboard/favorites');
 
-    // Should show favorites or empty state
+    // Should show favorites or empty state (scoped to main to avoid hidden nav items)
     await expect(
-      page.getByText(/favoritos|guardad|no tienes/i).first(),
+      page.locator('main').getByText(/favoritos|guardad|no tienes/i).first(),
     ).toBeVisible({ timeout: 10000 });
   });
 
   test('buyer stats are visible in dashboard', async ({ page }) => {
-    await loginAs(page, TEST_BUYER);
+    await apiLogin(page, TEST_BUYER);
     await page.goto('/dashboard/tickets');
 
     // Should show stats cards
@@ -332,7 +301,7 @@ test.describe('Raffle Creation Flow', () => {
   test('shows form validation errors for empty submission', async ({
     page,
   }) => {
-    await loginAs(page, TEST_SELLER);
+    await apiLogin(page, TEST_SELLER);
     await page.goto('/dashboard/create');
 
     // Wait for form to load
@@ -353,7 +322,7 @@ test.describe('Raffle Creation Flow', () => {
   });
 
   test('shows validation error for short title', async ({ page }) => {
-    await loginAs(page, TEST_SELLER);
+    await apiLogin(page, TEST_SELLER);
     await page.goto('/dashboard/create');
 
     // Fill title with less than 10 characters
@@ -372,7 +341,7 @@ test.describe('Raffle Creation Flow', () => {
   test('shows validation error for short description', async ({
     page,
   }) => {
-    await loginAs(page, TEST_SELLER);
+    await apiLogin(page, TEST_SELLER);
     await page.goto('/dashboard/create');
 
     // Fill description with less than 50 characters
@@ -391,7 +360,7 @@ test.describe('Raffle Creation Flow', () => {
   test('shows validation error for invalid ticket price', async ({
     page,
   }) => {
-    await loginAs(page, TEST_SELLER);
+    await apiLogin(page, TEST_SELLER);
     await page.goto('/dashboard/create');
 
     // Find price input and enter invalid value
@@ -410,7 +379,7 @@ test.describe('Raffle Creation Flow', () => {
   test('shows validation error for invalid ticket count', async ({
     page,
   }) => {
-    await loginAs(page, TEST_SELLER);
+    await apiLogin(page, TEST_SELLER);
     await page.goto('/dashboard/create');
 
     // Find tickets input
@@ -431,7 +400,7 @@ test.describe('Raffle Creation Flow', () => {
   });
 
   test('category dropdown is functional', async ({ page }) => {
-    await loginAs(page, TEST_SELLER);
+    await apiLogin(page, TEST_SELLER);
     await page.goto('/dashboard/create');
 
     // Wait for form to load
@@ -455,7 +424,7 @@ test.describe('Raffle Creation Flow', () => {
   test('condition dropdown shows correct options', async ({
     page,
   }) => {
-    await loginAs(page, TEST_SELLER);
+    await apiLogin(page, TEST_SELLER);
     await page.goto('/dashboard/create');
 
     // Wait for form to load
@@ -479,7 +448,7 @@ test.describe('Raffle Creation Flow', () => {
   test('successfully creates raffle with valid data', async ({
     page,
   }) => {
-    await loginAs(page, TEST_SELLER);
+    await apiLogin(page, TEST_SELLER);
     await page.goto('/dashboard/create');
 
     // Wait for form to load
@@ -569,7 +538,7 @@ test.describe('Raffle Creation Flow', () => {
   test('submit button is disabled during submission', async ({
     page,
   }) => {
-    await loginAs(page, TEST_SELLER);
+    await apiLogin(page, TEST_SELLER);
     await page.goto('/dashboard/create');
 
     // Wait for form
@@ -625,7 +594,7 @@ test.describe('Raffle Creation Flow', () => {
   test('displays error message when creation fails', async ({
     page,
   }) => {
-    await loginAs(page, TEST_SELLER);
+    await apiLogin(page, TEST_SELLER);
     await page.goto('/dashboard/create');
 
     // Fill form with data that might cause an error
@@ -649,7 +618,7 @@ test.describe('Raffle Creation Flow', () => {
   test('form preserves data after validation error', async ({
     page,
   }) => {
-    await loginAs(page, TEST_SELLER);
+    await apiLogin(page, TEST_SELLER);
     await page.goto('/dashboard/create');
 
     // Fill some fields

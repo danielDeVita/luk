@@ -1,28 +1,10 @@
-import { test, expect, Page } from '@playwright/test';
+import { test, expect } from '@playwright/test';
+import { apiLogin, TEST_ADMIN, TEST_BUYER } from './helpers/auth';
 
 /**
  * Admin Disputes E2E Tests
  * Tests the admin dispute resolution interface
  */
-
-// Test admin credentials
-const TEST_ADMIN = {
-  email: 'admin@test.com',
-  password: 'Admin123!',
-};
-
-/**
- * Helper to login as admin
- */
-async function loginAsAdmin(page: Page) {
-  await page.goto('/auth/login');
-  await page.getByLabel(/email/i).fill(TEST_ADMIN.email);
-  await page.getByLabel(/contrase[ñn]a/i).fill(TEST_ADMIN.password);
-  await page.locator('button[type="submit"]').click();
-  await page.waitForURL((url) => !url.pathname.includes('/auth/login'), {
-    timeout: 15000,
-  });
-}
 
 test.describe('Admin Disputes', () => {
   test('should show disputes admin panel for admin users', async ({
@@ -30,7 +12,7 @@ test.describe('Admin Disputes', () => {
   }) => {
     test.skip(true, 'Requires test admin user in database');
 
-    await loginAsAdmin(page);
+    await apiLogin(page, TEST_ADMIN);
     await page.goto('/admin/disputes');
 
     // Should show admin panel
@@ -40,17 +22,9 @@ test.describe('Admin Disputes', () => {
   });
 
   test('should deny access to non-admin users', async ({ page }) => {
-    test.skip(true, 'Login flow needs investigation in CI environment');
+    test.skip(true, 'Requires disputes feature to be implemented');
 
-    // Login as regular user
-    await page.goto('/auth/login');
-    await page.getByLabel(/email/i).fill('comprador@test.com');
-    await page.getByLabel(/contrase[ñn]a/i).fill('Password123!');
-    await page.locator('button[type="submit"]').click();
-
-    await page.waitForURL((url) => !url.pathname.includes('/auth/login'), {
-      timeout: 15000,
-    });
+    await apiLogin(page, TEST_BUYER);
 
     // Try to access admin panel
     await page.goto('/admin/disputes');
@@ -78,7 +52,7 @@ test.describe('Admin Disputes', () => {
       'Requires test admin user and pending disputes in database',
     );
 
-    await loginAsAdmin(page);
+    await apiLogin(page, TEST_ADMIN);
     await page.goto('/admin/disputes');
 
     // Should show disputes table
@@ -91,7 +65,7 @@ test.describe('Admin Disputes', () => {
       'Requires test admin user and disputes in database',
     );
 
-    await loginAsAdmin(page);
+    await apiLogin(page, TEST_ADMIN);
     await page.goto('/admin/disputes');
 
     // Select filter
@@ -107,7 +81,7 @@ test.describe('Admin Disputes', () => {
       'Requires test admin user and disputes in database',
     );
 
-    await loginAsAdmin(page);
+    await apiLogin(page, TEST_ADMIN);
     await page.goto('/admin/disputes');
 
     // Select type filter
@@ -127,7 +101,7 @@ test.describe('Admin Disputes', () => {
       'Requires test admin user and disputes in database',
     );
 
-    await loginAsAdmin(page);
+    await apiLogin(page, TEST_ADMIN);
     await page.goto('/admin/disputes');
 
     // Click on first dispute
@@ -148,7 +122,7 @@ test.describe('Admin Disputes', () => {
       'Requires test admin user, test dispute, and backend integration',
     );
 
-    await loginAsAdmin(page);
+    await apiLogin(page, TEST_ADMIN);
     await page.goto('/admin/disputes');
 
     // Open dispute
@@ -177,7 +151,7 @@ test.describe('Admin Disputes', () => {
       'Requires test admin user, test dispute, and backend integration',
     );
 
-    await loginAsAdmin(page);
+    await apiLogin(page, TEST_ADMIN);
     await page.goto('/admin/disputes');
 
     // Open dispute
@@ -203,7 +177,7 @@ test.describe('Admin Disputes', () => {
   test('should handle partial resolution', async ({ page }) => {
     test.skip(true, 'Requires test admin user and test dispute');
 
-    await loginAsAdmin(page);
+    await apiLogin(page, TEST_ADMIN);
     await page.goto('/admin/disputes');
 
     // Open dispute
@@ -223,7 +197,7 @@ test.describe('Admin Disputes', () => {
   }) => {
     test.skip(true, 'Requires test admin user and test dispute');
 
-    await loginAsAdmin(page);
+    await apiLogin(page, TEST_ADMIN);
     await page.goto('/admin/disputes');
 
     // Open dispute
@@ -246,7 +220,7 @@ test.describe('Admin Disputes', () => {
   test('should show dispute history timeline', async ({ page }) => {
     test.skip(true, 'Requires test dispute with history');
 
-    await loginAsAdmin(page);
+    await apiLogin(page, TEST_ADMIN);
     await page.goto('/admin/disputes');
 
     // Open dispute
@@ -262,7 +236,7 @@ test.describe('Admin Disputes', () => {
   test('should support bulk dispute resolution', async ({ page }) => {
     test.skip(true, 'Requires test admin user and multiple disputes');
 
-    await loginAsAdmin(page);
+    await apiLogin(page, TEST_ADMIN);
     await page.goto('/admin/disputes');
 
     // Select multiple disputes
@@ -280,7 +254,7 @@ test.describe('Admin Disputes', () => {
   }) => {
     test.skip(true, 'Requires test admin user and test dispute');
 
-    await loginAsAdmin(page);
+    await apiLogin(page, TEST_ADMIN);
     await page.goto('/admin/disputes');
 
     // Open dispute
@@ -300,7 +274,7 @@ test.describe('Admin Disputes', () => {
   }) => {
     test.skip(true, 'Requires test admin user and test dispute');
 
-    await loginAsAdmin(page);
+    await apiLogin(page, TEST_ADMIN);
     await page.goto('/admin/disputes');
 
     // Open dispute

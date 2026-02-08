@@ -170,7 +170,14 @@ export async function getUserToken(
   page: Page,
 ): Promise<string | null> {
   return await page.evaluate(() => {
-    return localStorage.getItem('auth_token');
+    const raw = localStorage.getItem('auth-storage');
+    if (!raw) return null;
+    try {
+      const parsed = JSON.parse(raw);
+      return parsed?.state?.token || null;
+    } catch {
+      return null;
+    }
   });
 }
 

@@ -81,7 +81,7 @@ const PROVINCIAS_ARGENTINA = [
 
 export default function ShippingAddressesPage() {
   const router = useRouter();
-  const { isAuthenticated } = useAuthStore();
+  const { isAuthenticated, hasHydrated } = useAuthStore();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingAddress, setEditingAddress] = useState<ShippingAddress | null>(null);
   const [formData, setFormData] = useState<AddressFormData>(initialFormData);
@@ -130,12 +130,12 @@ export default function ShippingAddressesPage() {
   });
 
   useEffect(() => {
-    if (!isAuthenticated) {
+    if (hasHydrated && !isAuthenticated) {
       router.push('/auth/login');
     }
-  }, [isAuthenticated, router]);
+  }, [hasHydrated, isAuthenticated, router]);
 
-  if (!isAuthenticated) return null;
+  if (!hasHydrated || !isAuthenticated) return null;
 
   const addresses = data?.myShippingAddresses || [];
 

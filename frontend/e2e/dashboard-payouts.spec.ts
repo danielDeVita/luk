@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { apiLogin, TEST_SELLER } from './helpers/auth';
 
 /**
  * Dashboard Payouts E2E Tests
@@ -7,38 +8,27 @@ import { test, expect } from '@playwright/test';
 
 test.describe('Dashboard Payouts', () => {
   test.beforeEach(async ({ page }, testInfo) => {
-    // Skip tests that require authenticated state in CI (GraphQL mutations don't work reliably)
-    const requiresAuth = !testInfo.title.includes('redirect to login');
-    if (process.env.CI === 'true' && requiresAuth) {
-      testInfo.skip(true, 'Requires authentication - GraphQL unreliable in CI');
-      return;
+    if (!testInfo.title.includes('redirect to login')) {
+      await apiLogin(page, TEST_SELLER);
+      await page.goto('/dashboard/payouts');
     }
-    await page.goto('/dashboard/payouts');
   });
 
   test('should redirect to login if not authenticated', async ({ page }) => {
-    // Clear any existing auth
-    await page.context().clearCookies();
     await page.goto('/dashboard/payouts');
-
-    // Should redirect to login
     await page.waitForURL(/\/auth\/login/);
     expect(page.url()).toContain('/auth/login');
   });
 
   test('should display payouts page header', async ({ page }) => {
-    test.skip(!page.url().includes('/dashboard/payouts'), 'Requires authentication');
-
     // Should show page title
-    await expect(page.getByText(/Mis Pagos/i)).toBeVisible();
+    await expect(page.locator('main').getByText(/Mis Pagos/i).first()).toBeVisible();
 
     // Should show dollar sign icon
-    await expect(page.locator('svg.lucide-dollar-sign')).toBeVisible();
+    await expect(page.locator('svg.lucide-dollar-sign').first()).toBeVisible();
   });
 
   test('should display summary cards with totals', async ({ page }) => {
-    test.skip(!page.url().includes('/dashboard/payouts'), 'Requires authentication');
-
     // Wait for data to load
     await page.waitForTimeout(2000);
 
@@ -55,8 +45,6 @@ test.describe('Dashboard Payouts', () => {
   });
 
   test('should display list of payouts when available', async ({ page }) => {
-    test.skip(!page.url().includes('/dashboard/payouts'), 'Requires authentication');
-
     // Wait for payouts to load
     await page.waitForTimeout(2000);
 
@@ -71,8 +59,6 @@ test.describe('Dashboard Payouts', () => {
   });
 
   test('should show payout status badges', async ({ page }) => {
-    test.skip(!page.url().includes('/dashboard/payouts'), 'Requires authentication');
-
     await page.waitForTimeout(2000);
 
     // Look for status badges (Pendiente, Procesando, Completado, Fallido)
@@ -100,13 +86,11 @@ test.describe('Dashboard Payouts', () => {
   });
 
   test('should display payout details including fees', async ({ page }) => {
-    test.skip(!page.url().includes('/dashboard/payouts'), 'Requires authentication');
-
     await page.waitForTimeout(2000);
 
     // Check for fee-related text if payouts exist
-    const platformFee = page.getByText(/Comisión plataforma/i).first();
-    const processingFee = page.getByText(/Comisión procesamiento/i).first();
+    const platformFee = page.getByText(/Comisi[oó]n.*plataforma/i).first();
+    const processingFee = page.getByText(/Comisi[oó]n.*procesamiento/i).first();
 
     const hasPlatformFee = await platformFee.isVisible();
     const hasProcessingFee = await processingFee.isVisible();
@@ -118,8 +102,6 @@ test.describe('Dashboard Payouts', () => {
   });
 
   test('should show scheduled date for pending payouts', async ({ page }) => {
-    test.skip(!page.url().includes('/dashboard/payouts'), 'Requires authentication');
-
     await page.waitForTimeout(2000);
 
     // Look for scheduled date indicator
@@ -131,18 +113,16 @@ test.describe('Dashboard Payouts', () => {
   });
 
   test('should show empty state when no payouts', async ({ page }) => {
-    test.skip(!page.url().includes('/dashboard/payouts'), 'Requires authentication');
-
     await page.waitForTimeout(2000);
 
     // Check for empty state message
-    const emptyMessage = page.getByText(/No tenés pagos registrados/i);
+    const emptyMessage = page.getByText(/No tenés pagos/i);
 
     if (await emptyMessage.isVisible()) {
       await expect(emptyMessage).toBeVisible();
 
       // Should suggest creating a raffle
-      const suggestion = page.getByText(/Creá una rifa/i);
+      const suggestion = page.getByText(/Cre[aá]r? una rifa/i);
       if (await suggestion.isVisible()) {
         await expect(suggestion).toBeVisible();
       }

@@ -216,7 +216,7 @@ function KycStatusBadge({ status }: { status: string }) {
 
 function SettingsContent() {
   const router = useRouter();
-  const { user, isAuthenticated, updateUser } = useAuthStore();
+  const { user, isAuthenticated, hasHydrated, updateUser } = useAuthStore();
   const searchParams = useSearchParams();
   const [isDisconnecting, setIsDisconnecting] = useState(false);
   const [avatarUploading, setAvatarUploading] = useState(false);
@@ -313,10 +313,10 @@ function SettingsContent() {
 
   // Auth redirect effect
   useEffect(() => {
-    if (!isAuthenticated) {
+    if (hasHydrated && !isAuthenticated) {
       router.push('/auth/login');
     }
-  }, [isAuthenticated, router]);
+  }, [hasHydrated, isAuthenticated, router]);
 
   // Handle query params for MP connection result
   useEffect(() => {
@@ -351,7 +351,7 @@ function SettingsContent() {
   }, [userData, setKycValue]);
 
   // Now the early return check (after all hooks are declared)
-  if (!isAuthenticated) return null;
+  if (!hasHydrated || !isAuthenticated) return null;
 
   const mpStatus = userData?.me?.mpConnectStatus || 'NOT_CONNECTED';
   const mpUserId = userData?.me?.mpUserId;

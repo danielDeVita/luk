@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { apiLogin, TEST_SELLER } from './helpers/auth';
 
 /**
  * Dashboard Shipping Addresses E2E Tests
@@ -6,36 +7,31 @@ import { test, expect } from '@playwright/test';
  */
 
 test.describe('Dashboard Shipping Addresses', () => {
-  test.beforeEach(async ({ page }) => {
-    await page.goto('/dashboard/shipping');
+  test.beforeEach(async ({ page }, testInfo) => {
+    if (!testInfo.title.includes('redirect to login')) {
+      await apiLogin(page, TEST_SELLER);
+      await page.goto('/dashboard/shipping');
+    }
   });
 
   test('should redirect to login if not authenticated', async ({ page }) => {
-    await page.context().clearCookies();
     await page.goto('/dashboard/shipping');
-
     await page.waitForURL(/\/auth\/login/);
     expect(page.url()).toContain('/auth/login');
   });
 
   test('should display shipping addresses page header', async ({ page }) => {
-    test.skip(!page.url().includes('/dashboard/shipping'), 'Requires authentication');
-
-    await expect(page.getByText(/Direcciones de Envío/i)).toBeVisible();
-    await expect(page.locator('svg.lucide-map-pin')).toBeVisible();
+    await expect(page.locator('main').getByText(/Direcciones de Envío/i).first()).toBeVisible();
+    await expect(page.locator('svg.lucide-map-pin').first()).toBeVisible();
   });
 
   test('should show add address button', async ({ page }) => {
-    test.skip(!page.url().includes('/dashboard/shipping'), 'Requires authentication');
-
-    const addButton = page.getByRole('button', { name: /Agregar Dirección/i });
+    const addButton = page.getByRole('button', { name: /Nueva Direcci[oó]n/i });
     await expect(addButton).toBeVisible();
   });
 
   test('should open dialog when add address button is clicked', async ({ page }) => {
-    test.skip(!page.url().includes('/dashboard/shipping'), 'Requires authentication');
-
-    const addButton = page.getByRole('button', { name: /Agregar Dirección/i });
+    const addButton = page.getByRole('button', { name: /Nueva Direcci[oó]n/i });
     await addButton.click();
 
     // Dialog should open
@@ -44,9 +40,7 @@ test.describe('Dashboard Shipping Addresses', () => {
   });
 
   test('should display address form fields in dialog', async ({ page }) => {
-    test.skip(!page.url().includes('/dashboard/shipping'), 'Requires authentication');
-
-    const addButton = page.getByRole('button', { name: /Agregar Dirección/i });
+    const addButton = page.getByRole('button', { name: /Nueva Direcci[oó]n/i });
     await addButton.click();
     await page.waitForTimeout(500);
 
@@ -60,8 +54,6 @@ test.describe('Dashboard Shipping Addresses', () => {
   });
 
   test('should list existing shipping addresses', async ({ page }) => {
-    test.skip(!page.url().includes('/dashboard/shipping'), 'Requires authentication');
-
     await page.waitForTimeout(2000);
 
     // Check for addresses list or empty state
@@ -75,12 +67,10 @@ test.describe('Dashboard Shipping Addresses', () => {
   });
 
   test('should show default address badge', async ({ page }) => {
-    test.skip(!page.url().includes('/dashboard/shipping'), 'Requires authentication');
-
     await page.waitForTimeout(2000);
 
     // Look for default address indicator
-    const defaultBadge = page.getByText(/Principal/i).first();
+    const defaultBadge = page.getByText(/Predeterminada|Principal/i).first();
 
     if (await defaultBadge.isVisible()) {
       await expect(defaultBadge).toBeVisible();
@@ -93,8 +83,6 @@ test.describe('Dashboard Shipping Addresses', () => {
   });
 
   test('should show address action buttons', async ({ page }) => {
-    test.skip(!page.url().includes('/dashboard/shipping'), 'Requires authentication');
-
     await page.waitForTimeout(2000);
 
     // If addresses exist, should show edit and delete buttons
@@ -110,8 +98,6 @@ test.describe('Dashboard Shipping Addresses', () => {
   });
 
   test('should enforce 5 address maximum limit message', async ({ page }) => {
-    test.skip(!page.url().includes('/dashboard/shipping'), 'Requires authentication');
-
     await page.waitForTimeout(2000);
 
     // Check if max limit message is shown (when user has 5 addresses)
@@ -121,7 +107,7 @@ test.describe('Dashboard Shipping Addresses', () => {
       await expect(maxLimitMessage).toBeVisible();
 
       // Add button should be disabled
-      const addButton = page.getByRole('button', { name: /Agregar Dirección/i });
+      const addButton = page.getByRole('button', { name: /Nueva Direcci[oó]n/i });
       await expect(addButton).toBeDisabled();
     }
   });

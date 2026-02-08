@@ -59,19 +59,19 @@ const statusConfig = {
 
 export default function PayoutsPage() {
   const router = useRouter();
-  const { isAuthenticated } = useAuthStore();
+  const { isAuthenticated, hasHydrated } = useAuthStore();
 
   const { data, loading } = useQuery<MyPayoutsResult>(GET_MY_PAYOUTS, {
     skip: !isAuthenticated,
   });
 
   useEffect(() => {
-    if (!isAuthenticated) {
+    if (hasHydrated && !isAuthenticated) {
       router.push('/auth/login');
     }
-  }, [isAuthenticated, router]);
+  }, [hasHydrated, isAuthenticated, router]);
 
-  if (!isAuthenticated) return null;
+  if (!hasHydrated || !isAuthenticated) return null;
 
   const payouts = data?.myPayouts || [];
 

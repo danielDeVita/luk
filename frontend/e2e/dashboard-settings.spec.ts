@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { apiLogin, TEST_BUYER } from './helpers/auth';
 
 /**
  * Dashboard Settings E2E Tests
@@ -6,28 +7,25 @@ import { test, expect } from '@playwright/test';
  */
 
 test.describe('Dashboard Settings', () => {
-  test.beforeEach(async ({ page }) => {
-    await page.goto('/dashboard/settings');
+  test.beforeEach(async ({ page }, testInfo) => {
+    if (!testInfo.title.includes('redirect to login')) {
+      await apiLogin(page, TEST_BUYER);
+      await page.goto('/dashboard/settings');
+    }
   });
 
   test('should redirect to login if not authenticated', async ({ page }) => {
-    await page.context().clearCookies();
     await page.goto('/dashboard/settings');
-
     await page.waitForURL(/\/auth\/login/);
     expect(page.url()).toContain('/auth/login');
   });
 
   test('should display settings page header', async ({ page }) => {
-    test.skip(!page.url().includes('/dashboard/settings'), 'Requires authentication');
-
-    await expect(page.getByText(/Configuración|Ajustes/i)).toBeVisible();
-    await expect(page.locator('svg.lucide-settings')).toBeVisible();
+    await expect(page.locator('main').getByText(/Configuración|Ajustes/i).first()).toBeVisible();
+    await expect(page.locator('svg.lucide-settings').first()).toBeVisible();
   });
 
   test('should show profile information section', async ({ page }) => {
-    test.skip(!page.url().includes('/dashboard/settings'), 'Requires authentication');
-
     await page.waitForTimeout(1500);
 
     // Check for profile fields
@@ -44,8 +42,6 @@ test.describe('Dashboard Settings', () => {
   });
 
   test('should display email update section', async ({ page }) => {
-    test.skip(!page.url().includes('/dashboard/settings'), 'Requires authentication');
-
     await page.waitForTimeout(1500);
 
     // Look for email change section
@@ -57,8 +53,6 @@ test.describe('Dashboard Settings', () => {
   });
 
   test('should show change password section', async ({ page }) => {
-    test.skip(!page.url().includes('/dashboard/settings'), 'Requires authentication');
-
     await page.waitForTimeout(1500);
 
     // Check for password change section
@@ -70,8 +64,6 @@ test.describe('Dashboard Settings', () => {
   });
 
   test('should display notification preferences', async ({ page }) => {
-    test.skip(!page.url().includes('/dashboard/settings'), 'Requires authentication');
-
     await page.waitForTimeout(1500);
 
     // Look for notification settings
@@ -83,8 +75,6 @@ test.describe('Dashboard Settings', () => {
   });
 
   test('should show save/update buttons', async ({ page }) => {
-    test.skip(!page.url().includes('/dashboard/settings'), 'Requires authentication');
-
     await page.waitForTimeout(1500);
 
     // Look for save/update buttons
@@ -97,8 +87,6 @@ test.describe('Dashboard Settings', () => {
   });
 
   test('should have account security options', async ({ page }) => {
-    test.skip(!page.url().includes('/dashboard/settings'), 'Requires authentication');
-
     await page.waitForTimeout(1500);
 
     // Look for security-related text

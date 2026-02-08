@@ -60,7 +60,7 @@ interface ReferredUser {
 
 export default function ReferralsPage() {
   const router = useRouter();
-  const { isAuthenticated } = useAuthStore();
+  const { isAuthenticated, hasHydrated } = useAuthStore();
   const [copied, setCopied] = useState(false);
 
   const { data: statsData, loading: statsLoading, refetch: refetchStats } = useQuery<{ myReferralStats: ReferralStats }>(
@@ -82,12 +82,12 @@ export default function ReferralsPage() {
   });
 
   useEffect(() => {
-    if (!isAuthenticated) {
+    if (hasHydrated && !isAuthenticated) {
       router.push('/auth/login');
     }
-  }, [isAuthenticated, router]);
+  }, [hasHydrated, isAuthenticated, router]);
 
-  if (!isAuthenticated) return null;
+  if (!hasHydrated || !isAuthenticated) return null;
 
   const stats = statsData?.myReferralStats;
   const referredUsers = usersData?.myReferredUsers || [];

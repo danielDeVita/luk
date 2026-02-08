@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { apiLogin, TEST_BUYER } from './helpers/auth';
 
 /**
  * Dashboard Favorites E2E Tests
@@ -7,33 +8,24 @@ import { test, expect } from '@playwright/test';
 
 test.describe('Dashboard Favorites', () => {
   test.beforeEach(async ({ page }, testInfo) => {
-    // Skip tests that require authenticated state in CI (GraphQL mutations don't work reliably)
-    const requiresAuth = !testInfo.title.includes('redirect to login');
-    if (process.env.CI === 'true' && requiresAuth) {
-      testInfo.skip(true, 'Requires authentication - GraphQL unreliable in CI');
-      return;
+    if (!testInfo.title.includes('redirect to login')) {
+      await apiLogin(page, TEST_BUYER);
+      await page.goto('/dashboard/favorites');
     }
-    await page.goto('/dashboard/favorites');
   });
 
   test('should redirect to login if not authenticated', async ({ page }) => {
-    await page.context().clearCookies();
     await page.goto('/dashboard/favorites');
-
     await page.waitForURL(/\/auth\/login/);
     expect(page.url()).toContain('/auth/login');
   });
 
   test('should display favorites page header', async ({ page }) => {
-    test.skip(!page.url().includes('/dashboard/favorites'), 'Requires authentication');
-
-    await expect(page.getByText(/Mis Favoritos/i)).toBeVisible();
-    await expect(page.locator('svg.lucide-heart')).toBeVisible();
+    await expect(page.locator('main').getByText(/Mis Favoritos/i).first()).toBeVisible();
+    await expect(page.locator('svg.lucide-heart').first()).toBeVisible();
   });
 
   test('should show list of favorited raffles or empty state', async ({ page }) => {
-    test.skip(!page.url().includes('/dashboard/favorites'), 'Requires authentication');
-
     await page.waitForTimeout(2000);
 
     // Check for favorites list or empty state
@@ -47,8 +39,6 @@ test.describe('Dashboard Favorites', () => {
   });
 
   test('should display remove favorite button on each card', async ({ page }) => {
-    test.skip(!page.url().includes('/dashboard/favorites'), 'Requires authentication');
-
     await page.waitForTimeout(2000);
 
     // Look for heart icons (favorite buttons)
@@ -62,8 +52,6 @@ test.describe('Dashboard Favorites', () => {
   });
 
   test('should show raffle cards with basic information', async ({ page }) => {
-    test.skip(!page.url().includes('/dashboard/favorites'), 'Requires authentication');
-
     await page.waitForTimeout(2000);
 
     // Look for raffle card elements (prices, titles, etc.)
@@ -76,8 +64,6 @@ test.describe('Dashboard Favorites', () => {
   });
 
   test('should display filter and sort options', async ({ page }) => {
-    test.skip(!page.url().includes('/dashboard/favorites'), 'Requires authentication');
-
     await page.waitForTimeout(1000);
 
     // Look for sort/filter controls
@@ -89,8 +75,6 @@ test.describe('Dashboard Favorites', () => {
   });
 
   test('should show price drop alerts toggle', async ({ page }) => {
-    test.skip(!page.url().includes('/dashboard/favorites'), 'Requires authentication');
-
     await page.waitForTimeout(1500);
 
     // Look for price alert settings
@@ -102,8 +86,6 @@ test.describe('Dashboard Favorites', () => {
   });
 
   test('should navigate to raffle detail when clicking on card', async ({ page }) => {
-    test.skip(!page.url().includes('/dashboard/favorites'), 'Requires authentication');
-
     await page.waitForTimeout(2000);
 
     // Try to find and click first raffle card link

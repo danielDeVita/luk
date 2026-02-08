@@ -46,7 +46,7 @@ interface ConversationDetail {
 
 export default function MessagesPage() {
   const router = useRouter();
-  const { isAuthenticated, user } = useAuthStore();
+  const { isAuthenticated, hasHydrated, user } = useAuthStore();
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
   const [newMessage, setNewMessage] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -76,10 +76,10 @@ export default function MessagesPage() {
   const [markAsRead] = useMutation(MARK_MESSAGE_READ);
 
   useEffect(() => {
-    if (!isAuthenticated) {
+    if (hasHydrated && !isAuthenticated) {
       router.push('/auth/login');
     }
-  }, [isAuthenticated, router]);
+  }, [hasHydrated, isAuthenticated, router]);
 
   // Scroll to bottom when messages change
   useEffect(() => {
@@ -97,7 +97,7 @@ export default function MessagesPage() {
     }
   }, [conversationData, user?.id, markAsRead]);
 
-  if (!isAuthenticated) return null;
+  if (!hasHydrated || !isAuthenticated) return null;
 
   const conversations = conversationsData?.myConversations || [];
   const currentConversation = conversationData?.conversation;

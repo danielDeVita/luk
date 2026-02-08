@@ -1,18 +1,9 @@
 import { test, expect, Page } from '@playwright/test';
-
-// Test user credentials (from seed data)
-const TEST_BUYER = {
-  email: 'comprador@test.com',
-  password: 'Password123!',
-};
-
-const TEST_SELLER = {
-  email: 'vendedor@test.com',
-  password: 'Password123!',
-};
+import { apiLogin, TEST_BUYER, TEST_SELLER } from './helpers/auth';
 
 /**
- * Helper to login with test credentials
+ * Helper to login via the UI form (used only for tests that specifically
+ * test the login UI flow — most tests should use apiLogin instead).
  */
 async function loginAs(
   page: Page,
@@ -20,7 +11,7 @@ async function loginAs(
 ) {
   await page.goto('/auth/login');
   await page.getByLabel(/email/i).fill(user.email);
-  await page.getByLabel(/contrase[ñn]a/i).fill(user.password);
+  await page.locator('input[type="password"]').fill(user.password);
   await page.locator('button[type="submit"]').click();
   // Wait for redirect or dashboard
   await page.waitForURL((url) => !url.pathname.includes('/auth/login'), {
@@ -36,7 +27,7 @@ test.describe('Authentication - Basic', () => {
       page.getByRole('heading', { name: /iniciar sesión/i }),
     ).toBeVisible();
     await expect(page.getByLabel(/email/i)).toBeVisible();
-    await expect(page.getByLabel(/contrase[ñn]a/i)).toBeVisible();
+    await expect(page.locator('input[type="password"]')).toBeVisible();
     await expect(page.locator('button[type="submit"]')).toBeVisible();
   });
 
@@ -51,13 +42,13 @@ test.describe('Authentication - Basic', () => {
   });
 
   test('shows error for invalid credentials', async ({ page }) => {
-    // Skip in CI - GraphQL mutations don't complete reliably in GitHub Actions
-    test.skip(process.env.CI === 'true', 'GraphQL mutations unreliable in CI environment');
+    // Skip in CI - tests browser mutation error handling which is unreliable in CI
+    test.skip(process.env.CI === 'true', 'Browser mutation error handling unreliable in CI');
 
     await page.goto('/auth/login');
 
     await page.getByLabel(/email/i).fill('invalid@test.com');
-    await page.getByLabel(/contrase[ñn]a/i).fill('wrongpassword');
+    await page.locator('input[type="password"]').fill('wrongpassword');
     await page.locator('button[type="submit"]').click();
 
     await expect(
@@ -89,16 +80,12 @@ test.describe('Authentication - Basic', () => {
 });
 
 test.describe('Authentication - Login Flow', () => {
-  // Skip all login flow tests in CI - GraphQL mutations don't complete reliably in GitHub Actions
-  test.beforeEach(({ }, testInfo) => {
-    if (process.env.CI === 'true') {
-      testInfo.skip(true, 'GraphQL mutations unreliable in CI environment');
-    }
-  });
-
   test('successful login as buyer redirects to home', async ({
     page,
   }) => {
+    // Skip in CI - tests the actual UI login form + redirect flow
+    test.skip(process.env.CI === 'true', 'UI login flow unreliable in CI');
+
     await loginAs(page, TEST_BUYER);
 
     // Should be on home or dashboard
@@ -108,6 +95,9 @@ test.describe('Authentication - Login Flow', () => {
   test('successful login as seller shows dashboard access', async ({
     page,
   }) => {
+    // Skip in CI - tests the actual UI login form + redirect flow
+    test.skip(process.env.CI === 'true', 'UI login flow unreliable in CI');
+
     await loginAs(page, TEST_SELLER);
 
     // Navigate to seller dashboard
@@ -124,7 +114,7 @@ test.describe('Authentication - Login Flow', () => {
   test('logged in user can access protected routes', async ({
     page,
   }) => {
-    await loginAs(page, TEST_BUYER);
+    await apiLogin(page, TEST_BUYER);
 
     // Navigate to favorites (protected route)
     await page.goto('/dashboard/favorites');
@@ -134,7 +124,7 @@ test.describe('Authentication - Login Flow', () => {
   });
 
   test('logout clears session', async ({ page }) => {
-    await loginAs(page, TEST_BUYER);
+    await apiLogin(page, TEST_BUYER);
 
     // Click on user menu to logout
     const userMenu = page.locator('[data-testid="user-menu"]').or(
@@ -164,8 +154,8 @@ test.describe('Authentication - IP Blocking', () => {
   test('shows warning after multiple failed attempts', async ({
     page,
   }) => {
-    // Skip in CI - GraphQL mutations don't complete reliably in GitHub Actions
-    test.skip(process.env.CI === 'true', 'GraphQL mutations unreliable in CI environment');
+    // Skip in CI - tests browser mutation error handling which is unreliable in CI
+    test.skip(process.env.CI === 'true', 'Browser mutation error handling unreliable in CI');
 
     await page.goto('/auth/login');
 
@@ -173,7 +163,7 @@ test.describe('Authentication - IP Blocking', () => {
     for (let i = 0; i < 4; i++) {
       await page.getByLabel(/email/i).fill('test@test.com');
       await page
-        .getByLabel(/contrase[ñn]a/i)
+        .locator('input[type="password"]')
         .fill('wrongpassword' + i);
       await page.locator('button[type="submit"]').click();
       await page.waitForTimeout(500); // Wait between attempts

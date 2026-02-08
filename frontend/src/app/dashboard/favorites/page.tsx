@@ -48,7 +48,7 @@ interface MyFavoritesResult {
 
 export default function FavoritesPage() {
   const router = useRouter();
-  const { isAuthenticated } = useAuthStore();
+  const { isAuthenticated, hasHydrated } = useAuthStore();
   const [removingIds, setRemovingIds] = useState<Set<string>>(new Set());
   const confirm = useConfirmDialog();
 
@@ -71,12 +71,12 @@ export default function FavoritesPage() {
   });
 
   useEffect(() => {
-    if (!isAuthenticated) {
+    if (hasHydrated && !isAuthenticated) {
       router.push('/auth/login');
     }
-  }, [isAuthenticated, router]);
+  }, [hasHydrated, isAuthenticated, router]);
 
-  if (!isAuthenticated) return null;
+  if (!hasHydrated || !isAuthenticated) return null;
 
   // Filter out items being removed for optimistic UI
   const favorites = (data?.myFavorites || []).filter(

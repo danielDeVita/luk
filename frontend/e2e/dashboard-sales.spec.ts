@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { apiLogin, TEST_SELLER } from './helpers/auth';
 
 /**
  * Dashboard Sales E2E Tests
@@ -6,28 +7,25 @@ import { test, expect } from '@playwright/test';
  */
 
 test.describe('Dashboard Sales', () => {
-  test.beforeEach(async ({ page }) => {
-    await page.goto('/dashboard/sales');
+  test.beforeEach(async ({ page }, testInfo) => {
+    if (!testInfo.title.includes('redirect to login')) {
+      await apiLogin(page, TEST_SELLER);
+      await page.goto('/dashboard/sales');
+    }
   });
 
   test('should redirect to login if not authenticated', async ({ page }) => {
-    await page.context().clearCookies();
     await page.goto('/dashboard/sales');
-
     await page.waitForURL(/\/auth\/login/);
     expect(page.url()).toContain('/auth/login');
   });
 
   test('should display sales dashboard header', async ({ page }) => {
-    test.skip(!page.url().includes('/dashboard/sales'), 'Requires authentication');
-
-    // Should show page title
-    await expect(page.getByText(/Mis Rifas/i)).toBeVisible();
+    // Should show page title (scoped to main to avoid matching nav sidebar)
+    await expect(page.locator('main').getByText(/Mis Rifas/i).first()).toBeVisible();
   });
 
   test('should display seller statistics cards', async ({ page }) => {
-    test.skip(!page.url().includes('/dashboard/sales'), 'Requires authentication');
-
     await page.waitForTimeout(2000);
 
     // Check for stats cards
@@ -47,8 +45,6 @@ test.describe('Dashboard Sales', () => {
   });
 
   test('should show create raffle button', async ({ page }) => {
-    test.skip(!page.url().includes('/dashboard/sales'), 'Requires authentication');
-
     const createButton = page.getByRole('button', { name: /Crear Rifa/i });
 
     if (await createButton.isVisible()) {
@@ -57,8 +53,6 @@ test.describe('Dashboard Sales', () => {
   });
 
   test('should display list of raffles or empty state', async ({ page }) => {
-    test.skip(!page.url().includes('/dashboard/sales'), 'Requires authentication');
-
     await page.waitForTimeout(2000);
 
     // Check for raffles list or empty state
@@ -72,8 +66,6 @@ test.describe('Dashboard Sales', () => {
   });
 
   test('should show raffle status badges', async ({ page }) => {
-    test.skip(!page.url().includes('/dashboard/sales'), 'Requires authentication');
-
     await page.waitForTimeout(2000);
 
     // Look for status indicators (ACTIVA, SORTEADA, FINALIZADA, etc.)
@@ -100,8 +92,6 @@ test.describe('Dashboard Sales', () => {
   });
 
   test('should display raffle metrics', async ({ page }) => {
-    test.skip(!page.url().includes('/dashboard/sales'), 'Requires authentication');
-
     await page.waitForTimeout(2000);
 
     // Check for metric displays (tickets sold, views, etc.)
@@ -120,8 +110,6 @@ test.describe('Dashboard Sales', () => {
   });
 
   test('should show monthly revenue chart when data available', async ({ page }) => {
-    test.skip(!page.url().includes('/dashboard/sales'), 'Requires authentication');
-
     await page.waitForTimeout(2000);
 
     // Look for chart container or section
@@ -133,8 +121,6 @@ test.describe('Dashboard Sales', () => {
   });
 
   test('should display raffle action buttons', async ({ page }) => {
-    test.skip(!page.url().includes('/dashboard/sales'), 'Requires authentication');
-
     await page.waitForTimeout(2000);
 
     // Check for action buttons (view, edit, etc.)
