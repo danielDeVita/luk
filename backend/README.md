@@ -327,7 +327,7 @@ describe('AuthService', () => {
 
 ### Current Coverage
 
-- **Overall:** 42%+ coverage with 769 passing tests across 49 spec files
+- **Overall:** 42%+ coverage with 770 passing tests across 49 spec files
 - **Key modules tested:** auth, payments, raffles, tickets, disputes, notifications, users, and more
 
 Run coverage report:

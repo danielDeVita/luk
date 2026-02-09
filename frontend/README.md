@@ -308,7 +308,7 @@ npx playwright test --debug
 
 ### Current E2E Tests
 
-**175 E2E tests** across 17 spec files in `e2e/`:
+**174 E2E tests** across 17 spec files in `e2e/`:
 
 - **auth.spec.ts** - Login/register pages, authentication flow, protected routes
 - **raffle.spec.ts** - Homepage, search, raffle details, ticket purchase
@@ -338,14 +338,14 @@ Tested components: ImageUpload, RaffleCard, SearchFilters, DisputeDialog, ShareB
 
 E2E tests run in CI on Chromium only (4 workers, 1 retry). Most auth-dependent tests work via `apiLogin()` (API-based login). Some tests are skipped in CI:
 
-- **Login UI tests** — test the browser login form specifically, skipped since CI uses API-based auth
-- **Email verification** — requires real Brevo email service
-- **KYC submission** — requires file upload infrastructure
-- **Admin disputes** — requires seeded dispute data
-- **Sales page queries** — intermittent cross-origin "Failed to fetch" in CI
-- **Search with no data** — no raffle data seeded in CI
+- **Admin disputes** (14 tests) — Admin page query fails in CI environment; needs investigation with Playwright trace artifacts
+- **KYC submission** (9 tests) — Settings page `GET_USER_DATA` query fires before Zustand hydrates auth token, causing `kycStatus` to default to `NOT_SUBMITTED`
+- **Email verification** (7 tests) — Requires real Brevo email service or active verification sessions
+- **Auth UI login** (4 tests) — Browser-based login form unreliable in CI; API-based `apiLogin()` used instead
+- **Dashboard sales** (2 tests) — Cross-origin "Failed to fetch" between frontend (:3000) and backend (:3001) in CI
+- **Raffle browsing** (1 test) — Search query loading too slow in CI with seeded data
 
-**CI result:** ~141 passed, ~34 skipped, 0 failed.
+**CI result:** ~137 passed, ~37 skipped, 0 failed.
 
 ### Adding E2E Tests
 
