@@ -668,7 +668,10 @@ describe('DisputesService', () => {
         where: {
           OR: [{ reporterId: 'user-1' }, { raffle: { sellerId: 'user-1' } }],
         },
-        include: { raffle: { include: { product: true } } },
+        include: {
+          raffle: { include: { product: true, seller: true, winner: true } },
+          reporter: true,
+        },
         orderBy: { createdAt: 'desc' },
       });
     });
@@ -692,7 +695,7 @@ describe('DisputesService', () => {
           },
         },
         include: {
-          raffle: { include: { seller: true, winner: true } },
+          raffle: { include: { seller: true, winner: true, product: true } },
           reporter: true,
         },
         orderBy: { createdAt: 'asc' },
