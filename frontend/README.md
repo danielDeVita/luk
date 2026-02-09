@@ -308,7 +308,7 @@ npx playwright test --debug
 
 ### Current E2E Tests
 
-**172 E2E tests** across 17 spec files in `e2e/`:
+**175 E2E tests** across 17 spec files in `e2e/`:
 
 - **auth.spec.ts** - Login/register pages, authentication flow, protected routes
 - **raffle.spec.ts** - Homepage, search, raffle details, ticket purchase
@@ -319,6 +319,8 @@ npx playwright test --debug
 - **legal-pages.spec.ts** - Terms of Service, Privacy Policy
 - **social-sharing.spec.ts** - Social media sharing
 - And more...
+
+**Auth helper:** Tests use `apiLogin()` from `e2e/helpers/auth.ts` which authenticates via direct GraphQL API call and injects tokens into Zustand's localStorage format. This bypasses the browser login UI for reliability in CI.
 
 ### Component Tests (Vitest)
 
@@ -334,13 +336,16 @@ Tested components: ImageUpload, RaffleCard, SearchFilters, DisputeDialog, ShareB
 
 ### CI/CD Notes
 
-**Important:** Some E2E tests that require authentication are skipped in CI environments due to GraphQL mutation reliability issues over localhost HTTP. These tests run normally in local development.
+E2E tests run in CI on Chromium only (4 workers, 1 retry). Most auth-dependent tests work via `apiLogin()` (API-based login). Some tests are skipped in CI:
 
-Tests affected:
-- Login flow tests (credential validation)
-- Dashboard tests requiring authenticated state
+- **Login UI tests** — test the browser login form specifically, skipped since CI uses API-based auth
+- **Email verification** — requires real Brevo email service
+- **KYC submission** — requires file upload infrastructure
+- **Admin disputes** — requires seeded dispute data
+- **Sales page queries** — intermittent cross-origin "Failed to fetch" in CI
+- **Search with no data** — no raffle data seeded in CI
 
-Non-auth tests (public pages, redirects) run in CI across 3 browsers (Chromium, Firefox, WebKit).
+**CI result:** ~141 passed, ~34 skipped, 0 failed.
 
 ### Adding E2E Tests
 

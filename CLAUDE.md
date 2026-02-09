@@ -170,7 +170,7 @@ npx prisma studio
 
 ### Testing
 
-**Coverage:** 769 backend tests (42%+), 50 component tests (80%+), 172 E2E tests
+**Coverage:** 769 backend tests (42%+), 50 component tests (80%+), 175 E2E tests
 
 ```bash
 # Run all tests (from root)
@@ -189,16 +189,18 @@ npm run test:unit:ui      # Interactive UI
 npm run test:unit -- --coverage  # Coverage report (80%+)
 
 # Frontend E2E Tests (cd frontend/)
-npm run test:e2e          # All browsers (172 tests × 3 = 516 executions)
+npm run test:e2e          # All browsers (175 tests × 3 = 525 executions)
 npm run test:e2e:ui       # Interactive mode
 npm run test:e2e -- --project=chromium  # Specific browser
 npm run test:e2e -- legal-pages.spec.ts # Specific file
 ```
 
+**E2E Auth:** Tests use `apiLogin()` from `e2e/helpers/auth.ts` — authenticates via direct API call and injects tokens into localStorage (bypasses browser login UI). In CI, ~141 tests pass and ~34 are skipped (tests requiring real email service, seeded raffle data, or cross-origin GraphQL).
+
 **Test Files:**
 - Backend: 49 spec files (services, controllers, resolvers)
 - Frontend: 7 component test files, 17 E2E spec files
-- Total: ~991 tests across 73 test files
+- Total: ~994 tests across 73 test files
 
 ---
 

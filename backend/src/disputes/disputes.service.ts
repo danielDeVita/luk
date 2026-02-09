@@ -400,7 +400,10 @@ export class DisputesService {
       where: {
         OR: [{ reporterId: userId }, { raffle: { sellerId: userId } }],
       },
-      include: { raffle: { include: { product: true } } },
+      include: {
+        raffle: { include: { product: true, seller: true, winner: true } },
+        reporter: true,
+      },
       orderBy: { createdAt: 'desc' },
     });
   }
@@ -413,7 +416,7 @@ export class DisputesService {
         },
       },
       include: {
-        raffle: { include: { seller: true, winner: true } },
+        raffle: { include: { seller: true, winner: true, product: true } },
         reporter: true,
       },
       orderBy: { createdAt: 'asc' },

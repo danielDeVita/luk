@@ -6,7 +6,19 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Loader2, CheckCircle, XCircle, AlertTriangle, ListChecks } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import {
+  Loader2,
+  CheckCircle,
+  XCircle,
+  AlertTriangle,
+  ListChecks,
+  Clock,
+  MessageSquare,
+  ChevronDown,
+  ChevronUp,
+  Image as ImageIcon,
+} from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -15,10 +27,11 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { toast } from 'sonner';
 import { useAuthStore } from '@/store/auth';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 
 const GET_PENDING_DISPUTES = gql`
   query GetPendingDisputes {
@@ -28,6 +41,15 @@ const GET_PENDING_DISPUTES = gql`
       descripcion
       tipo
       estado
+      evidencias
+      respuestaVendedor
+      evidenciasVendedor
+      adminNotes
+      resolucion
+      montoReembolsado
+      montoPagadoVendedor
+      fechaRespuestaVendedor
+      resolvedAt
       createdAt
       reporter {
         email
@@ -38,12 +60,15 @@ const GET_PENDING_DISPUTES = gql`
         titulo
         deliveryStatus
         seller {
-            email
-            nombre
+          email
+          nombre
         }
         winner {
-            email
-            nombre
+          email
+          nombre
+        }
+        product {
+          imagenes
         }
       }
     }
@@ -77,6 +102,15 @@ interface Dispute {
   descripcion: string;
   tipo: string;
   estado: string;
+  evidencias: string[];
+  respuestaVendedor?: string;
+  evidenciasVendedor?: string[];
+  adminNotes?: string;
+  resolucion?: string;
+  montoReembolsado?: number;
+  montoPagadoVendedor?: number;
+  fechaRespuestaVendedor?: string;
+  resolvedAt?: string;
   createdAt: string;
   reporter: { email: string; nombre: string };
   raffle: {
@@ -85,6 +119,7 @@ interface Dispute {
     deliveryStatus: string;
     seller: { email: string; nombre: string };
     winner?: { email: string; nombre: string };
+    product?: { imagenes?: string[] };
   };
 }
 
@@ -101,12 +136,48 @@ interface BulkResolveResult {
   };
 }
 
+const STATUS_LABELS: Record<string, string> = {
+  ABIERTA: 'Abierta',
+  ESPERANDO_RESPUESTA_VENDEDOR: 'Esperando Respuesta',
+  EN_MEDIACION: 'En Mediación',
+};
+
+const TYPE_LABELS: Record<string, string> = {
+  NO_LLEGO: 'No recibido',
+  DANADO: 'Dañado',
+  DIFERENTE: 'Diferente',
+  VENDEDOR_NO_RESPONDE: 'Sin respuesta',
+  OTRO: 'Otro',
+};
+
+type StatusFilter = 'ALL' | 'ABIERTA' | 'ESPERANDO_RESPUESTA_VENDEDOR' | 'EN_MEDIACION';
+type TypeFilter = 'ALL' | 'NO_LLEGO' | 'DANADO' | 'DIFERENTE' | 'VENDEDOR_NO_RESPONDE' | 'OTRO';
+type DecisionType = 'RESUELTA_COMPRADOR' | 'RESUELTA_VENDEDOR' | 'RESUELTA_PARCIAL';
+
+const DECISION_LABELS: Record<DecisionType, string> = {
+  RESUELTA_COMPRADOR: 'A favor del Comprador (Reembolso)',
+  RESUELTA_VENDEDOR: 'A favor del Vendedor (Liberar Pago)',
+  RESUELTA_PARCIAL: 'Resolución Parcial',
+};
+
 export default function AdminDisputesPage() {
   const router = useRouter();
   const { user, isAuthenticated, hasHydrated } = useAuthStore();
+
+  // Filters
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL');
+  const [typeFilter, setTypeFilter] = useState<TypeFilter>('ALL');
+
+  // Single resolve state
   const [selectedDispute, setSelectedDispute] = useState<Dispute | null>(null);
   const [resolutionText, setResolutionText] = useState('');
-  const [action, setAction] = useState<'REFUND' | 'RELEASE' | null>(null);
+  const [adminNotes, setAdminNotes] = useState('');
+  const [decision, setDecision] = useState<DecisionType>('RESUELTA_COMPRADOR');
+  const [montoReembolsado, setMontoReembolsado] = useState('');
+  const [montoPagadoVendedor, setMontoPagadoVendedor] = useState('');
+
+  // Expanded cards
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   // Bulk selection state
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -118,17 +189,16 @@ export default function AdminDisputesPage() {
     if (!hasHydrated) return;
 
     if (!isAuthenticated) {
-        router.push('/auth/login');
-        return;
+      router.push('/auth/login');
+      return;
     }
 
     if (user?.role !== 'ADMIN') {
-        toast.error('Acceso denegado. Se requieren permisos de administrador.');
-        router.push('/dashboard');
+      toast.error('Acceso denegado. Se requieren permisos de administrador.');
+      router.push('/dashboard');
     }
   }, [isAuthenticated, user, router, hasHydrated]);
 
-  // Derive authorization status from state instead of setting it in effect
   const isAuthorized = hasHydrated && isAuthenticated && user?.role === 'ADMIN';
 
   const { data, loading, refetch, error } = useQuery<PendingDisputesResult>(GET_PENDING_DISPUTES, {
@@ -140,7 +210,10 @@ export default function AdminDisputesPage() {
       toast.success('Disputa resuelta correctamente');
       setSelectedDispute(null);
       setResolutionText('');
-      setAction(null);
+      setAdminNotes('');
+      setDecision('RESUELTA_COMPRADOR');
+      setMontoReembolsado('');
+      setMontoPagadoVendedor('');
       refetch();
     },
     onError: (err) => toast.error(err.message),
@@ -163,6 +236,16 @@ export default function AdminDisputesPage() {
     },
     onError: (err) => toast.error(err.message),
   });
+
+  const disputes = useMemo(() => data?.pendingDisputes || [], [data?.pendingDisputes]);
+
+  const filteredDisputes = useMemo(() => {
+    return disputes.filter((d) => {
+      if (statusFilter !== 'ALL' && d.estado !== statusFilter) return false;
+      if (typeFilter !== 'ALL' && d.tipo !== typeFilter) return false;
+      return true;
+    });
+  }, [disputes, statusFilter, typeFilter]);
 
   if (!hasHydrated || !isAuthorized) {
     return (
@@ -188,39 +271,40 @@ export default function AdminDisputesPage() {
     );
   }
 
-  const disputes = data?.pendingDisputes || [];
-
   const handleResolve = () => {
-    if (!selectedDispute || !action) return;
+    if (!selectedDispute || resolutionText.length < 20) return;
 
-    const decision = action === 'REFUND' ? 'RESUELTA_COMPRADOR' : 'RESUELTA_VENDEDOR';
-
-    const input: { decision: string; resolucion: string; adminNotes: string } = {
+    const input: Record<string, unknown> = {
       decision,
       resolucion: resolutionText,
-      adminNotes: `Resolved via Admin Panel as ${action}`
+      adminNotes: adminNotes || undefined,
     };
+
+    if (decision === 'RESUELTA_PARCIAL') {
+      if (montoReembolsado) input.montoReembolsado = parseFloat(montoReembolsado);
+      if (montoPagadoVendedor) input.montoPagadoVendedor = parseFloat(montoPagadoVendedor);
+    }
 
     resolveDispute({
       variables: {
         disputeId: selectedDispute.id,
-        input
-      }
+        input,
+      },
     });
   };
 
   const handleBulkResolve = () => {
     if (selectedIds.size === 0 || !bulkAction) return;
 
-    const decision = bulkAction === 'REFUND' ? 'RESUELTA_COMPRADOR' : 'RESUELTA_VENDEDOR';
+    const bulkDecision = bulkAction === 'REFUND' ? 'RESUELTA_COMPRADOR' : 'RESUELTA_VENDEDOR';
 
     bulkResolveDisputes({
       variables: {
         disputeIds: Array.from(selectedIds),
-        decision,
+        decision: bulkDecision,
         resolucion: bulkResolution,
-        adminNotes: `Bulk resolved via Admin Panel as ${bulkAction}`
-      }
+        adminNotes: `Bulk resolved via Admin Panel as ${bulkAction}`,
+      },
     });
   };
 
@@ -235,10 +319,10 @@ export default function AdminDisputesPage() {
   };
 
   const toggleSelectAll = () => {
-    if (selectedIds.size === disputes.length) {
+    if (selectedIds.size === filteredDisputes.length) {
       setSelectedIds(new Set());
     } else {
-      setSelectedIds(new Set(disputes.map(d => d.id)));
+      setSelectedIds(new Set(filteredDisputes.map(d => d.id)));
     }
   };
 
@@ -247,12 +331,21 @@ export default function AdminDisputesPage() {
     setBulkDialogOpen(true);
   };
 
+  const openResolveDialog = (dispute: Dispute, preset: DecisionType) => {
+    setSelectedDispute(dispute);
+    setDecision(preset);
+    setResolutionText('');
+    setAdminNotes('');
+    setMontoReembolsado('');
+    setMontoPagadoVendedor('');
+  };
+
   return (
     <div className="container mx-auto py-8">
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex items-center justify-between mb-6">
         <h1 className="text-3xl font-bold flex items-center gap-2">
           <AlertTriangle className="h-8 w-8 text-yellow-500" />
-          Disputas Pendientes ({disputes.length})
+          Disputas Pendientes ({filteredDisputes.length})
         </h1>
 
         {/* Bulk Actions */}
@@ -271,102 +364,332 @@ export default function AdminDisputesPage() {
         )}
       </div>
 
+      {/* Filters */}
+      <div className="flex flex-wrap items-end gap-4 mb-6 p-4 bg-muted rounded-lg">
+        <div className="space-y-1">
+          <label className="text-sm font-medium">Estado</label>
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
+            className="h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm"
+          >
+            <option value="ALL">Todos</option>
+            <option value="ABIERTA">Abierta</option>
+            <option value="ESPERANDO_RESPUESTA_VENDEDOR">Esperando Respuesta</option>
+            <option value="EN_MEDIACION">En Mediación</option>
+          </select>
+        </div>
+        <div className="space-y-1">
+          <label className="text-sm font-medium">Tipo</label>
+          <select
+            value={typeFilter}
+            onChange={(e) => setTypeFilter(e.target.value as TypeFilter)}
+            className="h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm"
+          >
+            <option value="ALL">Todos</option>
+            <option value="NO_LLEGO">No recibido</option>
+            <option value="DANADO">Dañado</option>
+            <option value="DIFERENTE">Diferente</option>
+            <option value="VENDEDOR_NO_RESPONDE">Sin respuesta</option>
+            <option value="OTRO">Otro</option>
+          </select>
+        </div>
+        {(statusFilter !== 'ALL' || typeFilter !== 'ALL') && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              setStatusFilter('ALL');
+              setTypeFilter('ALL');
+            }}
+          >
+            <XCircle className="h-4 w-4 mr-1" />
+            Limpiar filtros
+          </Button>
+        )}
+      </div>
+
       {/* Select All */}
-      {disputes.length > 0 && (
+      {filteredDisputes.length > 0 && (
         <div className="flex items-center gap-2 mb-4 p-3 bg-muted rounded-lg">
           <Checkbox
-            checked={selectedIds.size === disputes.length && disputes.length > 0}
+            checked={selectedIds.size === filteredDisputes.length && filteredDisputes.length > 0}
             onCheckedChange={toggleSelectAll}
           />
           <span className="text-sm text-muted-foreground">
-            Seleccionar todas ({disputes.length})
+            Seleccionar todas ({filteredDisputes.length})
           </span>
           <ListChecks className="h-4 w-4 text-muted-foreground ml-auto" />
         </div>
       )}
 
       <div className="space-y-4">
-        {disputes.length === 0 && (
+        {filteredDisputes.length === 0 && (
           <div className="text-center py-12">
             <CheckCircle className="h-12 w-12 mx-auto text-green-500 mb-4" />
             <p className="text-muted-foreground">No hay disputas pendientes de revision.</p>
           </div>
         )}
 
-        {disputes.map((dispute) => (
-          <Card key={dispute.id} className={`border-l-4 border-l-yellow-500 ${selectedIds.has(dispute.id) ? 'ring-2 ring-primary' : ''}`}>
-            <CardHeader>
-              <div className="flex items-start gap-4">
-                <Checkbox
-                  checked={selectedIds.has(dispute.id)}
-                  onCheckedChange={() => toggleSelect(dispute.id)}
-                  className="mt-1"
-                />
-                <div className="flex-1">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <CardTitle className="text-xl">{dispute.titulo}</CardTitle>
-                      <p className="text-sm text-muted-foreground">
-                        Rifa: {dispute.raffle.titulo} - Reportado por: {dispute.reporter.email}
-                      </p>
+        {filteredDisputes.map((dispute) => {
+          const isExpanded = expandedId === dispute.id;
+
+          return (
+            <Card
+              key={dispute.id}
+              className={`border-l-4 ${
+                dispute.estado === 'EN_MEDIACION'
+                  ? 'border-l-blue-500'
+                  : dispute.estado === 'ESPERANDO_RESPUESTA_VENDEDOR'
+                  ? 'border-l-orange-500'
+                  : 'border-l-yellow-500'
+              } ${selectedIds.has(dispute.id) ? 'ring-2 ring-primary' : ''}`}
+            >
+              <CardHeader>
+                <div className="flex items-start gap-4">
+                  <Checkbox
+                    checked={selectedIds.has(dispute.id)}
+                    onCheckedChange={() => toggleSelect(dispute.id)}
+                    className="mt-1"
+                  />
+                  <div
+                    className="flex-1 cursor-pointer"
+                    onClick={() => setExpandedId(isExpanded ? null : dispute.id)}
+                  >
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <CardTitle className="text-xl">{dispute.titulo}</CardTitle>
+                        <p className="text-sm text-muted-foreground">
+                          Rifa: {dispute.raffle.titulo} - Reportado por: {dispute.reporter.email}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline">{TYPE_LABELS[dispute.tipo] || dispute.tipo}</Badge>
+                        <Badge
+                          variant={
+                            dispute.estado === 'EN_MEDIACION'
+                              ? 'default'
+                              : 'destructive'
+                          }
+                          className="flex items-center gap-1"
+                        >
+                          {dispute.estado === 'ABIERTA' && <AlertTriangle className="h-3 w-3" />}
+                          {dispute.estado === 'ESPERANDO_RESPUESTA_VENDEDOR' && <Clock className="h-3 w-3" />}
+                          {dispute.estado === 'EN_MEDIACION' && <MessageSquare className="h-3 w-3" />}
+                          {STATUS_LABELS[dispute.estado] || dispute.estado}
+                        </Badge>
+                        {isExpanded ? (
+                          <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                        )}
+                      </div>
                     </div>
-                    <Badge variant="outline">{dispute.tipo}</Badge>
                   </div>
                 </div>
-              </div>
-            </CardHeader>
-            <CardContent className="pl-12">
-              <div className="bg-muted p-4 rounded-md mb-4 text-sm">
-                &quot;{dispute.descripcion}&quot;
-              </div>
+              </CardHeader>
 
-              <div className="flex items-center gap-4 text-sm text-muted-foreground mb-4">
-                 <span>Vendedor: {dispute.raffle.seller.email}</span>
-                 <span>Ganador: {dispute.raffle.winner?.email}</span>
-              </div>
+              {isExpanded && (
+                <CardContent className="pl-12 space-y-4">
+                  {/* Description */}
+                  <div>
+                    <h4 className="text-sm font-medium mb-1">Descripción del reclamo</h4>
+                    <div className="bg-muted p-4 rounded-md text-sm">
+                      {dispute.descripcion}
+                    </div>
+                  </div>
 
-              <div className="flex gap-2 justify-end">
-                <Button variant="outline" onClick={() => {
-                    setSelectedDispute(dispute);
-                    setAction('REFUND');
-                }}>
-                  <XCircle className="w-4 h-4 mr-2" />
-                  Reembolsar Comprador
-                </Button>
-                <Button onClick={() => {
-                    setSelectedDispute(dispute);
-                    setAction('RELEASE');
-                }} className="bg-green-600 hover:bg-green-700">
-                  <CheckCircle className="w-4 h-4 mr-2" />
-                  Liberar Pago a Vendedor
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+                  {/* Buyer evidence */}
+                  {dispute.evidencias && dispute.evidencias.length > 0 && (
+                    <div>
+                      <h4 className="text-sm font-medium mb-2 flex items-center gap-1">
+                        <ImageIcon className="h-4 w-4" />
+                        Evidencia del comprador ({dispute.evidencias.length})
+                      </h4>
+                      <div className="grid grid-cols-4 md:grid-cols-6 gap-2">
+                        {dispute.evidencias.map((url, i) => (
+                          <a key={i} href={url} target="_blank" rel="noopener noreferrer">
+                            <div className="aspect-square rounded-md overflow-hidden bg-muted border hover:border-primary transition-colors">
+                              <Image src={url} alt={`Evidencia ${i + 1}`} width={120} height={120} className="object-cover w-full h-full" />
+                            </div>
+                          </a>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Seller response */}
+                  {dispute.respuestaVendedor && (
+                    <div>
+                      <h4 className="text-sm font-medium mb-1">Respuesta del vendedor</h4>
+                      <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 p-4 rounded-md text-sm">
+                        {dispute.respuestaVendedor}
+                      </div>
+                      {dispute.fechaRespuestaVendedor && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Respondido el {new Date(dispute.fechaRespuestaVendedor).toLocaleDateString('es-AR')}
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Seller evidence */}
+                  {dispute.evidenciasVendedor && dispute.evidenciasVendedor.length > 0 && (
+                    <div>
+                      <h4 className="text-sm font-medium mb-2 flex items-center gap-1">
+                        <ImageIcon className="h-4 w-4" />
+                        Evidencia del vendedor ({dispute.evidenciasVendedor.length})
+                      </h4>
+                      <div className="grid grid-cols-4 md:grid-cols-6 gap-2">
+                        {dispute.evidenciasVendedor.map((url, i) => (
+                          <a key={i} href={url} target="_blank" rel="noopener noreferrer">
+                            <div className="aspect-square rounded-md overflow-hidden bg-muted border hover:border-primary transition-colors">
+                              <Image src={url} alt={`Evidencia vendedor ${i + 1}`} width={120} height={120} className="object-cover w-full h-full" />
+                            </div>
+                          </a>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Timeline */}
+                  <div>
+                    <h4 className="text-sm font-medium mb-2">Historial</h4>
+                    <div className="space-y-3 ml-2">
+                      <TimelineItem label="Reclamo abierto" date={dispute.createdAt} active />
+                      {dispute.fechaRespuestaVendedor && (
+                        <TimelineItem label="Vendedor respondió" date={dispute.fechaRespuestaVendedor} active />
+                      )}
+                      {dispute.estado === 'EN_MEDIACION' && (
+                        <TimelineItem label="En mediación (admin revisando)" active />
+                      )}
+                      <TimelineItem label="Pendiente de resolución" />
+                    </div>
+                  </div>
+
+                  {/* Info */}
+                  <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                    <span>Vendedor: {dispute.raffle.seller.email}</span>
+                    <span>Ganador: {dispute.raffle.winner?.email}</span>
+                    <span>Creado: {new Date(dispute.createdAt).toLocaleDateString('es-AR')}</span>
+                  </div>
+
+                  {/* Actions */}
+                  <div className="flex gap-2 justify-end pt-2 border-t">
+                    <Button variant="outline" size="sm" onClick={() => openResolveDialog(dispute, 'RESUELTA_COMPRADOR')}>
+                      <XCircle className="w-4 h-4 mr-2" />
+                      Reembolsar
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => openResolveDialog(dispute, 'RESUELTA_PARCIAL')}>
+                      Resolución Parcial
+                    </Button>
+                    <Button size="sm" className="bg-green-600 hover:bg-green-700" onClick={() => openResolveDialog(dispute, 'RESUELTA_VENDEDOR')}>
+                      <CheckCircle className="w-4 h-4 mr-2" />
+                      Liberar Pago
+                    </Button>
+                  </div>
+                </CardContent>
+              )}
+
+              {/* Collapsed actions */}
+              {!isExpanded && (
+                <CardContent className="pl-12">
+                  <div className="bg-muted p-3 rounded-md mb-4 text-sm line-clamp-2">
+                    {dispute.descripcion}
+                  </div>
+
+                  <div className="flex items-center gap-4 text-sm text-muted-foreground mb-4">
+                    <span>Vendedor: {dispute.raffle.seller.email}</span>
+                    <span>Ganador: {dispute.raffle.winner?.email}</span>
+                  </div>
+
+                  <div className="flex gap-2 justify-end">
+                    <Button variant="outline" size="sm" onClick={() => openResolveDialog(dispute, 'RESUELTA_COMPRADOR')}>
+                      <XCircle className="w-4 h-4 mr-2" />
+                      Reembolsar
+                    </Button>
+                    <Button size="sm" className="bg-green-600 hover:bg-green-700" onClick={() => openResolveDialog(dispute, 'RESUELTA_VENDEDOR')}>
+                      <CheckCircle className="w-4 h-4 mr-2" />
+                      Liberar Pago
+                    </Button>
+                  </div>
+                </CardContent>
+              )}
+            </Card>
+          );
+        })}
       </div>
 
       {/* Single Resolve Dialog */}
       <Dialog open={!!selectedDispute} onOpenChange={(open) => !open && setSelectedDispute(null)}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
             <DialogTitle>Resolver Disputa</DialogTitle>
           </DialogHeader>
 
           <div className="py-4 space-y-4">
-             <div className="p-3 rounded border text-sm">
-                Resolviendo a favor de: <strong>{action === 'REFUND' ? 'COMPRADOR (Reembolso)' : 'VENDEDOR (Liberar Pago)'}</strong>
-             </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Decisión</label>
+              <select
+                value={decision}
+                onChange={(e) => setDecision(e.target.value as DecisionType)}
+                className="w-full h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm"
+              >
+                <option value="RESUELTA_COMPRADOR">{DECISION_LABELS.RESUELTA_COMPRADOR}</option>
+                <option value="RESUELTA_VENDEDOR">{DECISION_LABELS.RESUELTA_VENDEDOR}</option>
+                <option value="RESUELTA_PARCIAL">{DECISION_LABELS.RESUELTA_PARCIAL}</option>
+              </select>
+            </div>
 
-             <div className="space-y-2">
-                 <label className="text-sm font-medium">Resolución / Justificación</label>
-                 <Textarea
-                    value={resolutionText}
-                    onChange={(e) => setResolutionText(e.target.value)}
-                    placeholder="Explica la decision final..."
-                    minLength={20}
-                 />
-             </div>
+            {decision === 'RESUELTA_PARCIAL' && (
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-sm font-medium">Monto reembolsado ($)</label>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={montoReembolsado}
+                    onChange={(e) => setMontoReembolsado(e.target.value)}
+                    placeholder="0.00"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-sm font-medium">Monto al vendedor ($)</label>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={montoPagadoVendedor}
+                    onChange={(e) => setMontoPagadoVendedor(e.target.value)}
+                    placeholder="0.00"
+                  />
+                </div>
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Resolución / Justificación</label>
+              <Textarea
+                value={resolutionText}
+                onChange={(e) => setResolutionText(e.target.value)}
+                placeholder="Explica la decisión final..."
+                minLength={20}
+              />
+              <p className="text-xs text-muted-foreground text-right">
+                {resolutionText.length}/20 caracteres mínimo
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Notas admin (interno, opcional)</label>
+              <Textarea
+                value={adminNotes}
+                onChange={(e) => setAdminNotes(e.target.value)}
+                placeholder="Notas internas para referencia..."
+                className="min-h-[60px]"
+              />
+            </div>
           </div>
 
           <DialogFooter>
@@ -386,19 +709,20 @@ export default function AdminDisputesPage() {
           </DialogHeader>
 
           <div className="py-4 space-y-4">
-             <div className="p-3 rounded border text-sm">
-                Resolviendo <strong>{selectedIds.size}</strong> disputas a favor de: <strong>{bulkAction === 'REFUND' ? 'COMPRADOR (Reembolso)' : 'VENDEDOR (Liberar Pago)'}</strong>
-             </div>
+            <div className="p-3 rounded border text-sm">
+              Resolviendo <strong>{selectedIds.size}</strong> disputas a favor de:{' '}
+              <strong>{bulkAction === 'REFUND' ? 'COMPRADOR (Reembolso)' : 'VENDEDOR (Liberar Pago)'}</strong>
+            </div>
 
-             <div className="space-y-2">
-                 <label className="text-sm font-medium">Resolución / Justificación (para todas)</label>
-                 <Textarea
-                    value={bulkResolution}
-                    onChange={(e) => setBulkResolution(e.target.value)}
-                    placeholder="Explica la decision final aplicada a todas las disputas seleccionadas..."
-                    minLength={20}
-                 />
-             </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Resolución / Justificación (para todas)</label>
+              <Textarea
+                value={bulkResolution}
+                onChange={(e) => setBulkResolution(e.target.value)}
+                placeholder="Explica la decisión final aplicada a todas las disputas seleccionadas..."
+                minLength={20}
+              />
+            </div>
           </div>
 
           <DialogFooter>
@@ -409,6 +733,38 @@ export default function AdminDisputesPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+function TimelineItem({
+  label,
+  date,
+  active,
+}: {
+  label: string;
+  date?: string;
+  active?: boolean;
+}) {
+  return (
+    <div className="flex items-start gap-3">
+      <div className={`w-2.5 h-2.5 rounded-full mt-1.5 flex-shrink-0 ${active ? 'bg-primary' : 'bg-muted-foreground/30'}`} />
+      <div>
+        <p className={`text-sm ${active ? 'text-foreground' : 'text-muted-foreground'}`}>
+          {label}
+        </p>
+        {date && (
+          <p className="text-xs text-muted-foreground">
+            {new Date(date).toLocaleDateString('es-AR', {
+              day: 'numeric',
+              month: 'short',
+              year: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit',
+            })}
+          </p>
+        )}
+      </div>
     </div>
   );
 }

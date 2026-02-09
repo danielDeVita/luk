@@ -1,140 +1,115 @@
 import { test, expect } from '@playwright/test';
-import { apiLogin, TEST_SELLER } from './helpers/auth';
+import {
+  apiLogin,
+  TEST_SELLER,
+  TEST_UNVERIFIED,
+  TEST_PENDING_KYC,
+  TEST_REJECTED_KYC,
+} from './helpers/auth';
 
 /**
  * KYC Submission E2E Tests
- * Tests the KYC verification flow for sellers
+ * Tests the KYC verification flow for sellers.
+ *
+ * KYC lives at /dashboard/settings under the "Verificación" tab.
+ * Seed data provides users in each KYC state:
+ * - unverified@test.com    → NOT_SUBMITTED (sees form)
+ * - pending-kyc@test.com   → PENDING_REVIEW (sees pending message)
+ * - rejected-kyc@test.com  → REJECTED (sees rejection alert + form)
+ * - vendedor@test.com      → VERIFIED (sees verified badge)
  */
 
-// Unverified seller test user (not reliably in seed data)
-const TEST_SELLER_UNVERIFIED = {
-  email: 'unverified@test.com',
-  password: 'Password123!',
-};
-
 test.describe('KYC Submission', () => {
-  test('should show KYC form in seller dashboard', async ({
+  test('should show KYC form for unverified user', async ({ page }) => {
+    await apiLogin(page, TEST_UNVERIFIED);
+    await page.goto('/dashboard/settings');
+
+    // Click the Verificación tab
+    await page.getByRole('tab', { name: /verificación/i }).click();
+
+    // Should show the KYC form with document fields
+    await expect(
+      page.getByText(/documento de identidad/i),
+    ).toBeVisible({ timeout: 10000 });
+
+    // Should have document type selector and number input
+    await expect(page.getByText(/tipo de documento/i)).toBeVisible();
+    await expect(page.getByLabel(/número de documento/i)).toBeVisible();
+  });
+
+  test('should show pending status for user with KYC PENDING_REVIEW', async ({
     page,
   }) => {
-    test.skip(
-      true,
-      'Requires test user with KYC NOT_SUBMITTED status in database',
-    );
+    await apiLogin(page, TEST_PENDING_KYC);
+    await page.goto('/dashboard/settings');
 
-    await apiLogin(page, TEST_SELLER_UNVERIFIED);
-    await page.goto('/dashboard/seller');
-
-    // Should show KYC requirement message
-    await expect(
-      page.getByText(/verificación de identidad requerida/i),
-    ).toBeVisible();
-  });
-
-  test('should validate required KYC fields', async ({ page }) => {
-    test.skip(true, 'Requires authenticated unverified seller');
-
-    await page.goto('/dashboard/seller/kyc');
-
-    // Try to submit without filling fields
-    await page.locator('button[type="submit"]').click();
-
-    // Should show validation errors
-    await expect(
-      page.getByText(/este campo es obligatorio/i).first(),
-    ).toBeVisible();
-  });
-
-  test('should validate DNI format', async ({ page }) => {
-    test.skip(true, 'Requires authenticated unverified seller');
-
-    await page.goto('/dashboard/seller/kyc');
-
-    // Enter invalid DNI
-    await page.getByLabel(/dni/i).fill('123'); // Too short
-    await page.locator('button[type="submit"]').click();
-
-    // Should show format error
-    await expect(
-      page.getByText(/dni debe tener 7-8 dígitos/i),
-    ).toBeVisible();
-  });
-
-  test('should fill KYC form and set status to pending', async ({
-    page,
-  }) => {
-    test.skip(
-      true,
-      'Requires test user with KYC NOT_SUBMITTED and file upload capability',
-    );
-
-    await apiLogin(page, TEST_SELLER_UNVERIFIED);
-    await page.goto('/dashboard/seller/kyc');
-
-    // Fill form
-    await page.getByLabel(/nombre completo/i).fill('Juan Pérez');
-    await page.getByLabel(/fecha de nacimiento/i).fill('1990-01-01');
-    await page.getByLabel(/dni/i).fill('12345678');
-
-    // Select document type
-    await page.getByLabel(/tipo de documento/i).selectOption('DNI');
-
-    await page.locator('button[type="submit"]').click();
-
-    // Should show success message
-    await expect(
-      page.getByText(/documentación enviada correctamente/i),
-    ).toBeVisible();
-  });
-
-  test('should show pending status after KYC submission', async ({
-    page,
-  }) => {
-    test.skip(
-      true,
-      'Requires test user with KYC PENDING_REVIEW status',
-    );
-
-    await apiLogin(page, TEST_SELLER_UNVERIFIED);
-    await page.goto('/dashboard/seller');
+    // Click the Verificación tab
+    await page.getByRole('tab', { name: /verificación/i }).click();
 
     // Should show pending message
     await expect(
       page.getByText(/verificación en proceso/i),
-    ).toBeVisible();
+    ).toBeVisible({ timeout: 10000 });
   });
 
-  test('should prevent raffle creation without KYC verification', async ({
+  test('should show rejection reason for user with KYC REJECTED', async ({
     page,
   }) => {
-    test.skip(
-      true,
-      'Requires test user with KYC NOT_SUBMITTED status',
-    );
+    await apiLogin(page, TEST_REJECTED_KYC);
+    await page.goto('/dashboard/settings');
 
-    await apiLogin(page, TEST_SELLER_UNVERIFIED);
-    await page.goto('/dashboard/seller/create-raffle');
+    // Click the Verificación tab
+    await page.getByRole('tab', { name: /verificación/i }).click();
 
-    // Should show KYC requirement message
+    // Should show rejection alert
     await expect(
-      page.getByText(/debes verificar tu identidad/i),
+      page.getByText(/verificación rechazada/i),
+    ).toBeVisible({ timeout: 10000 });
+
+    // Should show rejection reason
+    await expect(
+      page.getByText(/documento ilegible/i),
     ).toBeVisible();
   });
 
-  test('should show success message after admin approval', async ({
+  test('should show form below rejection for resubmission', async ({
     page,
   }) => {
-    test.skip(
-      true,
-      'Requires admin to approve KYC or test endpoint to simulate approval',
-    );
+    await apiLogin(page, TEST_REJECTED_KYC);
+    await page.goto('/dashboard/settings');
 
-    await apiLogin(page, TEST_SELLER_UNVERIFIED);
-    await page.goto('/dashboard/seller');
+    // Click the Verificación tab
+    await page.getByRole('tab', { name: /verificación/i }).click();
 
-    // After admin approves, should show verified status
+    // Should show rejection alert AND form for resubmission
+    await expect(
+      page.getByText(/verificación rechazada/i),
+    ).toBeVisible({ timeout: 10000 });
+
+    // Should also show the form below for resubmission
+    await expect(
+      page.getByText(/documento de identidad/i),
+    ).toBeVisible();
+
+    // Resubmission instruction text
+    await expect(
+      page.getByText(/volver a enviar/i),
+    ).toBeVisible();
+  });
+
+  test('should show verified status for KYC-approved user', async ({
+    page,
+  }) => {
+    await apiLogin(page, TEST_SELLER);
+    await page.goto('/dashboard/settings');
+
+    // Click the Verificación tab
+    await page.getByRole('tab', { name: /verificación/i }).click();
+
+    // Should show verified status
     await expect(
       page.getByText(/identidad verificada/i),
-    ).toBeVisible();
+    ).toBeVisible({ timeout: 10000 });
   });
 
   test('should allow raffle creation after KYC approval', async ({
@@ -150,37 +125,53 @@ test.describe('KYC Submission', () => {
     ).toBeVisible({ timeout: 10000 });
   });
 
-  test('should show rejection reason after admin rejection', async ({
-    page,
-  }) => {
+  // Full KYC submission requires Cloudinary for document photo upload.
+  // In CI there is no Cloudinary config, so this test is skipped.
+  test('should fill KYC form and submit', async ({ page }) => {
     test.skip(
       true,
-      'Requires admin to reject KYC or test endpoint to simulate rejection',
+      'Full KYC submission requires Cloudinary for document photo upload',
     );
 
-    await apiLogin(page, TEST_SELLER_UNVERIFIED);
-    await page.goto('/dashboard/seller');
+    await apiLogin(page, TEST_UNVERIFIED);
+    await page.goto('/dashboard/settings');
+    await page.getByRole('tab', { name: /verificación/i }).click();
 
-    // Should show rejection message
-    await expect(
-      page.getByText(/verificación rechazada/i),
-    ).toBeVisible();
-
-    // Should show reason
-    await expect(page.getByText(/motivo:/i)).toBeVisible();
+    // Fill form fields
+    await page.getByLabel(/número de documento/i).fill('12345678');
+    await page.locator('button[type="submit"]').click();
   });
 
-  test('should allow resubmission after rejection', async ({
-    page,
-  }) => {
-    test.skip(true, 'Requires test user with KYC REJECTED status');
+  // Validating required fields requires interacting with the form
+  // which needs document photo upload (Cloudinary).
+  test('should validate required KYC fields', async ({ page }) => {
+    test.skip(
+      true,
+      'KYC form validation requires Cloudinary for document photo fields',
+    );
 
-    await apiLogin(page, TEST_SELLER_UNVERIFIED);
-    await page.goto('/dashboard/seller/kyc');
+    await apiLogin(page, TEST_UNVERIFIED);
+    await page.goto('/dashboard/settings');
+    await page.getByRole('tab', { name: /verificación/i }).click();
 
-    // Should show resubmit button
+    await page.locator('button[type="submit"]').click();
     await expect(
-      page.getByRole('button', { name: /enviar nuevamente/i }),
+      page.getByText(/obligatorio|requerido/i).first(),
     ).toBeVisible();
+  });
+
+  // DNI validation is part of the form submit flow which needs Cloudinary.
+  test('should validate DNI format', async ({ page }) => {
+    test.skip(
+      true,
+      'DNI format validation requires full form interaction with Cloudinary',
+    );
+
+    await apiLogin(page, TEST_UNVERIFIED);
+    await page.goto('/dashboard/settings');
+    await page.getByRole('tab', { name: /verificación/i }).click();
+
+    await page.getByLabel(/número de documento/i).fill('123');
+    await page.locator('button[type="submit"]').click();
   });
 });

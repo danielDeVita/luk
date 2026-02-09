@@ -42,6 +42,7 @@ interface MpStatusData {
     cuitCuil?: string;
     termsAcceptedAt?: string;
     termsVersion?: string;
+    kycRejectedReason?: string;
   };
 }
 
@@ -80,6 +81,7 @@ const GET_USER_DATA = gql`
       cuitCuil
       termsAcceptedAt
       termsVersion
+      kycRejectedReason
     }
   }
 `;
@@ -359,6 +361,8 @@ function SettingsContent() {
   const kycStatus = userData?.me?.kycStatus || 'NOT_SUBMITTED';
   const isKycVerified = kycStatus === 'VERIFIED';
   const isKycPending = kycStatus === 'PENDING_REVIEW';
+  const isKycRejected = kycStatus === 'REJECTED';
+  const kycRejectedReason = userData?.me?.kycRejectedReason;
 
   const watchedDocType = watchKyc('documentType');
   const watchedProvince = watchKyc('province');
@@ -696,6 +700,24 @@ function SettingsContent() {
                   </p>
                 </div>
               ) : (
+                <>
+                  {isKycRejected && (
+                    <div className="flex items-start gap-3 p-4 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-lg mb-6">
+                      <XCircle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
+                      <div className="text-sm">
+                        <p className="font-medium text-red-800 dark:text-red-200 mb-1">Verificación Rechazada</p>
+                        {kycRejectedReason && (
+                          <p className="text-red-700 dark:text-red-300">
+                            <strong>Motivo:</strong> {kycRejectedReason}
+                          </p>
+                        )}
+                        <p className="text-red-600 dark:text-red-400 mt-2">
+                          Podés volver a enviar tu documentación corrigiendo los problemas indicados.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
                 <form onSubmit={handleKycSubmit(onKycSubmit)} className="space-y-6">
                   {/* Document Section */}
                   <div className="space-y-4">
@@ -824,6 +846,7 @@ function SettingsContent() {
                     Enviar para Verificación
                   </Button>
                 </form>
+                </>
               )}
             </CardContent>
           </Card>

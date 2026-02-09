@@ -21,6 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { ImageUpload } from '@/components/ImageUpload';
 import { toast } from 'sonner';
 import { Loader2, AlertTriangle } from 'lucide-react';
 
@@ -46,14 +47,18 @@ interface DisputeDialogProps {
 
 export function DisputeDialog({ raffleId, raffleTitle, onDisputeOpened, trigger }: DisputeDialogProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const [tipo, setTipo] = useState<string>('PRODUCTO_NO_RECIBIDO');
+  const [tipo, setTipo] = useState<string>('NO_LLEGO');
   const [titulo, setTitulo] = useState('');
   const [descripcion, setDescripcion] = useState('');
+  const [evidencias, setEvidencias] = useState<string[]>([]);
 
   const [openDispute, { loading }] = useMutation(OPEN_DISPUTE, {
     onCompleted: () => {
       toast.success('Disputa abierta correctamente. Un administrador revisará el caso.');
       setIsOpen(false);
+      setTitulo('');
+      setDescripcion('');
+      setEvidencias([]);
       if (onDisputeOpened) onDisputeOpened();
     },
     onError: (err) => {
@@ -70,7 +75,7 @@ export function DisputeDialog({ raffleId, raffleTitle, onDisputeOpened, trigger 
           tipo,
           titulo,
           descripcion,
-          evidencias: [], // TODO: Cloudinary Upload
+          evidencias,
         }
       }
     });
@@ -93,7 +98,7 @@ export function DisputeDialog({ raffleId, raffleTitle, onDisputeOpened, trigger 
             Inicia una disputa para la rifa &quot;{raffleTitle}&quot;. El pago se retendrá hasta que se resuelva el caso.
           </DialogDescription>
         </DialogHeader>
-        
+
         <form onSubmit={handleSubmit} className="space-y-4 py-4">
           <div className="space-y-2">
             <Label htmlFor="tipo">Tipo de Problema</Label>
@@ -102,9 +107,10 @@ export function DisputeDialog({ raffleId, raffleTitle, onDisputeOpened, trigger 
                 <SelectValue placeholder="Seleccioná el motivo" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="PRODUCTO_NO_RECIBIDO">No recibí el producto</SelectItem>
-                <SelectItem value="PRODUCTO_HACIA_FALTA">Producto incompleto o dañado</SelectItem>
-                <SelectItem value="PRODUCTO_Malo">Producto no coincide con la descripción</SelectItem>
+                <SelectItem value="NO_LLEGO">No recibí el producto</SelectItem>
+                <SelectItem value="DANADO">Producto incompleto o dañado</SelectItem>
+                <SelectItem value="DIFERENTE">Producto no coincide con la descripción</SelectItem>
+                <SelectItem value="VENDEDOR_NO_RESPONDE">El vendedor no responde</SelectItem>
                 <SelectItem value="OTRO">Otro problema</SelectItem>
               </SelectContent>
             </Select>
@@ -112,9 +118,9 @@ export function DisputeDialog({ raffleId, raffleTitle, onDisputeOpened, trigger 
 
           <div className="space-y-2">
             <Label htmlFor="titulo">Título del Reclamo</Label>
-            <Input 
-              id="titulo" 
-              placeholder="Ej: El producto llegó roto" 
+            <Input
+              id="titulo"
+              placeholder="Ej: El producto llegó roto"
               value={titulo}
               onChange={(e) => setTitulo(e.target.value)}
               minLength={10}
@@ -124,9 +130,9 @@ export function DisputeDialog({ raffleId, raffleTitle, onDisputeOpened, trigger 
 
           <div className="space-y-2">
             <Label htmlFor="descripcion">Descripción Detallada</Label>
-            <Textarea 
-              id="descripcion" 
-              placeholder="Explica detalladamente qué sucedió..." 
+            <Textarea
+              id="descripcion"
+              placeholder="Explica detalladamente qué sucedió..."
               value={descripcion}
               onChange={(e) => setDescripcion(e.target.value)}
               className="min-h-[100px]"
@@ -136,7 +142,15 @@ export function DisputeDialog({ raffleId, raffleTitle, onDisputeOpened, trigger 
             <p className="text-xs text-muted-foreground text-right">Mínimo 50 caracteres</p>
           </div>
 
-          {/* TODO: Evidence Upload */}
+          <div className="space-y-2">
+            <Label>Evidencia (fotos)</Label>
+            <ImageUpload
+              images={evidencias}
+              onImagesChange={setEvidencias}
+              maxImages={10}
+            />
+            <p className="text-xs text-muted-foreground">Subí fotos del producto, empaque o cualquier evidencia relevante</p>
+          </div>
         </form>
 
         <DialogFooter>

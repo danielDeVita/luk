@@ -20,6 +20,8 @@ test.describe('Dashboard Sales', () => {
     expect(page.url()).toContain('/auth/login');
   });
 
+  // Skip in CI - Apollo Client's browser fetch from :3000 to :3001 intermittently fails
+  // with "Failed to fetch" (cross-origin timing issue). Auth works but the GraphQL query doesn't.
   test('should display sales dashboard header', async ({ page }) => {
     test.skip(!!process.env.CI, 'Sales page query returns "Failed to fetch" in CI due to cross-origin timing');
     await expect(page.locator('main').getByRole('heading', { name: /Panel de Vendedor/i })).toBeVisible({ timeout: 10000 });
@@ -52,13 +54,14 @@ test.describe('Dashboard Sales', () => {
     }
   });
 
+  // Skip in CI - same cross-origin "Failed to fetch" issue as header test above
   test('should display list of raffles or empty state', async ({ page }) => {
     test.skip(!!process.env.CI, 'Sales page query returns "Failed to fetch" in CI due to cross-origin timing');
     await page.waitForTimeout(2000);
 
     // Check for raffles list or empty state
     const emptyState = page.getByText(/No ten[eé]s rifas/i);
-    const rafflesList = page.locator('[class*="grid"]').filter({ hasText: /Tickets/i });
+    const rafflesList = page.locator('main').getByText(/vendidos/i);
 
     const hasEmptyState = await emptyState.isVisible();
     const hasRaffles = (await rafflesList.count()) > 0;

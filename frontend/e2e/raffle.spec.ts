@@ -68,6 +68,8 @@ test.describe('Raffle Browsing', () => {
     ).toBeVisible({ timeout: 10000 });
   });
 
+  // Skip in CI - CI seed only creates users, not raffles. With zero results,
+  // there's nothing to scroll and no loading indicator appears.
   test('infinite scroll loads more results', async ({ page }) => {
     test.skip(!!process.env.CI, 'No raffle data seeded in CI');
     await page.goto('/search');
@@ -203,6 +205,8 @@ test.describe('Seller Onboarding', () => {
     ).toBeVisible({ timeout: 10000 });
   });
 
+  // Skip in CI - sales page's Apollo Client query fails with "Failed to fetch"
+  // due to cross-origin timing between frontend (:3000) and backend (:3001)
   test('seller can view their raffles list', async ({ page }) => {
     test.skip(!!process.env.CI, 'Sales page query returns "Failed to fetch" in CI');
     await apiLogin(page, TEST_SELLER);

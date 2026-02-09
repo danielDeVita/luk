@@ -18,6 +18,21 @@ export const TEST_ADMIN = {
   password: 'Admin123!',
 };
 
+export const TEST_UNVERIFIED = {
+  email: 'unverified@test.com',
+  password: 'Password123!',
+};
+
+export const TEST_PENDING_KYC = {
+  email: 'pending-kyc@test.com',
+  password: 'Password123!',
+};
+
+export const TEST_REJECTED_KYC = {
+  email: 'rejected-kyc@test.com',
+  password: 'Password123!',
+};
+
 const LOGIN_MUTATION = `
   mutation Login($email: String!, $password: String!) {
     login(input: { email: $email, password: $password }) {

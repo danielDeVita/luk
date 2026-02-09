@@ -61,6 +61,8 @@ test.describe('Search & Filters', () => {
     }
   });
 
+  // Skip in CI - no raffle data seeded, and the GraphQL query takes longer than
+  // expected in CI. The loading skeleton stays visible past the timeout.
   test('should display search results or empty state', async ({ page }) => {
     test.skip(!!process.env.CI, 'Search query loading takes too long in CI with no seeded data');
     const noResults = page.getByText(/no se encontraron|no results|sin resultados/i);

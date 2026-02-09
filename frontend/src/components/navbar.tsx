@@ -14,6 +14,7 @@ import {
   MessageSquare,
   MapPin,
   DollarSign,
+  AlertTriangle,
   Menu,
   X,
   Home,
@@ -240,6 +241,16 @@ export function Navbar() {
                         );
                         items.push(
                           <DropdownLink
+                            key="disputes"
+                            href="/dashboard/disputes"
+                            icon={<AlertTriangle className="h-4 w-4" />}
+                            ref={(el) => { menuItemsRef.current[menuIndex++] = el; }}
+                          >
+                            Reclamos
+                          </DropdownLink>
+                        );
+                        items.push(
+                          <DropdownLink
                             key="payouts"
                             href="/dashboard/payouts"
                             icon={<DollarSign className="h-4 w-4" />}
@@ -365,6 +376,9 @@ export function Navbar() {
               </MobileNavLink>
               <MobileNavLink href="/dashboard/shipping" onClick={closeMobileMenu} icon={<MapPin className="h-4 w-4" />}>
                 Direcciones
+              </MobileNavLink>
+              <MobileNavLink href="/dashboard/disputes" onClick={closeMobileMenu} icon={<AlertTriangle className="h-4 w-4" />}>
+                Reclamos
               </MobileNavLink>
               <MobileNavLink href="/dashboard/payouts" onClick={closeMobileMenu} icon={<DollarSign className="h-4 w-4" />}>
                 Mis pagos
