@@ -118,7 +118,7 @@ describe('DisputeDialog', () => {
         variables: {
           input: {
             raffleId: 'raffle-123',
-            tipo: 'PRODUCTO_NO_RECIBIDO',
+            tipo: 'NO_LLEGO',
             titulo: 'El producto llegó roto',
             descripcion:
               'El iPhone llegó con la pantalla completamente rota y la caja estaba dañada',
