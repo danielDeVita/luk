@@ -294,7 +294,7 @@ describe('MpConnectController', () => {
 
       mpConnectService.getConnectionStatus.mockResolvedValue(mockStatus);
 
-      const result = await controller.getStatus({ userId: 'user-123' });
+      const result = await controller.getStatus({ id: 'user-123' });
 
       expect(mpConnectService.getConnectionStatus).toHaveBeenCalledWith(
         'user-123',
@@ -309,7 +309,7 @@ describe('MpConnectController', () => {
 
       mpConnectService.disconnect.mockResolvedValue(true);
 
-      await controller.disconnect({ userId: 'user-123' }, res);
+      await controller.disconnect({ id: 'user-123' }, res);
 
       expect(mpConnectService.disconnect).toHaveBeenCalledWith('user-123');
       expect(res.status).toHaveBeenCalledWith(200);
@@ -323,7 +323,7 @@ describe('MpConnectController', () => {
         new Error('MP API unavailable'),
       );
 
-      await controller.disconnect({ userId: 'user-123' }, res);
+      await controller.disconnect({ id: 'user-123' }, res);
 
       expect(res.status).toHaveBeenCalledWith(500);
       expect(res.json).toHaveBeenCalledWith({ error: 'MP API unavailable' });
