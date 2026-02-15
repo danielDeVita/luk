@@ -96,6 +96,7 @@ export class MpConnectController {
 
       const { authUrl } = this.mpConnectService.generateAuthUrl(userId);
       this.logger.log(`Redirecting user ${userId} to MP auth`);
+      this.logger.log(`Full OAuth URL: ${authUrl}`); // DEBUG: Ver URL completa con todos los parámetros
       return res.redirect(authUrl);
     } catch (error) {
       const message =
@@ -169,8 +170,8 @@ export class MpConnectController {
    */
   @Get('status')
   @UseGuards(JwtAuthGuard)
-  async getStatus(@CurrentUser() user: { userId: string }) {
-    return this.mpConnectService.getConnectionStatus(user.userId);
+  async getStatus(@CurrentUser() user: { id: string }) {
+    return this.mpConnectService.getConnectionStatus(user.id);
   }
 
   /**
@@ -178,12 +179,9 @@ export class MpConnectController {
    */
   @Post('disconnect')
   @UseGuards(JwtAuthGuard)
-  async disconnect(
-    @CurrentUser() user: { userId: string },
-    @Res() res: Response,
-  ) {
+  async disconnect(@CurrentUser() user: { id: string }, @Res() res: Response) {
     try {
-      await this.mpConnectService.disconnect(user.userId);
+      await this.mpConnectService.disconnect(user.id);
       return res.status(HttpStatus.OK).json({ disconnected: true });
     } catch (error) {
       const message =
