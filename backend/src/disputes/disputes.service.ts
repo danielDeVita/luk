@@ -113,6 +113,7 @@ export class DisputesService {
       'SYSTEM',
       'Disputa abierta',
       `Se ha abierto una disputa por "${dispute.raffle.titulo}". Tienes 48hs para responder.`,
+      '/dashboard/disputes',
     );
 
     // Notify buyer that dispute was registered
@@ -167,7 +168,7 @@ export class DisputesService {
       );
     }
 
-    return this.prisma.dispute.update({
+    const updatedDispute = await this.prisma.dispute.update({
       where: { id: disputeId },
       data: {
         respuestaVendedor: input.respuesta,
@@ -175,8 +176,24 @@ export class DisputesService {
         estado: 'EN_MEDIACION',
         fechaRespuestaVendedor: new Date(),
       },
-      include: { raffle: true, reporter: true },
+      include: { raffle: { include: { seller: true } }, reporter: true },
     });
+
+    // Notify buyer that seller responded
+    await this.notifications.create(
+      updatedDispute.reporterId,
+      'INFO',
+      'El vendedor respondió a tu disputa',
+      `El vendedor ha respondido a tu disputa por "${updatedDispute.raffle.titulo}".`,
+      '/dashboard/disputes',
+    );
+
+    await this.notifications.sendDisputeSellerRespondedNotification(
+      updatedDispute.reporter.email,
+      { raffleName: updatedDispute.raffle.titulo },
+    );
+
+    return updatedDispute;
   }
 
   async resolveDispute(
@@ -184,7 +201,7 @@ export class DisputesService {
     disputeId: string,
     input: ResolveDisputeInput,
   ) {
-    await this.findOne(disputeId); // Verify dispute exists
+    const dispute = await this.findOne(disputeId);
 
     const validStatuses = [
       'RESUELTA_COMPRADOR',
@@ -193,6 +210,28 @@ export class DisputesService {
     ];
     if (!validStatuses.includes(input.decision)) {
       throw new BadRequestException('Estado de resolución inválido');
+    }
+
+    // Validate refund amount doesn't exceed buyer's total paid
+    if (input.montoReembolsado && Number(input.montoReembolsado) > 0) {
+      const buyerTickets = await this.prisma.ticket.findMany({
+        where: {
+          raffleId: dispute.raffleId,
+          buyerId: dispute.reporterId,
+          estado: 'PAGADO',
+        },
+      });
+      const maxRefund = buyerTickets.reduce(
+        (sum, t) => sum + Number(t.precioPagado),
+        0,
+      );
+      const totalRequested =
+        Number(input.montoReembolsado) + Number(input.montoPagadoVendedor || 0);
+      if (totalRequested > maxRefund) {
+        throw new BadRequestException(
+          `El monto total ($${totalRequested.toFixed(2)}) excede el total pagado por el comprador ($${maxRefund.toFixed(2)})`,
+        );
+      }
     }
 
     const updatedDispute = await this.prisma.dispute.update({
@@ -274,6 +313,7 @@ export class DisputesService {
       'INFO',
       'Disputa resuelta',
       `La disputa por "${updatedDispute.raffle.titulo}" ha sido resuelta.`,
+      '/dashboard/disputes',
     );
 
     await this.notifications.create(
@@ -281,6 +321,7 @@ export class DisputesService {
       'INFO',
       'Disputa resuelta',
       `La disputa por "${updatedDispute.raffle.titulo}" ha sido resuelta.`,
+      '/dashboard/disputes',
     );
 
     // Audit log

@@ -91,7 +91,7 @@ export function DisputeDialog({ raffleId, raffleTitle, onDisputeOpened, trigger 
           </Button>
         )}
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Reportar Problema</DialogTitle>
           <DialogDescription>
@@ -124,6 +124,7 @@ export function DisputeDialog({ raffleId, raffleTitle, onDisputeOpened, trigger 
               value={titulo}
               onChange={(e) => setTitulo(e.target.value)}
               minLength={10}
+              maxLength={100}
               required
             />
           </div>
@@ -135,7 +136,7 @@ export function DisputeDialog({ raffleId, raffleTitle, onDisputeOpened, trigger 
               placeholder="Explica detalladamente qué sucedió..."
               value={descripcion}
               onChange={(e) => setDescripcion(e.target.value)}
-              className="min-h-[100px]"
+              className="min-h-[100px] max-h-[200px] overflow-y-auto overflow-x-hidden [field-sizing:fixed] [overflow-wrap:break-word] [word-break:break-word]"
               minLength={50}
               required
             />

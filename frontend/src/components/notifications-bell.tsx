@@ -19,6 +19,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { useConnectionStatus } from '@/lib/apollo-provider';
 import { useAuthStore } from '@/store/auth';
+import { useRouter } from 'next/navigation';
 
 const GET_NOTIFICATIONS = gql`
   query MyNotifications {
@@ -28,6 +29,7 @@ const GET_NOTIFICATIONS = gql`
       title
       message
       read
+      actionUrl
       createdAt
     }
   }
@@ -56,6 +58,7 @@ const NOTIFICATION_ADDED = gql`
       title
       message
       read
+      actionUrl
       createdAt
     }
   }
@@ -67,6 +70,7 @@ type NotificationItem = {
   title: string;
   message: string;
   read: boolean;
+  actionUrl?: string | null;
   createdAt: string;
 };
 
@@ -75,6 +79,7 @@ type MyNotificationsData = {
 };
 
 export function NotificationsBell() {
+  const router = useRouter();
   const { status: connectionStatus, retryConnection } = useConnectionStatus();
   const { isAuthenticated, hasHydrated } = useAuthStore();
 
@@ -170,7 +175,10 @@ export function NotificationsBell() {
             </div>
           ) : (
             notifications.map((n) => (
-              <DropdownMenuItem key={n.id} className={cn("flex flex-col items-start p-3 cursor-pointer", !n.read && "bg-muted/50")}>
+              <DropdownMenuItem key={n.id} className={cn("flex flex-col items-start p-3 cursor-pointer", !n.read && "bg-muted/50")} onClick={() => {
+                if (n.actionUrl) router.push(n.actionUrl);
+                if (!n.read) markRead({ variables: { id: n.id } }).then(() => refetch());
+              }}>
                 <div className="flex justify-between w-full gap-2">
                   <span className="font-semibold text-sm">{n.title}</span>
                   {!n.read && (

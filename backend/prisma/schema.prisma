@@ -547,6 +547,7 @@ model Notification {
   title     String
   message   String
   read      Boolean  @default(false)
+  actionUrl String?  @map("action_url")
   createdAt DateTime @default(now()) @map("created_at")
 
   @@index([userId])

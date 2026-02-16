@@ -82,7 +82,7 @@ export default function LoginPage() {
     },
     onError: (err) => {
       // Ensure errors are captured even if the error link doesn't propagate them
-      console.error('[Login Error]', err.message);
+      console.warn('[Login Error]', err.message);
       setErrorMsg(err.message || 'Error al iniciar sesión');
     },
   });

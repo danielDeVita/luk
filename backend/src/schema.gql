@@ -403,6 +403,7 @@ type Mutation {
 }
 
 type Notification {
+  actionUrl: String
   createdAt: DateTime!
   id: ID!
   message: String!

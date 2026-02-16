@@ -98,6 +98,7 @@ export class MessagingService {
       'INFO',
       'Nuevo mensaje',
       `Tienes un nuevo mensaje sobre "${raffle.titulo}"`,
+      '/dashboard/messages',
     );
 
     this.logger.log(`Conversation started for raffle ${input.raffleId}`);
@@ -146,6 +147,7 @@ export class MessagingService {
       'INFO',
       'Nuevo mensaje',
       `Nuevo mensaje sobre "${conversation.raffle.titulo}"`,
+      '/dashboard/messages',
     );
 
     this.logger.log(`Message sent in conversation ${input.conversationId}`);

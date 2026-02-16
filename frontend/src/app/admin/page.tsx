@@ -306,6 +306,13 @@ interface UserActivityData {
   adminUserActivity: UserActivity[];
 }
 
+function formatCompact(n: number | undefined | null, prefix = ''): string {
+  if (n == null) return `${prefix}0`;
+  if (n >= 1_000_000) return `${prefix}${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${prefix}${(n / 1_000).toFixed(1)}K`;
+  return `${prefix}${n % 1 === 0 ? n : n.toFixed(2)}`;
+}
+
 export default function AdminPage() {
   const router = useRouter();
   const { isAuthenticated, user } = useAuthStore();
@@ -588,7 +595,7 @@ export default function AdminPage() {
             <div className="flex items-center gap-2">
               <DollarSign className="h-5 w-5 text-green-500" />
               <div>
-                <p className="text-2xl font-bold">${stats?.totalRevenue?.toFixed(2) || '0.00'}</p>
+                <p className="text-2xl font-bold">{formatCompact(stats?.totalRevenue, '$')}</p>
                 <p className="text-xs text-muted-foreground">Ingresos Totales</p>
               </div>
             </div>
@@ -613,7 +620,7 @@ export default function AdminPage() {
             <div className="flex items-center gap-2">
               <Ticket className="h-5 w-5 text-purple-500" />
               <div>
-                <p className="text-2xl font-bold">{stats?.totalTicketsSold || 0}</p>
+                <p className="text-2xl font-bold">{formatCompact(stats?.totalTicketsSold)}</p>
                 <p className="text-xs text-muted-foreground">Tickets Vendidos</p>
               </div>
             </div>
@@ -679,7 +686,7 @@ export default function AdminPage() {
           <CardContent className="p-3">
             <div className="flex items-center justify-between">
               <span className="text-sm text-muted-foreground">Transacciones</span>
-              <span className="font-semibold">{stats?.totalTransactions || 0}</span>
+              <span className="font-semibold">{formatCompact(stats?.totalTransactions)}</span>
             </div>
           </CardContent>
         </Card>
@@ -702,6 +709,7 @@ export default function AdminPage() {
           <TabsTrigger value="kyc">KYC ({kycData?.pendingKycSubmissions?.total || 0})</TabsTrigger>
           <TabsTrigger value="raffles">Rifas ({raffles.length})</TabsTrigger>
           <TabsTrigger value="reports">Reportes ({reports.length})</TabsTrigger>
+          <TabsTrigger value="disputes">Disputas ({statsData?.adminStats?.pendingDisputes || 0})</TabsTrigger>
           <TabsTrigger value="users">Usuarios ({totalUsers})</TabsTrigger>
         </TabsList>
 
@@ -874,6 +882,26 @@ export default function AdminPage() {
                     </div>
                   ))
                 )}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Disputes Tab */}
+        <TabsContent value="disputes">
+          <Card>
+            <CardHeader>
+              <CardTitle>Resolución de Disputas</CardTitle>
+              <CardDescription>Mediar y resolver disputas entre compradores y vendedores</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="text-center py-8">
+                <p className="text-muted-foreground mb-4">
+                  Panel completo de resolución de disputas disponible
+                </p>
+                <Button onClick={() => router.push('/admin/disputes')} size="lg">
+                  Abrir Panel de Disputas
+                </Button>
               </div>
             </CardContent>
           </Card>

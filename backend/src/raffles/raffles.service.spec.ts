@@ -58,6 +58,10 @@ describe('RafflesService', () => {
     sendRaffleParticipantNotification: jest.fn().mockResolvedValue(true),
     sendRaffleCancelledNotification: jest.fn().mockResolvedValue(true),
     sendPriceDropAlert: jest.fn().mockResolvedValue(true),
+    sendPrizeShippedNotification: jest.fn().mockResolvedValue(true),
+    sendDeliveryConfirmedToSellerNotification: jest
+      .fn()
+      .mockResolvedValue(true),
     create: jest.fn().mockResolvedValue({ id: 'notif-1' }),
   };
 

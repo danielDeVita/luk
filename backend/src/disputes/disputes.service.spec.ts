@@ -50,6 +50,7 @@ describe('DisputesService', () => {
     sendDisputeOpenedToBuyer: jest.fn().mockResolvedValue(true),
     sendDisputeResolvedNotification: jest.fn().mockResolvedValue(true),
     sendRefundDueToDisputeNotification: jest.fn().mockResolvedValue(true),
+    sendDisputeSellerRespondedNotification: jest.fn().mockResolvedValue(true),
     create: jest.fn().mockResolvedValue({ id: 'notif-1' }),
   };
 
@@ -325,7 +326,7 @@ describe('DisputesService', () => {
           estado: 'EN_MEDIACION',
           fechaRespuestaVendedor: expect.any(Date),
         },
-        include: { raffle: true, reporter: true },
+        include: { raffle: { include: { seller: true } }, reporter: true },
       });
     });
 
@@ -408,6 +409,14 @@ describe('DisputesService', () => {
       });
 
       prisma.dispute.findUnique.mockResolvedValue(dispute);
+      prisma.ticket.findMany.mockResolvedValue([
+        {
+          id: 'ticket-1',
+          precioPagado: 1000,
+          buyerId: 'winner-1',
+          estado: 'PAGADO',
+        },
+      ]);
       prisma.dispute.update.mockResolvedValue({
         ...dispute,
         estado: DisputeStatus.RESUELTA_COMPRADOR,
@@ -526,6 +535,14 @@ describe('DisputesService', () => {
       });
 
       prisma.dispute.findUnique.mockResolvedValue(dispute);
+      prisma.ticket.findMany.mockResolvedValue([
+        {
+          id: 'ticket-1',
+          precioPagado: 1000,
+          buyerId: 'winner-1',
+          estado: 'PAGADO',
+        },
+      ]);
       prisma.dispute.update.mockResolvedValue({
         ...dispute,
         estado: DisputeStatus.RESUELTA_PARCIAL,
@@ -610,6 +627,14 @@ describe('DisputesService', () => {
       });
 
       prisma.dispute.findUnique.mockResolvedValue(dispute);
+      prisma.ticket.findMany.mockResolvedValue([
+        {
+          id: 'ticket-1',
+          precioPagado: 1000,
+          buyerId: 'winner-1',
+          estado: 'PAGADO',
+        },
+      ]);
       prisma.dispute.update.mockResolvedValue({
         ...dispute,
         estado: DisputeStatus.RESUELTA_COMPRADOR,

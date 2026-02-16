@@ -707,7 +707,12 @@ export class RafflesService {
         'INFO',
         '¡Tu premio fue enviado!',
         `El vendedor ha enviado el premio de "${raffle.titulo}".${raffle.trackingNumber ? ` Número de seguimiento: ${raffle.trackingNumber}` : ''}`,
+        '/dashboard/tickets',
       ),
+      this.notifications.sendPrizeShippedNotification(winner.email, {
+        raffleName: raffle.titulo,
+        trackingNumber: raffle.trackingNumber ?? undefined,
+      }),
       this.activityService.logDeliveryShipped(
         raffle.sellerId,
         raffle.id,
@@ -786,6 +791,11 @@ export class RafflesService {
         'INFO',
         '¡Entrega confirmada!',
         `El ganador ha confirmado la recepción del premio de "${raffle.titulo}". Los fondos serán liberados pronto.`,
+        '/dashboard/sales',
+      ),
+      this.notifications.sendDeliveryConfirmedToSellerNotification(
+        seller.email,
+        { raffleName: raffle.titulo },
       ),
       this.activityService.logDeliveryConfirmed(
         raffle.winnerId ?? '',
@@ -981,6 +991,7 @@ export class RafflesService {
           'WIN',
           '🎉 ¡GANASTE!',
           `¡Felicitaciones! Has ganado la rifa "${raffle.titulo}". El vendedor se pondrá en contacto contigo pronto.`,
+          '/dashboard/tickets',
         ),
       );
     }
@@ -999,6 +1010,7 @@ export class RafflesService {
           'INFO',
           '¡Tu rifa tiene un ganador!',
           `La rifa "${raffle.titulo}" ha sido sorteada. Tienes 48hs para contactar al ganador.`,
+          '/dashboard/sales',
         ),
       );
     }

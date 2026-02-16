@@ -17,6 +17,9 @@ export class Notification {
   @Field()
   read!: boolean;
 
+  @Field(() => String, { nullable: true })
+  actionUrl?: string | null;
+
   @Field()
   createdAt!: Date;
 }

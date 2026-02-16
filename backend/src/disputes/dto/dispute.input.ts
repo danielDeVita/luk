@@ -8,7 +8,6 @@ import {
   IsArray,
   ArrayMaxSize,
   IsUrl,
-  IsUUID,
   Min,
 } from 'class-validator';
 import { DisputeType, DisputeStatus } from '../../common/enums';
@@ -16,7 +15,8 @@ import { DisputeType, DisputeStatus } from '../../common/enums';
 @InputType()
 export class OpenDisputeInput {
   @Field()
-  @IsUUID()
+  @IsString()
+  @MinLength(1)
   raffleId!: string;
 
   @Field(() => DisputeType)

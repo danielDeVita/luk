@@ -470,6 +470,55 @@ export const getPaymentWillBeReleasedNotificationContent = (
   return wrapEmailTemplate(content, configService);
 };
 
+export const getPrizeShippedContent = (
+  data: { raffleName: string; trackingNumber?: string },
+  configService: ConfigService,
+) => {
+  const frontendUrl = getFrontendUrl(configService);
+  const trackingInfo = data.trackingNumber
+    ? `<div style="background: #F0FDFA; border: 1px solid #99F6E4; border-radius: 12px; padding: 20px; margin: 24px 0;">
+        <p style="color: #0F766E; font-size: 14px; margin: 0 0 8px 0;"><strong>Número de seguimiento:</strong></p>
+        <p style="color: #1E293B; font-size: 18px; font-weight: 700; margin: 0;">${data.trackingNumber}</p>
+      </div>`
+    : '';
+  const content = `
+    <h2 style="color: #0F766E; font-family: 'Fraunces', serif; font-size: 22px; font-weight: 700; margin: 0 0 16px 0;">¡Tu premio fue enviado! 📦</h2>
+    <p style="color: #4B5563; font-size: 15px; line-height: 1.6; margin: 0 0 20px 0;">
+      El vendedor ha despachado tu premio de la rifa "<strong>${data.raffleName}</strong>".
+    </p>
+    ${trackingInfo}
+    <p style="color: #4B5563; font-size: 15px; line-height: 1.6;">
+      Una vez que lo recibas, por favor confirmá la recepción en la plataforma.
+    </p>
+  `;
+  return wrapEmailTemplate(content, configService, {
+    showButton: true,
+    buttonText: 'Ver mis tickets',
+    buttonUrl: `${frontendUrl}/dashboard/tickets`,
+  });
+};
+
+export const getDeliveryConfirmedToSellerContent = (
+  data: { raffleName: string },
+  configService: ConfigService,
+) => {
+  const frontendUrl = getFrontendUrl(configService);
+  const content = `
+    <h2 style="color: #0F766E; font-family: 'Fraunces', serif; font-size: 22px; font-weight: 700; margin: 0 0 16px 0;">¡Entrega confirmada! ✅</h2>
+    <p style="color: #4B5563; font-size: 15px; line-height: 1.6; margin: 0 0 20px 0;">
+      El ganador ha confirmado la recepción del premio de tu rifa "<strong>${data.raffleName}</strong>".
+    </p>
+    <p style="color: #4B5563; font-size: 15px; line-height: 1.6;">
+      Los fondos serán liberados a tu cuenta de Mercado Pago próximamente.
+    </p>
+  `;
+  return wrapEmailTemplate(content, configService, {
+    showButton: true,
+    buttonText: 'Ver mis ventas',
+    buttonUrl: `${frontendUrl}/dashboard/sales`,
+  });
+};
+
 export const getDisputeOpenedToSellerContent = (
   data: { raffleName: string; disputeType: string; disputeTitle: string },
   configService: ConfigService,
@@ -489,7 +538,13 @@ export const getDisputeOpenedToSellerContent = (
       </p>
     </div>
   `;
-  return wrapEmailTemplate(content, configService);
+  const frontendUrl =
+    configService.get<string>('FRONTEND_URL') || 'http://localhost:3000';
+  return wrapEmailTemplate(content, configService, {
+    showButton: true,
+    buttonText: 'Responder Disputa',
+    buttonUrl: `${frontendUrl}/dashboard/disputes`,
+  });
 };
 
 export const getDisputeOpenedToBuyerContent = (
@@ -509,7 +564,13 @@ export const getDisputeOpenedToBuyerContent = (
       El vendedor tiene 48 horas para responder. Te mantendremos informado sobre cualquier novedad en el proceso.
     </p>
   `;
-  return wrapEmailTemplate(content, configService);
+  const frontendUrl =
+    configService.get<string>('FRONTEND_URL') || 'http://localhost:3000';
+  return wrapEmailTemplate(content, configService, {
+    showButton: true,
+    buttonText: 'Ver Estado de Disputa',
+    buttonUrl: `${frontendUrl}/dashboard/disputes`,
+  });
 };
 
 export const getSellerMustRespondDisputeContent = (
@@ -529,7 +590,34 @@ export const getSellerMustRespondDisputeContent = (
       Si no respondes dentro del plazo, la disputa podría resolverse automáticamente a favor del comprador y se realizará el reembolso.
     </p>
   `;
-  return wrapEmailTemplate(content, configService);
+  const frontendUrl =
+    configService.get<string>('FRONTEND_URL') || 'http://localhost:3000';
+  return wrapEmailTemplate(content, configService, {
+    showButton: true,
+    buttonText: 'Responder Ahora',
+    buttonUrl: `${frontendUrl}/dashboard/disputes`,
+  });
+};
+
+export const getDisputeSellerRespondedContent = (
+  data: { raffleName: string },
+  configService: ConfigService,
+) => {
+  const frontendUrl = getFrontendUrl(configService);
+  const content = `
+    <h2 style="color: #1F2937; font-family: 'Fraunces', serif; font-size: 22px; font-weight: 700; margin: 0 0 16px 0;">El vendedor respondió a tu disputa 📩</h2>
+    <p style="color: #4B5563; font-size: 15px; line-height: 1.6; margin: 0 0 20px 0;">
+      El vendedor ha enviado su respuesta a la disputa por la rifa "<strong>${data.raffleName}</strong>".
+    </p>
+    <p style="color: #4B5563; font-size: 15px; line-height: 1.6;">
+      Nuestro equipo de soporte revisará ambas partes y tomará una decisión. Te notificaremos cuando se resuelva.
+    </p>
+  `;
+  return wrapEmailTemplate(content, configService, {
+    showButton: true,
+    buttonText: 'Ver Disputa',
+    buttonUrl: `${frontendUrl}/dashboard/disputes`,
+  });
 };
 
 export const getDisputeResolvedNotificationContent = (
@@ -554,7 +642,13 @@ export const getDisputeResolvedNotificationContent = (
       }
     </div>
   `;
-  return wrapEmailTemplate(content, configService);
+  const frontendUrl =
+    configService.get<string>('FRONTEND_URL') || 'http://localhost:3000';
+  return wrapEmailTemplate(content, configService, {
+    showButton: true,
+    buttonText: 'Ver Resolución',
+    buttonUrl: `${frontendUrl}/dashboard/disputes`,
+  });
 };
 
 export const getRefundDueToDisputeNotificationContent = (
@@ -570,7 +664,13 @@ export const getRefundDueToDisputeNotificationContent = (
       El dinero se verá reflejado en tu cuenta en los próximos días hábiles.
     </p>
   `;
-  return wrapEmailTemplate(content, configService);
+  const frontendUrl =
+    configService.get<string>('FRONTEND_URL') || 'http://localhost:3000';
+  return wrapEmailTemplate(content, configService, {
+    showButton: true,
+    buttonText: 'Ver Detalles',
+    buttonUrl: `${frontendUrl}/dashboard/disputes`,
+  });
 };
 
 export const getStripeConnectSuccessNotificationContent = (

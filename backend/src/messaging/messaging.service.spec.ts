@@ -118,6 +118,7 @@ describe('MessagingService', () => {
         'INFO',
         'Nuevo mensaje',
         expect.stringContaining('iPhone 15 Pro'),
+        '/dashboard/messages',
       );
       expect(result).toBeDefined();
       expect(result!.id).toBe('conv-1');
@@ -256,6 +257,7 @@ describe('MessagingService', () => {
         'INFO',
         'Nuevo mensaje',
         expect.any(String),
+        '/dashboard/messages',
       );
       expect(result).toBeDefined();
       expect(result!.id).toBe('msg-1');

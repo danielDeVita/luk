@@ -5,16 +5,19 @@ import { PubSub } from 'graphql-subscriptions';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   getAdminNewKycSubmissionContent,
+  getDeliveryConfirmedToSellerContent,
   getDeliveryReminderToWinnerContent,
   getDisputeOpenedToBuyerContent,
   getDisputeOpenedToSellerContent,
   getDisputeResolvedNotificationContent,
+  getDisputeSellerRespondedContent,
   getEmailVerificationCodeContent,
   getKycApprovedContent,
   getKycRejectedContent,
   getNewQuestionNotificationContent,
   getPaymentWillBeReleasedNotificationContent,
   getPriceDropAlertContent,
+  getPrizeShippedContent,
   getPriceReductionSuggestionContent,
   getQuestionAnsweredNotificationContent,
   getRaffleCancelledNotificationContent,
@@ -84,13 +87,20 @@ export class NotificationsService {
 
   // ==================== In-App Notifications ====================
 
-  async create(userId: string, type: string, title: string, message: string) {
+  async create(
+    userId: string,
+    type: string,
+    title: string,
+    message: string,
+    actionUrl?: string,
+  ) {
     const notification = await this.prisma.notification.create({
       data: {
         userId,
         type,
         title,
         message,
+        actionUrl,
       },
     });
 
@@ -334,6 +344,32 @@ export class NotificationsService {
     });
   }
 
+  // ==================== Shipping Notifications ====================
+
+  async sendPrizeShippedNotification(
+    email: string,
+    data: { raffleName: string; trackingNumber?: string },
+  ) {
+    const html = getPrizeShippedContent(data, this.configService);
+    return this.sendEmail({
+      to: email,
+      subject: `📦 ¡Tu premio fue enviado! - ${data.raffleName}`,
+      html,
+    });
+  }
+
+  async sendDeliveryConfirmedToSellerNotification(
+    email: string,
+    data: { raffleName: string },
+  ) {
+    const html = getDeliveryConfirmedToSellerContent(data, this.configService);
+    return this.sendEmail({
+      to: email,
+      subject: `✅ ¡Entrega confirmada! - ${data.raffleName}`,
+      html,
+    });
+  }
+
   // ==================== Dispute Notifications ====================
 
   async sendDisputeOpenedToSeller(
@@ -368,6 +404,18 @@ export class NotificationsService {
     return this.sendEmail({
       to: email,
       subject: `⚠️ URGENTE: Responde la disputa - ${data.raffleName}`,
+      html,
+    });
+  }
+
+  async sendDisputeSellerRespondedNotification(
+    email: string,
+    data: { raffleName: string },
+  ) {
+    const html = getDisputeSellerRespondedContent(data, this.configService);
+    return this.sendEmail({
+      to: email,
+      subject: `📩 El vendedor respondió a tu disputa - ${data.raffleName}`,
       html,
     });
   }

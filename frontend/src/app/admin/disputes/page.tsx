@@ -18,7 +18,9 @@ import {
   ChevronDown,
   ChevronUp,
   Image as ImageIcon,
+  ExternalLink,
 } from 'lucide-react';
+import Link from 'next/link';
 import {
   Dialog,
   DialogContent,
@@ -59,6 +61,8 @@ const GET_PENDING_DISPUTES = gql`
         id
         titulo
         deliveryStatus
+        precioPorTicket
+        ticketsVendidos
         seller {
           email
           nombre
@@ -117,6 +121,8 @@ interface Dispute {
     id: string;
     titulo: string;
     deliveryStatus: string;
+    precioPorTicket?: number;
+    ticketsVendidos?: number;
     seller: { email: string; nombre: string };
     winner?: { email: string; nombre: string };
     product?: { imagenes?: string[] };
@@ -601,12 +607,19 @@ export default function AdminDisputesPage() {
                   <div className="flex items-center gap-4 text-sm text-muted-foreground mb-4">
                     <span>Vendedor: {dispute.raffle.seller.email}</span>
                     <span>Ganador: {dispute.raffle.winner?.email}</span>
+                    <Link href={`/raffle/${dispute.raffle.id}`} target="_blank" className="text-primary hover:underline flex items-center gap-1">
+                      <ExternalLink className="w-3 h-3" />
+                      Ver Rifa
+                    </Link>
                   </div>
 
                   <div className="flex gap-2 justify-end">
                     <Button variant="outline" size="sm" onClick={() => openResolveDialog(dispute, 'RESUELTA_COMPRADOR')}>
                       <XCircle className="w-4 h-4 mr-2" />
                       Reembolsar
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => openResolveDialog(dispute, 'RESUELTA_PARCIAL')}>
+                      Resolución Parcial
                     </Button>
                     <Button size="sm" className="bg-green-600 hover:bg-green-700" onClick={() => openResolveDialog(dispute, 'RESUELTA_VENDEDOR')}>
                       <CheckCircle className="w-4 h-4 mr-2" />
@@ -622,7 +635,7 @@ export default function AdminDisputesPage() {
 
       {/* Single Resolve Dialog */}
       <Dialog open={!!selectedDispute} onOpenChange={(open) => !open && setSelectedDispute(null)}>
-        <DialogContent className="sm:max-w-[500px]">
+        <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Resolver Disputa</DialogTitle>
           </DialogHeader>
@@ -641,32 +654,68 @@ export default function AdminDisputesPage() {
               </select>
             </div>
 
-            {decision === 'RESUELTA_PARCIAL' && (
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <label className="text-sm font-medium">Monto reembolsado ($)</label>
-                  <Input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={montoReembolsado}
-                    onChange={(e) => setMontoReembolsado(e.target.value)}
-                    placeholder="0.00"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-sm font-medium">Monto al vendedor ($)</label>
-                  <Input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={montoPagadoVendedor}
-                    onChange={(e) => setMontoPagadoVendedor(e.target.value)}
-                    placeholder="0.00"
-                  />
-                </div>
-              </div>
-            )}
+            {(() => {
+              const maxRefund = selectedDispute?.raffle.precioPorTicket && selectedDispute?.raffle.ticketsVendidos
+                ? selectedDispute.raffle.precioPorTicket * selectedDispute.raffle.ticketsVendidos
+                : undefined;
+              const maxRefundStr = maxRefund ? `$${maxRefund.toFixed(2)}` : undefined;
+
+              return (
+                <>
+                  {decision === 'RESUELTA_COMPRADOR' && (
+                    <div className="space-y-1">
+                      <label className="text-sm font-medium">Monto a reembolsar al comprador ($)</label>
+                      <Input
+                        type="number"
+                        min="0"
+                        max={maxRefund}
+                        step="0.01"
+                        value={montoReembolsado}
+                        onChange={(e) => setMontoReembolsado(e.target.value)}
+                        placeholder="0.00"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Monto total que se devolverá al comprador{maxRefundStr && ` (máximo: ${maxRefundStr})`}
+                      </p>
+                    </div>
+                  )}
+
+                  {decision === 'RESUELTA_PARCIAL' && (
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-1">
+                        <label className="text-sm font-medium">Monto reembolsado ($)</label>
+                        <Input
+                          type="number"
+                          min="0"
+                          max={maxRefund}
+                          step="0.01"
+                          value={montoReembolsado}
+                          onChange={(e) => setMontoReembolsado(e.target.value)}
+                          placeholder="0.00"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-sm font-medium">Monto al vendedor ($)</label>
+                        <Input
+                          type="number"
+                          min="0"
+                          max={maxRefund}
+                          step="0.01"
+                          value={montoPagadoVendedor}
+                          onChange={(e) => setMontoPagadoVendedor(e.target.value)}
+                          placeholder="0.00"
+                        />
+                      </div>
+                      {maxRefundStr && (
+                        <p className="text-xs text-muted-foreground col-span-2">
+                          La suma de ambos montos no puede superar {maxRefundStr}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </>
+              );
+            })()}
 
             <div className="space-y-2">
               <label className="text-sm font-medium">Resolución / Justificación</label>
@@ -674,6 +723,7 @@ export default function AdminDisputesPage() {
                 value={resolutionText}
                 onChange={(e) => setResolutionText(e.target.value)}
                 placeholder="Explica la decisión final..."
+                className="min-h-[80px] max-h-[200px] overflow-y-auto overflow-x-hidden [field-sizing:fixed] [overflow-wrap:break-word] [word-break:break-word]"
                 minLength={20}
               />
               <p className="text-xs text-muted-foreground text-right">
@@ -687,7 +737,7 @@ export default function AdminDisputesPage() {
                 value={adminNotes}
                 onChange={(e) => setAdminNotes(e.target.value)}
                 placeholder="Notas internas para referencia..."
-                className="min-h-[60px]"
+                className="min-h-[60px] max-h-[200px] overflow-y-auto overflow-x-hidden [field-sizing:fixed] [overflow-wrap:break-word] [word-break:break-word]"
               />
             </div>
           </div>
@@ -703,7 +753,7 @@ export default function AdminDisputesPage() {
 
       {/* Bulk Resolve Dialog */}
       <Dialog open={bulkDialogOpen} onOpenChange={setBulkDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Resolver {selectedIds.size} Disputas</DialogTitle>
           </DialogHeader>
@@ -720,6 +770,7 @@ export default function AdminDisputesPage() {
                 value={bulkResolution}
                 onChange={(e) => setBulkResolution(e.target.value)}
                 placeholder="Explica la decisión final aplicada a todas las disputas seleccionadas..."
+                className="min-h-[80px] max-h-[200px] overflow-y-auto overflow-x-hidden [field-sizing:fixed] [overflow-wrap:break-word] [word-break:break-word]"
                 minLength={20}
               />
             </div>
