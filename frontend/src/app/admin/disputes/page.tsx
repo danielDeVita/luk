@@ -277,6 +277,15 @@ export default function AdminDisputesPage() {
     );
   }
 
+  const blockNonNumericKeys = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (['e', 'E', '+', '-'].includes(e.key)) e.preventDefault();
+  };
+
+  const handleMoneyChange = (setter: (v: string) => void) => (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    if (val === '' || /^\d*\.?\d{0,2}$/.test(val)) setter(val);
+  };
+
   const handleResolve = () => {
     if (!selectedDispute || resolutionText.length < 20) return;
 
@@ -671,7 +680,8 @@ export default function AdminDisputesPage() {
                         max={maxRefund}
                         step="0.01"
                         value={montoReembolsado}
-                        onChange={(e) => setMontoReembolsado(e.target.value)}
+                        onKeyDown={blockNonNumericKeys}
+                        onChange={handleMoneyChange(setMontoReembolsado)}
                         placeholder="0.00"
                       />
                       <p className="text-xs text-muted-foreground">
@@ -690,7 +700,8 @@ export default function AdminDisputesPage() {
                           max={maxRefund}
                           step="0.01"
                           value={montoReembolsado}
-                          onChange={(e) => setMontoReembolsado(e.target.value)}
+                          onKeyDown={blockNonNumericKeys}
+                          onChange={handleMoneyChange(setMontoReembolsado)}
                           placeholder="0.00"
                         />
                       </div>
@@ -702,7 +713,8 @@ export default function AdminDisputesPage() {
                           max={maxRefund}
                           step="0.01"
                           value={montoPagadoVendedor}
-                          onChange={(e) => setMontoPagadoVendedor(e.target.value)}
+                          onKeyDown={blockNonNumericKeys}
+                          onChange={handleMoneyChange(setMontoPagadoVendedor)}
                           placeholder="0.00"
                         />
                       </div>
