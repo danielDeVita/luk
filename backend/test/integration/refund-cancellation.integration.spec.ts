@@ -85,11 +85,17 @@ describe('Refund and Cancellation Flow (Integration)', () => {
       estado: RaffleStatus.ACTIVA,
     });
 
-    const okTicket = await createTestTickets(ctx.prisma, raffle.id, buyer.id, 1, {
-      estado: TicketStatus.PAGADO,
-      precioPagado: 100,
-      mpPaymentId: 'ok-pay',
-    });
+    const okTicket = await createTestTickets(
+      ctx.prisma,
+      raffle.id,
+      buyer.id,
+      1,
+      {
+        estado: TicketStatus.PAGADO,
+        precioPagado: 100,
+        mpPaymentId: 'ok-pay',
+      },
+    );
     const failTicket = await createTestTickets(
       ctx.prisma,
       raffle.id,
@@ -104,7 +110,9 @@ describe('Refund and Cancellation Flow (Integration)', () => {
 
     jest
       .spyOn(paymentsService, 'refundPayment')
-      .mockImplementation(async (mpPaymentId: string) => mpPaymentId !== 'fail-pay');
+      .mockImplementation(
+        async (mpPaymentId: string) => mpPaymentId !== 'fail-pay',
+      );
 
     await raffleTasksService.processExpiredRaffles();
 

@@ -1,5 +1,10 @@
 import { ForbiddenException } from '@nestjs/common';
-import { DisputeStatus, DisputeType, RaffleStatus, UserRole } from '@prisma/client';
+import {
+  DisputeStatus,
+  DisputeType,
+  RaffleStatus,
+  UserRole,
+} from '@prisma/client';
 import { DisputesService } from '../../src/disputes/disputes.service';
 import { PaymentsService } from '../../src/payments/payments.service';
 import { cleanupTestApp, createTestApp, TestContext } from './setup';
@@ -78,14 +83,18 @@ describe('Dispute Resolution Flow (Integration)', () => {
       .spyOn(paymentsService, 'refundPayment')
       .mockResolvedValue(true);
 
-    const resolved = await disputesService.resolveDispute(admin.id, dispute.id, {
-      decision: DisputeStatus.RESUELTA_PARCIAL,
-      resolucion:
-        'Se otorga reembolso parcial al comprador por incumplimiento parcial de entrega.',
-      montoReembolsado: 100,
-      montoPagadoVendedor: 100,
-      adminNotes: 'Caso resuelto con devolución parcial',
-    });
+    const resolved = await disputesService.resolveDispute(
+      admin.id,
+      dispute.id,
+      {
+        decision: DisputeStatus.RESUELTA_PARCIAL,
+        resolucion:
+          'Se otorga reembolso parcial al comprador por incumplimiento parcial de entrega.',
+        montoReembolsado: 100,
+        montoPagadoVendedor: 100,
+        adminNotes: 'Caso resuelto con devolución parcial',
+      },
+    );
 
     expect(resolved.estado).toBe(DisputeStatus.RESUELTA_PARCIAL);
     expect(refundSpy).toHaveBeenCalledTimes(1);
@@ -99,7 +108,10 @@ describe('Dispute Resolution Flow (Integration)', () => {
       where: { raffleId: raffle.id, buyerId: otherBuyer.id },
     });
 
-    expect(winnerTickets.map((t) => t.estado)).toEqual(['REEMBOLSADO', 'PAGADO']);
+    expect(winnerTickets.map((t) => t.estado)).toEqual([
+      'REEMBOLSADO',
+      'PAGADO',
+    ]);
     expect(otherBuyerTickets.every((t) => t.estado === 'PAGADO')).toBe(true);
   });
 

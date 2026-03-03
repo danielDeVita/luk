@@ -38,10 +38,13 @@ describe('Raffle Relaunch Flow (Integration)', () => {
       },
     });
 
-    const relaunched = await rafflesService.relaunchWithSuggestedPrice(seller.id, {
-      originalRaffleId: originalRaffle.id,
-      priceReductionId: reduction.id,
-    });
+    const relaunched = await rafflesService.relaunchWithSuggestedPrice(
+      seller.id,
+      {
+        originalRaffleId: originalRaffle.id,
+        priceReductionId: reduction.id,
+      },
+    );
 
     expect(relaunched.id).not.toBe(originalRaffle.id);
     expect(relaunched.sellerId).toBe(seller.id);
