@@ -68,8 +68,10 @@ jobs:
           DATABASE_URL: postgresql://raffle_user:raffle_password@localhost:5432/raffle_db
           JWT_SECRET: test-jwt-secret-for-ci-pipeline
           ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+          CLOUDINARY_CLOUD_NAME: ci-cloudinary
+          CLOUDINARY_API_KEY: ci-cloudinary-key
+          CLOUDINARY_API_SECRET: ci-cloudinary-secret
           MP_ACCESS_TOKEN: TEST-placeholder
-          MP_PUBLIC_KEY: TEST-placeholder
           BREVO_API_KEY: test-brevo-key
           EMAIL_FROM: test@example.com
 
@@ -195,13 +197,15 @@ jobs:
           DATABASE_URL: postgresql://raffle_user:raffle_password@localhost:5432/raffle_db
           JWT_SECRET: test-jwt-secret-for-ci-pipeline
           ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+          CLOUDINARY_CLOUD_NAME: ci-cloudinary
+          CLOUDINARY_API_KEY: ci-cloudinary-key
+          CLOUDINARY_API_SECRET: ci-cloudinary-secret
           PORT: 3001
           NODE_ENV: production
           CI: 'true'
           SECURE_COOKIES: 'false'
           THROTTLE_LIMIT: 1000
           MP_ACCESS_TOKEN: TEST-placeholder
-          MP_PUBLIC_KEY: TEST-placeholder
           BREVO_API_KEY: test-brevo-key
           EMAIL_FROM: test@example.com
           CORS_ORIGIN: http://localhost:3000
