@@ -22,16 +22,20 @@ export class GoogleStrategy
     const clientID = configService.get<string>('GOOGLE_CLIENT_ID');
     const clientSecret = configService.get<string>('GOOGLE_CLIENT_SECRET');
     const callbackURL = configService.get<string>('GOOGLE_CALLBACK_URL');
+    const normalizedClientID = clientID?.trim() || undefined;
+    const normalizedClientSecret = clientSecret?.trim() || undefined;
+    const normalizedCallbackURL = callbackURL?.trim() || undefined;
 
     // Pass placeholder values if not configured (strategy won't work but app won't crash)
     super({
-      clientID: clientID ?? 'not-configured',
-      clientSecret: clientSecret ?? 'not-configured',
-      callbackURL: callbackURL ?? 'http://localhost:3001/auth/google/callback',
+      clientID: normalizedClientID ?? 'not-configured',
+      clientSecret: normalizedClientSecret ?? 'not-configured',
+      callbackURL:
+        normalizedCallbackURL ?? 'http://localhost:3001/auth/google/callback',
       scope: ['email', 'profile'],
     });
 
-    this.isConfigured = !!(clientID && clientSecret);
+    this.isConfigured = !!(normalizedClientID && normalizedClientSecret);
   }
 
   onModuleInit() {
