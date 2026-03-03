@@ -4,7 +4,7 @@ import { PayoutsService } from './payouts.service';
 
 type MockPayoutsService = {
   getSellerPayouts: jest.Mock;
-  getPayoutByRaffle: jest.Mock;
+  getPayoutByRaffleForUser: jest.Mock;
   getPendingPayouts: jest.Mock;
   releasePayoutManually: jest.Mock;
   processDuePayouts: jest.Mock;
@@ -16,7 +16,7 @@ describe('PayoutsResolver', () => {
 
   const mockPayoutsService = (): MockPayoutsService => ({
     getSellerPayouts: jest.fn(),
-    getPayoutByRaffle: jest.fn(),
+    getPayoutByRaffleForUser: jest.fn(),
     getPendingPayouts: jest.fn(),
     releasePayoutManually: jest.fn(),
     processDuePayouts: jest.fn(),
@@ -83,20 +83,34 @@ describe('PayoutsResolver', () => {
         status: 'PENDING',
       };
 
-      service.getPayoutByRaffle.mockResolvedValue(mockPayout);
+      service.getPayoutByRaffleForUser.mockResolvedValue(mockPayout);
 
-      const result = await resolver.rafflePayout('raffle-1');
+      const result = await resolver.rafflePayout(
+        { id: 'seller-1', role: 'SELLER' as any },
+        'raffle-1',
+      );
 
-      expect(service.getPayoutByRaffle).toHaveBeenCalledWith('raffle-1');
+      expect(service.getPayoutByRaffleForUser).toHaveBeenCalledWith(
+        'raffle-1',
+        'seller-1',
+        'SELLER',
+      );
       expect(result).toEqual(mockPayout);
     });
 
     it('should return null if no payout exists for raffle', async () => {
-      service.getPayoutByRaffle.mockResolvedValue(null);
+      service.getPayoutByRaffleForUser.mockResolvedValue(null);
 
-      const result = await resolver.rafflePayout('raffle-unknown');
+      const result = await resolver.rafflePayout(
+        { id: 'seller-1', role: 'SELLER' as any },
+        'raffle-unknown',
+      );
 
-      expect(service.getPayoutByRaffle).toHaveBeenCalledWith('raffle-unknown');
+      expect(service.getPayoutByRaffleForUser).toHaveBeenCalledWith(
+        'raffle-unknown',
+        'seller-1',
+        'SELLER',
+      );
       expect(result).toBeNull();
     });
   });

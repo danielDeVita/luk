@@ -2,12 +2,13 @@ import {
   Injectable,
   BadRequestException,
   NotFoundException,
+  ForbiddenException,
   Logger,
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../prisma/prisma.service';
 import { PaymentsService } from '../payments/payments.service';
-import { Prisma, RaffleStatus } from '@prisma/client';
+import { Prisma, RaffleStatus, UserRole } from '@prisma/client';
 import { randomUUID } from 'crypto';
 import { RaffleEvents, TicketsRefundedEvent } from '../common/events';
 
@@ -197,20 +198,46 @@ export class TicketsService {
       where: { raffleId, estado: 'PAGADO' },
     });
 
+    const successfulRefundIds: string[] = [];
+    const failedTicketIds: string[] = [];
+
     for (const ticket of tickets) {
-      if (ticket.mpPaymentId) {
-        await this.paymentsService.refundPayment(ticket.mpPaymentId);
+      if (!ticket.mpPaymentId) {
+        failedTicketIds.push(ticket.id);
+        this.logger.error(
+          `Cannot refund ticket ${ticket.id}: missing mpPaymentId`,
+        );
+        continue;
+      }
+
+      const success = await this.paymentsService.refundPayment(
+        ticket.mpPaymentId,
+      );
+      if (success) {
+        successfulRefundIds.push(ticket.id);
+      } else {
+        failedTicketIds.push(ticket.id);
       }
     }
 
-    const result = await this.prisma.ticket.updateMany({
-      where: { raffleId, estado: 'PAGADO' },
-      data: { estado: 'REEMBOLSADO' },
-    });
+    const result =
+      successfulRefundIds.length > 0
+        ? await this.prisma.ticket.updateMany({
+            where: { id: { in: successfulRefundIds }, estado: 'PAGADO' },
+            data: { estado: 'REEMBOLSADO' },
+          })
+        : { count: 0 };
+
+    if (failedTicketIds.length > 0) {
+      this.logger.warn(
+        `Refund failed for ${failedTicketIds.length} ticket(s) in raffle ${raffleId}: ${failedTicketIds.join(', ')}`,
+      );
+    }
 
     // Emit refunded events grouped by buyer
     const ticketsByBuyer = new Map<string, { count: number; amount: number }>();
-    for (const ticket of tickets) {
+    const successfulIds = new Set(successfulRefundIds);
+    for (const ticket of tickets.filter((t) => successfulIds.has(t.id))) {
       const existing = ticketsByBuyer.get(ticket.buyerId) || {
         count: 0,
         amount: 0,
@@ -266,14 +293,25 @@ export class TicketsService {
     });
   }
 
-  async findOne(id: string) {
+  async findOne(id: string, requesterId: string, requesterRole: UserRole) {
     const ticket = await this.prisma.ticket.findUnique({
       where: { id },
-      include: { raffle: { include: { product: true } }, buyer: true },
+      include: {
+        raffle: { include: { product: true } },
+        buyer: true,
+      },
     });
 
     if (!ticket) {
       throw new NotFoundException('Ticket no encontrado');
+    }
+
+    const isAdmin = requesterRole === UserRole.ADMIN;
+    const isOwner = ticket.buyerId === requesterId;
+    const isSeller = ticket.raffle.sellerId === requesterId;
+
+    if (!isAdmin && !isOwner && !isSeller) {
+      throw new ForbiddenException('No tienes permisos para ver este ticket');
     }
 
     return ticket;

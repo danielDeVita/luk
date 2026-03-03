@@ -1,6 +1,8 @@
 import { Resolver, Mutation, Query, Args } from '@nestjs/graphql';
 import { UseGuards } from '@nestjs/common';
 import { GqlAuthGuard } from '../auth/guards/gql-auth.guard';
+import { RolesGuard } from '../auth/guards/roles/roles.guard';
+import { Roles } from '../auth/decorators/roles.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { User } from '../users/entities/user.entity';
 import { DisputesService } from './disputes.service';
@@ -35,21 +37,21 @@ export class DisputesResolver {
   }
 
   @Mutation(() => Dispute)
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN)
   resolveDispute(
     @CurrentUser() user: User,
     @Args('disputeId') disputeId: string,
     @Args('input') input: ResolveDisputeInput,
   ) {
-    // Basic check, in production use RolesGuard
-    if (user.role !== UserRole.ADMIN) {
-      throw new Error('Unauthorized');
-    }
     return this.disputesService.resolveDispute(user.id, disputeId, input);
   }
 
   @Query(() => [Dispute])
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN)
   pendingDisputes(@CurrentUser() user: User) {
-    if (user.role !== UserRole.ADMIN) throw new Error('Unauthorized');
+    void user;
     return this.disputesService.findAllPending();
   }
 
@@ -59,7 +61,7 @@ export class DisputesResolver {
   }
 
   @Query(() => Dispute)
-  dispute(@Args('id') id: string) {
-    return this.disputesService.findOne(id);
+  dispute(@CurrentUser() user: User, @Args('id') id: string) {
+    return this.disputesService.findOneForUser(id, user.id, user.role);
   }
 }

@@ -2,9 +2,11 @@ import { plainToInstance } from 'class-transformer';
 import {
   IsBoolean,
   IsEnum,
+  IsNotEmpty,
   IsNumber,
   IsOptional,
   IsString,
+  Matches,
   Min,
   validateSync,
 } from 'class-validator';
@@ -18,6 +20,7 @@ enum Environment {
 export class EnvironmentVariables {
   // Database - Critical
   @IsString()
+  @IsNotEmpty()
   DATABASE_URL!: string;
 
   // Application
@@ -40,68 +43,81 @@ export class EnvironmentVariables {
 
   // Authentication - Critical
   @IsString()
+  @IsNotEmpty()
   JWT_SECRET!: string;
 
-  // Stripe - Critical
+  // Google OAuth
   @IsString()
-  STRIPE_SECRET_KEY!: string;
-
-  @IsString()
-  STRIPE_WEBHOOK_SECRET!: string;
+  @IsOptional()
+  GOOGLE_CLIENT_ID: string = '';
 
   @IsString()
   @IsOptional()
-  STRIPE_PUBLISHABLE_KEY!: string;
+  GOOGLE_CLIENT_SECRET: string = '';
+
+  @IsString()
+  @IsOptional()
+  GOOGLE_CALLBACK_URL: string = 'http://localhost:3001/auth/google/callback';
+
+  // Mercado Pago
+  @IsString()
+  @IsOptional()
+  MP_ACCESS_TOKEN: string = '';
 
   @IsNumber()
   @IsOptional()
   @Min(0)
-  STRIPE_PLATFORM_FEE_PERCENT: number = 4;
-
-  // Cloudinary - Critical
-  @IsString()
-  CLOUDINARY_CLOUD_NAME!: string;
-
-  @IsString()
-  @IsOptional()
-  CLOUDINARY_API_KEY!: string;
-
-  @IsString()
-  @IsOptional()
-  CLOUDINARY_API_SECRET!: string;
-
-  @IsString()
-  @IsOptional()
-  CLOUDINARY_UPLOAD_PRESET: string = 'raffle_images';
-
-  // Email (Nodemailer) - Critical
-  @IsString()
-  @IsOptional()
-  SMTP_HOST: string = 'smtp.gmail.com';
-
-  @IsNumber()
-  @IsOptional()
-  SMTP_PORT: number = 465;
-
-  @IsString()
-  @IsOptional()
-  SMTP_USER!: string; // Make optional if you want to allow full mock mode without these, but typically 'mock' string is used
-
-  @IsString()
-  @IsOptional()
-  SMTP_PASS!: string;
+  MP_PLATFORM_FEE_PERCENT: number = 4;
 
   @IsBoolean()
   @IsOptional()
-  SMTP_SECURE: boolean = true;
+  MP_MOCK_MODE: boolean = false;
 
   @IsString()
   @IsOptional()
-  EMAIL_FROM: string = 'danielitodevita@gmail.com';
+  MP_CLIENT_ID: string = '';
+
+  @IsString()
+  @IsOptional()
+  MP_CLIENT_SECRET: string = '';
+
+  @IsString()
+  @IsOptional()
+  MP_WEBHOOK_SECRET: string = '';
+
+  // Cloudinary - Critical
+  @IsString()
+  @IsNotEmpty()
+  CLOUDINARY_CLOUD_NAME!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  CLOUDINARY_API_KEY!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  CLOUDINARY_API_SECRET!: string;
+
+  // Email (Brevo)
+  @IsString()
+  @IsOptional()
+  BREVO_API_KEY: string = '';
+
+  @IsString()
+  @IsOptional()
+  EMAIL_FROM: string = 'noreply@rifas.app';
 
   @IsString()
   @IsOptional()
   EMAIL_FROM_NAME: string = 'Plataforma de Rifas';
+
+  // Encryption - Critical
+  @IsString()
+  @IsNotEmpty()
+  @Matches(/^[a-fA-F0-9]{64}$/, {
+    message: 'must be exactly 64 hexadecimal characters',
+  })
+  ENCRYPTION_KEY!: string;
 
   // Rate Limiting
   @IsNumber()
@@ -137,6 +153,15 @@ export class EnvironmentVariables {
   @IsString()
   @IsOptional()
   CORS_ORIGIN: string = 'http://localhost:3000';
+
+  // Optional integrations
+  @IsString()
+  @IsOptional()
+  SENTRY_DSN: string = '';
+
+  @IsString()
+  @IsOptional()
+  REDIS_URL: string = '';
 }
 
 export function validate(config: Record<string, unknown>) {

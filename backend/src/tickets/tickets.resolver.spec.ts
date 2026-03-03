@@ -186,19 +186,23 @@ describe('TicketsResolver', () => {
 
   describe('ticket', () => {
     it('should return ticket by ID', async () => {
-      const _user = createTestUser();
+      const user = createTestUser();
       const ticket = createTestTicket({ id: 'ticket-123' });
 
       ticketsService.findOne.mockResolvedValue(ticket);
 
-      const result = await resolver.ticket('ticket-123');
+      const result = await resolver.ticket(user, 'ticket-123');
 
       expect(result).toEqual(ticket);
-      expect(ticketsService.findOne).toHaveBeenCalledWith('ticket-123');
+      expect(ticketsService.findOne).toHaveBeenCalledWith(
+        'ticket-123',
+        user.id,
+        user.role,
+      );
     });
 
     it('should return ticket with all properties', async () => {
-      const _user = createTestUser();
+      const user = createTestUser();
       const ticket = createTestTicket({
         id: 'ticket-456',
         numeroTicket: 42,
@@ -208,7 +212,7 @@ describe('TicketsResolver', () => {
 
       ticketsService.findOne.mockResolvedValue(ticket);
 
-      const result = await resolver.ticket('ticket-456');
+      const result = await resolver.ticket(user, 'ticket-456');
 
       expect(result.id).toBe('ticket-456');
       expect(result.numeroTicket).toBe(42);
@@ -217,11 +221,16 @@ describe('TicketsResolver', () => {
     });
 
     it('should call service with correct ticket ID', async () => {
+      const user = createTestUser({ id: 'specific-user-id' });
       ticketsService.findOne.mockResolvedValue(createTestTicket());
 
-      await resolver.ticket('specific-ticket-id');
+      await resolver.ticket(user, 'specific-ticket-id');
 
-      expect(ticketsService.findOne).toHaveBeenCalledWith('specific-ticket-id');
+      expect(ticketsService.findOne).toHaveBeenCalledWith(
+        'specific-ticket-id',
+        'specific-user-id',
+        user.role,
+      );
     });
   });
 });

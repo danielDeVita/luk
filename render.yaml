@@ -30,8 +30,6 @@ services:
         sync: false
       - key: MP_ACCESS_TOKEN
         sync: false
-      - key: MP_PUBLIC_KEY
-        sync: false
       - key: MP_CLIENT_ID
         sync: false
       - key: MP_CLIENT_SECRET
@@ -42,16 +40,6 @@ services:
         sync: false
       - key: CLOUDINARY_API_SECRET
         sync: false
-      - key: SMTP_HOST
-        sync: false
-      - key: SMTP_PORT
-        sync: false
-      - key: SMTP_USER
-        sync: false
-      - key: SMTP_PASS
-        sync: false
-      - key: SMTP_SECURE
-        value: "true"
       - key: EMAIL_FROM
         value: noreply@yourdomain.com
       - key: GRAPHQL_PLAYGROUND
@@ -76,8 +64,4 @@ services:
       - key: NEXT_PUBLIC_GRAPHQL_URL
         sync: false
       - key: NEXT_PUBLIC_BACKEND_URL
-        sync: false
-      - key: NEXT_PUBLIC_MP_PUBLIC_KEY
-        sync: false
-      - key: NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME
         sync: false

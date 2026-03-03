@@ -24,6 +24,8 @@ import {
 } from '../common/constants/fees.constants';
 import { NotificationsService } from '../notifications/notifications.service';
 import { ActivityService } from '../activity/activity.service';
+import { ReputationService } from '../users/reputation.service';
+import { PayoutsService } from '../payouts/payouts.service';
 import {
   RaffleEvents,
   RaffleDrawnEvent,
@@ -103,14 +105,67 @@ const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 @Injectable()
 export class RafflesService {
   private readonly logger = new Logger(RafflesService.name);
+  private readonly listCacheKeys = new Set<string>();
+  private raffleSearchVectorFnExists: boolean | null = null;
 
   constructor(
     private prisma: PrismaService,
     private notifications: NotificationsService,
     private activityService: ActivityService,
+    private reputationService: ReputationService,
+    private payoutsService: PayoutsService,
     private eventEmitter: EventEmitter2,
     @Inject(CACHE_MANAGER) private cache: Cache,
   ) {}
+
+  private async setListCache(
+    key: string,
+    value: unknown,
+    ttlMs = CACHE_TTL,
+  ): Promise<void> {
+    try {
+      await this.cache.set(key, value, ttlMs);
+      this.listCacheKeys.add(key);
+    } catch (error) {
+      this.logger.warn(`Cache set failed for ${key}: ${error}`);
+    }
+  }
+
+  /**
+   * Returns SQL expression for full-text vector.
+   * Uses DB function/index when available, otherwise a portable expression.
+   */
+  private async getFullTextVectorSql(): Promise<string> {
+    if (this.raffleSearchVectorFnExists === null) {
+      try {
+        const rows = await this.prisma.$queryRaw<{ exists: boolean }[]>`
+          SELECT to_regprocedure('raffle_search_vector(text,text)') IS NOT NULL AS "exists"
+        `;
+        this.raffleSearchVectorFnExists = !!rows[0]?.exists;
+      } catch (error) {
+        this.raffleSearchVectorFnExists = false;
+        this.logger.warn(
+          `Could not detect raffle_search_vector function, using inline tsvector expression: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        );
+      }
+
+      if (!this.raffleSearchVectorFnExists) {
+        this.logger.warn(
+          'raffle_search_vector function not found; using inline tsvector expression for search',
+        );
+      }
+    }
+
+    if (this.raffleSearchVectorFnExists) {
+      return 'raffle_search_vector(r.titulo, r.descripcion)';
+    }
+
+    return `(
+      setweight(to_tsvector('spanish', COALESCE(r.titulo, '')), 'A')
+      ||
+      setweight(to_tsvector('spanish', COALESCE(r.descripcion, '')), 'B')
+    )`;
+  }
 
   /**
    * Generate cache key for raffle list queries.
@@ -142,15 +197,21 @@ export class RafflesService {
    */
   async invalidateRaffleCache(raffleId?: string): Promise<void> {
     try {
+      const keysToDelete = [
+        ...this.listCacheKeys,
+        CACHE_KEYS.FEATURED,
+        CACHE_KEYS.CATEGORIES,
+      ];
+
       // Delete known cache keys
       await Promise.all([
-        this.cache.del(CACHE_KEYS.FEATURED),
-        this.cache.del(CACHE_KEYS.CATEGORIES),
-        this.cache.del(CACHE_KEYS.RAFFLE_LIST),
+        ...keysToDelete.map((key) => this.cache.del(key)),
         raffleId
           ? this.cache.del(`${CACHE_KEYS.RAFFLE_DETAIL}:${raffleId}`)
           : Promise.resolve(),
       ]);
+
+      this.listCacheKeys.clear();
       this.logger.debug(
         `Cache invalidated${raffleId ? ` for raffle ${raffleId}` : ''}`,
       );
@@ -195,6 +256,15 @@ export class RafflesService {
     if (seller.kycStatus !== 'VERIFIED') {
       throw new BadRequestException(
         'Debes completar y verificar tu identidad (KYC) antes de crear una rifa. Ve a Configuración > Perfil para completar tu verificación.',
+      );
+    }
+
+    const raffleLimitCheck =
+      await this.reputationService.canSellerCreateRaffle(sellerId);
+    if (!raffleLimitCheck.allowed) {
+      throw new BadRequestException(
+        raffleLimitCheck.reason ||
+          'No puedes crear más rifas activas por el momento',
       );
     }
 
@@ -266,7 +336,11 @@ export class RafflesService {
       return cached;
     }
 
-    const where: Prisma.RaffleWhereInput = {};
+    const where: Prisma.RaffleWhereInput = {
+      isHidden: false,
+      isDeleted: false,
+      estado: filters?.estado ?? 'ACTIVA',
+    };
 
     if (filters?.estado) {
       where.estado = filters.estado;
@@ -325,9 +399,7 @@ export class RafflesService {
     const result = { raffles, total, page, limit };
 
     // Store in cache (non-blocking)
-    this.cache.set(cacheKey, result, CACHE_TTL).catch((err) => {
-      this.logger.warn(`Cache set failed: ${err}`);
-    });
+    void this.setListCache(cacheKey, result, CACHE_TTL);
 
     return result;
   }
@@ -350,20 +422,23 @@ export class RafflesService {
     }
 
     const escapedQuery = escapePostgresString(tsquery);
+    const fullTextVectorSql = await this.getFullTextVectorSql();
 
     // Build WHERE clause conditions
-    const conditions: string[] = [];
+    const conditions: string[] = [
+      'r.is_hidden = false',
+      'r.is_deleted = false',
+    ];
+    const visibleStatus = filters.estado ?? 'ACTIVA';
+    conditions.push(`r.estado = '${visibleStatus}'`);
 
     // Full-text search condition (with fallback LIKE for non-indexed databases)
     conditions.push(`(
-      raffle_search_vector(r.titulo, r.descripcion) @@ to_tsquery('spanish', '${escapedQuery}')
+      ${fullTextVectorSql} @@ to_tsquery('spanish', '${escapedQuery}')
       OR r.titulo ILIKE '%${escapePostgresString(searchTerm)}%'
       OR r.descripcion ILIKE '%${escapePostgresString(searchTerm)}%'
     )`);
 
-    if (filters.estado) {
-      conditions.push(`r.estado = '${filters.estado}'`);
-    }
     if (filters.categoria) {
       conditions.push(
         `p.categoria ILIKE '%${escapePostgresString(filters.categoria)}%'`,
@@ -413,7 +488,7 @@ export class RafflesService {
       >(`
         SELECT
           r.id,
-          ts_rank(raffle_search_vector(r.titulo, r.descripcion), to_tsquery('spanish', '${escapedQuery}')) as search_rank
+          ts_rank(${fullTextVectorSql}, to_tsquery('spanish', '${escapedQuery}')) as search_rank
         FROM raffles r
         LEFT JOIN products p ON p.raffle_id = r.id
         ${whereClause}
@@ -462,6 +537,9 @@ export class RafflesService {
       );
 
       const where: Prisma.RaffleWhereInput = {
+        isHidden: false,
+        isDeleted: false,
+        estado: filters.estado ?? 'ACTIVA',
         OR: [
           { titulo: { contains: searchTerm, mode: 'insensitive' } },
           { descripcion: { contains: searchTerm, mode: 'insensitive' } },
@@ -521,6 +599,29 @@ export class RafflesService {
     return raffle;
   }
 
+  async findOnePublic(id: string) {
+    const raffle = await this.prisma.raffle.findFirst({
+      where: {
+        id,
+        isHidden: false,
+        isDeleted: false,
+      },
+      include: {
+        product: true,
+        seller: true,
+        tickets: true,
+        winner: true,
+        dispute: true,
+      },
+    });
+
+    if (!raffle) {
+      throw new NotFoundException('Rifa no encontrada');
+    }
+
+    return raffle;
+  }
+
   async findByUser(userId: string) {
     return this.prisma.raffle.findMany({
       where: { sellerId: userId },
@@ -542,7 +643,7 @@ export class RafflesService {
     }
 
     // Update raffle (title, description) and product images in a transaction
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       // Update raffle fields
       const updatedRaffle = await tx.raffle.update({
         where: { id },
@@ -569,6 +670,9 @@ export class RafflesService {
 
       return updatedRaffle;
     });
+
+    void this.invalidateRaffleCache(id);
+    return result;
   }
 
   async cancel(id: string, userId: string) {
@@ -610,6 +714,8 @@ export class RafflesService {
         `Failed to send cancellation notifications: ${message}`,
       );
     });
+
+    void this.invalidateRaffleCache(id);
 
     return cancelledRaffle;
   }
@@ -666,7 +772,7 @@ export class RafflesService {
       );
     }
 
-    if (raffle.estado !== 'SORTEADA') {
+    if (!['SORTEADA', 'EN_ENTREGA'].includes(raffle.estado)) {
       throw new BadRequestException('La rifa debe estar sorteada');
     }
 
@@ -677,6 +783,7 @@ export class RafflesService {
     const updatedRaffle = await this.prisma.raffle.update({
       where: { id: raffleId },
       data: {
+        estado: 'EN_ENTREGA',
         deliveryStatus: 'SHIPPED',
         trackingNumber,
         shippedAt: new Date(),
@@ -691,6 +798,8 @@ export class RafflesService {
         this.logger.error(`Failed to send shipment notifications: ${message}`);
       });
     }
+
+    void this.invalidateRaffleCache(raffleId);
 
     return updatedRaffle;
   }
@@ -734,9 +843,11 @@ export class RafflesService {
       throw new BadRequestException('La entrega ya ha sido confirmada');
     }
 
-    // 1. Release Funds (Placeholder)
-    // TODO: Call MpService.releaseFunds(raffle.sellerId, raffleAmount)
-    const fundsReleased = true; // Placeholder
+    if (raffle.deliveryStatus !== 'SHIPPED') {
+      throw new BadRequestException(
+        'Solo puedes confirmar la entrega después de que el vendedor la marque como enviada',
+      );
+    }
 
     // 2. Increment Seller Reputation
     await this.prisma.userReputation.upsert({
@@ -756,11 +867,20 @@ export class RafflesService {
       data: {
         deliveryStatus: 'CONFIRMED',
         confirmedAt: new Date(),
-        paymentReleasedAt: fundsReleased ? new Date() : null,
-        estado: 'FINALIZADA', // Close the loop
+        estado: 'EN_ENTREGA',
       },
       include: { product: true, seller: true, winner: true },
     });
+
+    // Process payout now that delivery is confirmed. If payout fails, raffle stays EN_ENTREGA.
+    try {
+      await this.payoutsService.processPayoutForRaffle(raffleId);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(
+        `Failed to process payout for confirmed delivery (${raffleId}): ${message}`,
+      );
+    }
 
     // Emit delivery confirmed event for cross-cutting concerns
     this.eventEmitter.emit(
@@ -775,6 +895,8 @@ export class RafflesService {
         `Failed to send delivery confirmation notifications: ${message}`,
       );
     });
+
+    void this.invalidateRaffleCache(raffleId);
 
     return updatedRaffle;
   }
@@ -913,6 +1035,12 @@ export class RafflesService {
   async selectWinner(raffleId: string) {
     const raffle = await this.findOne(raffleId);
 
+    if (!['ACTIVA', 'COMPLETADA'].includes(raffle.estado)) {
+      throw new BadRequestException(
+        'Solo se puede sortear una rifa activa o completada',
+      );
+    }
+
     const paidTickets = await this.prisma.ticket.findMany({
       where: { raffleId, estado: 'PAGADO' },
       include: { buyer: true },
@@ -965,6 +1093,15 @@ export class RafflesService {
         );
       },
     );
+
+    this.payoutsService.createPayout(raffleId).catch((err: unknown) => {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      this.logger.error(
+        `Failed to create payout for raffle ${raffleId}: ${message}`,
+      );
+    });
+
+    void this.invalidateRaffleCache(raffleId);
 
     return updatedRaffle;
   }
@@ -1193,6 +1330,8 @@ export class RafflesService {
       },
     );
 
+    void this.invalidateRaffleCache(raffleId);
+
     return updatedRaffle;
   }
 
@@ -1266,6 +1405,8 @@ export class RafflesService {
         );
       },
     );
+
+    void this.invalidateRaffleCache(raffleId);
 
     return updatedRaffle;
   }
@@ -1658,11 +1799,13 @@ export class RafflesService {
 
     // If price increased or stayed the same, just update
     if (newPrice >= oldPrice) {
-      return this.prisma.raffle.update({
+      const updated = await this.prisma.raffle.update({
         where: { id: raffleId },
         data: { precioPorTicket: newPrice },
         include: { product: true, seller: true },
       });
+      void this.invalidateRaffleCache(raffleId);
+      return updated;
     }
 
     // Price decreased - update and notify favorited users

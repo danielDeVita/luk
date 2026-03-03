@@ -3,6 +3,8 @@ import { RafflesService } from './raffles.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { ActivityService } from '../activity/activity.service';
+import { ReputationService } from '../users/reputation.service';
+import { PayoutsService } from '../payouts/payouts.service';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import {
@@ -75,6 +77,15 @@ describe('RafflesService', () => {
       .fn()
       .mockResolvedValue({ id: 'activity-6' }),
     logRaffleWinnerRejected: jest.fn().mockResolvedValue({ id: 'activity-7' }),
+  };
+
+  const mockReputationService = {
+    canSellerCreateRaffle: jest.fn().mockResolvedValue({ allowed: true }),
+  };
+
+  const mockPayoutsService = {
+    createPayout: jest.fn().mockResolvedValue({ id: 'payout-1' }),
+    processPayoutForRaffle: jest.fn().mockResolvedValue({ id: 'payout-1' }),
   };
 
   const mockEventEmitter = {
@@ -151,6 +162,8 @@ describe('RafflesService', () => {
         { provide: PrismaService, useValue: mockPrismaService },
         { provide: NotificationsService, useValue: mockNotificationsService },
         { provide: ActivityService, useValue: mockActivityService },
+        { provide: ReputationService, useValue: mockReputationService },
+        { provide: PayoutsService, useValue: mockPayoutsService },
         { provide: EventEmitter2, useValue: mockEventEmitter },
         { provide: CACHE_MANAGER, useValue: mockCacheManager },
       ],
@@ -428,7 +441,7 @@ describe('RafflesService', () => {
   });
 
   describe('confirmDelivery', () => {
-    it('should confirm delivery and release funds', async () => {
+    it('should confirm delivery and keep raffle in EN_ENTREGA while processing payout', async () => {
       const raffle = createTestRaffle({
         estado: 'SORTEADA',
         winnerId: 'winner-123',
@@ -436,7 +449,7 @@ describe('RafflesService', () => {
       });
       const confirmedRaffle = {
         ...raffle,
-        estado: 'FINALIZADA',
+        estado: 'EN_ENTREGA',
         deliveryStatus: 'CONFIRMED',
         winner: { id: 'winner-123' },
         seller: createTestUser(),
@@ -448,9 +461,12 @@ describe('RafflesService', () => {
 
       const result = await service.confirmDelivery('raffle-123', 'winner-123');
 
-      expect(result.estado).toBe('FINALIZADA');
+      expect(result.estado).toBe('EN_ENTREGA');
       expect(result.deliveryStatus).toBe('CONFIRMED');
       expect(mockPrismaService.userReputation.upsert).toHaveBeenCalled();
+      expect(mockPayoutsService.processPayoutForRaffle).toHaveBeenCalledWith(
+        'raffle-123',
+      );
       expect(mockEventEmitter.emit).toHaveBeenCalledWith(
         RaffleEvents.DELIVERY_CONFIRMED,
         expect.any(Object),
@@ -488,7 +504,7 @@ describe('RafflesService', () => {
       mockPrismaService.userReputation.upsert.mockResolvedValue({});
       mockPrismaService.raffle.update.mockResolvedValue({
         ...raffle,
-        estado: 'FINALIZADA',
+        estado: 'EN_ENTREGA',
       });
 
       await service.confirmDelivery('raffle-123', 'winner-123');

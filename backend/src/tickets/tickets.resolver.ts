@@ -36,8 +36,11 @@ export class TicketsResolver {
 
   @Query(() => Ticket)
   @UseGuards(JwtAuthGuard)
-  async ticket(@Args('id') id: string): Promise<Ticket> {
-    const ticket = await this.ticketsService.findOne(id);
+  async ticket(
+    @CurrentUser() user: User,
+    @Args('id') id: string,
+  ): Promise<Ticket> {
+    const ticket = await this.ticketsService.findOne(id, user.id, user.role);
     return ticket as unknown as Ticket;
   }
 }

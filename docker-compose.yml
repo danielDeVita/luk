@@ -48,15 +48,9 @@ services:
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000}
       JWT_SECRET: ${JWT_SECRET:-super-secret-jwt-key-change-in-production}
       MP_ACCESS_TOKEN: ${MP_ACCESS_TOKEN}
-      MP_PUBLIC_KEY: ${MP_PUBLIC_KEY}
       CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME}
       CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY}
       CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET}
-      SMTP_HOST: ${SMTP_HOST}
-      SMTP_PORT: ${SMTP_PORT}
-      SMTP_USER: ${SMTP_USER}
-      SMTP_PASS: ${SMTP_PASS}
-      SMTP_SECURE: ${SMTP_SECURE}
       EMAIL_FROM: ${EMAIL_FROM}
       EMAIL_FROM_NAME: ${EMAIL_FROM_NAME}
     ports:
@@ -77,9 +71,6 @@ services:
         # Build-time args from .env (NEXT_PUBLIC_ vars are baked at build time)
         NEXT_PUBLIC_GRAPHQL_URL: ${NEXT_PUBLIC_GRAPHQL_URL:-http://localhost:3001/graphql}
         NEXT_PUBLIC_GRAPHQL_WS_URL: ${NEXT_PUBLIC_GRAPHQL_WS_URL:-ws://localhost:3001/graphql}
-        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_BACKEND_URL:-http://localhost:3001}
-        NEXT_PUBLIC_MP_PUBLIC_KEY: ${NEXT_PUBLIC_MP_PUBLIC_KEY}
-        NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME: ${NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME:-${CLOUDINARY_CLOUD_NAME}}
     container_name: raffle_frontend
     env_file:
       - .env

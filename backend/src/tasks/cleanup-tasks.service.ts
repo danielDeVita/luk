@@ -3,6 +3,13 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 
+function isFalseEnvFlag(value: boolean | string | undefined): boolean {
+  return (
+    value === false ||
+    (typeof value === 'string' && value.trim().toLowerCase() === 'false')
+  );
+}
+
 @Injectable()
 export class CleanupTasksService {
   private readonly logger = new Logger(CleanupTasksService.name);
@@ -12,8 +19,10 @@ export class CleanupTasksService {
     private prisma: PrismaService,
     private configService: ConfigService,
   ) {
-    this.cronEnabled =
-      this.configService.get<string>('ENABLE_CRON_JOBS') !== 'false';
+    const cronFlag = this.configService.get<boolean | string>(
+      'ENABLE_CRON_JOBS',
+    );
+    this.cronEnabled = !isFalseEnvFlag(cronFlag);
   }
 
   /**

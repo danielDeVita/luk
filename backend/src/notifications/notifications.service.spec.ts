@@ -6,6 +6,7 @@ import { PrismaService } from '../prisma/prisma.service';
 type MockPrismaService = {
   notification: {
     create: jest.Mock;
+    findUnique: jest.Mock;
     findMany: jest.Mock;
     update: jest.Mock;
     updateMany: jest.Mock;
@@ -26,6 +27,7 @@ describe('NotificationsService', () => {
   const mockPrismaService = (): MockPrismaService => ({
     notification: {
       create: jest.fn(),
+      findUnique: jest.fn(),
       findMany: jest.fn(),
       update: jest.fn(),
       updateMany: jest.fn(),
@@ -134,11 +136,24 @@ describe('NotificationsService', () => {
 
     describe('markAsRead', () => {
       it('should update notification read status', async () => {
-        const mockNotification = { id: 'notif-1', read: true };
+        const mockNotification = {
+          id: 'notif-1',
+          userId: 'user-1',
+          read: true,
+        };
+        prisma.notification.findUnique.mockResolvedValue({
+          id: 'notif-1',
+          userId: 'user-1',
+          read: false,
+        });
         prisma.notification.update.mockResolvedValue(mockNotification);
 
-        await service.markAsRead('notif-1');
+        await service.markAsRead('notif-1', 'user-1');
 
+        expect(prisma.notification.findUnique).toHaveBeenCalledWith({
+          where: { id: 'notif-1' },
+          select: { id: true, userId: true, read: true },
+        });
         expect(prisma.notification.update).toHaveBeenCalledWith({
           where: { id: 'notif-1' },
           data: { read: true },

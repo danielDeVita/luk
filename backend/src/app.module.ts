@@ -43,6 +43,7 @@ import { QuestionsModule } from './questions/questions.module';
 import { JwtAuthGuard } from './auth/guards/jwt-auth/jwt-auth.guard';
 import { CommonModule } from './common/common.module';
 import { CacheModule } from './common/cache';
+import { validate } from './common/config/env.validation';
 // CSRF middleware removed - not needed for JWT-based authentication
 // import { CsrfMiddleware } from './common/middleware';
 
@@ -71,11 +72,25 @@ interface JwtPayload {
   role: string;
 }
 
+function getBooleanFlag(
+  value: boolean | string | undefined,
+  defaultValue: boolean,
+): boolean {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    if (normalized === 'true') return true;
+    if (normalized === 'false') return false;
+  }
+  return defaultValue;
+}
+
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: '../.env',
+      validate,
     }),
     // Structured logging with Winston
     WinstonModule.forRoot(winstonConfig),
@@ -97,9 +112,15 @@ interface JwtPayload {
       imports: [ConfigModule, AuthModule],
       inject: [ConfigService, JwtService],
       useFactory: (config: ConfigService, jwtService: JwtService) => {
-        const playgroundEnabled =
-          config.get('GRAPHQL_PLAYGROUND', 'true') === 'true';
+        const playgroundEnabled = getBooleanFlag(
+          config.get<boolean | string>('GRAPHQL_PLAYGROUND'),
+          true,
+        );
         const isDev = config.get('NODE_ENV', 'development') !== 'production';
+        const debugEnabled = getBooleanFlag(
+          config.get<boolean | string>('GRAPHQL_DEBUG'),
+          true,
+        );
 
         const enableLandingPage = playgroundEnabled && isDev;
 
@@ -107,7 +128,7 @@ interface JwtPayload {
           autoSchemaFile: join(process.cwd(), 'src/schema.gql'),
           sortSchema: true,
           playground: false,
-          debug: config.get('GRAPHQL_DEBUG', 'true') === 'true',
+          debug: debugEnabled,
           introspection: enableLandingPage,
           csrfPrevention: enableLandingPage ? false : true,
           plugins: [

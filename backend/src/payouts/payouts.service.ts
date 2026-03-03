@@ -3,6 +3,7 @@ import {
   Logger,
   NotFoundException,
   BadRequestException,
+  ForbiddenException,
   Inject,
   forwardRef,
 } from '@nestjs/common';
@@ -10,7 +11,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { AuditService } from '../audit/audit.service';
 import { PaymentsService } from '../payments/payments.service';
-import { PayoutStatus } from '@prisma/client';
+import { PayoutStatus, UserRole } from '@prisma/client';
 import {
   PLATFORM_FEE_RATE,
   MP_FEE_ESTIMATE_RATE,
@@ -157,6 +158,55 @@ export class PayoutsService {
   }
 
   /**
+   * Immediately process payout for a specific raffle once release conditions are met.
+   * Used when delivery is explicitly confirmed or auto-confirmed by policy.
+   */
+  async processPayoutForRaffle(raffleId: string) {
+    let payout = await this.prisma.payout.findUnique({
+      where: { raffleId },
+    });
+
+    if (!payout) {
+      payout = await this.createPayout(raffleId);
+    }
+
+    if (payout.status === PayoutStatus.COMPLETED) {
+      return payout;
+    }
+
+    if (payout.status === PayoutStatus.PROCESSING) {
+      throw new BadRequestException('El payout ya está en proceso');
+    }
+
+    if (payout.status === PayoutStatus.FAILED) {
+      payout = await this.prisma.payout.update({
+        where: { id: payout.id },
+        data: {
+          status: PayoutStatus.PENDING,
+          failureReason: null,
+        },
+      });
+    }
+
+    await this.prisma.payout.update({
+      where: { id: payout.id },
+      data: { scheduledFor: new Date() },
+    });
+
+    await this.processPayout(payout.id);
+
+    const updated = await this.prisma.payout.findUnique({
+      where: { id: payout.id },
+    });
+
+    if (!updated) {
+      throw new NotFoundException('Payout no encontrado');
+    }
+
+    return updated;
+  }
+
+  /**
    * Process a single payout via Mercado Pago
    */
   async processPayout(payoutId: string) {
@@ -186,6 +236,13 @@ export class PayoutsService {
       throw new BadRequestException(
         `Payout ya esta en estado ${payout.status}`,
       );
+    }
+
+    const releaseCheck = await this.paymentsService.canReleaseFunds(
+      payout.raffleId,
+    );
+    if (!releaseCheck.canRelease) {
+      throw new BadRequestException(releaseCheck.reason);
     }
 
     // Mark as processing
@@ -304,6 +361,24 @@ export class PayoutsService {
         raffle: { select: { titulo: true, sellerId: true } },
       },
     });
+  }
+
+  async getPayoutByRaffleForUser(
+    raffleId: string,
+    requesterId: string,
+    requesterRole: UserRole,
+  ) {
+    const payout = await this.getPayoutByRaffle(raffleId);
+
+    if (!payout) {
+      return null;
+    }
+
+    if (requesterRole !== UserRole.ADMIN && payout.sellerId !== requesterId) {
+      throw new ForbiddenException('No tienes permisos para ver este payout');
+    }
+
+    return payout;
   }
 
   /**

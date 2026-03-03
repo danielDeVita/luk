@@ -6,7 +6,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { Prisma, DisputeStatus } from '@prisma/client';
+import { Prisma, DisputeStatus, UserRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   OpenDisputeInput,
@@ -21,14 +21,6 @@ import {
   DisputeOpenedEvent,
   DisputeResolvedEvent,
 } from '../common/events';
-
-// Type for raffle with included relations needed for dispute refund processing
-type RaffleWithTicketsAndWinner = Prisma.RaffleGetPayload<{
-  include: {
-    tickets: true;
-    winner: true;
-  };
-}>;
 
 @Injectable()
 export class DisputesService {
@@ -201,7 +193,29 @@ export class DisputesService {
     disputeId: string,
     input: ResolveDisputeInput,
   ) {
+    return this.resolveDisputeInternal(disputeId, input, adminId);
+  }
+
+  async resolveDisputeBySystem(disputeId: string, input: ResolveDisputeInput) {
+    return this.resolveDisputeInternal(disputeId, input);
+  }
+
+  private async resolveDisputeInternal(
+    disputeId: string,
+    input: ResolveDisputeInput,
+    adminId?: string,
+  ) {
     const dispute = await this.findOne(disputeId);
+
+    if (
+      !['ABIERTA', 'ESPERANDO_RESPUESTA_VENDEDOR', 'EN_MEDIACION'].includes(
+        dispute.estado,
+      )
+    ) {
+      throw new BadRequestException(
+        'La disputa no está en un estado válido para resolver',
+      );
+    }
 
     const validStatuses = [
       'RESUELTA_COMPRADOR',
@@ -212,26 +226,69 @@ export class DisputesService {
       throw new BadRequestException('Estado de resolución inválido');
     }
 
-    // Validate refund amount doesn't exceed buyer's total paid
-    if (input.montoReembolsado && Number(input.montoReembolsado) > 0) {
-      const buyerTickets = await this.prisma.ticket.findMany({
-        where: {
-          raffleId: dispute.raffleId,
-          buyerId: dispute.reporterId,
-          estado: 'PAGADO',
-        },
-      });
-      const maxRefund = buyerTickets.reduce(
-        (sum, t) => sum + Number(t.precioPagado),
-        0,
+    const buyerTickets = await this.prisma.ticket.findMany({
+      where: {
+        raffleId: dispute.raffleId,
+        buyerId: dispute.reporterId,
+        estado: 'PAGADO',
+      },
+      select: { precioPagado: true },
+    });
+
+    const buyerPaidTotal = buyerTickets.reduce(
+      (sum, t) => sum + Number(t.precioPagado),
+      0,
+    );
+
+    let refundAmount = 0;
+    let sellerAmount = 0;
+
+    if (input.decision === 'RESUELTA_COMPRADOR') {
+      refundAmount = Number(input.montoReembolsado ?? buyerPaidTotal);
+      sellerAmount = 0;
+    } else if (input.decision === 'RESUELTA_VENDEDOR') {
+      refundAmount = 0;
+      sellerAmount = Number(input.montoPagadoVendedor ?? buyerPaidTotal);
+    } else {
+      refundAmount = Number(input.montoReembolsado ?? 0);
+      sellerAmount = Number(
+        input.montoPagadoVendedor ?? Math.max(buyerPaidTotal - refundAmount, 0),
       );
-      const totalRequested =
-        Number(input.montoReembolsado) + Number(input.montoPagadoVendedor || 0);
-      if (totalRequested > maxRefund) {
-        throw new BadRequestException(
-          `El monto total ($${totalRequested.toFixed(2)}) excede el total pagado por el comprador ($${maxRefund.toFixed(2)})`,
-        );
-      }
+    }
+
+    if (refundAmount < 0 || sellerAmount < 0) {
+      throw new BadRequestException('Los montos no pueden ser negativos');
+    }
+
+    if (input.decision !== 'RESUELTA_VENDEDOR' && refundAmount <= 0) {
+      throw new BadRequestException(
+        'Debes indicar un monto de reembolso mayor a 0',
+      );
+    }
+
+    if (input.decision === 'RESUELTA_PARCIAL' && sellerAmount <= 0) {
+      throw new BadRequestException(
+        'La resolución parcial debe incluir un monto para el vendedor',
+      );
+    }
+
+    if (refundAmount + sellerAmount > buyerPaidTotal + 0.01) {
+      throw new BadRequestException(
+        `El monto total (${(refundAmount + sellerAmount).toFixed(2)}) excede el total pagado por el comprador (${buyerPaidTotal.toFixed(2)})`,
+      );
+    }
+
+    refundAmount = Math.round(refundAmount * 100) / 100;
+    sellerAmount = Math.round(sellerAmount * 100) / 100;
+
+    if (refundAmount > 0) {
+      await this.processDisputeRefund(
+        dispute.raffleId,
+        dispute.reporterId,
+        refundAmount,
+        dispute.raffle.titulo,
+        dispute.reporter.email,
+      );
     }
 
     const updatedDispute = await this.prisma.dispute.update({
@@ -239,13 +296,13 @@ export class DisputesService {
       data: {
         estado: input.decision,
         resolucion: input.resolucion,
-        montoReembolsado: input.montoReembolsado,
-        montoPagadoVendedor: input.montoPagadoVendedor,
+        montoReembolsado: refundAmount,
+        montoPagadoVendedor: sellerAmount,
         adminNotes: input.adminNotes,
         resolvedAt: new Date(),
       },
       include: {
-        raffle: { include: { seller: true, winner: true, tickets: true } },
+        raffle: { include: { seller: true, winner: true } },
         reporter: true,
       },
     });
@@ -255,26 +312,11 @@ export class DisputesService {
     const buyerId = updatedDispute.reporterId;
 
     if (input.decision === 'RESUELTA_COMPRADOR') {
-      // Buyer wins: update seller reputation negatively, process refund
+      // Buyer wins: update seller reputation negatively
       await this.updateSellerDisputeLost(sellerId);
-
-      if (input.montoReembolsado && input.montoReembolsado > 0) {
-        await this.processDisputeRefund(
-          updatedDispute.raffle,
-          Number(input.montoReembolsado),
-        );
-      }
     } else if (input.decision === 'RESUELTA_VENDEDOR') {
       // Seller wins: update seller reputation positively
       await this.updateSellerDisputeWon(sellerId);
-    } else if (input.decision === 'RESUELTA_PARCIAL') {
-      // Partial resolution: both parties share the outcome
-      if (input.montoReembolsado && input.montoReembolsado > 0) {
-        await this.processDisputeRefund(
-          updatedDispute.raffle,
-          Number(input.montoReembolsado),
-        );
-      }
     }
 
     // Update raffle delivery status based on resolution
@@ -293,9 +335,7 @@ export class DisputesService {
       {
         raffleName: updatedDispute.raffle.titulo,
         resolution: input.resolucion,
-        refundAmount: input.montoReembolsado
-          ? Number(input.montoReembolsado)
-          : undefined,
+        refundAmount: refundAmount > 0 ? refundAmount : undefined,
       },
     );
 
@@ -324,12 +364,18 @@ export class DisputesService {
       '/dashboard/disputes',
     );
 
-    // Audit log
-    await this.audit.logDisputeResolved(adminId, disputeId, input.resolucion, {
-      decision: input.decision,
-      montoReembolsado: input.montoReembolsado,
-      montoPagadoVendedor: input.montoPagadoVendedor,
-    });
+    if (adminId) {
+      await this.audit.logDisputeResolved(
+        adminId,
+        disputeId,
+        input.resolucion,
+        {
+          decision: input.decision,
+          montoReembolsado: refundAmount,
+          montoPagadoVendedor: sellerAmount,
+        },
+      );
+    }
 
     // Emit dispute resolved event for cross-cutting concerns
     this.eventEmitter.emit(
@@ -338,8 +384,8 @@ export class DisputesService {
         disputeId,
         updatedDispute.raffleId,
         input.decision,
-        Number(input.montoReembolsado || 0),
-        Number(input.montoPagadoVendedor || 0),
+        refundAmount,
+        sellerAmount,
       ),
     );
 
@@ -377,47 +423,97 @@ export class DisputesService {
   }
 
   private async processDisputeRefund(
-    raffle: RaffleWithTicketsAndWinner,
+    raffleId: string,
+    buyerId: string,
     amount: number,
+    raffleName: string,
+    buyerEmail: string,
   ) {
-    // Find tickets to refund
-    const tickets = raffle.tickets.filter(
-      (t) => t.estado === 'PAGADO' && t.mpPaymentId,
-    );
+    const tickets = await this.prisma.ticket.findMany({
+      where: {
+        raffleId,
+        buyerId,
+        estado: 'PAGADO',
+        mpPaymentId: { not: null },
+      },
+      select: {
+        id: true,
+        mpPaymentId: true,
+        precioPagado: true,
+      },
+      orderBy: { createdAt: 'asc' },
+    });
 
     if (tickets.length === 0) {
-      this.logger.warn(
-        `No paid tickets found for raffle ${raffle.id} to refund`,
+      throw new BadRequestException(
+        'No hay pagos del comprador para procesar reembolso',
       );
-      return;
     }
 
-    // Calculate proportional refund per ticket (for future use in partial refunds)
-    const _refundPerTicket = amount / tickets.length;
-
+    const groupedByPayment = new Map<
+      string,
+      { totalAmount: number; ticketIds: string[] }
+    >();
     for (const ticket of tickets) {
-      try {
-        // Only refund if there's an MP payment
-        if (ticket.mpPaymentId) {
-          await this.paymentsService.refundPayment(ticket.mpPaymentId);
-        }
-      } catch (error: unknown) {
-        const message =
-          error instanceof Error ? error.message : 'Unknown error';
-        this.logger.error(`Failed to refund ticket ${ticket.id}: ${message}`);
-      }
+      if (!ticket.mpPaymentId) continue;
+      const existing = groupedByPayment.get(ticket.mpPaymentId) ?? {
+        totalAmount: 0,
+        ticketIds: [],
+      };
+      existing.totalAmount += Number(ticket.precioPagado);
+      existing.ticketIds.push(ticket.id);
+      groupedByPayment.set(ticket.mpPaymentId, existing);
     }
 
-    // Notify buyer of refund
-    if (raffle.winner) {
-      await this.notifications.sendRefundDueToDisputeNotification(
-        raffle.winner.email,
-        {
-          raffleName: raffle.titulo,
-          amount,
-        },
+    let remainingCents = Math.round(amount * 100);
+    const fullyRefundedTicketIds: string[] = [];
+
+    for (const [mpPaymentId, group] of groupedByPayment) {
+      if (remainingCents <= 0) break;
+
+      const groupCents = Math.round(group.totalAmount * 100);
+      const refundCents = Math.min(remainingCents, groupCents);
+      const refundAmount = refundCents / 100;
+      const fullGroupRefund = refundCents >= groupCents;
+
+      const success = await this.paymentsService.refundPayment(
+        mpPaymentId,
+        fullGroupRefund ? undefined : refundAmount,
+      );
+
+      if (!success) {
+        throw new BadRequestException(
+          `No se pudo procesar el reembolso para el pago ${mpPaymentId}`,
+        );
+      }
+
+      if (fullGroupRefund) {
+        fullyRefundedTicketIds.push(...group.ticketIds);
+      }
+
+      remainingCents -= refundCents;
+    }
+
+    if (remainingCents > 0) {
+      throw new BadRequestException(
+        'No fue posible completar el monto de reembolso solicitado',
       );
     }
+
+    if (fullyRefundedTicketIds.length > 0) {
+      await this.prisma.ticket.updateMany({
+        where: {
+          id: { in: fullyRefundedTicketIds },
+          estado: 'PAGADO',
+        },
+        data: { estado: 'REEMBOLSADO' },
+      });
+    }
+
+    await this.notifications.sendRefundDueToDisputeNotification(buyerEmail, {
+      raffleName,
+      amount,
+    });
   }
 
   async findOne(id: string) {
@@ -431,6 +527,20 @@ export class DisputesService {
 
     if (!dispute) {
       throw new NotFoundException('Disputa no encontrada');
+    }
+
+    return dispute;
+  }
+
+  async findOneForUser(id: string, userId: string, userRole: UserRole) {
+    const dispute = await this.findOne(id);
+
+    const isAdmin = userRole === UserRole.ADMIN;
+    const isReporter = dispute.reporterId === userId;
+    const isSeller = dispute.raffle.sellerId === userId;
+
+    if (!isAdmin && !isReporter && !isSeller) {
+      throw new ForbiddenException('No tienes permisos para ver esta disputa');
     }
 
     return dispute;

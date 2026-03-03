@@ -32,8 +32,11 @@ export class NotificationsResolver {
 
   @Mutation(() => Notification)
   @UseGuards(GqlAuthGuard)
-  async markNotificationRead(@Args('id') id: string) {
-    return this.notificationsService.markAsRead(id);
+  async markNotificationRead(
+    @CurrentUser() user: User,
+    @Args('id') id: string,
+  ) {
+    return this.notificationsService.markAsRead(id, user.id);
   }
 
   @Mutation(() => Boolean)

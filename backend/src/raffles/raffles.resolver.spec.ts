@@ -7,6 +7,7 @@ import { NotFoundException } from '@nestjs/common';
 type MockRafflesService = {
   findAll: jest.Mock;
   findOne: jest.Mock;
+  findOnePublic: jest.Mock;
   findByUser: jest.Mock;
   create: jest.Mock;
   update: jest.Mock;
@@ -28,6 +29,7 @@ describe('RafflesResolver', () => {
   const mockRafflesService = (): MockRafflesService => ({
     findAll: jest.fn(),
     findOne: jest.fn(),
+    findOnePublic: jest.fn(),
     findByUser: jest.fn(),
     create: jest.fn(),
     update: jest.fn(),
@@ -173,16 +175,16 @@ describe('RafflesResolver', () => {
 
   describe('raffle', () => {
     it('should return a single raffle by ID', async () => {
-      rafflesService.findOne.mockResolvedValue(mockRaffle);
+      rafflesService.findOnePublic.mockResolvedValue(mockRaffle);
 
       const result = await resolver.raffle('raffle-1');
 
-      expect(rafflesService.findOne).toHaveBeenCalledWith('raffle-1');
+      expect(rafflesService.findOnePublic).toHaveBeenCalledWith('raffle-1');
       expect(result).toEqual(mockRaffle);
     });
 
     it('should throw NotFoundException for invalid raffle', async () => {
-      rafflesService.findOne.mockRejectedValue(
+      rafflesService.findOnePublic.mockRejectedValue(
         new NotFoundException('Raffle not found'),
       );
 

@@ -19,7 +19,7 @@ describe('DisputesResolver', () => {
     resolveDispute: jest.fn(),
     findAllPending: jest.fn(),
     findByUser: jest.fn(),
-    findOne: jest.fn(),
+    findOneForUser: jest.fn(),
   };
 
   const createTestUser = (overrides = {}) => ({
@@ -181,7 +181,7 @@ describe('DisputesResolver', () => {
       );
     });
 
-    it('should throw error when non-admin tries to resolve', async () => {
+    it('should delegate authorization to guards for non-admin users', async () => {
       const user = createTestUser({ role: UserRole.USER });
       const disputeId = 'dispute-1';
       const input = {
@@ -189,16 +189,15 @@ describe('DisputesResolver', () => {
         resolucion: 'Notes that meet minimum length requirement here',
       };
 
-      let thrownError: Error | null = null;
-      try {
-        await resolver.resolveDispute(user, disputeId, input);
-      } catch (e) {
-        thrownError = e as Error;
-      }
+      disputesService.resolveDispute.mockResolvedValue(createTestDispute());
 
-      expect(thrownError).not.toBeNull();
-      expect(thrownError?.message).toBe('Unauthorized');
-      expect(disputesService.resolveDispute).not.toHaveBeenCalled();
+      await resolver.resolveDispute(user, disputeId, input);
+
+      expect(disputesService.resolveDispute).toHaveBeenCalledWith(
+        user.id,
+        disputeId,
+        input,
+      );
     });
 
     it('should support partial resolution', async () => {
@@ -248,19 +247,15 @@ describe('DisputesResolver', () => {
       expect(disputesService.findAllPending).toHaveBeenCalled();
     });
 
-    it('should throw error when non-admin tries to access', async () => {
+    it('should delegate admin enforcement to guards', async () => {
       const user = createTestUser({ role: UserRole.USER });
+      const disputes: any[] = [];
+      disputesService.findAllPending.mockResolvedValue(disputes);
 
-      let thrownError: Error | null = null;
-      try {
-        await resolver.pendingDisputes(user);
-      } catch (e) {
-        thrownError = e as Error;
-      }
+      const result = await resolver.pendingDisputes(user);
 
-      expect(thrownError).not.toBeNull();
-      expect(thrownError?.message).toBe('Unauthorized');
-      expect(disputesService.findAllPending).not.toHaveBeenCalled();
+      expect(result).toEqual(disputes);
+      expect(disputesService.findAllPending).toHaveBeenCalled();
     });
   });
 
@@ -294,18 +289,24 @@ describe('DisputesResolver', () => {
 
   describe('dispute', () => {
     it('should return dispute by ID', async () => {
+      const user = createTestUser();
       const disputeId = 'dispute-123';
       const dispute = createTestDispute({ id: disputeId });
 
-      disputesService.findOne.mockResolvedValue(dispute);
+      disputesService.findOneForUser.mockResolvedValue(dispute);
 
-      const result = await resolver.dispute(disputeId);
+      const result = await resolver.dispute(user, disputeId);
 
       expect(result).toEqual(dispute);
-      expect(disputesService.findOne).toHaveBeenCalledWith(disputeId);
+      expect(disputesService.findOneForUser).toHaveBeenCalledWith(
+        disputeId,
+        user.id,
+        user.role,
+      );
     });
 
     it('should return dispute with all details', async () => {
+      const user = createTestUser();
       const dispute = createTestDispute({
         id: 'dispute-456',
         titulo: 'Wrong Product',
@@ -313,9 +314,9 @@ describe('DisputesResolver', () => {
         tipo: DisputeType.DIFERENTE,
       });
 
-      disputesService.findOne.mockResolvedValue(dispute);
+      disputesService.findOneForUser.mockResolvedValue(dispute);
 
-      const result = await resolver.dispute('dispute-456');
+      const result = await resolver.dispute(user, 'dispute-456');
 
       expect(result.titulo).toBe('Wrong Product');
       expect(result.descripcion).toBe(

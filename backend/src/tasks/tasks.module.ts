@@ -6,9 +6,16 @@ import { PrismaModule } from '../prisma/prisma.module';
 import { PaymentsModule } from '../payments/payments.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { PayoutsModule } from '../payouts/payouts.module';
+import { DisputesModule } from '../disputes/disputes.module';
 
 @Module({
-  imports: [PrismaModule, PaymentsModule, NotificationsModule, PayoutsModule],
+  imports: [
+    PrismaModule,
+    PaymentsModule,
+    NotificationsModule,
+    PayoutsModule,
+    DisputesModule,
+  ],
   providers: [RaffleTasksService, DisputeTasksService, CleanupTasksService],
 })
 export class TasksModule {}

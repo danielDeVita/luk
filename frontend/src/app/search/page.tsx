@@ -79,11 +79,13 @@ interface SearchFiltersType {
   precioMin?: number;
   precioMax?: number;
   sortBy?: string;
+  estado?: string;
 }
 
 export default function SearchPage() {
   const [filters, setFilters] = useState<SearchFiltersType>({
     sortBy: 'CREATED_DESC',
+    estado: 'ACTIVA',
   });
   const [page, setPage] = useState(1);
   const [allRaffles, setAllRaffles] = useState<RaffleData[]>([]);

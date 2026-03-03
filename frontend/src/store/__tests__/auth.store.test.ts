@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, vi, type Mock } from 'vitest';
 import { act } from '@testing-library/react';
 
 // Unmock the store for these tests
@@ -158,7 +158,7 @@ describe('Auth Store (Zustand)', () => {
         );
       });
 
-      (fetch as jest.Mock).mockResolvedValueOnce({ ok: true });
+      (fetch as unknown as Mock).mockResolvedValueOnce({ ok: true });
 
       await act(async () => {
         await useAuthStore.getState().logout();
@@ -183,7 +183,7 @@ describe('Auth Store (Zustand)', () => {
         );
       });
 
-      (fetch as jest.Mock).mockRejectedValueOnce(new Error('Network error'));
+      (fetch as unknown as Mock).mockRejectedValueOnce(new Error('Network error'));
 
       await act(async () => {
         await useAuthStore.getState().logout();

@@ -7,12 +7,14 @@ import { PrismaModule } from '../prisma/prisma.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { ReferralsModule } from '../referrals/referrals.module';
 import { AuthModule } from '../auth/auth.module';
+import { PayoutsModule } from '../payouts/payouts.module';
 
 @Module({
   imports: [
     PrismaModule,
     NotificationsModule,
     forwardRef(() => ReferralsModule),
+    forwardRef(() => PayoutsModule),
     AuthModule, // For JwtService in MP Connect
   ],
   controllers: [MpController, MpConnectController],

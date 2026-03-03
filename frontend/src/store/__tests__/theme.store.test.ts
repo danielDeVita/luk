@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, vi, type Mock } from 'vitest';
 import { act } from '@testing-library/react';
 
 // Unmock the store for these tests
@@ -71,7 +71,7 @@ describe('Theme Store (Zustand)', () => {
     });
 
     it('should resolve system theme to dark when prefers dark', () => {
-      (window.matchMedia as jest.Mock).mockReturnValueOnce({
+      (window.matchMedia as unknown as Mock).mockReturnValueOnce({
         matches: true,
         media: '(prefers-color-scheme: dark)',
       });
@@ -87,7 +87,7 @@ describe('Theme Store (Zustand)', () => {
     });
 
     it('should resolve system theme to light when prefers light', () => {
-      (window.matchMedia as jest.Mock).mockReturnValueOnce({
+      (window.matchMedia as unknown as Mock).mockReturnValueOnce({
         matches: false,
         media: '(prefers-color-scheme: dark)',
       });
@@ -148,7 +148,7 @@ describe('Theme Store (Zustand)', () => {
       });
       expect(useThemeStore.getState().theme).toBe('light');
 
-      (window.matchMedia as jest.Mock).mockReturnValueOnce({
+      (window.matchMedia as unknown as Mock).mockReturnValueOnce({
         matches: true,
         media: '(prefers-color-scheme: dark)',
       });

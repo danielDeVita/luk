@@ -274,6 +274,7 @@ function SalesDashboardContent() {
     suggestedPrice: number;
   } | null>(null);
   const [relaunchDeadline, setRelaunchDeadline] = useState('');
+  const [relaunchCustomPrice, setRelaunchCustomPrice] = useState('');
 
   // Edit raffle state
   const [editModalOpen, setEditModalOpen] = useState(false);
@@ -1120,7 +1121,10 @@ function SalesDashboardContent() {
       {/* Relaunch Confirmation Modal */}
       <Dialog open={relaunchModalOpen} onOpenChange={(open) => {
         setRelaunchModalOpen(open);
-        if (!open) setRelaunchDeadline('');
+        if (!open) {
+          setRelaunchDeadline('');
+          setRelaunchCustomPrice('');
+        }
       }}>
         <DialogContent>
           <DialogHeader>
@@ -1140,6 +1144,25 @@ function SalesDashboardContent() {
                     <strong>Precio sugerido:</strong> ${relaunchData.suggestedPrice.toFixed(2)}
                   </p>
                 )}
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="relaunch-custom-price">Precio final (opcional)</Label>
+                <Input
+                  id="relaunch-custom-price"
+                  type="number"
+                  min={1}
+                  step="0.01"
+                  placeholder={
+                    relaunchData.suggestedPrice > 0
+                      ? `Sugerido: $${relaunchData.suggestedPrice.toFixed(2)}`
+                      : 'Precio personalizado'
+                  }
+                  value={relaunchCustomPrice}
+                  onChange={(e) => setRelaunchCustomPrice(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Si lo dejás vacío, se usará el precio sugerido automáticamente.
+                </p>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="relaunch-deadline">Fecha límite del sorteo</Label>
@@ -1163,11 +1186,28 @@ function SalesDashboardContent() {
             <Button
               onClick={() => {
                 if (!relaunchData) return;
+
+                const parsedCustomPrice =
+                  relaunchCustomPrice.trim() === ''
+                    ? undefined
+                    : Number.parseFloat(relaunchCustomPrice);
+
+                if (
+                  parsedCustomPrice !== undefined &&
+                  (!Number.isFinite(parsedCustomPrice) || parsedCustomPrice <= 0)
+                ) {
+                  toast.error('El precio personalizado debe ser mayor a 0');
+                  return;
+                }
+
                 relaunchRaffle({
                   variables: {
                     input: {
                       originalRaffleId: relaunchData.raffleId,
                       priceReductionId: relaunchData.priceReductionId,
+                      ...(parsedCustomPrice !== undefined
+                        ? { customPrice: parsedCustomPrice }
+                        : {}),
                       ...(relaunchDeadline && { fechaLimite: new Date(relaunchDeadline).toISOString() }),
                     },
                   },

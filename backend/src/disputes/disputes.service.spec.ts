@@ -38,6 +38,7 @@ describe('DisputesService', () => {
     },
     ticket: {
       findMany: jest.fn(),
+      updateMany: jest.fn(),
     },
   });
 
@@ -409,14 +410,20 @@ describe('DisputesService', () => {
       });
 
       prisma.dispute.findUnique.mockResolvedValue(dispute);
-      prisma.ticket.findMany.mockResolvedValue([
-        {
-          id: 'ticket-1',
-          precioPagado: 1000,
-          buyerId: 'winner-1',
-          estado: 'PAGADO',
-        },
-      ]);
+      prisma.ticket.findMany
+        .mockResolvedValueOnce([
+          {
+            precioPagado: 1000,
+          },
+        ])
+        .mockResolvedValueOnce([
+          {
+            id: 'ticket-1',
+            mpPaymentId: 'mp-123',
+            precioPagado: 1000,
+          },
+        ]);
+      prisma.ticket.updateMany.mockResolvedValue({ count: 1 });
       prisma.dispute.update.mockResolvedValue({
         ...dispute,
         estado: DisputeStatus.RESUELTA_COMPRADOR,
@@ -426,7 +433,7 @@ describe('DisputesService', () => {
       });
       prisma.raffle.update.mockResolvedValue({} as any);
       prisma.userReputation.upsert.mockResolvedValue({} as any);
-      paymentsService.refundPayment.mockResolvedValue({} as any);
+      paymentsService.refundPayment.mockResolvedValue(true);
 
       const result = await service.resolveDispute(
         'admin-1',
@@ -445,7 +452,10 @@ describe('DisputesService', () => {
           disputasComoVendedorPerdidas: { increment: 1 },
         },
       });
-      expect(paymentsService.refundPayment).toHaveBeenCalledWith('mp-123');
+      expect(paymentsService.refundPayment).toHaveBeenCalledWith(
+        'mp-123',
+        undefined,
+      );
       expect(eventEmitter.emit).toHaveBeenCalledWith(
         RaffleEvents.DISPUTE_RESOLVED,
         expect.objectContaining({
@@ -473,6 +483,7 @@ describe('DisputesService', () => {
       });
 
       prisma.dispute.findUnique.mockResolvedValue(dispute);
+      prisma.ticket.findMany.mockResolvedValue([{ precioPagado: 1000 }]);
       prisma.dispute.update.mockResolvedValue({
         ...dispute,
         estado: DisputeStatus.RESUELTA_VENDEDOR,
@@ -535,14 +546,16 @@ describe('DisputesService', () => {
       });
 
       prisma.dispute.findUnique.mockResolvedValue(dispute);
-      prisma.ticket.findMany.mockResolvedValue([
-        {
-          id: 'ticket-1',
-          precioPagado: 1000,
-          buyerId: 'winner-1',
-          estado: 'PAGADO',
-        },
-      ]);
+      prisma.ticket.findMany
+        .mockResolvedValueOnce([{ precioPagado: 1000 }])
+        .mockResolvedValueOnce([
+          {
+            id: 'ticket-1',
+            mpPaymentId: 'mp-123',
+            precioPagado: 1000,
+          },
+        ]);
+      prisma.ticket.updateMany.mockResolvedValue({ count: 0 });
       prisma.dispute.update.mockResolvedValue({
         ...dispute,
         estado: DisputeStatus.RESUELTA_PARCIAL,
@@ -552,7 +565,7 @@ describe('DisputesService', () => {
         resolvedAt: expect.any(Date),
       });
       prisma.raffle.update.mockResolvedValue({} as any);
-      paymentsService.refundPayment.mockResolvedValue({} as any);
+      paymentsService.refundPayment.mockResolvedValue(true);
 
       const result = await service.resolveDispute(
         'admin-1',
@@ -561,7 +574,7 @@ describe('DisputesService', () => {
       );
 
       expect(result.estado).toBe(DisputeStatus.RESUELTA_PARCIAL);
-      expect(paymentsService.refundPayment).toHaveBeenCalledWith('mp-123');
+      expect(paymentsService.refundPayment).toHaveBeenCalledWith('mp-123', 500);
     });
 
     it('should throw BadRequestException for invalid resolution status', async () => {
@@ -587,6 +600,7 @@ describe('DisputesService', () => {
       });
 
       prisma.dispute.findUnique.mockResolvedValue(dispute);
+      prisma.ticket.findMany.mockResolvedValue([{ precioPagado: 1000 }]);
       prisma.dispute.update.mockResolvedValue({
         ...dispute,
         estado: DisputeStatus.RESUELTA_VENDEDOR,
@@ -611,7 +625,7 @@ describe('DisputesService', () => {
       );
     });
 
-    it('should handle refund errors gracefully', async () => {
+    it('should throw when refund fails', async () => {
       const dispute = createTestDispute({
         estado: DisputeStatus.EN_MEDIACION,
         raffle: createTestRaffle({
@@ -627,28 +641,26 @@ describe('DisputesService', () => {
       });
 
       prisma.dispute.findUnique.mockResolvedValue(dispute);
-      prisma.ticket.findMany.mockResolvedValue([
-        {
-          id: 'ticket-1',
-          precioPagado: 1000,
-          buyerId: 'winner-1',
-          estado: 'PAGADO',
-        },
-      ]);
+      prisma.ticket.findMany
+        .mockResolvedValueOnce([{ precioPagado: 1000 }])
+        .mockResolvedValueOnce([
+          {
+            id: 'ticket-1',
+            mpPaymentId: 'mp-123',
+            precioPagado: 1000,
+          },
+        ]);
       prisma.dispute.update.mockResolvedValue({
         ...dispute,
         estado: DisputeStatus.RESUELTA_COMPRADOR,
       });
       prisma.raffle.update.mockResolvedValue({} as any);
       prisma.userReputation.upsert.mockResolvedValue({} as any);
-      paymentsService.refundPayment.mockRejectedValue(
-        new Error('Refund failed'),
-      );
+      paymentsService.refundPayment.mockResolvedValue(false);
 
-      // Should not throw error, just log it
       await expect(
         service.resolveDispute('admin-1', 'dispute-1', resolveInputBuyer),
-      ).resolves.toBeDefined();
+      ).rejects.toThrow(BadRequestException);
     });
   });
 

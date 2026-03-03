@@ -109,7 +109,7 @@ export class RafflesResolver {
   @Public()
   @Query(() => Raffle)
   async raffle(@Args('id') id: string) {
-    return this.rafflesService.findOne(id);
+    return this.rafflesService.findOnePublic(id);
   }
 
   @Query(() => [Raffle])

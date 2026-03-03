@@ -90,16 +90,9 @@ export default function LoginPage() {
   // Derive error message from Apollo error
   const derivedError = error?.message || null;
 
-  const onSubmit = async (formData: LoginForm) => {
+  const onSubmit = (formData: LoginForm) => {
     setErrorMsg(null);
-    try {
-      await login({ variables: formData });
-    } catch (err) {
-      // Catch any errors that might slip through
-      const message = err instanceof Error ? err.message : 'Error al iniciar sesión';
-      console.error('[Login Catch]', message);
-      setErrorMsg(message);
-    }
+    void login({ variables: formData });
   };
 
   const handleGoogleLogin = () => {

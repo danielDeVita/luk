@@ -7,6 +7,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { ActivityService } from '../activity/activity.service';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { ReferralsService } from '../referrals/referrals.service';
+import { PayoutsService } from '../payouts/payouts.service';
 
 // Mock mercadopago
 jest.mock('mercadopago', () => ({
@@ -64,6 +65,7 @@ describe('PaymentsService', () => {
 
   const mockNotificationsService = {
     sendTicketPurchaseConfirmation: jest.fn().mockResolvedValue(true),
+    sendSellerTicketPurchasedNotification: jest.fn().mockResolvedValue(true),
     create: jest.fn().mockResolvedValue({ id: 'notif-1' }),
   };
 
@@ -76,7 +78,11 @@ describe('PaymentsService', () => {
   };
 
   const mockReferralsService = {
-    applyReferralReward: jest.fn().mockResolvedValue(true),
+    processFirstPurchaseReward: jest.fn().mockResolvedValue(true),
+  };
+
+  const mockPayoutsService = {
+    createPayout: jest.fn().mockResolvedValue({ id: 'payout-1' }),
   };
 
   beforeEach(async () => {
@@ -91,6 +97,7 @@ describe('PaymentsService', () => {
         { provide: ActivityService, useValue: mockActivityService },
         { provide: EventEmitter2, useValue: mockEventEmitter },
         { provide: ReferralsService, useValue: mockReferralsService },
+        { provide: PayoutsService, useValue: mockPayoutsService },
       ],
     }).compile();
 
@@ -207,11 +214,32 @@ describe('PaymentsService', () => {
       mockPrismaService.ticket.updateMany.mockResolvedValue({ count: 2 });
       mockPrismaService.transaction.findFirst.mockResolvedValue(null);
       mockPrismaService.transaction.create.mockResolvedValue({ id: 'tx-1' });
-      mockPrismaService.raffle.findUnique.mockResolvedValue({
-        id: 'raffle-123',
-        totalTickets: 10,
-        tickets: Array(10).fill({ estado: 'PAGADO' }),
-      });
+      mockPrismaService.raffle.findUnique
+        .mockResolvedValueOnce({
+          id: 'raffle-123',
+          titulo: 'Raffle',
+          sellerId: 'seller-1',
+          totalTickets: 10,
+          seller: {
+            id: 'seller-1',
+            email: 'seller@test.com',
+            nombre: 'Seller',
+            apellido: 'User',
+          },
+          tickets: [],
+        })
+        .mockResolvedValueOnce({
+          id: 'raffle-123',
+          estado: 'ACTIVA',
+          sellerId: 'seller-1',
+          totalTickets: 10,
+          tickets: Array(10).fill({ estado: 'PAGADO', precioPagado: 100 }),
+        })
+        .mockResolvedValueOnce({
+          id: 'raffle-123',
+          estado: 'SORTEADA',
+          tickets: [],
+        });
       mockPrismaService.raffle.update.mockResolvedValue({});
 
       await service.handlePaymentApproved(mockPaymentData);
@@ -411,6 +439,7 @@ describe('PaymentsService', () => {
           { provide: ActivityService, useValue: mockActivityService },
           { provide: EventEmitter2, useValue: mockEventEmitter },
           { provide: ReferralsService, useValue: mockReferralsService },
+          { provide: PayoutsService, useValue: mockPayoutsService },
         ],
       }).compile();
 

@@ -30,6 +30,7 @@ type MockAuditService = {
 
 type MockPaymentsService = {
   releaseFundsToSeller: jest.Mock;
+  canReleaseFunds: jest.Mock;
 };
 
 describe('PayoutsService', () => {
@@ -62,6 +63,9 @@ describe('PayoutsService', () => {
 
   const mockPaymentsService = (): MockPaymentsService => ({
     releaseFundsToSeller: jest.fn(),
+    canReleaseFunds: jest
+      .fn()
+      .mockResolvedValue({ canRelease: true, reason: 'OK' }),
   });
 
   beforeEach(async () => {

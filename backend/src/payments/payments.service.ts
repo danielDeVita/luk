@@ -22,10 +22,12 @@ import {
 import { NotificationsService } from '../notifications/notifications.service';
 import { ActivityService } from '../activity/activity.service';
 import { ReferralsService } from '../referrals/referrals.service';
+import { PayoutsService } from '../payouts/payouts.service';
 import {
   RaffleEvents,
   TicketsPurchasedEvent,
   RaffleCompletedEvent,
+  RaffleDrawnEvent,
 } from '../common/events';
 
 // Extend PreferenceRequest with money_release_days (not in SDK types but supported by MP API)
@@ -64,6 +66,7 @@ export class PaymentsService {
   private readonly logger = new Logger(PaymentsService.name);
   private readonly mpClient?: MercadoPagoConfig;
   private readonly platformFeeRate: number;
+  private readonly mpMockMode: boolean;
 
   constructor(
     private configService: ConfigService,
@@ -73,10 +76,24 @@ export class PaymentsService {
     private eventEmitter: EventEmitter2,
     @Inject(forwardRef(() => ReferralsService))
     private referralsService: ReferralsService,
+    @Inject(forwardRef(() => PayoutsService))
+    private payoutsService: PayoutsService,
   ) {
     const accessToken = this.configService.get<string>('MP_ACCESS_TOKEN');
-    if (accessToken) {
+    const mpMockModeFlag = this.configService.get<boolean | string>(
+      'MP_MOCK_MODE',
+    );
+    this.mpMockMode =
+      mpMockModeFlag === true ||
+      (typeof mpMockModeFlag === 'string' &&
+        mpMockModeFlag.trim().toLowerCase() === 'true') ||
+      accessToken === 'mock';
+
+    if (accessToken && !this.mpMockMode) {
       this.mpClient = new MercadoPagoConfig({ accessToken });
+    }
+    if (this.mpMockMode) {
+      this.logger.warn('⚠️ Mercado Pago service in MOCK mode');
     }
     // Allow env override, otherwise use shared constant
     const envFeePercent = this.configService.get<number>(
@@ -607,9 +624,25 @@ export class PaymentsService {
   /**
    * Refunds a Mercado Pago payment.
    */
-  async refundPayment(mpPaymentId: string): Promise<boolean> {
+  async refundPayment(mpPaymentId: string, amount?: number): Promise<boolean> {
     try {
+      if (this.mpMockMode) {
+        const normalizedAmount =
+          typeof amount === 'number' && amount > 0
+            ? Math.round(amount * 100) / 100
+            : undefined;
+        this.logger.log(
+          `[MOCK] Refund processed for payment ${mpPaymentId}${normalizedAmount ? ` (amount: ${normalizedAmount})` : ''}`,
+        );
+        return true;
+      }
+
       const mpClient = this.getMpClient();
+      const normalizedAmount =
+        typeof amount === 'number' && amount > 0
+          ? Math.round(amount * 100) / 100
+          : undefined;
+
       // Mercado Pago SDK v2 uses PaymentRefund for refunds
       const response = await fetch(
         `https://api.mercadopago.com/v1/payments/${mpPaymentId}/refunds`,
@@ -619,6 +652,10 @@ export class PaymentsService {
             Authorization: `Bearer ${mpClient.accessToken}`,
             'Content-Type': 'application/json',
           },
+          body:
+            normalizedAmount !== undefined
+              ? JSON.stringify({ amount: normalizedAmount })
+              : undefined,
         },
       );
 
@@ -626,7 +663,9 @@ export class PaymentsService {
         throw new Error(`Refund failed: ${response.statusText}`);
       }
 
-      this.logger.log(`Refund processed for payment ${mpPaymentId}`);
+      this.logger.log(
+        `Refund processed for payment ${mpPaymentId}${normalizedAmount ? ` (amount: ${normalizedAmount})` : ''}`,
+      );
       return true;
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
@@ -670,6 +709,18 @@ export class PaymentsService {
         releasedPayments: 0,
         errors: ['No hay pagos para liberar'],
       };
+    }
+
+    if (this.mpMockMode) {
+      const releasedPayments = tickets.length;
+      await this.prisma.raffle.update({
+        where: { id: raffleId },
+        data: { paymentReleasedAt: new Date() },
+      });
+      this.logger.log(
+        `[MOCK] Released ${releasedPayments} payments for raffle ${raffleId}`,
+      );
+      return { success: true, releasedPayments, errors: [] };
     }
 
     const mpClient = this.getMpClient();
@@ -825,6 +876,148 @@ export class PaymentsService {
 
   // ==================== Helper Methods ====================
 
+  async drawRaffleIfEligible(raffleId: string): Promise<boolean> {
+    const raffle = await this.prisma.raffle.findUnique({
+      where: { id: raffleId },
+      include: {
+        product: true,
+        seller: true,
+        winner: true,
+        drawResult: true,
+        tickets: {
+          where: { estado: 'PAGADO' },
+          include: { buyer: true },
+        },
+      },
+    });
+
+    if (!raffle || raffle.isDeleted) {
+      return false;
+    }
+
+    if (!['ACTIVA', 'COMPLETADA'].includes(raffle.estado)) {
+      return false;
+    }
+
+    if (raffle.drawResult || raffle.winnerId) {
+      return false;
+    }
+
+    if (raffle.tickets.length === 0) {
+      this.logger.warn(`No paid tickets for raffle ${raffleId}, cannot draw`);
+      return false;
+    }
+
+    const randomIndex = Math.floor(Math.random() * raffle.tickets.length);
+    const winningTicket = raffle.tickets[randomIndex];
+
+    try {
+      const updatedRaffle = await this.prisma.$transaction(async (tx) => {
+        await tx.drawResult.create({
+          data: {
+            raffleId,
+            winningTicketId: winningTicket.id,
+            winnerId: winningTicket.buyerId,
+            method: 'RANDOM_INDEX',
+            totalParticipants: raffle.tickets.length,
+          },
+        });
+
+        return tx.raffle.update({
+          where: { id: raffleId },
+          data: {
+            estado: 'SORTEADA',
+            winnerId: winningTicket.buyerId,
+            fechaSorteoReal: new Date(),
+          },
+          include: { product: true, seller: true, winner: true },
+        });
+      });
+
+      this.eventEmitter.emit(
+        RaffleEvents.DRAWN,
+        new RaffleDrawnEvent(
+          raffleId,
+          winningTicket.buyerId,
+          winningTicket.numeroTicket,
+          raffle.sellerId,
+        ),
+      );
+
+      this.notifyDrawResult(updatedRaffle).catch((err: unknown) => {
+        const message = isErrorWithMessage(err) ? err.message : 'Unknown error';
+        this.logger.error(
+          `Failed to send draw notifications for ${raffleId}: ${message}`,
+        );
+      });
+
+      this.payoutsService.createPayout(raffleId).catch((err: unknown) => {
+        const message = isErrorWithMessage(err) ? err.message : 'Unknown error';
+        this.logger.error(
+          `Failed to create payout for raffle ${raffleId}: ${message}`,
+        );
+      });
+
+      return true;
+    } catch (error: unknown) {
+      const prismaCode =
+        typeof error === 'object' &&
+        error !== null &&
+        'code' in error &&
+        typeof (error as { code?: unknown }).code === 'string'
+          ? (error as { code: string }).code
+          : undefined;
+
+      if (prismaCode === 'P2002') {
+        this.logger.warn(`Draw for raffle ${raffleId} was already persisted`);
+        return false;
+      }
+
+      throw error;
+    }
+  }
+
+  private async notifyDrawResult(raffle: {
+    id: string;
+    titulo: string;
+    sellerId: string;
+    seller: { id: string; email: string };
+    winnerId: string | null;
+    winner: { id: string; email: string } | null;
+    product: { nombre: string } | null;
+  }): Promise<void> {
+    if (!raffle.winner || !raffle.winnerId) {
+      return;
+    }
+
+    await Promise.all([
+      this.notificationsService.sendWinnerNotification(raffle.winner.email, {
+        raffleName: raffle.titulo,
+        productName: raffle.product?.nombre || raffle.titulo,
+        sellerEmail: raffle.seller.email,
+      }),
+      this.notificationsService.create(
+        raffle.winnerId,
+        'WIN',
+        '🎉 ¡Has ganado un sorteo!',
+        `¡Felicidades! Ganaste la rifa "${raffle.titulo}". Contacta al vendedor para coordinar la entrega.`,
+      ),
+      this.notificationsService.sendSellerMustContactWinner(
+        raffle.seller.email,
+        {
+          raffleName: raffle.titulo,
+          winnerEmail: raffle.winner.email,
+        },
+      ),
+      this.notificationsService.create(
+        raffle.seller.id,
+        'INFO',
+        'Tu rifa tiene ganador',
+        `La rifa "${raffle.titulo}" ha finalizado. Tienes 48hs para contactar al ganador.`,
+      ),
+    ]);
+  }
+
   private async checkRaffleCompletion(raffleId: string) {
     const raffle = await this.prisma.raffle.findUnique({
       where: { id: raffleId },
@@ -840,27 +1033,32 @@ export class PaymentsService {
       this.logger.log(
         `Raffle ${raffleId} is now COMPLETADA (100% tickets sold)`,
       );
-      await this.prisma.raffle.update({
-        where: { id: raffleId },
-        data: { estado: 'COMPLETADA' },
-      });
 
-      // Calculate total amount from tickets
-      const totalAmount = paidTickets.reduce(
-        (sum, t) => sum + Number(t.precioPagado),
-        0,
-      );
+      if (raffle.estado === 'ACTIVA') {
+        await this.prisma.raffle.update({
+          where: { id: raffleId },
+          data: { estado: 'COMPLETADA' },
+        });
 
-      // Emit raffle completed event for cross-cutting concerns
-      this.eventEmitter.emit(
-        RaffleEvents.COMPLETED,
-        new RaffleCompletedEvent(
-          raffleId,
-          raffle.sellerId,
-          paidTicketCount,
-          totalAmount,
-        ),
-      );
+        // Calculate total amount from tickets
+        const totalAmount = paidTickets.reduce(
+          (sum, t) => sum + Number(t.precioPagado),
+          0,
+        );
+
+        // Emit raffle completed event for cross-cutting concerns
+        this.eventEmitter.emit(
+          RaffleEvents.COMPLETED,
+          new RaffleCompletedEvent(
+            raffleId,
+            raffle.sellerId,
+            paidTicketCount,
+            totalAmount,
+          ),
+        );
+      }
+
+      await this.drawRaffleIfEligible(raffleId);
     }
   }
 }

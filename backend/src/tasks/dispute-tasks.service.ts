@@ -2,8 +2,14 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
-import { PaymentsService } from '../payments/payments.service';
-import { NotificationsService } from '../notifications/notifications.service';
+import { DisputesService } from '../disputes/disputes.service';
+
+function isFalseEnvFlag(value: boolean | string | undefined): boolean {
+  return (
+    value === false ||
+    (typeof value === 'string' && value.trim().toLowerCase() === 'false')
+  );
+}
 
 @Injectable()
 export class DisputeTasksService {
@@ -12,12 +18,13 @@ export class DisputeTasksService {
 
   constructor(
     private prisma: PrismaService,
-    private paymentsService: PaymentsService,
-    private notificationsService: NotificationsService,
+    private disputesService: DisputesService,
     private configService: ConfigService,
   ) {
-    this.cronEnabled =
-      this.configService.get<string>('ENABLE_CRON_JOBS') !== 'false';
+    const cronFlag = this.configService.get<boolean | string>(
+      'ENABLE_CRON_JOBS',
+    );
+    this.cronEnabled = !isFalseEnvFlag(cronFlag);
   }
 
   /**
@@ -102,12 +109,7 @@ export class DisputeTasksService {
         isDeleted: false,
       },
       include: {
-        raffle: {
-          include: {
-            seller: true,
-            tickets: { where: { estado: 'PAGADO' } },
-          },
-        },
+        raffle: { select: { titulo: true } },
         reporter: true,
       },
     });
@@ -117,48 +119,36 @@ export class DisputeTasksService {
         `Auto-resolving dispute ${dispute.id} in favor of buyer (15 days timeout)`,
       );
 
-      // Calculate total amount to refund
-      const totalAmount = dispute.raffle.tickets.reduce(
+      const buyerTickets = await this.prisma.ticket.findMany({
+        where: {
+          raffleId: dispute.raffleId,
+          buyerId: dispute.reporterId,
+          estado: 'PAGADO',
+        },
+        select: { precioPagado: true },
+      });
+      const totalAmount = buyerTickets.reduce(
         (sum, t) => sum + Number(t.precioPagado),
         0,
       );
 
-      // Update dispute as resolved in favor of buyer
-      await this.prisma.dispute.update({
-        where: { id: dispute.id },
-        data: {
-          estado: 'RESUELTA_COMPRADOR',
-          resolvedAt: new Date(),
+      try {
+        await this.disputesService.resolveDisputeBySystem(dispute.id, {
+          decision: 'RESUELTA_COMPRADOR',
           resolucion:
             'Reembolso automático por tiempo de espera excedido (15 días sin resolución)',
           montoReembolsado: totalAmount,
           montoPagadoVendedor: 0,
-        },
-      });
-
-      // Update raffle delivery status
-      await this.prisma.raffle.update({
-        where: { id: dispute.raffleId },
-        data: { deliveryStatus: 'DISPUTED' },
-      });
-
-      // Send notifications
-      await this.notificationsService.sendDisputeResolvedNotification(
-        dispute.reporter.email,
-        {
-          raffleName: dispute.raffle.titulo,
-          resolution: 'Resuelto a tu favor (tiempo de espera excedido)',
-          refundAmount: totalAmount,
-        },
-      );
-
-      await this.notificationsService.sendDisputeResolvedNotification(
-        dispute.raffle.seller.email,
-        {
-          raffleName: dispute.raffle.titulo,
-          resolution: 'Resuelto a favor del comprador por tiempo excedido',
-        },
-      );
+          adminNotes:
+            'Resolución automática por cron debido a tiempo de espera excedido.',
+        });
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : 'Unknown error';
+        this.logger.error(
+          `Failed to auto-resolve dispute ${dispute.id}: ${message}`,
+        );
+      }
     }
 
     this.logger.log(`Auto-resolved ${disputes.length} old disputes`);

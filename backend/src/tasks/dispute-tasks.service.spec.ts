@@ -1,110 +1,84 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
+import { Prisma } from '@prisma/client';
 import { DisputeTasksService } from './dispute-tasks.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { PaymentsService } from '../payments/payments.service';
-import { NotificationsService } from '../notifications/notifications.service';
-import { Prisma } from '@prisma/client';
+import { DisputesService } from '../disputes/disputes.service';
 
 type MockPrismaService = {
   dispute: {
     findMany: jest.Mock;
     update: jest.Mock;
   };
-  raffle: {
-    update: jest.Mock;
+  ticket: {
+    findMany: jest.Mock;
   };
 };
 
-type MockPaymentsService = {
-  refundPayment: jest.Mock;
-};
-
-type MockNotificationsService = {
-  sendDisputeResolvedNotification: jest.Mock;
+type MockDisputesService = {
+  resolveDisputeBySystem: jest.Mock;
 };
 
 describe('DisputeTasksService', () => {
   let service: DisputeTasksService;
   let prisma: MockPrismaService;
-  let _paymentsService: MockPaymentsService;
-  let notificationsService: MockNotificationsService;
-  let _configService: ConfigService;
+  let disputesService: MockDisputesService;
 
   const mockPrismaService = (): MockPrismaService => ({
     dispute: {
       findMany: jest.fn(),
       update: jest.fn(),
     },
-    raffle: {
-      update: jest.fn(),
+    ticket: {
+      findMany: jest.fn(),
     },
   });
 
-  const mockPaymentsService = (): MockPaymentsService => ({
-    refundPayment: jest.fn(),
+  const mockDisputesService = (): MockDisputesService => ({
+    resolveDisputeBySystem: jest.fn(),
   });
-
-  const mockNotificationsService = (): MockNotificationsService => ({
-    sendDisputeResolvedNotification: jest.fn(),
-  });
-
-  let mockConfigServiceGet: jest.Mock;
 
   beforeEach(async () => {
     jest.clearAllMocks();
-
-    mockConfigServiceGet = jest.fn((key: string) => {
-      if (key === 'ENABLE_CRON_JOBS') return 'true';
-      return null;
-    });
-
-    const mockConfigService = {
-      get: mockConfigServiceGet,
-    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         DisputeTasksService,
         { provide: PrismaService, useValue: mockPrismaService() },
-        { provide: PaymentsService, useValue: mockPaymentsService() },
+        { provide: DisputesService, useValue: mockDisputesService() },
         {
-          provide: NotificationsService,
-          useValue: mockNotificationsService(),
+          provide: ConfigService,
+          useValue: {
+            get: jest.fn((key: string) =>
+              key === 'ENABLE_CRON_JOBS' ? 'true' : null,
+            ),
+          },
         },
-        { provide: ConfigService, useValue: mockConfigService },
       ],
     }).compile();
 
     service = module.get<DisputeTasksService>(DisputeTasksService);
     prisma = module.get(PrismaService) as unknown as MockPrismaService;
-    _paymentsService = module.get(
-      PaymentsService,
-    ) as unknown as MockPaymentsService;
-    notificationsService = module.get(
-      NotificationsService,
-    ) as unknown as MockNotificationsService;
-    _configService = module.get<ConfigService>(ConfigService);
+    disputesService = module.get(
+      DisputesService,
+    ) as unknown as MockDisputesService;
   });
 
   describe('processDisputeEscalations', () => {
     it('should skip if ENABLE_CRON_JOBS is false', async () => {
-      // Recreate service with cron disabled
-      const disabledConfigMock = jest.fn((key: string) => {
-        if (key === 'ENABLE_CRON_JOBS') return 'false';
-        return null;
-      });
-
       const module: TestingModule = await Test.createTestingModule({
         providers: [
           DisputeTasksService,
           { provide: PrismaService, useValue: mockPrismaService() },
-          { provide: PaymentsService, useValue: mockPaymentsService() },
+          { provide: DisputesService, useValue: mockDisputesService() },
           {
-            provide: NotificationsService,
-            useValue: mockNotificationsService(),
+            provide: ConfigService,
+            useValue: {
+              get: jest.fn((key: string) =>
+                key === 'ENABLE_CRON_JOBS' ? 'false' : null,
+              ),
+            },
           },
-          { provide: ConfigService, useValue: { get: disabledConfigMock } },
         ],
       }).compile();
 
@@ -122,36 +96,18 @@ describe('DisputeTasksService', () => {
 
   describe('escalateUnrespondedDisputes (via processDisputeEscalations)', () => {
     it('should escalate disputes without seller response after 48h', async () => {
-      const fortyEightHoursAgo = new Date();
-      fortyEightHoursAgo.setHours(fortyEightHoursAgo.getHours() - 48);
-
-      const mockDispute = {
-        id: 'dispute-1',
-        estado: 'ESPERANDO_RESPUESTA_VENDEDOR',
-        createdAt: fortyEightHoursAgo,
-        fechaRespuestaVendedor: null,
-        raffleId: 'raffle-1',
-        raffle: {
-          id: 'raffle-1',
-          titulo: 'iPhone 15 Pro',
-          seller: {
-            id: 'seller-1',
-            email: 'seller@test.com',
-          },
-        },
-      };
-
-      // processDisputeEscalations calls findMany twice:
-      // 1. escalateUnrespondedDisputes
-      // 2. autoRefundOldDisputes
       prisma.dispute.findMany
-        .mockResolvedValueOnce([mockDispute]) // escalateUnrespondedDisputes
-        .mockResolvedValueOnce([]); // autoRefundOldDisputes
-
-      prisma.dispute.update.mockResolvedValue({
-        ...mockDispute,
-        estado: 'EN_MEDIACION',
-      });
+        .mockResolvedValueOnce([
+          {
+            id: 'dispute-1',
+            estado: 'ESPERANDO_RESPUESTA_VENDEDOR',
+            createdAt: new Date(Date.now() - 1000 * 60 * 60 * 49),
+            fechaRespuestaVendedor: null,
+            raffle: { seller: { id: 'seller-1' } },
+          },
+        ])
+        .mockResolvedValueOnce([]);
+      prisma.dispute.update.mockResolvedValue({});
 
       await service.processDisputeEscalations();
 
@@ -166,30 +122,6 @@ describe('DisputeTasksService', () => {
           raffle: { include: { seller: true } },
         },
       });
-    });
-
-    it('should change status to EN_MEDIACION', async () => {
-      const fortyEightHoursAgo = new Date();
-      fortyEightHoursAgo.setHours(fortyEightHoursAgo.getHours() - 48);
-
-      const mockDispute = {
-        id: 'dispute-1',
-        estado: 'ESPERANDO_RESPUESTA_VENDEDOR',
-        createdAt: fortyEightHoursAgo,
-        fechaRespuestaVendedor: null,
-        raffle: {
-          seller: { id: 'seller-1', email: 'seller@test.com' },
-        },
-      };
-
-      prisma.dispute.findMany
-        .mockResolvedValueOnce([mockDispute])
-        .mockResolvedValueOnce([]);
-
-      prisma.dispute.update.mockResolvedValue({});
-
-      await service.processDisputeEscalations();
-
       expect(prisma.dispute.update).toHaveBeenCalledWith({
         where: { id: 'dispute-1' },
         data: {
@@ -198,77 +130,27 @@ describe('DisputeTasksService', () => {
         },
       });
     });
-
-    it('should send notification to admin (via log)', async () => {
-      const fortyEightHoursAgo = new Date();
-      fortyEightHoursAgo.setHours(fortyEightHoursAgo.getHours() - 48);
-
-      const mockDispute = {
-        id: 'dispute-1',
-        estado: 'ESPERANDO_RESPUESTA_VENDEDOR',
-        createdAt: fortyEightHoursAgo,
-        fechaRespuestaVendedor: null,
-        raffle: {
-          seller: { id: 'seller-1', email: 'seller@test.com' },
-        },
-      };
-
-      prisma.dispute.findMany
-        .mockResolvedValueOnce([mockDispute])
-        .mockResolvedValueOnce([]);
-
-      prisma.dispute.update.mockResolvedValue({});
-
-      // This test verifies that escalation happens without throwing
-      await expect(service.processDisputeEscalations()).resolves.not.toThrow();
-
-      expect(prisma.dispute.update).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: { id: 'dispute-1' },
-        }),
-      );
-    });
   });
 
   describe('autoRefundOldDisputes (via processDisputeEscalations)', () => {
-    it('should auto-resolve disputes after 15 days', async () => {
-      const fifteenDaysAgo = new Date();
-      fifteenDaysAgo.setDate(fifteenDaysAgo.getDate() - 15);
-
-      const mockDispute = {
-        id: 'dispute-1',
-        estado: 'ABIERTA',
-        createdAt: fifteenDaysAgo,
-        raffleId: 'raffle-1',
-        resolvedAt: null,
-        raffle: {
-          id: 'raffle-1',
-          titulo: 'iPhone 15 Pro',
-          seller: {
-            id: 'seller-1',
-            email: 'seller@test.com',
-          },
-          tickets: [
-            { precioPagado: new Prisma.Decimal(1000) },
-            { precioPagado: new Prisma.Decimal(1000) },
-          ],
+    it('should resolve old disputes through DisputesService with buyer-scoped amount', async () => {
+      prisma.dispute.findMany.mockResolvedValueOnce([]).mockResolvedValueOnce([
+        {
+          id: 'dispute-1',
+          raffleId: 'raffle-1',
+          reporterId: 'buyer-1',
+          estado: 'ABIERTA',
+          createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 16),
+          resolvedAt: null,
+          raffle: { titulo: 'iPhone 15 Pro' },
+          reporter: { id: 'buyer-1', email: 'buyer@test.com' },
         },
-        reporter: {
-          id: 'buyer-1',
-          email: 'buyer@test.com',
-        },
-      };
-
-      // processDisputeEscalations calls findMany twice
-      prisma.dispute.findMany
-        .mockResolvedValueOnce([]) // escalateUnrespondedDisputes
-        .mockResolvedValueOnce([mockDispute]); // autoRefundOldDisputes
-
-      prisma.dispute.update.mockResolvedValue({});
-      prisma.raffle.update.mockResolvedValue({});
-      notificationsService.sendDisputeResolvedNotification.mockResolvedValue(
-        true,
-      );
+      ]);
+      prisma.ticket.findMany.mockResolvedValue([
+        { precioPagado: new Prisma.Decimal(500) },
+        { precioPagado: new Prisma.Decimal(700) },
+      ]);
+      disputesService.resolveDisputeBySystem.mockResolvedValue({});
 
       await service.processDisputeEscalations();
 
@@ -282,107 +164,26 @@ describe('DisputeTasksService', () => {
           isDeleted: false,
         },
         include: {
-          raffle: {
-            include: {
-              seller: true,
-              tickets: { where: { estado: 'PAGADO' } },
-            },
-          },
+          raffle: { select: { titulo: true } },
           reporter: true,
         },
       });
-    });
-
-    it('should process refund to buyer', async () => {
-      const fifteenDaysAgo = new Date();
-      fifteenDaysAgo.setDate(fifteenDaysAgo.getDate() - 15);
-
-      const mockDispute = {
-        id: 'dispute-1',
-        estado: 'ABIERTA',
-        createdAt: fifteenDaysAgo,
-        raffleId: 'raffle-1',
-        resolvedAt: null,
-        raffle: {
-          id: 'raffle-1',
-          titulo: 'iPhone 15 Pro',
-          seller: { id: 'seller-1', email: 'seller@test.com' },
-          tickets: [
-            { precioPagado: new Prisma.Decimal(500) },
-            { precioPagado: new Prisma.Decimal(500) },
-            { precioPagado: new Prisma.Decimal(500) },
-          ],
+      expect(prisma.ticket.findMany).toHaveBeenCalledWith({
+        where: {
+          raffleId: 'raffle-1',
+          buyerId: 'buyer-1',
+          estado: 'PAGADO',
         },
-        reporter: { id: 'buyer-1', email: 'buyer@test.com' },
-      };
-
-      prisma.dispute.findMany
-        .mockResolvedValueOnce([])
-        .mockResolvedValueOnce([mockDispute]);
-
-      prisma.dispute.update.mockResolvedValue({});
-      prisma.raffle.update.mockResolvedValue({});
-
-      await service.processDisputeEscalations();
-
-      expect(prisma.dispute.update).toHaveBeenCalledWith({
-        where: { id: 'dispute-1' },
-        data: expect.objectContaining({
-          estado: 'RESUELTA_COMPRADOR',
-          resolvedAt: expect.any(Date),
-          montoReembolsado: 1500, // 500 * 3
+        select: { precioPagado: true },
+      });
+      expect(disputesService.resolveDisputeBySystem).toHaveBeenCalledWith(
+        'dispute-1',
+        expect.objectContaining({
+          decision: 'RESUELTA_COMPRADOR',
+          montoReembolsado: 1200,
           montoPagadoVendedor: 0,
         }),
-      });
-    });
-
-    it('should send resolution notification', async () => {
-      const fifteenDaysAgo = new Date();
-      fifteenDaysAgo.setDate(fifteenDaysAgo.getDate() - 15);
-
-      const mockDispute = {
-        id: 'dispute-1',
-        estado: 'ABIERTA',
-        createdAt: fifteenDaysAgo,
-        raffleId: 'raffle-1',
-        resolvedAt: null,
-        raffle: {
-          id: 'raffle-1',
-          titulo: 'iPhone 15 Pro',
-          seller: { id: 'seller-1', email: 'seller@test.com' },
-          tickets: [{ precioPagado: new Prisma.Decimal(1000) }],
-        },
-        reporter: { id: 'buyer-1', email: 'buyer@test.com' },
-      };
-
-      prisma.dispute.findMany
-        .mockResolvedValueOnce([])
-        .mockResolvedValueOnce([mockDispute]);
-
-      prisma.dispute.update.mockResolvedValue({});
-      prisma.raffle.update.mockResolvedValue({});
-      notificationsService.sendDisputeResolvedNotification.mockResolvedValue(
-        true,
       );
-
-      await service.processDisputeEscalations();
-
-      // Should send notification to buyer
-      expect(
-        notificationsService.sendDisputeResolvedNotification,
-      ).toHaveBeenCalledWith('buyer@test.com', {
-        raffleName: 'iPhone 15 Pro',
-        resolution: 'Resuelto a tu favor (tiempo de espera excedido)',
-        refundAmount: 1000,
-      });
-
-      // Should send notification to seller
-      expect(
-        notificationsService.sendDisputeResolvedNotification,
-      ).toHaveBeenCalledWith('seller@test.com', {
-        raffleName: 'iPhone 15 Pro',
-        resolution: 'Resuelto a favor del comprador por tiempo excedido',
-      });
     });
   });
 });

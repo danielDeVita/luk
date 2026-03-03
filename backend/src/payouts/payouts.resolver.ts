@@ -20,8 +20,15 @@ export class PayoutsResolver {
 
   @Query(() => Payout, { nullable: true })
   @UseGuards(JwtAuthGuard)
-  async rafflePayout(@Args('raffleId') raffleId: string) {
-    return this.payoutsService.getPayoutByRaffle(raffleId);
+  async rafflePayout(
+    @CurrentUser() user: { id: string; role: UserRole },
+    @Args('raffleId') raffleId: string,
+  ) {
+    return this.payoutsService.getPayoutByRaffleForUser(
+      raffleId,
+      user.id,
+      user.role,
+    );
   }
 
   @Query(() => [Payout])

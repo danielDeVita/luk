@@ -105,6 +105,7 @@ describe('NotificationsResolver', () => {
 
   describe('markNotificationRead', () => {
     it('should mark notification as read', async () => {
+      const user = createTestUser();
       const notificationId = 'notif-1';
       const updatedNotification = createTestNotification({
         id: notificationId,
@@ -113,26 +114,29 @@ describe('NotificationsResolver', () => {
 
       notificationsService.markAsRead.mockResolvedValue(updatedNotification);
 
-      const result = await resolver.markNotificationRead(notificationId);
+      const result = await resolver.markNotificationRead(user, notificationId);
 
       expect(result).toEqual(updatedNotification);
       expect(result.read).toBe(true);
       expect(notificationsService.markAsRead).toHaveBeenCalledWith(
         notificationId,
+        user.id,
       );
     });
 
     it('should call service with correct notification ID', async () => {
+      const user = createTestUser({ id: 'specific-user-id' });
       const notificationId = 'specific-notif-id';
 
       notificationsService.markAsRead.mockResolvedValue(
         createTestNotification({ id: notificationId }),
       );
 
-      await resolver.markNotificationRead(notificationId);
+      await resolver.markNotificationRead(user, notificationId);
 
       expect(notificationsService.markAsRead).toHaveBeenCalledWith(
         'specific-notif-id',
+        'specific-user-id',
       );
     });
   });

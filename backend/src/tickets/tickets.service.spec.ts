@@ -405,7 +405,7 @@ describe('TicketsService', () => {
       await service.refundTickets('raffle-1');
 
       expect(prisma.ticket.updateMany).toHaveBeenCalledWith({
-        where: { raffleId: 'raffle-1', estado: 'PAGADO' },
+        where: { id: { in: ['ticket-1'] }, estado: 'PAGADO' },
         data: { estado: 'REEMBOLSADO' },
       });
     });

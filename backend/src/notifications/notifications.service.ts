@@ -1,4 +1,10 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import {
+  Inject,
+  Injectable,
+  Logger,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as Brevo from '@getbrevo/brevo';
 import { PubSub } from 'graphql-subscriptions';
@@ -118,7 +124,22 @@ export class NotificationsService {
     });
   }
 
-  async markAsRead(notificationId: string) {
+  async markAsRead(notificationId: string, userId: string) {
+    const notification = await this.prisma.notification.findUnique({
+      where: { id: notificationId },
+      select: { id: true, userId: true, read: true },
+    });
+
+    if (!notification) {
+      throw new NotFoundException('Notificación no encontrada');
+    }
+
+    if (notification.userId !== userId) {
+      throw new ForbiddenException(
+        'No tienes permisos para modificar esta notificación',
+      );
+    }
+
     return this.prisma.notification.update({
       where: { id: notificationId },
       data: { read: true },

@@ -6,6 +6,13 @@ import { PaymentsService } from '../payments/payments.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PayoutsService } from '../payouts/payouts.service';
 
+function isFalseEnvFlag(value: boolean | string | undefined): boolean {
+  return (
+    value === false ||
+    (typeof value === 'string' && value.trim().toLowerCase() === 'false')
+  );
+}
+
 @Injectable()
 export class RaffleTasksService {
   private readonly logger = new Logger(RaffleTasksService.name);
@@ -19,8 +26,10 @@ export class RaffleTasksService {
     private payoutsService: PayoutsService,
     private configService: ConfigService,
   ) {
-    this.cronEnabled =
-      this.configService.get<string>('ENABLE_CRON_JOBS') !== 'false';
+    const cronFlag = this.configService.get<boolean | string>(
+      'ENABLE_CRON_JOBS',
+    );
+    this.cronEnabled = !isFalseEnvFlag(cronFlag);
   }
 
   /**
@@ -37,9 +46,16 @@ export class RaffleTasksService {
     try {
       const expiredRaffles = await this.prisma.raffle.findMany({
         where: {
-          estado: 'ACTIVA',
-          fechaLimiteSorteo: { lt: new Date() },
           isDeleted: false,
+          OR: [
+            {
+              estado: 'ACTIVA',
+              fechaLimiteSorteo: { lt: new Date() },
+            },
+            {
+              estado: 'COMPLETADA',
+            },
+          ],
         },
         include: {
           tickets: true,
@@ -48,6 +64,11 @@ export class RaffleTasksService {
       });
 
       for (const raffle of expiredRaffles) {
+        if (raffle.estado === 'COMPLETADA') {
+          await this.executeRaffleDraw(raffle.id);
+          continue;
+        }
+
         const paidTickets = raffle.tickets.filter((t) => t.estado === 'PAGADO');
         const percentSold = paidTickets.length / raffle.totalTickets;
 
@@ -89,7 +110,10 @@ export class RaffleTasksService {
       // 2. Auto-release payment after 7 days without confirmation
       await this.autoReleasePayments();
 
-      // 3. Send confirmation reminder to winners (5 days after sorteo)
+      // 3. Process due payouts
+      await this.payoutsService.processDuePayouts();
+
+      // 4. Send confirmation reminder to winners (5 days after sorteo)
       await this.sendConfirmationReminders();
 
       this.logger.log('Finished: Process reminders and releases');
@@ -104,92 +128,12 @@ export class RaffleTasksService {
   private async executeRaffleDraw(raffleId: string) {
     this.logger.log(`Executing draw for raffle ${raffleId}`);
 
-    const paidTickets = await this.prisma.ticket.findMany({
-      where: { raffleId, estado: 'PAGADO' },
-      include: { buyer: true },
-    });
+    const wasDrawn = await this.paymentsService.drawRaffleIfEligible(raffleId);
 
-    if (paidTickets.length === 0) {
-      this.logger.warn(`No paid tickets for raffle ${raffleId}, cannot draw`);
-      return;
-    }
-
-    // Random selection
-    const randomIndex = Math.floor(Math.random() * paidTickets.length);
-    const winningTicket = paidTickets[randomIndex];
-
-    // Record draw result
-    await this.prisma.drawResult.create({
-      data: {
-        raffleId,
-        winningTicketId: winningTicket.id,
-        winnerId: winningTicket.buyerId,
-        method: 'RANDOM_INDEX',
-        totalParticipants: paidTickets.length,
-      },
-    });
-
-    // Update raffle
-    const updatedRaffle = await this.prisma.raffle.update({
-      where: { id: raffleId },
-      data: {
-        estado: 'SORTEADA',
-        winnerId: winningTicket.buyerId,
-        fechaSorteoReal: new Date(),
-      },
-      include: { product: true, seller: true, winner: true },
-    });
-
-    this.logger.log(`Raffle ${raffleId} winner: ${winningTicket.buyerId}`);
-
-    // Send notifications
-    // Send notifications
-    if (updatedRaffle.winner) {
-      // Email
-      await this.notificationsService.sendWinnerNotification(
-        updatedRaffle.winner.email,
-        {
-          raffleName: updatedRaffle.titulo,
-          productName: updatedRaffle.product?.nombre || 'Producto',
-          sellerEmail: updatedRaffle.seller.email,
-        },
-      );
-
-      // In-App Notification (Winner)
-      await this.notificationsService.create(
-        updatedRaffle.winner.id,
-        'WIN',
-        '🎉 ¡Has ganado un sorteo!',
-        `¡Felicidades! Ganaste la rifa "${updatedRaffle.titulo}". Contacta al vendedor para coordinar la entrega.`,
-      );
-
-      // Email Seller
-      await this.notificationsService.sendSellerMustContactWinner(
-        updatedRaffle.seller.email,
-        {
-          raffleName: updatedRaffle.titulo,
-          winnerEmail: updatedRaffle.winner.email,
-        },
-      );
-
-      // In-App Notification (Seller)
-      await this.notificationsService.create(
-        updatedRaffle.seller.id,
-        'INFO',
-        'Tu rifa tiene ganador',
-        `La rifa "${updatedRaffle.titulo}" ha finalizado. Tienes 48hs para contactar al ganador.`,
-      );
-    }
-
-    // Create payout record for the seller (will be released after delivery confirmation)
-    try {
-      await this.payoutsService.createPayout(raffleId);
-      this.logger.log(`Payout created for raffle ${raffleId}`);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown error';
-      this.logger.error(
-        `Failed to create payout for raffle ${raffleId}: ${message}`,
-      );
+    if (!wasDrawn) {
+      this.logger.warn(`Raffle ${raffleId} was not eligible for draw`);
+    } else {
+      this.logger.log(`Draw completed for raffle ${raffleId}`);
     }
   }
 
@@ -209,32 +153,62 @@ export class RaffleTasksService {
     if (!raffle) return;
 
     // Refund all paid tickets
-    for (const ticket of raffle.tickets) {
-      if (ticket.mpPaymentId) {
-        try {
-          await this.paymentsService.refundPayment(ticket.mpPaymentId);
+    const successfulRefundIds: string[] = [];
+    const failedRefundIds: string[] = [];
 
-          await this.notificationsService.sendRefundNotification(
-            ticket.buyer.email,
-            {
-              raffleName: raffle.titulo,
-              amount: Number(ticket.precioPagado),
-              reason: 'La rifa no alcanzó el mínimo de ventas requerido (70%)',
-            },
-          );
-        } catch (error) {
-          const message =
-            error instanceof Error ? error.message : 'Unknown error';
-          this.logger.error(`Failed to refund ticket ${ticket.id}:`, message);
+    for (const ticket of raffle.tickets) {
+      if (!ticket.mpPaymentId) {
+        failedRefundIds.push(ticket.id);
+        this.logger.error(`Ticket ${ticket.id} has no mpPaymentId for refund`);
+        continue;
+      }
+
+      try {
+        const success = await this.paymentsService.refundPayment(
+          ticket.mpPaymentId,
+        );
+
+        if (!success) {
+          failedRefundIds.push(ticket.id);
+          continue;
         }
+
+        successfulRefundIds.push(ticket.id);
+        await this.notificationsService.sendRefundNotification(
+          ticket.buyer.email,
+          {
+            raffleName: raffle.titulo,
+            amount: Number(ticket.precioPagado),
+            reason: 'La rifa no alcanzó el mínimo de ventas requerido (70%)',
+          },
+        );
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : 'Unknown error';
+        failedRefundIds.push(ticket.id);
+        this.logger.error(`Failed to refund ticket ${ticket.id}:`, message);
       }
     }
 
-    // Update tickets to refunded
-    await this.prisma.ticket.updateMany({
-      where: { raffleId, estado: 'PAGADO' },
-      data: { estado: 'REEMBOLSADO' },
-    });
+    if (failedRefundIds.length > 0) {
+      this.logger.warn(
+        `Raffle ${raffleId} cancellation paused: ${failedRefundIds.length} refund(s) failed`,
+      );
+      if (successfulRefundIds.length > 0) {
+        await this.prisma.ticket.updateMany({
+          where: { id: { in: successfulRefundIds }, estado: 'PAGADO' },
+          data: { estado: 'REEMBOLSADO' },
+        });
+      }
+      return;
+    }
+
+    if (successfulRefundIds.length > 0) {
+      await this.prisma.ticket.updateMany({
+        where: { id: { in: successfulRefundIds }, estado: 'PAGADO' },
+        data: { estado: 'REEMBOLSADO' },
+      });
+    }
 
     // Update raffle status
     await this.prisma.raffle.update({
@@ -322,17 +296,15 @@ export class RaffleTasksService {
       await this.prisma.raffle.update({
         where: { id: raffle.id },
         data: {
+          estado: 'EN_ENTREGA',
           deliveryStatus: 'CONFIRMED',
           confirmedAt: new Date(),
         },
       });
 
-      // Schedule and process payout
+      // Process payout immediately once auto-confirmed
       try {
-        if (!raffle.payout) {
-          await this.payoutsService.createPayout(raffle.id);
-        }
-        await this.payoutsService.schedulePayoutAfterDelivery(raffle.id);
+        await this.payoutsService.processPayoutForRaffle(raffle.id);
       } catch (error) {
         const message =
           error instanceof Error ? error.message : 'Unknown error';

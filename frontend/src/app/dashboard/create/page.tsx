@@ -106,6 +106,7 @@ export default function CreateRafflePage() {
   const {
     register,
     handleSubmit,
+    watch,
     formState: { errors },
   } = useForm<CreateRaffleForm>({
     resolver: zodResolver(createRaffleSchema),
@@ -144,7 +145,7 @@ export default function CreateRafflePage() {
       }
 
       // Error sync from Apollo requires setState in effect
-      // eslint-disable-next-line react-hooks/set-state-in-effect
+       
       setErrorMsg(displayMsg);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
@@ -182,6 +183,11 @@ export default function CreateRafflePage() {
 
   if (!hasHydrated || !isAuthenticated) return null;
 
+  const tituloValue = watch('titulo') ?? '';
+  const descripcionValue = watch('descripcion') ?? '';
+  const nombreProductoValue = watch('nombreProducto') ?? '';
+  const descripcionProductoValue = watch('descripcionProducto') ?? '';
+
   const onError = () => {
     handleError('Por favor corrige los errores en el formulario');
     setErrorMsg('Por favor corrige los errores en el formulario');
@@ -214,6 +220,9 @@ export default function CreateRafflePage() {
                 placeholder="Ej: iPhone 15 Pro Max 256GB"
                 {...register('titulo')}
               />
+              <p className="text-xs text-muted-foreground">
+                {tituloValue.length}/100 caracteres (mínimo 10)
+              </p>
               {errors.titulo && (
                 <p className="text-sm text-destructive">{errors.titulo.message}</p>
               )}
@@ -227,6 +236,9 @@ export default function CreateRafflePage() {
                 placeholder="Describe tu rifa, las reglas y condiciones..."
                 {...register('descripcion')}
               />
+              <p className="text-xs text-muted-foreground">
+                {descripcionValue.length}/5000 caracteres (mínimo 50)
+              </p>
               {errors.descripcion && (
                 <p className="text-sm text-destructive">{errors.descripcion.message}</p>
               )}
@@ -287,6 +299,9 @@ export default function CreateRafflePage() {
                 placeholder="Ej: iPhone 15 Pro Max"
                 {...register('nombreProducto')}
               />
+              <p className="text-xs text-muted-foreground">
+                {nombreProductoValue.length}/100 caracteres (mínimo 3)
+              </p>
               {errors.nombreProducto && (
                 <p className="text-sm text-destructive">{errors.nombreProducto.message}</p>
               )}
@@ -300,6 +315,9 @@ export default function CreateRafflePage() {
                 placeholder="Especificaciones, características..."
                 {...register('descripcionProducto')}
               />
+              <p className="text-xs text-muted-foreground">
+                {descripcionProductoValue.length}/2000 caracteres (mínimo 20)
+              </p>
               {errors.descripcionProducto && (
                 <p className="text-sm text-destructive">{errors.descripcionProducto.message}</p>
               )}
