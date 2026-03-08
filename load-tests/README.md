@@ -1,6 +1,6 @@
 # Load Testing Suite
 
-Performance testing for the Raffle Platform using [k6](https://k6.io/).
+Performance testing for LUK using [k6](https://k6.io/).
 
 ## Prerequisites
 

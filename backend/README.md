@@ -1,4 +1,4 @@
-# Raffle Platform - Backend
+# LUK - Backend
 
 GraphQL API built with NestJS, Prisma, and PostgreSQL.
 

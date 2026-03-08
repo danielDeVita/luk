@@ -1,8 +1,8 @@
 {
-  "name": "raffle-platform",
+  "name": "luk-platform",
   "version": "1.0.0",
   "private": true,
-  "description": "Raffle marketplace platform for Argentina",
+  "description": "LUK platform for digital raffles in Argentina",
   "scripts": {
     "prepare": "husky",
     "lint": "cd backend && npm run lint && cd ../frontend && npm run lint",

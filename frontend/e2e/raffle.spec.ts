@@ -13,6 +13,9 @@ test.describe('Raffle Browsing', () => {
     await expect(
       page.getByText(/rifas|explor|particip/i).first(),
     ).toBeVisible({ timeout: 10000 });
+    await expect(
+      page.getByText(/la publicacion y participacion en rifas estan sujetas/i),
+    ).toBeVisible({ timeout: 10000 });
   });
 
   test('search page loads with filters', async ({ page }) => {
@@ -24,6 +27,9 @@ test.describe('Raffle Browsing', () => {
     ).toBeVisible({
       timeout: 10000,
     });
+    await expect(
+      page.getByText(/no comercializa fichas, saldo, creditos/i),
+    ).toBeVisible({ timeout: 10000 });
   });
 
   test('search page supports category filtering', async ({
@@ -66,6 +72,23 @@ test.describe('Raffle Browsing', () => {
     await expect(
       page.getByText(/no encontrad|error|not found/i).first(),
     ).toBeVisible({ timeout: 10000 });
+  });
+
+  test('raffle detail page shows legal notice before purchase when a raffle exists', async ({
+    page,
+  }) => {
+    await page.goto('/search');
+
+    const raffleCard = page.locator('[href^="/raffle/"]').first();
+
+    if (await raffleCard.isVisible()) {
+      await raffleCard.click();
+      await page.waitForURL(/\/raffle\//);
+
+      await expect(
+        page.getByText(/no comercializa fichas, saldo, creditos/i),
+      ).toBeVisible({ timeout: 10000 });
+    }
   });
 
   // Skip in CI - CI seed only creates users, not raffles. With zero results,

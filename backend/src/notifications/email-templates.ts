@@ -1,4 +1,8 @@
 import { ConfigService } from '@nestjs/config';
+import {
+  BRAND_EXPLORE_CTA_LABEL,
+  BRAND_NAME,
+} from '../common/constants/brand.constants';
 
 interface EmailTemplateOptions {
   showButton?: boolean;
@@ -84,7 +88,7 @@ export const wrapEmailTemplate = (
                 <tr>
                   <td style="background: linear-gradient(135deg, ${colors.primary}, ${colors.primaryDark}); padding: 32px 40px; text-align: center;">
                     <h1 style="margin: 0; color: white; font-family: 'Fraunces', serif; font-size: 28px; font-weight: 700; letter-spacing: -0.5px;">
-                      🎟️ Rifas
+                      ${BRAND_NAME}
                     </h1>
                   </td>
                 </tr>
@@ -109,7 +113,7 @@ export const wrapEmailTemplate = (
                             <a href="${frontendUrl}/legal/privacidad" style="color: ${colors.primary}; text-decoration: none; fontWeight: 500;">Privacidad</a>
                           </p>
                           <p style="margin: 0; color: #9CA3AF; font-size: 11px;">
-                            © ${new Date().getFullYear()} Rifas. Todos los derechos reservados.
+                            © ${new Date().getFullYear()} ${BRAND_NAME}. Todos los derechos reservados.
                           </p>
                         </td>
                       </tr>
@@ -151,7 +155,7 @@ export const getWelcomeEmailContent = (
   `;
   return wrapEmailTemplate(content, configService, {
     showButton: true,
-    buttonText: 'Explorar Rifas',
+    buttonText: BRAND_EXPLORE_CTA_LABEL,
     buttonUrl: frontendUrl,
   });
 };
@@ -781,7 +785,7 @@ export const getWelcomeWithReferralBonusEmailContent = (
   `;
   return wrapEmailTemplate(content, configService, {
     showButton: true,
-    buttonText: 'Explorar Rifas',
+    buttonText: BRAND_EXPLORE_CTA_LABEL,
     buttonUrl: frontendUrl,
   });
 };

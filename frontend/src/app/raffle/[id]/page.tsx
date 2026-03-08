@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { RaffleContent } from './raffle-content';
+import { BRAND_NAME } from '@/lib/brand';
 
 // GraphQL query for server-side metadata fetching
 const GET_RAFFLE_QUERY = `
@@ -115,7 +116,7 @@ export async function generateMetadata({
 
   if (!raffle) {
     return {
-      title: 'Rifa no encontrada - Rifas',
+      title: `Rifa no encontrada | ${BRAND_NAME}`,
       description: 'La rifa que buscas no existe o fue eliminada.',
     };
   }
@@ -136,7 +137,7 @@ export async function generateMetadata({
       description,
       type: 'website',
       url: raffleUrl,
-      siteName: 'Rifas',
+      siteName: BRAND_NAME,
       ...(image && {
         images: [
           {
@@ -181,4 +182,3 @@ export default async function RafflePage({
     </>
   );
 }
-

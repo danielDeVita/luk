@@ -10,6 +10,11 @@ import * as Brevo from '@getbrevo/brevo';
 import { PubSub } from 'graphql-subscriptions';
 import { PrismaService } from '../prisma/prisma.service';
 import {
+  BRAND_NAME,
+  DEFAULT_EMAIL_FROM,
+  DEFAULT_EMAIL_FROM_NAME,
+} from '../common/constants/brand.constants';
+import {
   getAdminNewKycSubmissionContent,
   getDeliveryConfirmedToSellerContent,
   getDeliveryReminderToWinnerContent,
@@ -68,10 +73,10 @@ export class NotificationsService {
     @Inject('PUB_SUB') private readonly pubSub: PubSub,
   ) {
     this.fromEmail =
-      this.configService.get<string>('EMAIL_FROM') || 'noreply@rifas.app';
+      this.configService.get<string>('EMAIL_FROM') || DEFAULT_EMAIL_FROM;
     this.fromName =
       this.configService.get<string>('EMAIL_FROM_NAME') ||
-      'Plataforma de Rifas';
+      DEFAULT_EMAIL_FROM_NAME;
 
     // Check if we have Brevo API key
     const brevoApiKey = this.configService.get<string>('BREVO_API_KEY');
@@ -193,7 +198,7 @@ export class NotificationsService {
     const html = getWelcomeEmailContent(data, this.configService);
     return this.sendEmail({
       to: email,
-      subject: '¡Bienvenido a la Plataforma de Rifas!',
+      subject: `¡Bienvenido a ${BRAND_NAME}!`,
       html,
     });
   }

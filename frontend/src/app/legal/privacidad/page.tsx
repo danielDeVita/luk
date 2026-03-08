@@ -3,6 +3,12 @@
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
+import {
+  LEGAL_CONTACT_EMAIL,
+  LEGAL_LAST_UPDATED,
+  LEGAL_POSTAL_ADDRESS,
+  LEGAL_TERMS_VERSION,
+} from '@/lib/legal';
 
 export default function PrivacidadPage() {
   return (
@@ -18,7 +24,7 @@ export default function PrivacidadPage() {
 
       <article className="prose prose-slate dark:prose-invert max-w-none">
         <h1 className="text-3xl font-bold mb-2">Política de Privacidad</h1>
-        <p className="text-muted-foreground mb-8">Última actualización: Enero 2026</p>
+        <p className="text-muted-foreground mb-8">Última actualización: {LEGAL_LAST_UPDATED}</p>
 
         <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-8">
           <p className="text-sm text-blue-800 dark:text-blue-200 m-0">
@@ -102,7 +108,7 @@ export default function PrivacidadPage() {
           <li><strong>Oposición:</strong> Oponerte al tratamiento de tus datos para fines específicos.</li>
         </ul>
 
-        <p>Para ejercer estos derechos, contactanos a: <strong>[insertar email de contacto]</strong></p>
+        <p>Para ejercer estos derechos, contactanos a: <a href={`mailto:${LEGAL_CONTACT_EMAIL}`} className="text-primary hover:underline">{LEGAL_CONTACT_EMAIL}</a></p>
 
         <h2>7. Retención de Datos</h2>
 
@@ -145,8 +151,8 @@ export default function PrivacidadPage() {
         </p>
 
         <ul>
-          <li><strong>Email:</strong> [insertar email]</li>
-          <li><strong>Domicilio:</strong> [insertar domicilio]</li>
+          <li><strong>Email:</strong> <a href={`mailto:${LEGAL_CONTACT_EMAIL}`} className="text-primary hover:underline">{LEGAL_CONTACT_EMAIL}</a></li>
+          <li><strong>Domicilio:</strong> {LEGAL_POSTAL_ADDRESS}</li>
         </ul>
 
         <p>
@@ -161,7 +167,7 @@ export default function PrivacidadPage() {
         </div>
 
         <p className="text-sm text-muted-foreground mt-8">
-          Versión de Política: 2026-01 | Fecha de publicación: Enero 2026
+          Versión de Política: {LEGAL_TERMS_VERSION} | Fecha de publicación: {LEGAL_LAST_UPDATED}
         </p>
       </article>
     </div>

@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { NotificationsBell } from './notifications-bell';
 import { ThemeToggle } from './ui/theme-toggle';
+import { BRAND_NAME } from '@/lib/brand';
 
 export function Navbar() {
   const { isAuthenticated, user, logout } = useAuthStore();
@@ -124,7 +125,7 @@ export function Navbar() {
             <Ticket className="w-4 h-4 text-primary-foreground" />
           </div>
           <span className="font-display text-lg text-foreground">
-            Rifas
+            {BRAND_NAME}
           </span>
         </Link>
 

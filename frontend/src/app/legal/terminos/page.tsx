@@ -3,6 +3,14 @@
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
+import {
+  LEGAL_CONTACT_EMAIL,
+  LEGAL_JURISDICTION_CITY,
+  LEGAL_LAST_UPDATED,
+  LEGAL_OPERATOR_NAME,
+  LEGAL_TERMS_VERSION,
+  PLATFORM_COMMISSION_PERCENT,
+} from '@/lib/legal';
 
 export default function TerminosPage() {
   return (
@@ -18,7 +26,7 @@ export default function TerminosPage() {
 
       <article className="prose prose-slate dark:prose-invert max-w-none">
         <h1 className="text-3xl font-bold mb-2">Términos y Condiciones de Uso de la Plataforma</h1>
-        <p className="text-muted-foreground mb-8">Última actualización: Enero 2026</p>
+        <p className="text-muted-foreground mb-8">Última actualización: {LEGAL_LAST_UPDATED}</p>
 
         <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg p-4 mb-8">
           <p className="text-sm text-amber-800 dark:text-amber-200 m-0">
@@ -27,7 +35,7 @@ export default function TerminosPage() {
         </div>
 
         <p>
-          Estos Términos y Condiciones de Uso (en adelante, los &quot;Términos&quot;) constituyen un acuerdo legal vinculante entre usted (el &quot;Usuario&quot;, &quot;Comprador&quot;, &quot;Vendedor&quot; u &quot;Organizador de Rifas&quot;, según corresponda) y <strong>[Nombre de la Empresa Operadora de la Plataforma]</strong>, una sociedad constituida bajo las leyes de la República Argentina, con CUIT <strong>[insertar CUIT]</strong>, domicilio legal en <strong>[insertar domicilio]</strong>, (en adelante, la &quot;Empresa&quot; o &quot;nosotros&quot;).
+          Estos Términos y Condiciones de Uso (en adelante, los &quot;Términos&quot;) constituyen un acuerdo legal vinculante entre usted (el &quot;Usuario&quot;, &quot;Comprador&quot;, &quot;Vendedor&quot; u &quot;Organizador de Rifas&quot;, según corresponda) y <strong>{LEGAL_OPERATOR_NAME}</strong>, operador de la plataforma y responsable de su explotacion comercial en la Republica Argentina (en adelante, la &quot;Empresa&quot; o &quot;nosotros&quot;).
         </p>
 
         <p>
@@ -127,7 +135,7 @@ export default function TerminosPage() {
         <h2>5. Pagos, Comisiones e Impuestos</h2>
 
         <ul>
-          <li>Los pagos se procesan a través de pasarelas integradas (ej. Mercado Pago). La Empresa cobra una comisión del <strong>[insertar porcentaje]%</strong> por transacción.</li>
+          <li>Los pagos se procesan a través de pasarelas integradas (ej. Mercado Pago). La Empresa cobra una comisión base del <strong>{PLATFORM_COMMISSION_PERCENT}%</strong> por transacción, salvo promociones o condiciones particulares informadas al momento de operar.</li>
           <li>Los Usuarios son responsables de impuestos aplicables (por ejemplo, percepción impositiva sobre apuestas online según Resolución General ARCA 5791/2025). Para rifas, tasas como el 5-10% sobre premios (Resolución N° 17/2011 de Lotería Nacional).</li>
           <li>No hay reembolsos por boletos comprados, salvo excepciones legales.</li>
         </ul>
@@ -154,13 +162,13 @@ export default function TerminosPage() {
         <h2>9. Resolución de Disputas</h2>
 
         <p>
-          Cualquier disputa se resolverá bajo las leyes de la República Argentina, con jurisdicción exclusiva en los tribunales ordinarios de <strong>[insertar ciudad, ej. CABA]</strong>. Antes de litigio, intentaremos mediación conforme a Ley 26.589.
+          Cualquier disputa se resolverá bajo las leyes de la República Argentina, con jurisdicción exclusiva en los tribunales ordinarios de <strong>{LEGAL_JURISDICTION_CITY}</strong>, salvo norma de orden publico en contrario. Antes de litigio, intentaremos mediación conforme a Ley 26.589.
         </p>
 
         <h2>10. Disposiciones Finales</h2>
 
         <p>
-          Estos Términos son integrales. Si alguna cláusula es inválida, las demás permanecen vigentes. Para consultas: <strong>[insertar contacto]</strong>.
+          Estos Términos son integrales. Si alguna cláusula es inválida, las demás permanecen vigentes. Para consultas: <a href={`mailto:${LEGAL_CONTACT_EMAIL}`} className="text-primary hover:underline">{LEGAL_CONTACT_EMAIL}</a>.
         </p>
 
         <div className="bg-slate-100 dark:bg-slate-800 rounded-lg p-6 mt-8">
@@ -205,7 +213,7 @@ export default function TerminosPage() {
         </ul>
 
         <p className="text-sm text-muted-foreground mt-8">
-          Versión de Términos: 2026-01 | Fecha de publicación: Enero 2026
+          Versión de Términos: {LEGAL_TERMS_VERSION} | Fecha de publicación: {LEGAL_LAST_UPDATED}
         </p>
       </article>
     </div>

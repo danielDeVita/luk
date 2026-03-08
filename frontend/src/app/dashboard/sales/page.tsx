@@ -54,6 +54,7 @@ import {
 } from 'recharts';
 import Image from 'next/image';
 import { getOptimizedImageUrl, CLOUDINARY_PRESETS } from '@/lib/cloudinary';
+import { getProhibitedRaffleContentMessage } from '@/lib/legal';
 
 const MY_RAFFLES = gql`
   query MyRaffles {
@@ -407,6 +408,17 @@ function SalesDashboardContent() {
 
   const handleUpdateRaffle = () => {
     if (!editingRaffle) return;
+
+    const prohibitedContentMessage = getProhibitedRaffleContentMessage([
+      editTitle,
+      editDescription,
+    ]);
+
+    if (prohibitedContentMessage) {
+      toast.error(prohibitedContentMessage);
+      return;
+    }
+
     updateRaffle({
       variables: {
         id: editingRaffle.id,
@@ -1268,6 +1280,10 @@ function SalesDashboardContent() {
                 />
                 <p className="text-xs text-muted-foreground">
                   {editDescription.length}/5000 caracteres (mínimo 50)
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  No se permiten referencias a fichas, saldo, creditos, apuestas
+                  ni valores utilizables fuera del sitio.
                 </p>
               </div>
 

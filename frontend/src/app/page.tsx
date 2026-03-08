@@ -4,6 +4,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Ticket, Users, Shield, Zap, Star, Trophy, Sparkles, ArrowRight } from 'lucide-react';
 import { HeroCTA, SellerCTA } from '@/components/home/hero-cta';
 import { FeaturedRaffles } from '@/components/home/featured-raffles';
+import { ComplianceNotice } from '@/components/legal/compliance-notice';
+import {
+  BRAND_NAME,
+  BRAND_DESCRIPTION,
+  BRAND_TAGLINE,
+} from '@/lib/brand';
 
 export default function HomePage() {
   return (
@@ -31,7 +37,7 @@ export default function HomePage() {
             {/* Badge */}
             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/8 border border-primary/15 mb-8 animate-fade-up delay-1">
               <Trophy className="w-4 h-4 text-primary" />
-              <span className="text-sm font-medium text-primary">La plataforma de rifas de Argentina</span>
+              <span className="text-sm font-medium text-primary">{BRAND_NAME} | {BRAND_TAGLINE}</span>
             </div>
 
             {/* Main heading */}
@@ -42,7 +48,7 @@ export default function HomePage() {
 
             {/* Subheading */}
             <p className="text-lg md:text-xl text-muted-foreground mb-10 max-w-xl mx-auto animate-fade-up delay-3 text-balance">
-              Participá en rifas exclusivas, ganá premios increíbles y viví la emoción de cada sorteo.
+              {BRAND_DESCRIPTION}{' '}
               <span className="text-foreground font-medium"> 100% seguro y transparente.</span>
             </p>
 
@@ -73,10 +79,10 @@ export default function HomePage() {
         <div className="container mx-auto px-4">
           <div className="text-center mb-16">
             <h2 className="font-display text-3xl md:text-4xl mb-4">
-              Por qué <span className="text-primary">elegirnos</span>
+              Por qué <span className="text-primary">elegir {BRAND_NAME}</span>
             </h2>
             <p className="text-muted-foreground text-lg max-w-xl mx-auto">
-              Somos la plataforma más confiable para participar y crear rifas online
+              {BRAND_NAME} conecta tickets accesibles con premios de alto valor en una experiencia segura y transparente.
             </p>
           </div>
 
@@ -181,6 +187,10 @@ export default function HomePage() {
                 <p className="text-sm text-muted-foreground">Sorteos al azar</p>
               </div>
             </div>
+          </div>
+
+          <div className="mx-auto mt-12 max-w-3xl">
+            <ComplianceNotice tone="subtle" />
           </div>
         </div>
       </section>

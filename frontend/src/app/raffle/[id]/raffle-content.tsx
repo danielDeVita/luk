@@ -22,6 +22,7 @@ import { getOptimizedImageUrl, CLOUDINARY_PRESETS } from '@/lib/cloudinary';
 import { formatProductCondition } from '@/lib/format-condition';
 import { RaffleQA } from './raffle-qa';
 import { useConfirmDialog } from '@/hooks/use-confirm-dialog';
+import { ComplianceNotice } from '@/components/legal/compliance-notice';
 
 
 
@@ -484,6 +485,11 @@ export function RaffleContent({ id }: RaffleContentProps) {
                     </>
                   )}
                 </Button>
+
+                <ComplianceNotice
+                  title="Antes de comprar tickets"
+                  tone="subtle"
+                />
               </CardContent>
             </Card>
           )}

@@ -8,6 +8,7 @@ import { Ticket, Loader2 } from 'lucide-react';
 import { SearchFilters } from '@/components/search/search-filters';
 import { RaffleGridSkeleton } from '@/components/ui/skeleton';
 import { RaffleCard } from '@/components/raffle/raffle-card';
+import { ComplianceNotice } from '@/components/legal/compliance-notice';
 
 const SEARCH_RAFFLES_PAGINATED = gql`
   query GetRafflesPaginated($pagination: PaginationInput, $filters: RaffleFiltersInput) {
@@ -265,6 +266,13 @@ export default function SearchPage() {
           )}
         </>
       )}
+
+      <div className="mx-auto mt-12 max-w-4xl">
+        <ComplianceNotice
+          title="Aviso legal antes de participar"
+          tone="subtle"
+        />
+      </div>
     </div>
   );
 }

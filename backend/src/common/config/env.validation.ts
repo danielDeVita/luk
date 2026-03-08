@@ -10,6 +10,10 @@ import {
   Min,
   validateSync,
 } from 'class-validator';
+import {
+  DEFAULT_EMAIL_FROM,
+  DEFAULT_EMAIL_FROM_NAME,
+} from '../constants/brand.constants';
 
 enum Environment {
   Development = 'development',
@@ -105,11 +109,11 @@ export class EnvironmentVariables {
 
   @IsString()
   @IsOptional()
-  EMAIL_FROM: string = 'noreply@rifas.app';
+  EMAIL_FROM: string = DEFAULT_EMAIL_FROM;
 
   @IsString()
   @IsOptional()
-  EMAIL_FROM_NAME: string = 'Plataforma de Rifas';
+  EMAIL_FROM_NAME: string = DEFAULT_EMAIL_FROM_NAME;
 
   // Encryption - Critical
   @IsString()

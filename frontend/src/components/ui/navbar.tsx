@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import { Menu, X, Ticket, User } from 'lucide-react';
+import { BRAND_NAME } from '@/lib/brand';
 
 export function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
@@ -15,14 +16,14 @@ export function Navbar() {
           <div className="flex items-center">
             <Link href="/" className="flex items-center gap-2">
               <Ticket className="h-8 w-8 text-indigo-600" />
-              <span className="text-xl font-bold text-gray-900">RifaMax</span>
+              <span className="text-xl font-bold text-gray-900">{BRAND_NAME}</span>
             </Link>
           </div>
 
           {/* Desktop menu */}
           <div className="hidden md:flex items-center gap-6">
             <Link href="/" className="text-gray-600 hover:text-gray-900">
-              Rifas
+              Inicio
             </Link>
             {isLoggedIn ? (
               <>
@@ -65,7 +66,7 @@ export function Navbar() {
         <div className="md:hidden border-t">
           <div className="px-4 py-3 space-y-3">
             <Link href="/" className="block text-gray-600 hover:text-gray-900">
-              Rifas
+              Inicio
             </Link>
             {isLoggedIn ? (
               <>

@@ -1,4 +1,4 @@
-# Raffle Platform - Frontend
+# LUK - Frontend
 
 Next.js 16 application with TypeScript, Tailwind CSS v4, and Shadcn/UI.
 

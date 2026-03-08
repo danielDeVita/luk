@@ -7,6 +7,10 @@ import { Navbar } from "@/components/navbar";
 import { Toaster } from 'sonner';
 import { GoogleAnalytics } from "@/components/analytics/google-analytics";
 import { ConfirmDialogProvider } from "@/hooks/use-confirm-dialog";
+import {
+  BRAND_NAME,
+  BRAND_SHORT_DESCRIPTION,
+} from '@/lib/brand';
 
 const dmSans = DM_Sans({
   subsets: ["latin"],
@@ -21,12 +25,12 @@ const fraunces = Fraunces({
 });
 
 export const metadata: Metadata = {
-  title: "Rifas - Plataforma de Sorteos",
-  description: "Participa en rifas y gana increíbles premios",
+  title: `${BRAND_NAME} | Plataforma de Rifas Digitales`,
+  description: BRAND_SHORT_DESCRIPTION,
   manifest: "/manifest.webmanifest",
   openGraph: {
-    title: "Rifas - Plataforma de Sorteos",
-    description: "Participa en rifas y gana increíbles premios",
+    title: `${BRAND_NAME} | Plataforma de Rifas Digitales`,
+    description: BRAND_SHORT_DESCRIPTION,
     type: "website",
   },
 };
@@ -73,7 +77,7 @@ export default function RootLayout({
                 <div className="container mx-auto px-4">
                   <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
                     <p className="text-sm text-muted-foreground">
-                      © {new Date().getFullYear()} <span className="font-display text-primary">Rifas</span>. Todos los derechos reservados.
+                      © {new Date().getFullYear()} <span className="font-display text-primary">{BRAND_NAME}</span>. Todos los derechos reservados.
                     </p>
                     <nav className="flex gap-4 text-sm">
                       <a href="/legal/terminos" className="text-muted-foreground hover:text-primary transition-colors">

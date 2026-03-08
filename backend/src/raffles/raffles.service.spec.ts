@@ -262,6 +262,47 @@ describe('RafflesService', () => {
         'futuro',
       );
     });
+
+    it('should reject raffles that mention prohibited gambling value', async () => {
+      mockPrismaService.user.findUnique.mockResolvedValue(createTestUser());
+
+      const prohibitedInput = {
+        ...validInput,
+        titulo: 'Saldo para casino online',
+      };
+
+      await expect(service.create('user-123', prohibitedInput)).rejects.toThrow(
+        BadRequestException,
+      );
+      await expect(service.create('user-123', prohibitedInput)).rejects.toThrow(
+        'No se permiten rifas relacionadas',
+      );
+    });
+  });
+
+  describe('update', () => {
+    it('should reject prohibited content when updating a raffle', async () => {
+      jest
+        .spyOn(service, 'findOne')
+        .mockResolvedValue(createTestRaffle() as any);
+
+      await expect(
+        service.update('raffle-123', 'user-123', {
+          titulo: 'Fichas para casino premium',
+          descripcion:
+            'Descripcion valida para la edicion de una rifa activa con longitud suficiente.',
+          imagenes: ['https://example.com/image.jpg'],
+        }),
+      ).rejects.toThrow(BadRequestException);
+      await expect(
+        service.update('raffle-123', 'user-123', {
+          titulo: 'Fichas para casino premium',
+          descripcion:
+            'Descripcion valida para la edicion de una rifa activa con longitud suficiente.',
+          imagenes: ['https://example.com/image.jpg'],
+        }),
+      ).rejects.toThrow('No se permiten rifas relacionadas');
+    });
   });
 
   describe('selectWinner (Draw Logic)', () => {

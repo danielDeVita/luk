@@ -13,8 +13,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ImageUpload } from '@/components/ImageUpload';
+import { ComplianceNotice } from '@/components/legal/compliance-notice';
 import { Loader2, AlertCircle } from 'lucide-react';
 import { handleError, showSuccess } from '@/lib/error-handler';
+import { getProhibitedRaffleContentMessage } from '@/lib/legal';
 import { toast } from 'sonner';
 
 const GET_KYC_STATUS = gql`
@@ -156,6 +158,20 @@ export default function CreateRafflePage() {
 
     if (images.length === 0) {
       setErrorMsg('Debes agregar al menos 1 imagen del producto');
+      return;
+    }
+
+    const prohibitedContentMessage = getProhibitedRaffleContentMessage([
+      formData.titulo,
+      formData.descripcion,
+      formData.nombreProducto,
+      formData.descripcionProducto,
+      formData.categoria,
+    ]);
+
+    if (prohibitedContentMessage) {
+      setErrorMsg(prohibitedContentMessage);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
     }
     
@@ -380,6 +396,13 @@ export default function CreateRafflePage() {
           )}
         </Button>
       </form>
+
+      <div className="mt-10">
+        <ComplianceNotice
+          title="Antes de publicar una rifa"
+          tone="subtle"
+        />
+      </div>
     </div>
   );
 }

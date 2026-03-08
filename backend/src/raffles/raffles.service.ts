@@ -36,6 +36,10 @@ import {
   toTsqueryOr,
   escapePostgresString,
 } from '../common/utils/fulltext-search.util';
+import {
+  findProhibitedRaffleContent,
+  PROHIBITED_RAFFLE_CONTENT_MESSAGE,
+} from './utils/prohibited-raffle-content.util';
 
 // Type definitions for raffle data with relations
 type RaffleWithTicketsAndBuyers = Prisma.RaffleGetPayload<{
@@ -117,6 +121,18 @@ export class RafflesService {
     private eventEmitter: EventEmitter2,
     @Inject(CACHE_MANAGER) private cache: Cache,
   ) {}
+
+  private validateAllowedRaffleContent(
+    values: Array<string | null | undefined>,
+  ): void {
+    const prohibitedContent = findProhibitedRaffleContent(values);
+
+    if (prohibitedContent) {
+      throw new BadRequestException(
+        `${PROHIBITED_RAFFLE_CONTENT_MESSAGE} Detectamos una referencia a "${prohibitedContent}".`,
+      );
+    }
+  }
 
   private async setListCache(
     key: string,
@@ -273,6 +289,17 @@ export class RafflesService {
     if (fechaLimite <= new Date()) {
       throw new BadRequestException('Fecha límite debe ser en el futuro');
     }
+
+    this.validateAllowedRaffleContent([
+      input.titulo,
+      input.descripcion,
+      input.productData.nombre,
+      input.productData.descripcionDetallada,
+      input.productData.categoria,
+      input.productData.especificacionesTecnicas
+        ? JSON.stringify(input.productData.especificacionesTecnicas)
+        : null,
+    ]);
 
     const raffle = await this.prisma.raffle.create({
       data: {
@@ -641,6 +668,8 @@ export class RafflesService {
     if (raffle.estado !== 'ACTIVA') {
       throw new BadRequestException('Solo se pueden modificar rifas activas');
     }
+
+    this.validateAllowedRaffleContent([input.titulo, input.descripcion]);
 
     // Update raffle (title, description) and product images in a transaction
     const result = await this.prisma.$transaction(async (tx) => {
