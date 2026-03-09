@@ -1,4 +1,9 @@
-import { Injectable, Logger, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  BadRequestException,
+  OnModuleDestroy,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { EncryptionService } from '../common/services/encryption.service';
@@ -19,8 +24,9 @@ interface MpErrorResponse {
 }
 
 @Injectable()
-export class MpConnectService {
+export class MpConnectService implements OnModuleDestroy {
   private readonly logger = new Logger(MpConnectService.name);
+  private readonly cleanupInterval: NodeJS.Timeout;
 
   // Store PKCE verifiers temporarily (in production, use Redis)
   private readonly pkceVerifiers = new Map<
@@ -34,7 +40,15 @@ export class MpConnectService {
     private encryption: EncryptionService,
   ) {
     // Clean up expired verifiers every 5 minutes
-    setInterval(() => this.cleanupExpiredVerifiers(), 5 * 60 * 1000);
+    this.cleanupInterval = setInterval(
+      () => this.cleanupExpiredVerifiers(),
+      5 * 60 * 1000,
+    );
+    this.cleanupInterval.unref();
+  }
+
+  onModuleDestroy() {
+    clearInterval(this.cleanupInterval);
   }
 
   /**

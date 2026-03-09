@@ -2,7 +2,7 @@
 
 import { useState, useEffect,useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { useForm } from 'react-hook-form';
+import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useMutation, useQuery } from '@apollo/client/react';
@@ -77,6 +77,28 @@ interface CreateRaffleResult {
   };
 }
 
+function getApolloErrorMessage(error: {
+  message: string;
+  graphQLErrors?: Array<{
+    message: string;
+    extensions?: { originalError?: { message?: string | string[] } };
+  }>;
+}) {
+  const graphQLError = error.graphQLErrors?.[0];
+  const response = graphQLError?.extensions?.originalError;
+  const message = response?.message;
+
+  if (Array.isArray(message)) {
+    return message.join(', ');
+  }
+
+  if (typeof message === 'string') {
+    return message;
+  }
+
+  return error.message;
+}
+
 export default function CreateRafflePage() {
   const router = useRouter();
   const { isAuthenticated, hasHydrated } = useAuthStore();
@@ -108,7 +130,7 @@ export default function CreateRafflePage() {
   const {
     register,
     handleSubmit,
-    watch,
+    control,
     formState: { errors },
   } = useForm<CreateRaffleForm>({
     resolver: zodResolver(createRaffleSchema),
@@ -119,7 +141,16 @@ export default function CreateRafflePage() {
     },
   });
 
-  const [createRaffle, { data, loading, error }] = useMutation<CreateRaffleResult>(CREATE_RAFFLE);
+  const [createRaffle, { data, loading }] = useMutation<CreateRaffleResult>(
+    CREATE_RAFFLE,
+    {
+      onError: (apolloError) => {
+        handleError(apolloError);
+        setErrorMsg(getApolloErrorMessage(apolloError));
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      },
+    },
+  );
 
   // Handle success
   useEffect(() => {
@@ -128,30 +159,6 @@ export default function CreateRafflePage() {
       router.push(`/raffle/${data.createRaffle.id}`);
     }
   }, [data, router]);
-
-  // Handle error
-  useEffect(() => {
-    if (error) {
-      handleError(error);
-      // Also show inline error for visibility
-      const gqlError = error as { graphQLErrors?: Array<{ message: string; extensions?: { originalError?: { message?: string | string[] } } }> };
-      const graphQLError = gqlError.graphQLErrors?.[0];
-      const response = graphQLError?.extensions?.originalError;
-      const message = response?.message;
-
-      let displayMsg = error.message;
-      if (Array.isArray(message)) {
-        displayMsg = message.join(', ');
-      } else if (typeof message === 'string') {
-        displayMsg = message;
-      }
-
-      // Error sync from Apollo requires setState in effect
-       
-      setErrorMsg(displayMsg);
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
-  }, [error]);
 
   const onSubmit = (formData: CreateRaffleForm) => {
     setErrorMsg(null);
@@ -197,12 +204,14 @@ export default function CreateRafflePage() {
 
 
 
-  if (!hasHydrated || !isAuthenticated) return null;
+  const tituloValue = useWatch({ control, name: 'titulo' }) ?? '';
+  const descripcionValue = useWatch({ control, name: 'descripcion' }) ?? '';
+  const nombreProductoValue =
+    useWatch({ control, name: 'nombreProducto' }) ?? '';
+  const descripcionProductoValue =
+    useWatch({ control, name: 'descripcionProducto' }) ?? '';
 
-  const tituloValue = watch('titulo') ?? '';
-  const descripcionValue = watch('descripcion') ?? '';
-  const nombreProductoValue = watch('nombreProducto') ?? '';
-  const descripcionProductoValue = watch('descripcionProducto') ?? '';
+  if (!hasHydrated || !isAuthenticated) return null;
 
   const onError = () => {
     handleError('Por favor corrige los errores en el formulario');

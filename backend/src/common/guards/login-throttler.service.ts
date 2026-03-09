@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 
 interface LoginAttempt {
   count: number;
@@ -18,8 +18,9 @@ interface LoginAttempt {
  * For production with multiple instances, consider using Redis.
  */
 @Injectable()
-export class LoginThrottlerService {
+export class LoginThrottlerService implements OnModuleDestroy {
   private readonly logger = new Logger(LoginThrottlerService.name);
+  private readonly cleanupInterval: NodeJS.Timeout;
 
   // Configuration
   private readonly MAX_ATTEMPTS = 5;
@@ -32,7 +33,15 @@ export class LoginThrottlerService {
 
   constructor() {
     // Periodic cleanup of expired entries
-    setInterval(() => this.cleanup(), this.CLEANUP_INTERVAL_MS);
+    this.cleanupInterval = setInterval(
+      () => this.cleanup(),
+      this.CLEANUP_INTERVAL_MS,
+    );
+    this.cleanupInterval.unref();
+  }
+
+  onModuleDestroy() {
+    clearInterval(this.cleanupInterval);
   }
 
   /**

@@ -3,7 +3,7 @@
 import { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useForm } from 'react-hook-form';
+import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useMutation } from '@apollo/client/react';
@@ -144,7 +144,7 @@ function RegisterPageContent() {
   const {
     register,
     handleSubmit,
-    watch,
+    control,
     formState: { errors, isSubmitting },
   } = useForm<RegisterForm>({
     resolver: zodResolver(registerSchema),
@@ -154,9 +154,9 @@ function RegisterPageContent() {
     },
   });
 
-  // eslint-disable-next-line react-hooks/incompatible-library
-  const password = watch('password', '');
-  const confirmPassword = watch('confirmPassword', '');
+  const password = useWatch({ control, name: 'password' }) ?? '';
+  const confirmPassword =
+    useWatch({ control, name: 'confirmPassword' }) ?? '';
 
   const [registerMutation, { loading: registering }] = useMutation<RegisterResult>(REGISTER_MUTATION);
   const [verifyEmailMutation, { loading: verifying }] = useMutation<VerifyEmailResult>(VERIFY_EMAIL_MUTATION);

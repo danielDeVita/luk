@@ -7,6 +7,7 @@ import { Navbar } from "@/components/navbar";
 import { Toaster } from 'sonner';
 import { GoogleAnalytics } from "@/components/analytics/google-analytics";
 import { ConfirmDialogProvider } from "@/hooks/use-confirm-dialog";
+import { TabTitleController } from '@/components/tab-title-controller';
 import {
   BRAND_NAME,
   BRAND_SHORT_DESCRIPTION,
@@ -25,11 +26,11 @@ const fraunces = Fraunces({
 });
 
 export const metadata: Metadata = {
-  title: `${BRAND_NAME} | Plataforma de Rifas Digitales`,
+  title: BRAND_NAME,
   description: BRAND_SHORT_DESCRIPTION,
   manifest: "/manifest.webmanifest",
   openGraph: {
-    title: `${BRAND_NAME} | Plataforma de Rifas Digitales`,
+    title: BRAND_NAME,
     description: BRAND_SHORT_DESCRIPTION,
     type: "website",
   },
@@ -65,6 +66,7 @@ export default function RootLayout({
         />
       </head>
       <body className={`${dmSans.variable} ${fraunces.variable} font-sans antialiased`}>
+        <TabTitleController />
         <GoogleAnalytics />
         <ApolloWrapper>
           <ConfirmDialogProvider>

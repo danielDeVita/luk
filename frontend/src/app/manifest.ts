@@ -6,7 +6,7 @@ import {
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: `${BRAND_NAME} | Plataforma de Rifas Digitales`,
+    name: BRAND_NAME,
     short_name: BRAND_NAME,
     description: BRAND_SHORT_DESCRIPTION,
     start_url: '/',
