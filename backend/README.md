@@ -2,7 +2,7 @@
 
 GraphQL API built with NestJS, Prisma, and PostgreSQL.
 
-> **Full documentation**: See [CLAUDE.md](../CLAUDE.md) for business flows, database models, and complete setup guide.
+> **Project guide**: See [AGENTS.md](../AGENTS.md) for shared project context and [COMMANDS.md](../COMMANDS.md) for root-level workflows.
 
 ## Quick Start (Docker - Recommended)
 
@@ -532,4 +532,4 @@ This error means OAuth credentials are misconfigured in Google Cloud Console:
 3. If app is in "Testing" mode, add your email as a Test user
 4. Check credentials haven't been deleted or regenerated
 
-See CLAUDE.md Troubleshooting section for Google OAuth setup guide.
+See the `Google OAuth Setup` section above for the full local setup flow.

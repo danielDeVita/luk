@@ -77,7 +77,7 @@ export function register(userData) {
   }
 }
 
-// Test users from seed data (see CLAUDE.md)
+// Test users from the shared manual QA seed data
 export const TEST_USERS = {
   admin: {
     email: 'admin@rifas.com',

@@ -2,7 +2,7 @@
 
 Next.js 16 application with TypeScript, Tailwind CSS v4, and Shadcn/UI.
 
-> **Full documentation**: See [CLAUDE.md](../CLAUDE.md) for business flows, API reference, and complete setup guide.
+> **Project guide**: See [AGENTS.md](../AGENTS.md) for shared project context and [COMMANDS.md](../COMMANDS.md) for root-level workflows.
 
 ## Quick Start (Docker - Recommended)
 
