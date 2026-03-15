@@ -4,6 +4,41 @@ import { useMutation, useQuery } from '@apollo/client/react';
 import { useAuthStore } from '@/store/auth';
 import { RaffleContent } from '../raffle-content';
 
+function createMutationResult() {
+  return [
+    vi.fn(),
+    {
+      called: false,
+      loading: false,
+      data: undefined,
+      error: undefined,
+      client: {} as never,
+      reset: vi.fn(),
+    },
+  ] as ReturnType<typeof useMutation>;
+}
+
+function createQueryResult<TData>(data: TData) {
+  return {
+    data,
+    dataState: 'complete' as const,
+    loading: false,
+    error: undefined,
+    refetch: vi.fn(),
+    client: {} as never,
+    observable: {} as never,
+    networkStatus: 7 as const,
+    startPolling: vi.fn(),
+    stopPolling: vi.fn(),
+    subscribeToMore: vi.fn(),
+    updateQuery: vi.fn(),
+    fetchMore: vi.fn(),
+    variables: {},
+    previousData: undefined,
+    called: true,
+  } as ReturnType<typeof useQuery>;
+}
+
 vi.mock('../raffle-qa', () => ({
   RaffleQA: () => <div data-testid="raffle-qa">RaffleQA</div>,
 }));
@@ -99,43 +134,16 @@ describe('RaffleContent', () => {
   beforeEach(() => {
     vi.clearAllMocks();
 
-    mockUseMutation.mockImplementation(() => [
-      vi.fn(),
-      {
-        data: undefined,
-        loading: false,
-        error: undefined,
-      },
-    ]);
+    mockUseMutation.mockImplementation(() => createMutationResult());
   });
 
   function mockQueries() {
     mockUseQuery.mockReset();
     mockUseQuery
-      .mockReturnValueOnce({
-        data: raffleData,
-        loading: false,
-        error: undefined,
-        refetch: vi.fn(),
-      })
-      .mockReturnValueOnce({
-        data: { priceHistory: [] },
-        loading: false,
-        error: undefined,
-        refetch: vi.fn(),
-      })
-      .mockReturnValueOnce({
-        data: { mySocialPromotionPosts: [] },
-        loading: false,
-        error: undefined,
-        refetch: vi.fn(),
-      })
-      .mockReturnValueOnce({
-        data: { isFavorite: false },
-        loading: false,
-        error: undefined,
-        refetch: vi.fn(),
-      });
+      .mockReturnValueOnce(createQueryResult(raffleData))
+      .mockReturnValueOnce(createQueryResult({ priceHistory: [] }))
+      .mockReturnValueOnce(createQueryResult({ mySocialPromotionPosts: [] }))
+      .mockReturnValueOnce(createQueryResult({ isFavorite: false }));
   }
 
   it('replaces the buy form with an informational block for the raffle owner', () => {

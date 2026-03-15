@@ -5,6 +5,20 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useMutation } from '@apollo/client/react';
 import { SocialPromotionManager } from '../social-promotion-manager';
 
+function createMutationTuple(handler: ReturnType<typeof vi.fn>) {
+  return [
+    handler,
+    {
+      called: false,
+      loading: false,
+      data: undefined,
+      error: undefined,
+      client: {} as never,
+      reset: vi.fn(),
+    },
+  ] as ReturnType<typeof useMutation>;
+}
+
 vi.mock('@/components/ui/dialog', () => ({
   Dialog: ({ open, children }: { open: boolean; children: ReactNode }) =>
     open ? <div>{children}</div> : <div />,
@@ -84,10 +98,10 @@ describe('SocialPromotionManager', () => {
           : undefined;
 
       if (operationName === 'StartSocialPromotionDraft') {
-        return [startDraft, { loading: false, data: undefined, error: undefined }];
+        return createMutationTuple(startDraft);
       }
 
-      return [submitPost, { loading: false, data: undefined, error: undefined }];
+      return createMutationTuple(submitPost);
     });
 
     startDraft.mockImplementation(async ({ variables }) => ({

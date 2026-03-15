@@ -18,6 +18,9 @@ type MockPrismaService = {
     update: jest.Mock;
     findMany: jest.Mock;
   };
+  transaction: {
+    aggregate: jest.Mock;
+  };
 };
 
 type MockNotificationsService = {
@@ -50,6 +53,11 @@ describe('PayoutsService', () => {
       create: jest.fn(),
       update: jest.fn(),
       findMany: jest.fn(),
+    },
+    transaction: {
+      aggregate: jest.fn().mockResolvedValue({
+        _sum: { monto: new Prisma.Decimal(0) },
+      }),
     },
   });
 
@@ -126,6 +134,7 @@ describe('PayoutsService', () => {
           raffleId: 'raffle-1',
           sellerId: 'seller-1',
           grossAmount: 10000,
+          platformSubsidyAmount: 0,
           platformFee: 400,
           processingFee: 500,
           netAmount: 9100,
