@@ -1,4 +1,4 @@
-# Load Testing Suite
+# LUK Load Testing Suite
 
 Performance testing for LUK using [k6](https://k6.io/).
 
