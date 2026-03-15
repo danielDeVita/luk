@@ -66,7 +66,7 @@ export function initSentry(): void {
     // Additional context
     initialScope: {
       tags: {
-        service: 'raffle-backend',
+        service: 'luk-backend',
       },
     },
   });

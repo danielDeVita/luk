@@ -1,7 +1,9 @@
+name: luk-local
+
 services:
   postgres:
     image: postgres:15-alpine
-    container_name: raffle_db
+    container_name: luk_db
     environment:
       POSTGRES_USER: raffle_user
       POSTGRES_PASSWORD: raffle_password
@@ -18,7 +20,7 @@ services:
 
   redis:
     image: redis:7-alpine
-    container_name: raffle_redis
+    container_name: luk_redis
     ports:
       - "6379:6379"
     volumes:
@@ -33,7 +35,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: raffle_backend
+    container_name: luk_backend
     env_file:
       - .env
     environment:
@@ -71,7 +73,7 @@ services:
         # Build-time args from .env (NEXT_PUBLIC_ vars are baked at build time)
         NEXT_PUBLIC_GRAPHQL_URL: ${NEXT_PUBLIC_GRAPHQL_URL:-http://localhost:3001/graphql}
         NEXT_PUBLIC_GRAPHQL_WS_URL: ${NEXT_PUBLIC_GRAPHQL_WS_URL:-ws://localhost:3001/graphql}
-    container_name: raffle_frontend
+    container_name: luk_frontend
     env_file:
       - .env
     ports:

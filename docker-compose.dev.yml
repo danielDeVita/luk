@@ -1,3 +1,5 @@
+name: luk-dev
+
 services:
   # NOTE: postgres service removed - using Neon cloud database
   # Set DATABASE_URL in backend/.env to point to your Neon database

@@ -23,6 +23,6 @@ export const winstonConfig: winston.LoggerOptions = {
   ),
   transports: [new winston.transports.Console()],
   defaultMeta: {
-    service: 'raffle-backend',
+    service: 'luk-backend',
   },
 };

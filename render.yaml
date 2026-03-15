@@ -1,10 +1,10 @@
-# Render deployment configuration
+# LUK deployment configuration
 # Documentation: https://docs.render.com/blueprint-spec
 
 services:
   # Backend API (NestJS)
   - type: web
-    name: raffle-backend
+    name: luk-backend
     runtime: docker
     dockerfilePath: ./backend/Dockerfile
     dockerContext: ./backend
@@ -52,7 +52,7 @@ services:
         value: "false"
 
   - type: worker
-    name: raffle-social-promotion-worker
+    name: luk-social-promotion-worker
     runtime: docker
     dockerfilePath: ./backend/Dockerfile.social-worker
     dockerContext: ./backend
@@ -82,7 +82,7 @@ services:
 
   # Frontend (Next.js)
   - type: web
-    name: raffle-frontend
+    name: luk-frontend
     runtime: docker
     dockerfilePath: ./frontend/Dockerfile
     dockerContext: ./frontend

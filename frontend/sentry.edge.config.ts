@@ -14,7 +14,7 @@ if (dsn) {
     // Additional context
     initialScope: {
       tags: {
-        service: 'raffle-frontend-edge',
+        service: 'luk-frontend-edge',
       },
     },
   });

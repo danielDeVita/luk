@@ -1,4 +1,4 @@
-# Developer Commands Reference (Docker-Only)
+# LUK Developer Commands (Docker-Only)
 
 All commands run from the **project root**.
 
