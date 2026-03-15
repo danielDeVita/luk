@@ -28,7 +28,9 @@ test.describe('Raffle Browsing', () => {
       timeout: 10000,
     });
     await expect(
-      page.getByText(/no comercializa fichas, saldo, creditos/i),
+      page.getByText(
+        /no comercializa fichas, saldo, monedas virtuales|bonificaciones promocionales internas/i,
+      ),
     ).toBeVisible({ timeout: 10000 });
   });
 
@@ -86,7 +88,9 @@ test.describe('Raffle Browsing', () => {
       await page.waitForURL(/\/raffle\//);
 
       await expect(
-        page.getByText(/no comercializa fichas, saldo, creditos/i),
+        page.getByText(
+          /no comercializa fichas, saldo, monedas virtuales|bonificaciones promocionales internas/i,
+        ),
       ).toBeVisible({ timeout: 10000 });
     }
   });

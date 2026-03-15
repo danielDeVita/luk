@@ -64,6 +64,8 @@ enum TransactionType {
   PAGO_VENDEDOR
   COMISION_PLATAFORMA
   FEE_MP
+  SUBSIDIO_PROMOCIONAL_PLATAFORMA
+  REVERSION_BONIFICACION_PROMOCIONAL
 }
 
 enum TransactionStatus {
@@ -133,6 +135,67 @@ enum ReferralCreditStatus {
   CREDITED
   USED
   EXPIRED
+}
+
+enum SocialPromotionNetwork {
+  FACEBOOK
+  INSTAGRAM
+  X
+  THREADS
+}
+
+enum SocialPromotionStatus {
+  PENDING_VALIDATION
+  ACTIVE
+  TECHNICAL_REVIEW
+  DISQUALIFIED
+  SETTLED
+}
+
+enum PromotionBonusGrantStatus {
+  AVAILABLE
+  RESERVED
+  USED
+  EXPIRED
+  REVERSED
+}
+
+enum PromotionBonusRedemptionStatus {
+  RESERVED
+  USED
+  RELEASED
+  REVERSED
+  EXPIRED
+}
+
+enum PaymentsProvider {
+  MERCADOPAGO
+  MOCK
+}
+
+enum MockPaymentStatus {
+  INITIATED
+  PENDING
+  APPROVED
+  REJECTED
+  EXPIRED
+  REFUNDED_FULL
+  REFUNDED_PARTIAL
+}
+
+enum MockPaymentEventType {
+  APPROVE
+  PEND
+  REJECT
+  REFUND_FULL
+  REFUND_PARTIAL
+  EXPIRE
+}
+
+enum SocialPromotionAttributionEventType {
+  CLICK
+  REGISTRATION
+  PURCHASE
 }
 
 // ==================== MODELS ====================
@@ -228,6 +291,12 @@ model User {
   questionsAsked    RaffleQuestion[] @relation("UserQuestions")
   answersGiven      RaffleAnswer[]   @relation("SellerAnswers")
   emailVerificationCodes EmailVerificationCode[]
+  socialPromotionDrafts SocialPromotionDraft[] @relation("SellerSocialPromotionDrafts")
+  socialPromotionPosts SocialPromotionPost[] @relation("SellerSocialPromotionPosts")
+  promotionScoreSettlements PromotionScoreSettlement[] @relation("SellerPromotionScoreSettlements")
+  promotionBonusGrants PromotionBonusGrant[] @relation("UserPromotionBonusGrants")
+  promotionBonusRedemptions PromotionBonusRedemption[] @relation("UserPromotionBonusRedemptions")
+  socialPromotionAttributionEvents SocialPromotionAttributionEvent[] @relation("SocialPromotionAttributedUser")
 
   @@index([isDeleted, createdAt])
   @@map("users")
@@ -289,6 +358,10 @@ model Raffle {
   payout              Payout?
   conversation        Conversation?
   questions           RaffleQuestion[]
+  socialPromotionDrafts SocialPromotionDraft[]
+  socialPromotionPosts SocialPromotionPost[]
+  promotionScoreSettlements PromotionScoreSettlement[]
+  promotionBonusRedemptions PromotionBonusRedemption[]
 
   @@index([sellerId])
   @@index([estado])
@@ -355,6 +428,9 @@ model Transaction {
   userId              String            @map("user_id")
   raffleId            String            @map("raffle_id")
   monto               Decimal           @db.Decimal(10, 2)
+  grossAmount         Decimal?          @map("gross_amount") @db.Decimal(10, 2)
+  promotionDiscountAmount Decimal?      @map("promotion_discount_amount") @db.Decimal(10, 2)
+  cashChargedAmount   Decimal?          @map("cash_charged_amount") @db.Decimal(10, 2)
   comisionPlataforma  Decimal?          @map("comision_plataforma") @db.Decimal(10, 2)
   feeProcesamiento    Decimal?          @map("fee_procesamiento") @db.Decimal(10, 2)
   montoNeto           Decimal?          @map("monto_neto") @db.Decimal(10, 2)
@@ -676,6 +752,7 @@ model Payout {
   raffleId            String       @unique @map("raffle_id")
   sellerId            String       @map("seller_id")
   grossAmount         Decimal      @map("gross_amount") @db.Decimal(10, 2)
+  platformSubsidyAmount Decimal    @default(0) @map("platform_subsidy_amount") @db.Decimal(10, 2)
   platformFee         Decimal      @map("platform_fee") @db.Decimal(10, 2)
   processingFee       Decimal      @map("processing_fee") @db.Decimal(10, 2)
   netAmount           Decimal      @map("net_amount") @db.Decimal(10, 2)
@@ -752,6 +829,217 @@ model ReferralCredit {
   @@index([userId, status])
   @@index([refereeId])
   @@map("referral_credits")
+}
+
+model SocialPromotionDraft {
+  id             String                 @id @default(cuid())
+  raffleId       String                 @map("raffle_id")
+  sellerId       String                 @map("seller_id")
+  network        SocialPromotionNetwork
+  trackingUrl    String                 @map("tracking_url")
+  promotionToken String                 @unique @map("promotion_token")
+  suggestedCopy  String?                @map("suggested_copy") @db.Text
+  expiresAt      DateTime               @map("expires_at")
+  createdAt      DateTime               @default(now()) @map("created_at")
+  updatedAt      DateTime               @updatedAt @map("updated_at")
+
+  raffle         Raffle                 @relation(fields: [raffleId], references: [id], onDelete: Cascade)
+  seller         User                   @relation("SellerSocialPromotionDrafts", fields: [sellerId], references: [id], onDelete: Cascade)
+  post           SocialPromotionPost?
+
+  @@index([sellerId, createdAt])
+  @@index([raffleId, network])
+  @@map("social_promotion_drafts")
+}
+
+model SocialPromotionPost {
+  id                   String                 @id @default(cuid())
+  draftId              String                 @unique @map("draft_id")
+  raffleId             String                 @map("raffle_id")
+  sellerId             String                 @map("seller_id")
+  network              SocialPromotionNetwork
+  submittedPermalink   String                 @map("submitted_permalink")
+  canonicalPermalink   String?                @map("canonical_permalink")
+  canonicalPostId      String?                @map("canonical_post_id")
+  status               SocialPromotionStatus  @default(PENDING_VALIDATION)
+  publishedAt          DateTime?              @map("published_at")
+  submittedAt          DateTime               @default(now()) @map("submitted_at")
+  validatedAt          DateTime?              @map("validated_at")
+  lastCheckedAt        DateTime?              @map("last_checked_at")
+  nextCheckAt          DateTime?              @map("next_check_at")
+  disqualifiedAt       DateTime?              @map("disqualified_at")
+  disqualificationReason String?              @map("disqualification_reason") @db.Text
+  createdAt            DateTime               @default(now()) @map("created_at")
+  updatedAt            DateTime               @updatedAt @map("updated_at")
+
+  draft                SocialPromotionDraft   @relation(fields: [draftId], references: [id], onDelete: Cascade)
+  raffle               Raffle                 @relation(fields: [raffleId], references: [id], onDelete: Cascade)
+  seller               User                   @relation("SellerSocialPromotionPosts", fields: [sellerId], references: [id], onDelete: Cascade)
+  snapshots            SocialPromotionMetricSnapshot[]
+  settlement           PromotionScoreSettlement?
+  attributionEvents    SocialPromotionAttributionEvent[]
+
+  @@unique([raffleId, sellerId, network])
+  @@index([status, nextCheckAt])
+  @@index([sellerId, status])
+  @@map("social_promotion_posts")
+}
+
+model SocialPromotionMetricSnapshot {
+  id                   String                 @id @default(cuid())
+  socialPromotionPostId String                @map("social_promotion_post_id")
+  checkedAt            DateTime               @default(now()) @map("checked_at")
+  isAccessible         Boolean                @default(false) @map("is_accessible")
+  tokenPresent         Boolean                @default(false) @map("token_present")
+  likesCount           Int?
+  commentsCount        Int?                   @map("comments_count")
+  repostsOrSharesCount Int?                   @map("reposts_or_shares_count")
+  viewsCount           Int?                   @map("views_count")
+  clicksAttributed     Int                    @default(0) @map("clicks_attributed")
+  registrationsAttributed Int                 @default(0) @map("registrations_attributed")
+  ticketPurchasesAttributed Int               @default(0) @map("ticket_purchases_attributed")
+  rawEvidenceMeta      Json?                  @map("raw_evidence_meta")
+  parserVersion        String?                @map("parser_version")
+  failureReason        String?                @map("failure_reason") @db.Text
+
+  socialPromotionPost  SocialPromotionPost    @relation(fields: [socialPromotionPostId], references: [id], onDelete: Cascade)
+
+  @@index([socialPromotionPostId, checkedAt])
+  @@map("social_promotion_metric_snapshots")
+}
+
+model PromotionScoreSettlement {
+  id                   String                @id @default(cuid())
+  socialPromotionPostId String               @unique @map("social_promotion_post_id")
+  sellerId             String                @map("seller_id")
+  raffleId             String                @map("raffle_id")
+  baseScore            Decimal               @default(0) @map("base_score") @db.Decimal(10, 2)
+  engagementScore      Decimal               @default(0) @map("engagement_score") @db.Decimal(10, 2)
+  conversionScore      Decimal               @default(0) @map("conversion_score") @db.Decimal(10, 2)
+  totalScore           Decimal               @default(0) @map("total_score") @db.Decimal(10, 2)
+  settlementStatus     SocialPromotionStatus @default(SETTLED) @map("settlement_status")
+  settledAt            DateTime              @default(now()) @map("settled_at")
+  createdAt            DateTime              @default(now()) @map("created_at")
+
+  socialPromotionPost  SocialPromotionPost   @relation(fields: [socialPromotionPostId], references: [id], onDelete: Cascade)
+  seller               User                  @relation("SellerPromotionScoreSettlements", fields: [sellerId], references: [id], onDelete: Cascade)
+  raffle               Raffle                @relation(fields: [raffleId], references: [id], onDelete: Cascade)
+  bonusGrant           PromotionBonusGrant?
+
+  @@index([sellerId, settledAt])
+  @@index([raffleId])
+  @@map("promotion_score_settlements")
+}
+
+model PromotionBonusGrant {
+  id                   String                    @id @default(cuid())
+  sellerId             String                    @map("seller_id")
+  sourceSettlementId   String                    @unique @map("source_settlement_id")
+  discountPercent      Decimal                   @map("discount_percent") @db.Decimal(5, 2)
+  maxDiscountAmount    Decimal                   @map("max_discount_amount") @db.Decimal(10, 2)
+  expiresAt            DateTime                  @map("expires_at")
+  status               PromotionBonusGrantStatus @default(AVAILABLE)
+  createdAt            DateTime                  @default(now()) @map("created_at")
+  updatedAt            DateTime                  @updatedAt @map("updated_at")
+  usedAt               DateTime?                 @map("used_at")
+
+  seller               User                      @relation("UserPromotionBonusGrants", fields: [sellerId], references: [id], onDelete: Cascade)
+  sourceSettlement     PromotionScoreSettlement  @relation(fields: [sourceSettlementId], references: [id], onDelete: Cascade)
+  redemptions          PromotionBonusRedemption[]
+
+  @@index([sellerId, status])
+  @@index([expiresAt])
+  @@map("promotion_bonus_grants")
+}
+
+model PromotionBonusRedemption {
+  id                   String                         @id @default(cuid())
+  promotionBonusGrantId String                       @map("promotion_bonus_grant_id")
+  buyerId              String                        @map("buyer_id")
+  raffleId             String                        @map("raffle_id")
+  reservationId        String                        @map("reservation_id")
+  grossSubtotal        Decimal                       @map("gross_subtotal") @db.Decimal(10, 2)
+  discountApplied      Decimal                       @map("discount_applied") @db.Decimal(10, 2)
+  mpChargeAmount       Decimal                       @map("mp_charge_amount") @db.Decimal(10, 2)
+  mpPaymentId          String?                       @map("mp_payment_id")
+  status               PromotionBonusRedemptionStatus @default(RESERVED)
+  createdAt            DateTime                      @default(now()) @map("created_at")
+  updatedAt            DateTime                      @updatedAt @map("updated_at")
+  resolvedAt           DateTime?                     @map("resolved_at")
+
+  promotionBonusGrant  PromotionBonusGrant           @relation(fields: [promotionBonusGrantId], references: [id], onDelete: Cascade)
+  buyer                User                          @relation("UserPromotionBonusRedemptions", fields: [buyerId], references: [id], onDelete: Cascade)
+  raffle               Raffle                        @relation(fields: [raffleId], references: [id], onDelete: Cascade)
+
+  @@index([promotionBonusGrantId, status])
+  @@index([buyerId, createdAt])
+  @@index([reservationId])
+  @@map("promotion_bonus_redemptions")
+}
+
+model SocialPromotionAttributionEvent {
+  id                   String                           @id @default(cuid())
+  socialPromotionPostId String                         @map("social_promotion_post_id")
+  eventType            SocialPromotionAttributionEventType @map("event_type")
+  userId               String?                         @map("user_id")
+  ticketCount          Int?                            @map("ticket_count")
+  amount               Decimal?                        @db.Decimal(10, 2)
+  metadata             Json?
+  createdAt            DateTime                        @default(now()) @map("created_at")
+
+  socialPromotionPost  SocialPromotionPost             @relation(fields: [socialPromotionPostId], references: [id], onDelete: Cascade)
+  user                 User?                           @relation("SocialPromotionAttributedUser", fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([socialPromotionPostId, eventType, createdAt])
+  @@index([userId, eventType])
+  @@map("social_promotion_attribution_events")
+}
+
+model MockPayment {
+  id                        String            @id
+  publicToken               String            @unique @map("public_token")
+  buyerId                   String            @map("buyer_id")
+  raffleId                  String            @map("raffle_id")
+  reservationId             String            @map("reservation_id")
+  grossSubtotal             Decimal           @map("gross_subtotal") @db.Decimal(10, 2)
+  discountApplied           Decimal           @map("discount_applied") @db.Decimal(10, 2)
+  cashChargedAmount         Decimal           @map("cash_charged_amount") @db.Decimal(10, 2)
+  promotionBonusGrantId     String?           @map("promotion_bonus_grant_id")
+  promotionBonusRedemptionId String?          @map("promotion_bonus_redemption_id")
+  providerReference         String            @map("provider_reference")
+  merchantOrderId           String            @map("merchant_order_id")
+  externalReference         String?           @map("external_reference") @db.Text
+  status                    MockPaymentStatus @default(INITIATED)
+  statusDetail              String?           @map("status_detail")
+  approvedAt                DateTime?         @map("approved_at")
+  processedAt               DateTime?         @map("processed_at")
+  expiresAt                 DateTime?         @map("expires_at")
+  refundedAt                DateTime?         @map("refunded_at")
+  refundedAmount            Decimal?          @map("refunded_amount") @db.Decimal(10, 2)
+  createdAt                 DateTime          @default(now()) @map("created_at")
+  updatedAt                 DateTime          @updatedAt @map("updated_at")
+
+  events                    MockPaymentEvent[]
+
+  @@index([buyerId, createdAt])
+  @@index([raffleId, status])
+  @@index([reservationId])
+  @@map("mock_payments")
+}
+
+model MockPaymentEvent {
+  id             String               @id @default(cuid())
+  mockPaymentId  String               @map("mock_payment_id")
+  eventType      MockPaymentEventType @map("event_type")
+  status         MockPaymentStatus?   @map("status")
+  amount         Decimal?             @db.Decimal(10, 2)
+  metadata       Json?
+  createdAt      DateTime             @default(now()) @map("created_at")
+
+  mockPayment    MockPayment          @relation(fields: [mockPaymentId], references: [id], onDelete: Cascade)
+
+  @@index([mockPaymentId, createdAt])
+  @@map("mock_payment_events")
 }
 
 enum ActivityType {

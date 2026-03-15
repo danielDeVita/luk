@@ -1,0 +1,1357 @@
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import {
+  Prisma,
+  PromotionBonusGrantStatus,
+  PromotionBonusRedemptionStatus,
+  SocialPromotionAttributionEventType,
+  SocialPromotionNetwork as PrismaSocialPromotionNetwork,
+  SocialPromotionStatus,
+  TransactionType,
+} from '@prisma/client';
+import { randomBytes } from 'crypto';
+import { PrismaService } from '../prisma/prisma.service';
+import {
+  PromotionBonusGrant,
+  PromotionBonusGrantStatus as PromotionBonusGrantStatusGql,
+  PromotionBonusPreview,
+  SocialPromotionDraft,
+  SocialPromotionNetwork,
+  SocialPromotionPost,
+  SocialPromotionStatus as SocialPromotionStatusGql,
+} from './entities/social-promotion.entity';
+import { SocialPromotionParserService } from './parsers/social-promotion-parser.service';
+import { SocialPromotionPageLoaderService } from './social-promotion-page-loader.service';
+
+type PrismaClientLike = Prisma.TransactionClient | PrismaService;
+
+interface ReserveBonusParams {
+  buyerId: string;
+  raffleId: string;
+  raffleSellerId: string;
+  reservationId: string;
+  grossSubtotal: number;
+  bonusGrantId?: string | null;
+}
+
+interface BonusTier {
+  minScore: number;
+  discountPercent: number;
+  maxDiscountAmount: number;
+}
+
+interface ValidationAttemptResult {
+  loadedPage: {
+    html: string;
+    finalUrl: string;
+    loader: 'fetch' | 'playwright';
+  };
+  parsed: {
+    canonicalPermalink: string;
+    canonicalPostId?: string;
+    isAccessible: boolean;
+    tokenPresent: boolean;
+    metrics: {
+      likesCount?: number;
+      commentsCount?: number;
+      repostsOrSharesCount?: number;
+      viewsCount?: number;
+    };
+  };
+}
+
+@Injectable()
+export class SocialPromotionsService {
+  private readonly logger = new Logger(SocialPromotionsService.name);
+  private readonly retryablePrismaErrorCodes = new Set([
+    'P1001',
+    'P1002',
+    'P1017',
+    'P2024',
+  ]);
+  private readonly tokenTtlHours: number;
+  private readonly minMpCharge: number;
+  private readonly frontendUrl: string;
+  private readonly backendUrl: string;
+  private readonly defaultBonusTiers: BonusTier[];
+  private readonly allowedNetworks: Set<SocialPromotionNetwork>;
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly configService: ConfigService,
+    private readonly parser: SocialPromotionParserService,
+    private readonly pageLoader: SocialPromotionPageLoaderService,
+  ) {
+    this.tokenTtlHours = this.configService.get<number>(
+      'SOCIAL_PROMOTION_TOKEN_TTL_HOURS',
+      24,
+    );
+    this.minMpCharge = this.configService.get<number>(
+      'SOCIAL_PROMOTION_MIN_MP_CHARGE',
+      1,
+    );
+    this.frontendUrl = this.normalizeBaseUrl(
+      this.configService.get<string>('FRONTEND_URL'),
+      'http://localhost:3000',
+    );
+    this.backendUrl = this.normalizeBaseUrl(
+      this.configService.get<string>('BACKEND_URL'),
+      'http://localhost:3001',
+    );
+    this.defaultBonusTiers = this.getBonusTiers();
+    this.allowedNetworks = this.getAllowedNetworks();
+  }
+
+  async startSocialPromotionDraft(
+    sellerId: string,
+    raffleId: string,
+    network: SocialPromotionNetwork,
+  ): Promise<SocialPromotionDraft> {
+    if (!this.allowedNetworks.has(network)) {
+      throw new BadRequestException(
+        'Esta red social no está habilitada para promoción verificable',
+      );
+    }
+
+    const raffle = await this.prisma.raffle.findUnique({
+      where: { id: raffleId },
+      select: { id: true, sellerId: true, estado: true, titulo: true },
+    });
+
+    if (!raffle) {
+      throw new NotFoundException('Rifa no encontrada');
+    }
+    if (raffle.sellerId !== sellerId) {
+      throw new ForbiddenException('No podés promocionar una rifa ajena');
+    }
+    if (raffle.estado !== 'ACTIVA') {
+      throw new BadRequestException('Solo podés promocionar rifas activas');
+    }
+
+    const promotionToken = this.generatePromotionToken();
+    const trackingUrl = `${this.backendUrl}/social-promotions/track/${promotionToken}`;
+    const suggestedCopy = [
+      `Estoy compartiendo mi rifa en Luk.`,
+      raffle.titulo,
+      trackingUrl,
+      `Token: ${promotionToken}`,
+    ].join(' ');
+
+    const expiresAt = new Date();
+    expiresAt.setHours(expiresAt.getHours() + this.tokenTtlHours);
+
+    const draft = await this.prisma.socialPromotionDraft.create({
+      data: {
+        raffleId,
+        sellerId,
+        network: network as unknown as PrismaSocialPromotionNetwork,
+        trackingUrl,
+        promotionToken,
+        suggestedCopy,
+        expiresAt,
+      },
+    });
+
+    return draft as unknown as SocialPromotionDraft;
+  }
+
+  async submitSocialPromotionPost(
+    sellerId: string,
+    draftId: string,
+    permalink: string,
+  ): Promise<SocialPromotionPost> {
+    const draft = await this.prisma.socialPromotionDraft.findUnique({
+      where: { id: draftId },
+      include: {
+        raffle: { select: { id: true, sellerId: true, estado: true } },
+        post: true,
+      },
+    });
+
+    if (!draft) {
+      throw new NotFoundException('Draft promocional no encontrado');
+    }
+    if (draft.sellerId !== sellerId) {
+      throw new ForbiddenException('No podés usar un draft ajeno');
+    }
+    if (draft.raffle.sellerId !== sellerId) {
+      throw new ForbiddenException('No podés promocionar una rifa ajena');
+    }
+    if (draft.raffle.estado !== 'ACTIVA') {
+      throw new BadRequestException('La rifa ya no está activa');
+    }
+    if (draft.expiresAt < new Date()) {
+      throw new BadRequestException('El draft promocional expiró');
+    }
+    if (draft.post) {
+      throw new BadRequestException(
+        'Este draft ya tiene una publicación asociada',
+      );
+    }
+
+    const detectedNetwork = this.parser.detectNetworkFromUrl(permalink);
+    const detectedPrismaNetwork =
+      detectedNetwork as unknown as PrismaSocialPromotionNetwork;
+    if (detectedPrismaNetwork !== draft.network) {
+      throw new BadRequestException(
+        'La URL enviada no coincide con la red del draft',
+      );
+    }
+
+    const canonicalPermalink = this.parser.canonicalizePermalink(permalink);
+
+    const post = await this.prisma.socialPromotionPost.create({
+      data: {
+        draftId: draft.id,
+        raffleId: draft.raffleId,
+        sellerId,
+        network: draft.network,
+        submittedPermalink: permalink,
+        canonicalPermalink,
+        status: SocialPromotionStatus.PENDING_VALIDATION,
+        nextCheckAt: new Date(),
+      },
+      include: {
+        snapshots: { orderBy: { checkedAt: 'desc' }, take: 5 },
+        settlement: true,
+      },
+    });
+
+    return this.mapSocialPromotionPost(post);
+  }
+
+  async mySocialPromotionPosts(sellerId: string, raffleId?: string) {
+    const posts = await this.prisma.socialPromotionPost.findMany({
+      where: {
+        sellerId,
+        raffleId,
+      },
+      include: {
+        snapshots: { orderBy: { checkedAt: 'desc' }, take: 5 },
+        settlement: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return posts.map((post) => this.mapSocialPromotionPost(post));
+  }
+
+  async myPromotionBonusGrants(
+    sellerId: string,
+    status?: PromotionBonusGrantStatus,
+  ) {
+    const grants = await this.prisma.promotionBonusGrant.findMany({
+      where: {
+        sellerId,
+        status,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return grants.map((grant) => this.mapPromotionBonusGrant(grant));
+  }
+
+  async previewPromotionBonus(
+    buyerId: string,
+    raffleId: string,
+    cantidad: number,
+    bonusGrantId: string,
+  ): Promise<PromotionBonusPreview> {
+    const raffle = await this.prisma.raffle.findUnique({
+      where: { id: raffleId },
+      select: { id: true, sellerId: true, precioPorTicket: true, estado: true },
+    });
+
+    if (!raffle || raffle.estado !== 'ACTIVA') {
+      throw new BadRequestException('La rifa no está disponible');
+    }
+
+    const grant = await this.getAvailableGrantForBuyer(buyerId, bonusGrantId);
+
+    if (raffle.sellerId === buyerId) {
+      throw new BadRequestException(
+        'No podés usar una bonificación en una rifa propia',
+      );
+    }
+
+    const grossSubtotal = Number(raffle.precioPorTicket) * cantidad;
+    return this.buildBonusPreview(grant, grossSubtotal);
+  }
+
+  async reserveBonusForCheckout(
+    params: ReserveBonusParams,
+    tx?: Prisma.TransactionClient,
+  ) {
+    if (!params.bonusGrantId) {
+      return null;
+    }
+
+    if (params.raffleSellerId === params.buyerId) {
+      throw new BadRequestException(
+        'No podés usar una bonificación en una rifa propia',
+      );
+    }
+
+    const client = this.getClient(tx);
+    const grant = await client.promotionBonusGrant.findFirst({
+      where: {
+        id: params.bonusGrantId,
+        sellerId: params.buyerId,
+        status: PromotionBonusGrantStatus.AVAILABLE,
+        expiresAt: { gt: new Date() },
+      },
+    });
+
+    if (!grant) {
+      throw new BadRequestException(
+        'La bonificación promocional no está disponible',
+      );
+    }
+
+    const preview = this.buildBonusPreview(grant, params.grossSubtotal);
+
+    await client.promotionBonusGrant.update({
+      where: { id: grant.id },
+      data: { status: PromotionBonusGrantStatus.RESERVED },
+    });
+
+    const redemption = await client.promotionBonusRedemption.create({
+      data: {
+        promotionBonusGrantId: grant.id,
+        buyerId: params.buyerId,
+        raffleId: params.raffleId,
+        reservationId: params.reservationId,
+        grossSubtotal: preview.grossSubtotal,
+        discountApplied: preview.discountApplied,
+        mpChargeAmount: preview.mpChargeAmount,
+        status: PromotionBonusRedemptionStatus.RESERVED,
+      },
+    });
+
+    return {
+      grant: this.mapPromotionBonusGrant(grant),
+      redemption,
+      preview,
+    };
+  }
+
+  async markRedemptionUsedByReservation(params: {
+    reservationId?: string;
+    bonusGrantId?: string | null;
+    mpPaymentId: string;
+  }): Promise<void> {
+    if (!params.reservationId || !params.bonusGrantId) {
+      return;
+    }
+
+    const redemption = await this.prisma.promotionBonusRedemption.findFirst({
+      where: {
+        reservationId: params.reservationId,
+        promotionBonusGrantId: params.bonusGrantId,
+        status: PromotionBonusRedemptionStatus.RESERVED,
+      },
+    });
+
+    if (!redemption) {
+      return;
+    }
+
+    await this.prisma.$transaction([
+      this.prisma.promotionBonusRedemption.update({
+        where: { id: redemption.id },
+        data: {
+          status: PromotionBonusRedemptionStatus.USED,
+          mpPaymentId: params.mpPaymentId,
+          resolvedAt: new Date(),
+        },
+      }),
+      this.prisma.promotionBonusGrant.update({
+        where: { id: redemption.promotionBonusGrantId },
+        data: {
+          status: PromotionBonusGrantStatus.USED,
+          usedAt: new Date(),
+        },
+      }),
+    ]);
+  }
+
+  async releaseReservedRedemptionByReservation(
+    reservationId: string,
+  ): Promise<void> {
+    const redemptions = await this.prisma.promotionBonusRedemption.findMany({
+      where: {
+        reservationId,
+        status: PromotionBonusRedemptionStatus.RESERVED,
+      },
+    });
+
+    for (const redemption of redemptions) {
+      await this.prisma.$transaction([
+        this.prisma.promotionBonusRedemption.update({
+          where: { id: redemption.id },
+          data: {
+            status: PromotionBonusRedemptionStatus.RELEASED,
+            resolvedAt: new Date(),
+          },
+        }),
+        this.prisma.promotionBonusGrant.update({
+          where: { id: redemption.promotionBonusGrantId },
+          data: {
+            status: PromotionBonusGrantStatus.AVAILABLE,
+          },
+        }),
+      ]);
+    }
+  }
+
+  async reinstateRedemptionByPaymentId(
+    mpPaymentId: string,
+    refundAmount?: number,
+  ): Promise<void> {
+    const redemptions = await this.prisma.promotionBonusRedemption.findMany({
+      where: {
+        mpPaymentId,
+        status: PromotionBonusRedemptionStatus.USED,
+      },
+    });
+
+    for (const redemption of redemptions) {
+      const normalizedRefundAmount =
+        typeof refundAmount === 'number' && refundAmount > 0
+          ? Number(refundAmount.toFixed(2))
+          : null;
+      const mpChargeAmount = Number(redemption.mpChargeAmount);
+      const isFullRefund =
+        normalizedRefundAmount === null ||
+        normalizedRefundAmount >= Number((mpChargeAmount - 0.01).toFixed(2));
+
+      if (!isFullRefund) {
+        this.logger.log(
+          `Keeping promotion bonus grant ${redemption.promotionBonusGrantId} in USED after partial refund ${normalizedRefundAmount} for payment ${mpPaymentId}`,
+        );
+        continue;
+      }
+
+      await this.prisma.$transaction([
+        this.prisma.promotionBonusRedemption.update({
+          where: { id: redemption.id },
+          data: {
+            status: PromotionBonusRedemptionStatus.REVERSED,
+            resolvedAt: new Date(),
+          },
+        }),
+        this.prisma.promotionBonusGrant.update({
+          where: { id: redemption.promotionBonusGrantId },
+          data: {
+            status: PromotionBonusGrantStatus.AVAILABLE,
+            usedAt: null,
+          },
+        }),
+        this.prisma.transaction.create({
+          data: {
+            tipo: TransactionType.REVERSION_BONIFICACION_PROMOCIONAL,
+            userId: redemption.buyerId,
+            raffleId: redemption.raffleId,
+            monto: redemption.discountApplied,
+            grossAmount: redemption.grossSubtotal,
+            promotionDiscountAmount: redemption.discountApplied,
+            cashChargedAmount: redemption.mpChargeAmount,
+            estado: 'COMPLETADO',
+            mpPaymentId,
+            metadata: {
+              promotionBonusGrantId: redemption.promotionBonusGrantId,
+              promotionBonusRedemptionId: redemption.id,
+              refundAmount: normalizedRefundAmount ?? mpChargeAmount,
+              refundType:
+                normalizedRefundAmount === null ? 'full' : 'full-equivalent',
+              reason: 'payment_refunded',
+            },
+          },
+        }),
+      ]);
+    }
+  }
+
+  async processDueSocialPromotionPosts(): Promise<number> {
+    const posts = await this.withPrismaReconnect(
+      'load due social promotion posts',
+      () =>
+        this.prisma.socialPromotionPost.findMany({
+          where: {
+            OR: [
+              { status: SocialPromotionStatus.PENDING_VALIDATION },
+              { status: SocialPromotionStatus.TECHNICAL_REVIEW },
+              {
+                status: SocialPromotionStatus.ACTIVE,
+                nextCheckAt: { lte: new Date() },
+              },
+            ],
+          },
+          take: 25,
+          orderBy: { submittedAt: 'asc' },
+        }),
+    );
+
+    let processed = 0;
+    for (const post of posts) {
+      try {
+        await this.validateSocialPromotionPost(post.id);
+        processed += 1;
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : 'Unknown error';
+        this.logger.error(
+          `Unhandled validation failure for promotion post ${post.id}: ${message}`,
+        );
+      }
+    }
+
+    return processed;
+  }
+
+  async settleClosedSocialPromotionPosts(): Promise<number> {
+    const posts = await this.withPrismaReconnect(
+      'load closed social promotion posts',
+      () =>
+        this.prisma.socialPromotionPost.findMany({
+          where: {
+            status: {
+              in: [
+                SocialPromotionStatus.ACTIVE,
+                SocialPromotionStatus.TECHNICAL_REVIEW,
+              ],
+            },
+            settlement: null,
+            raffle: {
+              estado: {
+                in: ['COMPLETADA', 'SORTEADA', 'EN_ENTREGA', 'FINALIZADA'],
+              },
+            },
+          },
+          include: {
+            snapshots: { orderBy: { checkedAt: 'desc' }, take: 1 },
+            raffle: true,
+          },
+        }),
+    );
+
+    let settled = 0;
+    for (const post of posts) {
+      try {
+        await this.settleSocialPromotionPost(post.id);
+        settled += 1;
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : 'Unknown error';
+        this.logger.error(
+          `Unhandled settlement failure for promotion post ${post.id}: ${message}`,
+        );
+      }
+    }
+
+    return settled;
+  }
+
+  async validateSocialPromotionPost(postId: string): Promise<void> {
+    const post = await this.withPrismaReconnect(
+      `load promotion post ${postId}`,
+      () =>
+        this.prisma.socialPromotionPost.findUnique({
+          where: { id: postId },
+          include: {
+            draft: true,
+            raffle: { select: { id: true, estado: true } },
+          },
+        }),
+    );
+
+    if (!post) {
+      throw new NotFoundException('Publicación promocional no encontrada');
+    }
+
+    try {
+      const network = post.network as unknown as SocialPromotionNetwork;
+      const initialAttempt = await this.loadAndParsePromotionPost({
+        network,
+        permalink: post.submittedPermalink,
+        promotionToken: post.draft.promotionToken,
+        trackingUrl: post.draft.trackingUrl,
+      });
+      const validationAttempt = await this.retryWithBrowserForVisibleMetrics({
+        network,
+        permalink: post.submittedPermalink,
+        promotionToken: post.draft.promotionToken,
+        trackingUrl: post.draft.trackingUrl,
+        initialAttempt,
+      });
+      const { loadedPage, parsed } = validationAttempt;
+      const attributedMetrics = await this.withPrismaReconnect(
+        `load attributed metrics for promotion post ${post.id}`,
+        () => this.getAttributedMetrics(post.id),
+      );
+
+      const nextCheckAt = new Date();
+      nextCheckAt.setHours(nextCheckAt.getHours() + 6);
+
+      const nextStatus = !parsed.isAccessible
+        ? SocialPromotionStatus.DISQUALIFIED
+        : !parsed.tokenPresent
+          ? SocialPromotionStatus.DISQUALIFIED
+          : SocialPromotionStatus.ACTIVE;
+
+      const disqualificationReason = !parsed.isAccessible
+        ? 'La publicación no es accesible públicamente'
+        : !parsed.tokenPresent
+          ? 'No se detectó el token o trackingUrl de Luk'
+          : null;
+
+      await this.withPrismaReconnect(
+        `persist validation result for promotion post ${post.id}`,
+        () =>
+          this.prisma.$transaction([
+            this.prisma.socialPromotionMetricSnapshot.create({
+              data: {
+                socialPromotionPostId: post.id,
+                isAccessible: parsed.isAccessible,
+                tokenPresent: parsed.tokenPresent,
+                likesCount: parsed.metrics.likesCount,
+                commentsCount: parsed.metrics.commentsCount,
+                repostsOrSharesCount: parsed.metrics.repostsOrSharesCount,
+                viewsCount: parsed.metrics.viewsCount,
+                clicksAttributed: attributedMetrics.clicksAttributed,
+                registrationsAttributed:
+                  attributedMetrics.registrationsAttributed,
+                ticketPurchasesAttributed:
+                  attributedMetrics.ticketPurchasesAttributed,
+                rawEvidenceMeta: {
+                  loader: loadedPage.loader,
+                  canonicalPermalink: parsed.canonicalPermalink,
+                  metricsDetected: this.hasVisibleMetrics(parsed.metrics),
+                },
+                parserVersion: 'v1',
+                failureReason: disqualificationReason ?? undefined,
+              },
+            }),
+            this.prisma.socialPromotionPost.update({
+              where: { id: post.id },
+              data: {
+                canonicalPermalink: parsed.canonicalPermalink,
+                canonicalPostId: parsed.canonicalPostId,
+                status: nextStatus,
+                validatedAt: post.validatedAt ?? new Date(),
+                lastCheckedAt: new Date(),
+                nextCheckAt:
+                  nextStatus === SocialPromotionStatus.ACTIVE
+                    ? nextCheckAt
+                    : null,
+                disqualifiedAt:
+                  nextStatus === SocialPromotionStatus.DISQUALIFIED
+                    ? new Date()
+                    : null,
+                disqualificationReason:
+                  nextStatus === SocialPromotionStatus.DISQUALIFIED
+                    ? disqualificationReason
+                    : null,
+              },
+            }),
+          ]),
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.warn(
+        `Failed to validate promotion post ${post.id}: ${message}`,
+      );
+
+      await this.withPrismaReconnect(
+        `persist technical review for promotion post ${post.id}`,
+        () =>
+          this.prisma.$transaction([
+            this.prisma.socialPromotionMetricSnapshot.create({
+              data: {
+                socialPromotionPostId: post.id,
+                isAccessible: false,
+                tokenPresent: false,
+                clicksAttributed: 0,
+                registrationsAttributed: 0,
+                ticketPurchasesAttributed: 0,
+                parserVersion: 'v1',
+                failureReason: message,
+              },
+            }),
+            this.prisma.socialPromotionPost.update({
+              where: { id: post.id },
+              data: {
+                status: SocialPromotionStatus.TECHNICAL_REVIEW,
+                lastCheckedAt: new Date(),
+                nextCheckAt: new Date(Date.now() + 60 * 60 * 1000),
+                disqualificationReason: null,
+              },
+            }),
+          ]),
+      );
+    }
+  }
+
+  async settleSocialPromotionPost(postId: string): Promise<void> {
+    const post = await this.withPrismaReconnect(
+      `load settlement candidate ${postId}`,
+      () =>
+        this.prisma.socialPromotionPost.findUnique({
+          where: { id: postId },
+          include: {
+            snapshots: { orderBy: { checkedAt: 'desc' }, take: 1 },
+            settlement: true,
+          },
+        }),
+    );
+
+    if (!post || post.settlement) {
+      return;
+    }
+
+    const latestSnapshot = post.snapshots[0];
+    if (
+      !latestSnapshot ||
+      !latestSnapshot.isAccessible ||
+      !latestSnapshot.tokenPresent
+    ) {
+      await this.withPrismaReconnect(
+        `disqualify unsettled promotion post ${post.id}`,
+        () =>
+          this.prisma.socialPromotionPost.update({
+            where: { id: post.id },
+            data: {
+              status: SocialPromotionStatus.DISQUALIFIED,
+              disqualifiedAt: post.disqualifiedAt ?? new Date(),
+              nextCheckAt: null,
+            },
+          }),
+      );
+      return;
+    }
+
+    const baseScore = 10;
+    const engagementScore =
+      (latestSnapshot.likesCount ?? 0) * 0.01 +
+      (latestSnapshot.commentsCount ?? 0) * 0.25 +
+      (latestSnapshot.repostsOrSharesCount ?? 0) * 0.5 +
+      (latestSnapshot.viewsCount ?? 0) * 0.001;
+    const conversionScore =
+      latestSnapshot.clicksAttributed * 0.1 +
+      latestSnapshot.registrationsAttributed * 3 +
+      latestSnapshot.ticketPurchasesAttributed * 1.5;
+    const totalScore = Number(
+      (baseScore + engagementScore + conversionScore).toFixed(2),
+    );
+
+    const settlement = await this.withPrismaReconnect(
+      `create settlement for promotion post ${post.id}`,
+      () =>
+        this.prisma.promotionScoreSettlement.create({
+          data: {
+            socialPromotionPostId: post.id,
+            sellerId: post.sellerId,
+            raffleId: post.raffleId,
+            baseScore,
+            engagementScore,
+            conversionScore,
+            totalScore,
+          },
+        }),
+    );
+
+    const tier = this.defaultBonusTiers.find(
+      (candidate) => totalScore >= candidate.minScore,
+    );
+    if (tier) {
+      await this.withPrismaReconnect(
+        `create bonus grant for promotion post ${post.id}`,
+        () =>
+          this.prisma.promotionBonusGrant.create({
+            data: {
+              sellerId: post.sellerId,
+              sourceSettlementId: settlement.id,
+              discountPercent: tier.discountPercent,
+              maxDiscountAmount: tier.maxDiscountAmount,
+              expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+            },
+          }),
+      );
+    }
+
+    await this.withPrismaReconnect(
+      `mark promotion post ${post.id} as settled`,
+      () =>
+        this.prisma.socialPromotionPost.update({
+          where: { id: post.id },
+          data: {
+            status: SocialPromotionStatus.SETTLED,
+            nextCheckAt: null,
+          },
+        }),
+    );
+  }
+
+  async trackPromotionClickByToken(token: string): Promise<string> {
+    const draft = await this.prisma.socialPromotionDraft.findUnique({
+      where: { promotionToken: token },
+      include: {
+        raffle: { select: { id: true } },
+        post: true,
+      },
+    });
+
+    if (!draft) {
+      return `${this.frontendUrl}/search`;
+    }
+
+    if (draft.post) {
+      await this.prisma.socialPromotionAttributionEvent.create({
+        data: {
+          socialPromotionPostId: draft.post.id,
+          eventType: SocialPromotionAttributionEventType.CLICK,
+          metadata: { source: 'tracking-link' },
+        },
+      });
+    }
+
+    return `${this.frontendUrl}/raffle/${draft.raffleId}?promo=${token}`;
+  }
+
+  async recordRegistrationAttribution(
+    userId: string,
+    promotionToken?: string | null,
+  ): Promise<void> {
+    if (!promotionToken) return;
+
+    const post = await this.findPostByPromotionToken(promotionToken);
+    if (!post) return;
+
+    const existing =
+      await this.prisma.socialPromotionAttributionEvent.findFirst({
+        where: {
+          socialPromotionPostId: post.id,
+          userId,
+          eventType: SocialPromotionAttributionEventType.REGISTRATION,
+        },
+        select: { id: true },
+      });
+    if (existing) return;
+
+    await this.prisma.socialPromotionAttributionEvent.create({
+      data: {
+        socialPromotionPostId: post.id,
+        userId,
+        eventType: SocialPromotionAttributionEventType.REGISTRATION,
+      },
+    });
+  }
+
+  async recordPurchaseAttribution(
+    userId: string,
+    promotionToken: string | undefined,
+    ticketCount: number,
+    amount: number,
+  ): Promise<void> {
+    if (!promotionToken) return;
+
+    const post = await this.findPostByPromotionToken(promotionToken);
+    if (!post) return;
+
+    await this.prisma.socialPromotionAttributionEvent.create({
+      data: {
+        socialPromotionPostId: post.id,
+        userId,
+        eventType: SocialPromotionAttributionEventType.PURCHASE,
+        ticketCount,
+        amount,
+      },
+    });
+  }
+
+  async getTechnicalReviewQueue(): Promise<SocialPromotionPost[]> {
+    const posts = await this.prisma.socialPromotionPost.findMany({
+      where: { status: SocialPromotionStatus.TECHNICAL_REVIEW },
+      include: {
+        snapshots: { orderBy: { checkedAt: 'desc' }, take: 5 },
+        settlement: true,
+      },
+      orderBy: { lastCheckedAt: 'asc' },
+    });
+
+    return posts.map((post) => this.mapSocialPromotionPost(post));
+  }
+
+  async retryTechnicalReview(postId: string): Promise<SocialPromotionPost> {
+    const updated = await this.prisma.socialPromotionPost.update({
+      where: { id: postId },
+      data: {
+        status: SocialPromotionStatus.PENDING_VALIDATION,
+        nextCheckAt: new Date(),
+      },
+      include: {
+        snapshots: { orderBy: { checkedAt: 'desc' }, take: 5 },
+        settlement: true,
+      },
+    });
+
+    return this.mapSocialPromotionPost(updated);
+  }
+
+  async adminDisqualifyPost(
+    postId: string,
+    reason: string,
+  ): Promise<SocialPromotionPost> {
+    const updated = await this.prisma.socialPromotionPost.update({
+      where: { id: postId },
+      data: {
+        status: SocialPromotionStatus.DISQUALIFIED,
+        disqualifiedAt: new Date(),
+        disqualificationReason: reason,
+        nextCheckAt: null,
+      },
+      include: {
+        snapshots: { orderBy: { checkedAt: 'desc' }, take: 5 },
+        settlement: true,
+      },
+    });
+
+    return this.mapSocialPromotionPost(updated);
+  }
+
+  private async findPostByPromotionToken(token: string) {
+    return this.prisma.socialPromotionPost.findFirst({
+      where: {
+        draft: { promotionToken: token },
+      },
+      select: { id: true },
+    });
+  }
+
+  private async getAvailableGrantForBuyer(
+    buyerId: string,
+    bonusGrantId: string,
+  ) {
+    const grant = await this.prisma.promotionBonusGrant.findFirst({
+      where: {
+        id: bonusGrantId,
+        sellerId: buyerId,
+        status: PromotionBonusGrantStatus.AVAILABLE,
+        expiresAt: { gt: new Date() },
+      },
+    });
+
+    if (!grant) {
+      throw new BadRequestException(
+        'La bonificación promocional no está disponible',
+      );
+    }
+
+    return grant;
+  }
+
+  private buildBonusPreview(
+    grant: {
+      id: string;
+      discountPercent: Prisma.Decimal | number;
+      maxDiscountAmount: Prisma.Decimal | number;
+    },
+    grossSubtotal: number,
+  ): PromotionBonusPreview {
+    const discountPercent = Number(grant.discountPercent);
+    const maxDiscountAmount = Number(grant.maxDiscountAmount);
+    const uncappedDiscount = Number(
+      ((grossSubtotal * discountPercent) / 100).toFixed(2),
+    );
+    const maximumAllowedDiscount = Number(
+      Math.max(grossSubtotal - this.minMpCharge, 0).toFixed(2),
+    );
+    const discountApplied = Number(
+      Math.min(
+        uncappedDiscount,
+        maxDiscountAmount,
+        maximumAllowedDiscount,
+      ).toFixed(2),
+    );
+
+    if (grossSubtotal <= this.minMpCharge) {
+      throw new BadRequestException(
+        'El monto de la compra es demasiado bajo para aplicar bonificación',
+      );
+    }
+
+    return {
+      bonusGrantId: grant.id,
+      grossSubtotal: Number(grossSubtotal.toFixed(2)),
+      discountApplied,
+      mpChargeAmount: Number((grossSubtotal - discountApplied).toFixed(2)),
+    };
+  }
+
+  private async getAttributedMetrics(postId: string) {
+    const events = await this.prisma.socialPromotionAttributionEvent.findMany({
+      where: { socialPromotionPostId: postId },
+      select: {
+        eventType: true,
+        ticketCount: true,
+      },
+    });
+
+    return {
+      clicksAttributed: events.filter(
+        (event) =>
+          event.eventType === SocialPromotionAttributionEventType.CLICK,
+      ).length,
+      registrationsAttributed: events.filter(
+        (event) =>
+          event.eventType === SocialPromotionAttributionEventType.REGISTRATION,
+      ).length,
+      ticketPurchasesAttributed: events
+        .filter(
+          (event) =>
+            event.eventType === SocialPromotionAttributionEventType.PURCHASE,
+        )
+        .reduce((total, event) => total + (event.ticketCount ?? 0), 0),
+    };
+  }
+
+  private async loadAndParsePromotionPost(params: {
+    network: SocialPromotionNetwork;
+    permalink: string;
+    promotionToken: string;
+    trackingUrl: string;
+    preferBrowser?: boolean;
+  }): Promise<ValidationAttemptResult> {
+    const loadedPage = await this.pageLoader.loadPublicPage(params.permalink, {
+      preferBrowser: params.preferBrowser,
+    });
+    const parsed = this.parser.parsePublicContent({
+      network: params.network,
+      rawUrl: loadedPage.finalUrl || params.permalink,
+      html: loadedPage.html,
+      promotionToken: params.promotionToken,
+      trackingUrl: params.trackingUrl,
+    });
+
+    return { loadedPage, parsed };
+  }
+
+  private async retryWithBrowserForVisibleMetrics(params: {
+    network: SocialPromotionNetwork;
+    permalink: string;
+    promotionToken: string;
+    trackingUrl: string;
+    initialAttempt: ValidationAttemptResult;
+  }): Promise<ValidationAttemptResult> {
+    const { initialAttempt } = params;
+
+    if (
+      initialAttempt.loadedPage.loader === 'playwright' ||
+      !initialAttempt.parsed.isAccessible ||
+      !initialAttempt.parsed.tokenPresent ||
+      this.hasVisibleMetrics(initialAttempt.parsed.metrics)
+    ) {
+      return initialAttempt;
+    }
+
+    try {
+      const browserAttempt = await this.loadAndParsePromotionPost({
+        network: params.network,
+        permalink: params.permalink,
+        promotionToken: params.promotionToken,
+        trackingUrl: params.trackingUrl,
+        preferBrowser: true,
+      });
+
+      if (this.shouldUseBrowserAttempt(initialAttempt, browserAttempt)) {
+        return browserAttempt;
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.warn(
+        `Browser retry failed for promotion post ${params.permalink}: ${message}`,
+      );
+    }
+
+    return initialAttempt;
+  }
+
+  private shouldUseBrowserAttempt(
+    currentAttempt: ValidationAttemptResult,
+    browserAttempt: ValidationAttemptResult,
+  ): boolean {
+    if (
+      !browserAttempt.parsed.isAccessible &&
+      currentAttempt.parsed.isAccessible
+    ) {
+      return false;
+    }
+
+    if (
+      !browserAttempt.parsed.tokenPresent &&
+      currentAttempt.parsed.tokenPresent
+    ) {
+      return false;
+    }
+
+    const currentHasMetrics = this.hasVisibleMetrics(
+      currentAttempt.parsed.metrics,
+    );
+    const browserHasMetrics = this.hasVisibleMetrics(
+      browserAttempt.parsed.metrics,
+    );
+
+    if (browserHasMetrics && !currentHasMetrics) {
+      return true;
+    }
+
+    if (
+      browserAttempt.loadedPage.loader === 'playwright' &&
+      browserAttempt.parsed.canonicalPermalink !==
+        currentAttempt.parsed.canonicalPermalink
+    ) {
+      return true;
+    }
+
+    return false;
+  }
+
+  private hasVisibleMetrics(metrics: {
+    likesCount?: number;
+    commentsCount?: number;
+    repostsOrSharesCount?: number;
+    viewsCount?: number;
+  }): boolean {
+    return [
+      metrics.likesCount,
+      metrics.commentsCount,
+      metrics.repostsOrSharesCount,
+      metrics.viewsCount,
+    ].some((value) => typeof value === 'number');
+  }
+
+  private async withPrismaReconnect<T>(
+    context: string,
+    operation: () => Promise<T>,
+  ): Promise<T> {
+    try {
+      return await operation();
+    } catch (error) {
+      if (!this.isRetryablePrismaConnectionError(error)) {
+        throw error;
+      }
+
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.warn(
+        `Retrying ${context} after Prisma connection error: ${message}`,
+      );
+
+      await Promise.resolve(this.prisma.$disconnect()).catch(
+        (disconnectError) => {
+          const disconnectMessage =
+            disconnectError instanceof Error
+              ? disconnectError.message
+              : 'Unknown disconnect error';
+          this.logger.warn(
+            `Failed to disconnect Prisma client before retrying ${context}: ${disconnectMessage}`,
+          );
+        },
+      );
+
+      await Promise.resolve(this.prisma.$connect());
+      return operation();
+    }
+  }
+
+  private isRetryablePrismaConnectionError(error: unknown): boolean {
+    if (!error || typeof error !== 'object') {
+      return false;
+    }
+
+    const maybeCode =
+      'code' in error && typeof error.code === 'string' ? error.code : null;
+    if (maybeCode && this.retryablePrismaErrorCodes.has(maybeCode)) {
+      return true;
+    }
+
+    const message =
+      'message' in error && typeof error.message === 'string'
+        ? error.message.toLowerCase()
+        : '';
+
+    return (
+      message.includes('server has closed the connection') ||
+      message.includes('connection terminated unexpectedly') ||
+      message.includes("can't reach database server") ||
+      message.includes('connection pool timeout')
+    );
+  }
+
+  private mapSocialPromotionPost(post: {
+    id: string;
+    draftId: string;
+    raffleId: string;
+    sellerId: string;
+    network: PrismaSocialPromotionNetwork;
+    submittedPermalink: string;
+    canonicalPermalink: string | null;
+    canonicalPostId: string | null;
+    status: SocialPromotionStatus;
+    publishedAt: Date | null;
+    submittedAt: Date;
+    validatedAt: Date | null;
+    lastCheckedAt: Date | null;
+    nextCheckAt: Date | null;
+    disqualifiedAt: Date | null;
+    disqualificationReason: string | null;
+    snapshots?: Array<{
+      id: string;
+      socialPromotionPostId: string;
+      checkedAt: Date;
+      isAccessible: boolean;
+      tokenPresent: boolean;
+      likesCount: number | null;
+      commentsCount: number | null;
+      repostsOrSharesCount: number | null;
+      viewsCount: number | null;
+      clicksAttributed: number;
+      registrationsAttributed: number;
+      ticketPurchasesAttributed: number;
+      parserVersion: string | null;
+      failureReason: string | null;
+    }>;
+    settlement?: {
+      id: string;
+      socialPromotionPostId: string;
+      sellerId: string;
+      raffleId: string;
+      baseScore: Prisma.Decimal;
+      engagementScore: Prisma.Decimal;
+      conversionScore: Prisma.Decimal;
+      totalScore: Prisma.Decimal;
+      settlementStatus: SocialPromotionStatus;
+      settledAt: Date;
+    } | null;
+  }): SocialPromotionPost {
+    return {
+      ...post,
+      network: post.network as unknown as SocialPromotionNetwork,
+      status: post.status as unknown as SocialPromotionStatusGql,
+      canonicalPermalink: post.canonicalPermalink ?? undefined,
+      canonicalPostId: post.canonicalPostId ?? undefined,
+      publishedAt: post.publishedAt ?? undefined,
+      validatedAt: post.validatedAt ?? undefined,
+      lastCheckedAt: post.lastCheckedAt ?? undefined,
+      nextCheckAt: post.nextCheckAt ?? undefined,
+      disqualifiedAt: post.disqualifiedAt ?? undefined,
+      disqualificationReason: post.disqualificationReason ?? undefined,
+      snapshots:
+        post.snapshots?.map((snapshot) => ({
+          ...snapshot,
+          likesCount: snapshot.likesCount ?? undefined,
+          commentsCount: snapshot.commentsCount ?? undefined,
+          repostsOrSharesCount: snapshot.repostsOrSharesCount ?? undefined,
+          viewsCount: snapshot.viewsCount ?? undefined,
+          parserVersion: snapshot.parserVersion ?? undefined,
+          failureReason: snapshot.failureReason ?? undefined,
+        })) ?? [],
+      settlement: post.settlement
+        ? {
+            ...post.settlement,
+            baseScore: Number(post.settlement.baseScore),
+            engagementScore: Number(post.settlement.engagementScore),
+            conversionScore: Number(post.settlement.conversionScore),
+            totalScore: Number(post.settlement.totalScore),
+            settlementStatus: post.settlement
+              .settlementStatus as unknown as SocialPromotionStatusGql,
+          }
+        : undefined,
+    };
+  }
+
+  private mapPromotionBonusGrant(grant: {
+    id: string;
+    sellerId: string;
+    sourceSettlementId: string;
+    discountPercent: Prisma.Decimal;
+    maxDiscountAmount: Prisma.Decimal;
+    expiresAt: Date;
+    status: PromotionBonusGrantStatus;
+    createdAt: Date;
+    usedAt: Date | null;
+  }): PromotionBonusGrant {
+    return {
+      ...grant,
+      discountPercent: Number(grant.discountPercent),
+      maxDiscountAmount: Number(grant.maxDiscountAmount),
+      status: grant.status as unknown as PromotionBonusGrantStatusGql,
+      usedAt: grant.usedAt ?? undefined,
+    };
+  }
+
+  private getClient(tx?: Prisma.TransactionClient): PrismaClientLike {
+    return tx ?? this.prisma;
+  }
+
+  private generatePromotionToken(): string {
+    return `promo-${randomBytes(6).toString('hex')}`;
+  }
+
+  private normalizeBaseUrl(
+    value: string | undefined,
+    fallback: string,
+  ): string {
+    const raw = (value || '').trim();
+    const base = raw.length > 0 ? raw : fallback;
+    return base.replace(/\/$/, '');
+  }
+
+  private getBonusTiers(): BonusTier[] {
+    const raw = this.configService.get<string>(
+      'SOCIAL_PROMOTION_DEFAULT_BONUS_TIER_JSON',
+    );
+    if (raw) {
+      try {
+        const parsed = JSON.parse(raw) as BonusTier[];
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return [...parsed].sort((a, b) => b.minScore - a.minScore);
+        }
+      } catch (_error) {
+        this.logger.warn('Invalid SOCIAL_PROMOTION_DEFAULT_BONUS_TIER_JSON');
+      }
+    }
+
+    return [
+      { minScore: 60, discountPercent: 15, maxDiscountAmount: 15000 },
+      { minScore: 30, discountPercent: 10, maxDiscountAmount: 10000 },
+      { minScore: 10, discountPercent: 5, maxDiscountAmount: 5000 },
+    ];
+  }
+
+  private getAllowedNetworks(): Set<SocialPromotionNetwork> {
+    const raw = this.configService.get<string>(
+      'SOCIAL_PROMOTION_ALLOWED_NETWORKS',
+      'facebook,instagram,x,threads',
+    );
+    const map: Record<string, SocialPromotionNetwork> = {
+      facebook: SocialPromotionNetwork.FACEBOOK,
+      instagram: SocialPromotionNetwork.INSTAGRAM,
+      x: SocialPromotionNetwork.X,
+      threads: SocialPromotionNetwork.THREADS,
+    };
+
+    return new Set(
+      raw
+        .split(',')
+        .map((value) => value.trim().toLowerCase())
+        .map((value) => map[value])
+        .filter(Boolean),
+    );
+  }
+}

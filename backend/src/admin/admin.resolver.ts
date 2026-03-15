@@ -4,6 +4,7 @@ import { AdminService } from './admin.service';
 import { MpEvent, MpEventList } from './entities/mp-event.entity';
 import {
   AdminStats,
+  AdminTransactionList,
   PaymentDebugInfo,
   AdminUserList,
   UserActivity,
@@ -18,7 +19,7 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { User } from '../users/entities/user.entity';
 import { AuditService } from '../audit/audit.service';
 import { DisputesService } from '../disputes/disputes.service';
-import { UserRole, AuditAction } from '@prisma/client';
+import { UserRole, AuditAction, TransactionType } from '@prisma/client';
 import { UserRole as UserRoleEnum } from '../common/enums';
 
 @Resolver()
@@ -87,6 +88,51 @@ export class AdminResolver {
         ...t,
         precioPagado: Number(t.precioPagado),
       })),
+    };
+  }
+
+  @Query(() => AdminTransactionList, {
+    description: 'List grant reversal transactions created after full refunds',
+  })
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  async promotionGrantReversalLogs(
+    @Args('limit', { nullable: true, type: () => Int }) limit?: number,
+    @Args('offset', { nullable: true, type: () => Int }) offset?: number,
+  ): Promise<AdminTransactionList> {
+    const result = await this.adminService.getTransactions({
+      tipo: TransactionType.REVERSION_BONIFICACION_PROMOCIONAL,
+      limit,
+      offset,
+    });
+
+    return {
+      transactions: result.transactions.map((transaction) => ({
+        ...transaction,
+        monto: Number(transaction.monto),
+        mpPaymentId: transaction.mpPaymentId ?? undefined,
+        grossAmount:
+          transaction.grossAmount !== null &&
+          transaction.grossAmount !== undefined
+            ? Number(transaction.grossAmount)
+            : undefined,
+        promotionDiscountAmount:
+          transaction.promotionDiscountAmount !== null &&
+          transaction.promotionDiscountAmount !== undefined
+            ? Number(transaction.promotionDiscountAmount)
+            : undefined,
+        cashChargedAmount:
+          transaction.cashChargedAmount !== null &&
+          transaction.cashChargedAmount !== undefined
+            ? Number(transaction.cashChargedAmount)
+            : undefined,
+        metadata:
+          (transaction.metadata as Record<string, unknown> | undefined) ??
+          undefined,
+        user: transaction.user ?? undefined,
+        raffle: transaction.raffle ?? undefined,
+      })),
+      total: result.total,
     };
   }
 

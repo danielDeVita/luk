@@ -2,6 +2,7 @@
 FROM node:20-alpine AS builder
 
 WORKDIR /app
+ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 
 # Install dependencies for native modules (bcrypt, etc.)
 RUN apk add --no-cache python3 make g++
@@ -27,6 +28,7 @@ WORKDIR /app
 
 ENV NODE_ENV=production
 ENV PORT=3001
+ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 
 # Copy package files and prisma schema
 COPY package*.json ./

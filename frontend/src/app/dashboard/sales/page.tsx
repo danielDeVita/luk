@@ -55,6 +55,10 @@ import {
 import Image from 'next/image';
 import { getOptimizedImageUrl, CLOUDINARY_PRESETS } from '@/lib/cloudinary';
 import { getProhibitedRaffleContentMessage } from '@/lib/legal';
+import {
+  SocialPromotionManager,
+  SocialPromotionPostsSummary,
+} from '@/components/social-promotions/social-promotion-manager';
 
 const MY_RAFFLES = gql`
   query MyRaffles {
@@ -191,6 +195,27 @@ const GET_ONBOARDING_STATUS = gql`
   }
 `;
 
+const MY_SOCIAL_PROMOTION_POSTS = gql`
+  query MySocialPromotionPosts {
+    mySocialPromotionPosts {
+      id
+      raffleId
+      network
+      status
+      submittedPermalink
+      canonicalPermalink
+      disqualificationReason
+      snapshots {
+        checkedAt
+        likesCount
+        commentsCount
+        repostsOrSharesCount
+        viewsCount
+      }
+    }
+  }
+`;
+
 interface RaffleData {
   id: string;
   titulo: string;
@@ -250,6 +275,23 @@ interface RelaunchRaffleResponse {
   };
 }
 
+interface SocialPromotionPost {
+  id: string;
+  raffleId: string;
+  network: string;
+  status: string;
+  submittedPermalink: string;
+  canonicalPermalink?: string;
+  disqualificationReason?: string;
+  snapshots?: Array<{
+    checkedAt: string;
+    likesCount?: number;
+    commentsCount?: number;
+    repostsOrSharesCount?: number;
+    viewsCount?: number;
+  }>;
+}
+
 const MONTH_NAMES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 
 function SalesDashboardContent() {
@@ -296,6 +338,11 @@ function SalesDashboardContent() {
   );
 
   const { data: onboardingData, loading: onboardingLoading } = useQuery<OnboardingData>(GET_ONBOARDING_STATUS, {
+    skip: shouldSkipQueries,
+  });
+  const { data: socialPromotionData, refetch: refetchSocialPromotions } = useQuery<{
+    mySocialPromotionPosts: SocialPromotionPost[];
+  }>(MY_SOCIAL_PROMOTION_POSTS, {
     skip: shouldSkipQueries,
   });
 
@@ -945,11 +992,17 @@ function SalesDashboardContent() {
             const revenue = soldTickets * Number(raffle.precioPorTicket);
             const conversionRate = raffle.viewCount > 0 ? ((soldTickets / raffle.viewCount) * 100).toFixed(1) : '0';
             const isActive = raffle.estado === 'ACTIVA';
+            const rafflePromotions =
+              socialPromotionData?.mySocialPromotionPosts?.filter(
+                (post) => post.raffleId === raffle.id,
+              ) || [];
+            const hasPromotionPosts = rafflePromotions.length > 0;
 
             return (
               <Card key={raffle.id} className={selectedRaffleIds.includes(raffle.id) ? 'ring-2 ring-primary' : ''}>
                 <CardContent className="p-6">
-                  <div className="flex flex-col md:flex-row items-start md:items-center gap-4">
+                  <div className="space-y-4">
+                    <div className="flex flex-col gap-4 md:flex-row md:items-start">
                     {/* Checkbox for active raffles */}
                     {isActive && (
                       <Checkbox
@@ -1020,7 +1073,7 @@ function SalesDashboardContent() {
                       </div>
                     </div>
 
-                    <div className="flex flex-col gap-2 w-full md:w-auto">
+                    <div className="flex w-full flex-col gap-2 md:w-72 md:shrink-0">
                       <Link href={`/raffle/${raffle.id}`}>
                         <Button variant="outline" size="sm" className="w-full">
                           Ver Detalles
@@ -1034,6 +1087,19 @@ function SalesDashboardContent() {
                         </Button>
                       )}
 
+                      {raffle.estado === 'ACTIVA' && (
+                        <SocialPromotionManager
+                          raffleId={raffle.id}
+                          raffleTitle={raffle.titulo}
+                          raffleImages={raffle.product?.imagenes || []}
+                          ticketPrice={raffle.precioPorTicket}
+                          posts={rafflePromotions}
+                          onChanged={refetchSocialPromotions}
+                          showSummary={false}
+                          showHelperText={false}
+                        />
+                      )}
+
                       {raffle.estado === 'SORTEADA' && raffle.deliveryStatus === 'PENDING' && (
                         <Button size="sm" onClick={() => openShipDialog(raffle.id)}>
                           <Truck className="w-4 h-4 mr-2" />
@@ -1041,6 +1107,21 @@ function SalesDashboardContent() {
                         </Button>
                       )}
                     </div>
+                    </div>
+
+                    {isActive && hasPromotionPosts && (
+                      <div className="rounded-xl border bg-muted/20 p-4">
+                        <div className="mb-3 flex items-center justify-between gap-3">
+                          <div>
+                            <h4 className="text-sm font-semibold">Promoción social</h4>
+                            <p className="text-xs text-muted-foreground">
+                              Estado y métricas visibles de las publicaciones registradas para esta rifa.
+                            </p>
+                          </div>
+                        </div>
+                        <SocialPromotionPostsSummary posts={rafflePromotions} className="border-0 bg-background p-0 shadow-none" />
+                      </div>
+                    )}
                   </div>
                 </CardContent>
               </Card>

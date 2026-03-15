@@ -138,6 +138,7 @@ describe('AuthResolver', () => {
         userId,
         code,
         undefined,
+        undefined,
       );
       // In test environment (no SECURE_COOKIES and not production+CI), cookies use lax/insecure
       expect(res.cookie).toHaveBeenCalledWith(
@@ -181,6 +182,7 @@ describe('AuthResolver', () => {
         userId,
         code,
         referralCode,
+        undefined,
       );
     });
   });

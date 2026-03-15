@@ -17,6 +17,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { ActivityService } from '../activity/activity.service';
 import { LoginThrottlerService } from '@/common/guards';
 import { ReferralsService } from '../referrals/referrals.service';
+import { SocialPromotionsService } from '../social-promotions/social-promotions.service';
 
 // Token expiration times
 const ACCESS_TOKEN_EXPIRY = '15m'; // 15 minutes
@@ -36,6 +37,7 @@ export class AuthService {
     private loginThrottler: LoginThrottlerService,
     @Inject(forwardRef(() => ReferralsService))
     private referralsService: ReferralsService,
+    private socialPromotionsService: SocialPromotionsService,
   ) {}
 
   async register(input: RegisterInput) {
@@ -129,7 +131,12 @@ export class AuthService {
     };
   }
 
-  async verifyEmail(userId: string, code: string, referralCode?: string) {
+  async verifyEmail(
+    userId: string,
+    code: string,
+    referralCode?: string,
+    promotionToken?: string,
+  ) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
     });
@@ -210,6 +217,15 @@ export class AuthService {
       const message = err instanceof Error ? err.message : 'Unknown error';
       this.logger.error(`Failed to send welcome notifications: ${message}`);
     });
+
+    this.socialPromotionsService
+      .recordRegistrationAttribution(userId, promotionToken)
+      .catch((err: unknown) => {
+        const message = err instanceof Error ? err.message : 'Unknown error';
+        this.logger.error(
+          `Failed to record promotion registration attribution: ${message}`,
+        );
+      });
 
     // Generate tokens
     const accessToken = this.generateAccessToken(

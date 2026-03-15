@@ -11,6 +11,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Share2, Copy, Check } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 function WhatsAppIcon({ className }: { className?: string }) {
   return (
@@ -56,9 +57,16 @@ interface ShareButtonsProps {
   url: string;
   title: string;
   description?: string;
+  label?: string;
+  className?: string;
 }
 
-export function ShareButtons({ url, title }: Omit<ShareButtonsProps, 'description'>) {
+export function ShareButtons({
+  url,
+  title,
+  label = 'Compartir',
+  className,
+}: Omit<ShareButtonsProps, 'description'>) {
   const [copied, setCopied] = useState(false);
 
   const shareMessage = `Che, mirá esta rifa: "${title}" - Animate a participar, capaz te llevás un premio increíble!`;
@@ -112,9 +120,15 @@ export function ShareButtons({ url, title }: Omit<ShareButtonsProps, 'descriptio
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" className="flex-1">
+        <Button
+          variant="outline"
+          className={cn(
+            'w-full h-auto min-h-9 whitespace-normal px-3 py-2 text-center leading-snug',
+            className,
+          )}
+        >
           <Share2 className="mr-2 h-4 w-4" />
-          Compartir
+          {label}
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-48">

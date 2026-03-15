@@ -35,6 +35,7 @@ npm run start:dev
 - **Auth**: JWT + Google OAuth (Passport.js)
 - **Real-time**: GraphQL Subscriptions
 - **Patterns**: Repository layer, Event-driven
+- **Background Processing**: Scheduled jobs in backend + dedicated `social-worker`
 
 ## Modules
 
@@ -44,7 +45,7 @@ npm run start:dev
 | `users/` | User management, profiles |
 | `raffles/` | Raffle CRUD, state management, seller dashboard, buyer experience, analytics |
 | `tickets/` | Ticket reservation and purchase |
-| `payments/` | Mercado Pago integration + MP Connect OAuth |
+| `payments/` | Mercado Pago integration, mock checkout provider for QA, and MP Connect OAuth |
 | `disputes/` | Buyer protection system |
 | `notifications/` | Email (Brevo) + in-app notifications |
 | `uploads/` | Cloudinary upload signatures |
@@ -52,10 +53,24 @@ npm run start:dev
 | `categories/` | Raffle categories management |
 | `reports/` | Raffle reporting/flagging system |
 | `referrals/` | Referral program (codes, rewards, stats) |
+| `social-promotions/` | Verifiable seller promotion flow, parsers, scoring, promotion bonus lifecycle |
 | `tasks/` | Scheduled jobs (cron) |
 | `health/` | Health check endpoints |
 | `questions/` | Q&A system for raffle pages |
 | `activity/` | Activity logging |
+
+### Social Promotions
+
+The social promotion feature is implemented in v1 with:
+
+- seller-created promotion drafts;
+- manual permalink submission for `Facebook`, `Instagram`, `X` and `Threads`;
+- public-post validation using `fetch` + Playwright fallback;
+- metrics snapshots stored in PostgreSQL;
+- a separate `social-worker` process for scheduled validation and settlement;
+- promotion bonuses for future purchases.
+
+No official Meta/X APIs are used in v1. Metrics come from public content plus Luk attribution events.
 
 ### Module Dependencies (Circular)
 
@@ -89,12 +104,36 @@ MP_CLIENT_ID="..."           # For MP Connect OAuth
 MP_CLIENT_SECRET="..."       # For MP Connect OAuth
 BACKEND_URL="http://localhost:3001"
 FRONTEND_URL="http://localhost:3000"
+PAYMENTS_PROVIDER="mercadopago"   # or "mock" for local QA
+ALLOW_MOCK_PAYMENTS="false"
+
+# Social promotions
+SOCIAL_PROMOTION_ENABLED="true"
+SOCIAL_PROMOTION_ALLOWED_NETWORKS="facebook,instagram,x,threads"
+SOCIAL_PROMOTION_CHECK_CRON="0 */6 * * *"
+SOCIAL_PROMOTION_BROWSER_ENABLED="false"   # backend web service
 
 # Google OAuth (optional)
 GOOGLE_CLIENT_ID="xxx.apps.googleusercontent.com"
 GOOGLE_CLIENT_SECRET="GOCSPX-xxx"
 GOOGLE_CALLBACK_URL="http://localhost:3001/auth/google/callback"
 ```
+
+### Mock payments for local QA
+
+If you want to test ticket purchases, refunds, and promotion bonus reversals without Mercado Pago:
+
+```bash
+PAYMENTS_PROVIDER="mock"
+MP_ACCESS_TOKEN=""
+```
+
+In that mode:
+
+- `buyTickets` returns a local `initPoint` under `/checkout/mock/...`;
+- the mock checkout page can approve/pending/reject the payment;
+- full and partial refunds can be simulated from the mock page;
+- `GET /mp/payment-status` continues to work for both real MP ids and `mock_pay_*` ids.
 
 ### Google OAuth Setup
 
@@ -119,6 +158,7 @@ On startup, check logs for:
 - `POST /mp/webhook` - Mercado Pago webhooks
 - `GET /mp/sync-payment/:paymentId` - Manual payment sync
 - `GET /mp/payment-status?payment_id=X` - Payment status check
+- `GET /social-promotions/track/:token` - Promotion click attribution redirect
 
 ### REST (MP Connect OAuth)
 - `GET /mp/connect` - Start OAuth flow (requires auth)
@@ -130,6 +170,24 @@ On startup, check logs for:
 - `GET /health` - Full health check (database, version, uptime)
 - `GET /health/ready` - Readiness probe for k8s
 - `GET /health/live` - Liveness probe
+
+## Social Worker
+
+The `social-worker` is a separate process that runs in Docker/Render and should stay enabled alongside the backend.
+
+Responsibilities:
+
+- validate due social promotion posts;
+- use Playwright fallback when simple HTML is not enough;
+- persist metric snapshots;
+- settle closed promotion posts and emit promotion bonuses.
+
+Local Docker stack:
+
+```bash
+npm run docker:dev:build
+docker compose -f docker-compose.dev.yml logs -f social-worker
+```
 
 ## Mercado Pago Integration
 

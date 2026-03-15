@@ -2,14 +2,20 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { CleanupTasksService } from './cleanup-tasks.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { ConfigService } from '@nestjs/config';
+import { SocialPromotionsService } from '../social-promotions/social-promotions.service';
 
 type MockPrismaService = {
   ticket: {
     deleteMany: jest.Mock;
+    findMany: jest.Mock;
   };
   raffle: {
     findMany: jest.Mock;
   };
+};
+
+type MockSocialPromotionsService = {
+  releaseReservedRedemptionByReservation: jest.Mock;
 };
 
 type MockConfigService = {
@@ -20,10 +26,12 @@ describe('CleanupTasksService', () => {
   let service: CleanupTasksService;
   let prisma: MockPrismaService;
   let config: MockConfigService;
+  let socialPromotionsService: MockSocialPromotionsService;
 
   const mockPrismaService = (): MockPrismaService => ({
     ticket: {
       deleteMany: jest.fn(),
+      findMany: jest.fn(),
     },
     raffle: {
       findMany: jest.fn(),
@@ -34,6 +42,12 @@ describe('CleanupTasksService', () => {
     get: jest.fn(),
   });
 
+  const mockSocialPromotionsService = (): MockSocialPromotionsService => ({
+    releaseReservedRedemptionByReservation: jest
+      .fn()
+      .mockResolvedValue(undefined),
+  });
+
   beforeEach(async () => {
     jest.clearAllMocks();
 
@@ -42,12 +56,20 @@ describe('CleanupTasksService', () => {
         CleanupTasksService,
         { provide: PrismaService, useValue: mockPrismaService() },
         { provide: ConfigService, useValue: mockConfigService() },
+        {
+          provide: SocialPromotionsService,
+          useValue: mockSocialPromotionsService(),
+        },
       ],
     }).compile();
 
     service = module.get<CleanupTasksService>(CleanupTasksService);
     prisma = module.get(PrismaService) as unknown as MockPrismaService;
     config = module.get(ConfigService) as unknown as MockConfigService;
+    socialPromotionsService = module.get(
+      SocialPromotionsService,
+    ) as unknown as MockSocialPromotionsService;
+    prisma.ticket.findMany.mockResolvedValue([]);
   });
 
   describe('constructor', () => {
@@ -63,6 +85,10 @@ describe('CleanupTasksService', () => {
           CleanupTasksService,
           { provide: PrismaService, useValue: mockPrismaService() },
           { provide: ConfigService, useValue: config },
+          {
+            provide: SocialPromotionsService,
+            useValue: mockSocialPromotionsService(),
+          },
         ],
       }).compile();
 
@@ -78,6 +104,7 @@ describe('CleanupTasksService', () => {
   describe('cleanupExpiredReservedTickets', () => {
     beforeEach(() => {
       config.get.mockReturnValue('true'); // Enable cron for tests
+      prisma.ticket.findMany.mockResolvedValue([]);
     });
 
     it('should delete expired reserved tickets older than 30 minutes', async () => {
@@ -109,6 +136,10 @@ describe('CleanupTasksService', () => {
           CleanupTasksService,
           { provide: PrismaService, useValue: prisma },
           { provide: ConfigService, useValue: config },
+          {
+            provide: SocialPromotionsService,
+            useValue: socialPromotionsService,
+          },
         ],
       }).compile();
 
@@ -126,6 +157,19 @@ describe('CleanupTasksService', () => {
       await service.cleanupExpiredReservedTickets();
 
       expect(prisma.ticket.deleteMany).toHaveBeenCalled();
+    });
+
+    it('should release reserved promotion bonuses tied to expired reservations', async () => {
+      prisma.ticket.findMany.mockResolvedValue([
+        { mpExternalReference: 'reservation-1' },
+      ]);
+      prisma.ticket.deleteMany.mockResolvedValue({ count: 1 });
+
+      await service.cleanupExpiredReservedTickets();
+
+      expect(
+        socialPromotionsService.releaseReservedRedemptionByReservation,
+      ).toHaveBeenCalledWith('reservation-1');
     });
 
     it('should handle database errors gracefully', async () => {
@@ -173,6 +217,10 @@ describe('CleanupTasksService', () => {
           CleanupTasksService,
           { provide: PrismaService, useValue: prisma },
           { provide: ConfigService, useValue: config },
+          {
+            provide: SocialPromotionsService,
+            useValue: socialPromotionsService,
+          },
         ],
       }).compile();
 

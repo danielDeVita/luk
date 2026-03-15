@@ -15,6 +15,18 @@ export class BuyTicketsResult {
   @Field(() => Float)
   totalAmount!: number;
 
+  @Field(() => Float)
+  grossSubtotal!: number;
+
+  @Field(() => Float)
+  discountApplied!: number;
+
+  @Field(() => Float)
+  mpChargeAmount!: number;
+
+  @Field({ nullable: true })
+  bonusGrantId?: string;
+
   @Field(() => Int)
   cantidadComprada!: number;
 

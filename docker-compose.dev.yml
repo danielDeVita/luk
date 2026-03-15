@@ -28,6 +28,8 @@ services:
       - NODE_ENV=development
       # DATABASE_URL comes from .env file (Neon)
       - REDIS_URL=redis://redis:6379
+      - SOCIAL_PROMOTION_ENABLED=true
+      - SOCIAL_PROMOTION_BROWSER_ENABLED=false
     env_file:
       - .env
     depends_on:
@@ -61,6 +63,24 @@ services:
       backend:
         condition: service_healthy
 
+  social-worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.social-worker
+    environment:
+      - NODE_ENV=development
+      - REDIS_URL=redis://redis:6379
+      - SOCIAL_PROMOTION_ENABLED=true
+      - SOCIAL_PROMOTION_BROWSER_ENABLED=true
+      - SOCIAL_PROMOTION_CHECK_CRON=0 */6 * * *
+      - SOCIAL_PROMOTION_FETCH_TIMEOUT_MS=30000
+    env_file:
+      - .env
+    depends_on:
+      redis:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+
 volumes:
   redis_data_dev:
-

@@ -31,6 +31,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import Image from 'next/image';
 import { useConfirmDialog } from '@/hooks/use-confirm-dialog';
 import { getOptimizedImageUrl, CLOUDINARY_PRESETS } from '@/lib/cloudinary';
+import { PromotionBonusGrantsCard } from '@/components/social-promotions/promotion-bonus-grants-card';
 
 const MY_TICKETS = gql`
   query MyTickets {
@@ -288,6 +289,8 @@ export default function MyTicketsPage() {
   return (
     <div className="container mx-auto px-4 py-8">
       <h1 className="text-3xl font-bold mb-6">Mi Panel de Comprador</h1>
+
+      <PromotionBonusGrantsCard />
 
       {/* Buyer Stats */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">

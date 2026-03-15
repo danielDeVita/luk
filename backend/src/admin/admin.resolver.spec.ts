@@ -9,6 +9,7 @@ type MockAdminService = {
   getMpEvents: jest.Mock;
   getMpEventById: jest.Mock;
   getPaymentDebugInfo: jest.Mock;
+  getTransactions: jest.Mock;
   getAdminStats: jest.Mock;
   getUsers: jest.Mock;
   getUserActivity: jest.Mock;
@@ -39,6 +40,7 @@ describe('AdminResolver', () => {
     getMpEvents: jest.fn(),
     getMpEventById: jest.fn(),
     getPaymentDebugInfo: jest.fn(),
+    getTransactions: jest.fn(),
     getAdminStats: jest.fn(),
     getUsers: jest.fn(),
     getUserActivity: jest.fn(),
@@ -162,6 +164,53 @@ describe('AdminResolver', () => {
       expect(adminService.getPaymentDebugInfo).toHaveBeenCalledWith('123');
       expect(result.mpPaymentId).toBe('123');
       expect(result.tickets).toHaveLength(1);
+    });
+  });
+
+  describe('promotionGrantReversalLogs', () => {
+    it('should return mapped reversal transactions', async () => {
+      adminService.getTransactions.mockResolvedValue({
+        transactions: [
+          {
+            id: 'tx-1',
+            tipo: 'REVERSION_BONIFICACION_PROMOCIONAL',
+            monto: '1000.50',
+            grossAmount: '12000',
+            promotionDiscountAmount: '1000.50',
+            cashChargedAmount: '11000',
+            estado: 'COMPLETADO',
+            mpPaymentId: 'mp-123',
+            metadata: { refundType: 'full', refundAmount: 11000 },
+            createdAt: new Date('2026-03-14T12:00:00.000Z'),
+            user: {
+              id: 'user-1',
+              email: 'buyer@test.com',
+              nombre: 'Buyer',
+              apellido: 'User',
+            },
+            raffle: {
+              id: 'raffle-1',
+              titulo: 'Rifa test',
+            },
+          },
+        ],
+        total: 1,
+      });
+
+      const result = await resolver.promotionGrantReversalLogs(20, 0);
+
+      expect(adminService.getTransactions).toHaveBeenCalledWith({
+        tipo: 'REVERSION_BONIFICACION_PROMOCIONAL',
+        limit: 20,
+        offset: 0,
+      });
+      expect(result.total).toBe(1);
+      expect(result.transactions[0].monto).toBe(1000.5);
+      expect(result.transactions[0].promotionDiscountAmount).toBe(1000.5);
+      expect(result.transactions[0].metadata).toEqual({
+        refundType: 'full',
+        refundAmount: 11000,
+      });
     });
   });
 

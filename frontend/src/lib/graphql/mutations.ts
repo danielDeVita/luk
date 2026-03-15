@@ -45,15 +45,29 @@ export const CREATE_RAFFLE = gql`
 `;
 
 export const BUY_TICKETS = gql`
-  mutation BuyTickets($raffleId: String!, $cantidad: Int!) {
-    buyTickets(raffleId: $raffleId, cantidad: $cantidad) {
+  mutation BuyTickets(
+    $raffleId: String!
+    $cantidad: Int!
+    $bonusGrantId: String
+    $promotionToken: String
+  ) {
+    buyTickets(
+      raffleId: $raffleId
+      cantidad: $cantidad
+      bonusGrantId: $bonusGrantId
+      promotionToken: $promotionToken
+    ) {
+      initPoint
+      preferenceId
       tickets {
         id
         numeroTicket
       }
-      clientSecret
       totalAmount
-      stripeFees
+      grossSubtotal
+      discountApplied
+      mpChargeAmount
+      bonusGrantId
       cantidadComprada
       ticketsRestantesQuePuedeComprar
     }

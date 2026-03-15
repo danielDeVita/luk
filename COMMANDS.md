@@ -8,11 +8,22 @@ All commands run from the **project root**.
 
 ```bash
 cp .env.example .env          # First time only
-npm run docker:dev:build      # Build + start services
+npm run docker:dev:build      # Build + start frontend, backend y social-worker
 npm run docker:dev            # Start without rebuild
 npm run docker:dev:down       # Stop services
 npm run docker:clean          # Stop + remove volumes + local images
 ```
+
+### Local QA sin Mercado Pago
+
+En `.env`:
+
+```bash
+PAYMENTS_PROVIDER="mock"
+MP_ACCESS_TOKEN=""
+```
+
+Con eso, el checkout local abre una pantalla interna de QA en `/checkout/mock/...` y permite aprobar, dejar pendiente, rechazar y reintegrar pagos sin tocar Mercado Pago real.
 
 ---
 
@@ -23,6 +34,7 @@ npm run docker:clean          # Stop + remove volumes + local images
 | Frontend | http://localhost:3000 |
 | Backend | http://localhost:3001 |
 | GraphQL | http://localhost:3001/graphql |
+| Social Worker | Sin URL pública (proceso background) |
 
 ---
 
@@ -77,6 +89,24 @@ npm run k6:stress
 ```bash
 docker compose -f docker-compose.dev.yml logs -f backend
 docker compose -f docker-compose.dev.yml logs -f frontend
+docker compose -f docker-compose.dev.yml logs -f social-worker
 docker compose -f docker-compose.dev.yml exec backend sh
 docker compose -f docker-compose.dev.yml exec frontend sh
+```
+
+---
+
+## Social Promotions Debugging
+
+Useful when validating seller posts without waiting for the scheduled cron.
+
+```bash
+# List recent promotion posts
+docker compose -f docker-compose.dev.yml exec backend node -e 'const { PrismaClient } = require("./node_modules/@prisma/client"); const prisma = new PrismaClient(); (async () => { const posts = await prisma.socialPromotionPost.findMany({ orderBy: { createdAt: "desc" }, take: 10, select: { id: true, network: true, status: true, submittedPermalink: true, canonicalPermalink: true, lastCheckedAt: true, nextCheckAt: true } }); console.log(JSON.stringify(posts, null, 2)); await prisma.$disconnect(); })().catch(async (e) => { console.error(e); await prisma.$disconnect(); process.exit(1); });'
+
+# Force validation of one post now
+docker compose -f docker-compose.dev.yml exec social-worker node -e 'const { NestFactory } = require("@nestjs/core"); const { SocialWorkerModule } = require("./dist/social-worker.module"); const { SocialPromotionsService } = require("./dist/social-promotions/social-promotions.service"); (async () => { const app = await NestFactory.createApplicationContext(SocialWorkerModule, { logger: false }); const service = app.get(SocialPromotionsService); await service.validateSocialPromotionPost("POST_ID"); console.log(JSON.stringify({ validated: true, postId: "POST_ID" })); await app.close(); })().catch(async (e) => { console.error(e); process.exit(1); });'
+
+# Inspect latest snapshots for one post
+docker compose -f docker-compose.dev.yml exec backend node -e 'const { PrismaClient } = require("./node_modules/@prisma/client"); const prisma = new PrismaClient(); (async () => { const snapshots = await prisma.socialPromotionMetricSnapshot.findMany({ where: { socialPromotionPostId: "POST_ID" }, orderBy: { checkedAt: "desc" }, take: 5, select: { checkedAt: true, isAccessible: true, tokenPresent: true, likesCount: true, commentsCount: true, repostsOrSharesCount: true, viewsCount: true, failureReason: true, rawEvidenceMeta: true } }); console.log(JSON.stringify(snapshots, null, 2)); await prisma.$disconnect(); })().catch(async (e) => { console.error(e); await prisma.$disconnect(); process.exit(1); });'
 ```

@@ -40,6 +40,7 @@ import { ActivityModule } from './activity/activity.module';
 import { HealthModule } from './health/health.module';
 import { ReferralsModule } from './referrals/referrals.module';
 import { QuestionsModule } from './questions/questions.module';
+import { SocialPromotionsModule } from './social-promotions/social-promotions.module';
 import { JwtAuthGuard } from './auth/guards/jwt-auth/jwt-auth.guard';
 import { CommonModule } from './common/common.module';
 import { CacheModule } from './common/cache';
@@ -214,6 +215,7 @@ function getBooleanFlag(
     HealthModule,
     ReferralsModule,
     QuestionsModule,
+    SocialPromotionsModule,
   ],
   controllers: [AppController],
   providers: [

@@ -8,6 +8,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
 
+const LAST_MOCK_CHECKOUT_KEY = 'luk:last-mock-checkout';
+
 interface SyncResult {
   status: string;
   statusDetail?: string;
@@ -20,6 +22,11 @@ interface SyncResult {
   error?: string;
 }
 
+interface PersistedMockCheckout {
+  paymentId: string;
+  token: string;
+}
+
 function StatusContent() {
   const searchParams = useSearchParams();
 
@@ -27,11 +34,14 @@ function StatusContent() {
   const urlStatus = searchParams.get('status') || searchParams.get('collection_status');
   const paymentId = searchParams.get('payment_id') || searchParams.get('collection_id');
   const merchantOrderId = searchParams.get('merchant_order_id');
+  const mockToken = searchParams.get('mock_token');
 
   const [syncData, setSyncData] = useState<SyncResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [retrying, setRetrying] = useState(false);
+  const [persistedMockCheckout, setPersistedMockCheckout] =
+    useState<PersistedMockCheckout | null>(null);
 
   const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
 
@@ -69,6 +79,26 @@ function StatusContent() {
     syncPayment();
   }, [syncPayment]);
 
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    const rawValue = window.localStorage.getItem(LAST_MOCK_CHECKOUT_KEY);
+    if (!rawValue) {
+      return;
+    }
+
+    try {
+      const parsed = JSON.parse(rawValue) as PersistedMockCheckout;
+      if (parsed?.paymentId?.startsWith('mock_pay_') && parsed.token) {
+        setPersistedMockCheckout(parsed);
+      }
+    } catch {
+      window.localStorage.removeItem(LAST_MOCK_CHECKOUT_KEY);
+    }
+  }, []);
+
   const handleRetry = () => {
     setRetrying(true);
     setLoading(true);
@@ -81,6 +111,19 @@ function StatusContent() {
   const isApproved = finalStatus === 'approved';
   const isPending = finalStatus === 'pending' || finalStatus === 'in_process';
   const isRejected = finalStatus === 'rejected' || finalStatus === 'null' || finalStatus === null;
+  const isRefunded = finalStatus === 'refunded';
+  const isPartiallyRefunded = finalStatus === 'partially_refunded';
+  const mockCheckoutPaymentId =
+    paymentId?.startsWith('mock_pay_') && mockToken
+      ? paymentId
+      : persistedMockCheckout?.paymentId ?? null;
+  const mockCheckoutToken =
+    paymentId?.startsWith('mock_pay_') && mockToken
+      ? mockToken
+      : persistedMockCheckout?.token ?? null;
+  const canReturnToMockCheckout = Boolean(
+    mockCheckoutPaymentId && mockCheckoutToken,
+  );
 
   if (loading && !finalStatus) {
     return (
@@ -143,6 +186,24 @@ function StatusContent() {
             <>
               <XCircle className="h-20 w-20 mx-auto text-red-500 mb-4" />
               <CardTitle className="text-2xl text-red-600">Pago Rechazado</CardTitle>
+            </>
+          )}
+          {!finalStatus && (
+            <>
+              <AlertTriangle className="h-20 w-20 mx-auto text-muted-foreground mb-4" />
+              <CardTitle className="text-2xl">Estado del pago no disponible</CardTitle>
+            </>
+          )}
+          {isRefunded && (
+            <>
+              <RefreshCw className="h-20 w-20 mx-auto text-blue-500 mb-4" />
+              <CardTitle className="text-2xl text-blue-600">Reintegro Completo</CardTitle>
+            </>
+          )}
+          {isPartiallyRefunded && (
+            <>
+              <RefreshCw className="h-20 w-20 mx-auto text-blue-500 mb-4" />
+              <CardTitle className="text-2xl text-blue-600">Reintegro Parcial</CardTitle>
             </>
           )}
         </CardHeader>
@@ -221,6 +282,32 @@ function StatusContent() {
             </div>
           )}
 
+          {isRefunded && (
+            <div className="space-y-4">
+              <p className="text-muted-foreground">
+                El pago fue reintegrado por completo. Si había una bonificación promocional asociada, ya debería haberse restituido.
+              </p>
+              <div className="p-4 bg-blue-500/10 rounded-lg border border-blue-500/20">
+                <p className="text-sm text-blue-700 dark:text-blue-300">
+                  Verifica en el dashboard y en el panel admin de Promoción Social que la reversión del grant haya quedado registrada.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {isPartiallyRefunded && (
+            <div className="space-y-4">
+              <p className="text-muted-foreground">
+                El pago recibió un reintegro parcial. La compra sigue registrada y la bonificación promocional no debería restituirse.
+              </p>
+              <div className="p-4 bg-blue-500/10 rounded-lg border border-blue-500/20">
+                <p className="text-sm text-blue-700 dark:text-blue-300">
+                  Usa esto para QA de disputas o devoluciones parciales sin tocar Mercado Pago real.
+                </p>
+              </div>
+            </div>
+          )}
+
           {isRejected && (
             <div className="space-y-4">
               <p className="text-muted-foreground">
@@ -234,7 +321,33 @@ function StatusContent() {
             </div>
           )}
 
+          {!finalStatus && (
+            <div className="space-y-4">
+              <p className="text-muted-foreground">
+                Esta pantalla no recibió los parámetros del pago. Si venís de un checkout mock, podés volver al último flujo QA desde el botón inferior.
+              </p>
+              {persistedMockCheckout && (
+                <div className="p-4 bg-muted/50 rounded-lg text-left space-y-2">
+                  <p className="text-sm">
+                    <span className="text-muted-foreground">Último pago mock:</span>{' '}
+                    <span className="font-mono">{persistedMockCheckout.paymentId}</span>
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="flex flex-col sm:flex-row gap-3 pt-4">
+            {canReturnToMockCheckout && (
+              <Link
+                href={`/checkout/mock/${mockCheckoutPaymentId}?token=${encodeURIComponent(mockCheckoutToken ?? '')}`}
+                className="flex-1"
+              >
+                <Button className="w-full" variant="outline">
+                  Volver al pago mock
+                </Button>
+              </Link>
+            )}
             <Link href="/dashboard/tickets" className="flex-1">
               <Button className="w-full" variant={isApproved ? 'default' : 'outline'}>
                 Ver Mis Tickets

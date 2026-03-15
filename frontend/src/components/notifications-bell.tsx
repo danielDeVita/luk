@@ -86,7 +86,6 @@ export function NotificationsBell() {
   // Use faster polling when WebSocket is disconnected
   const pollInterval = connectionStatus === 'connected' ? 60000 : 15000;
 
-  // Skip query until store is hydrated and user is authenticated
   const shouldSkip = !hasHydrated || !isAuthenticated;
 
   const { data, refetch } = useQuery<MyNotificationsData>(GET_NOTIFICATIONS, {

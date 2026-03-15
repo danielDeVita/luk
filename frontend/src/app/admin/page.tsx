@@ -38,6 +38,8 @@ import {
   UserCheck,
   History,
 } from 'lucide-react';
+import { SocialPromotionReview } from '@/components/admin/social-promotion-review';
+import { PromotionGrantReversalLog } from '@/components/admin/promotion-grant-reversal-log';
 
 // GraphQL queries - Split to avoid non-existent fields error
 const GET_ADMIN_STATS = gql`
@@ -705,12 +707,13 @@ export default function AdminPage() {
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="mb-6">
+        <TabsList className="mb-6 flex h-auto w-full flex-wrap justify-start gap-2 bg-transparent p-0">
           <TabsTrigger value="kyc">KYC ({kycData?.pendingKycSubmissions?.total || 0})</TabsTrigger>
           <TabsTrigger value="raffles">Rifas ({raffles.length})</TabsTrigger>
           <TabsTrigger value="reports">Reportes ({reports.length})</TabsTrigger>
           <TabsTrigger value="disputes">Disputas ({statsData?.adminStats?.pendingDisputes || 0})</TabsTrigger>
           <TabsTrigger value="users">Usuarios ({totalUsers})</TabsTrigger>
+          <TabsTrigger value="social-promotions">Promoción Social</TabsTrigger>
         </TabsList>
 
         {/* KYC Tab */}
@@ -1071,6 +1074,13 @@ export default function AdminPage() {
               )}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="social-promotions">
+          <div className="space-y-6">
+            <SocialPromotionReview />
+            <PromotionGrantReversalLog />
+          </div>
         </TabsContent>
       </Tabs>
 

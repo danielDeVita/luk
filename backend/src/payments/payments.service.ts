@@ -8,13 +8,8 @@ import {
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
-import { MercadoPagoConfig, Preference, Payment } from 'mercadopago';
-import type {
-  PreferenceRequest,
-  PreferenceResponse,
-} from 'mercadopago/dist/clients/preference/commonTypes';
+import { MockPaymentStatus, Prisma } from '@prisma/client';
 import type { PaymentResponse } from 'mercadopago/dist/clients/payment/commonTypes';
-import type { Prisma } from '@prisma/client';
 import {
   PLATFORM_FEE_RATE,
   MP_FEE_ESTIMATE_RATE,
@@ -23,17 +18,21 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { ActivityService } from '../activity/activity.service';
 import { ReferralsService } from '../referrals/referrals.service';
 import { PayoutsService } from '../payouts/payouts.service';
+import { SocialPromotionsService } from '../social-promotions/social-promotions.service';
 import {
   RaffleEvents,
   TicketsPurchasedEvent,
   RaffleCompletedEvent,
   RaffleDrawnEvent,
 } from '../common/events';
-
-// Extend PreferenceRequest with money_release_days (not in SDK types but supported by MP API)
-interface ExtendedPreferenceRequest extends PreferenceRequest {
-  money_release_days?: number;
-}
+import { MercadoPagoProvider } from './providers/mercado-pago.provider';
+import { MockPaymentProvider } from './providers/mock-payment.provider';
+import type {
+  CreateCheckoutSessionInput,
+  MockPaymentAction,
+  MockPaymentActionResult,
+  MockPaymentSummary,
+} from './providers/payment-provider.types';
 
 // Type guard to check if an error has a message property
 function isErrorWithMessage(error: unknown): error is { message: string } {
@@ -51,22 +50,18 @@ interface ExternalReferenceData {
   buyerId: string;
   cantidad: number;
   reservationId?: string;
+  bonusGrantId?: string | null;
+  grossSubtotal?: number;
+  discountApplied?: number;
+  mpChargeAmount?: number;
+  promotionToken?: string | null;
 }
-
-// Interface for MP API error response (used in releaseFundsToSeller)
-interface MpApiErrorResponse {
-  message?: string;
-}
-
-// Default hold period: funds held until manual release or auto-release after delivery
-const DEFAULT_MONEY_RELEASE_DAYS = 30; // Max hold period allowed by MP
 
 @Injectable()
 export class PaymentsService {
   private readonly logger = new Logger(PaymentsService.name);
-  private readonly mpClient?: MercadoPagoConfig;
   private readonly platformFeeRate: number;
-  private readonly mpMockMode: boolean;
+  private readonly paymentsProvider: 'mercadopago' | 'mock';
 
   constructor(
     private configService: ConfigService,
@@ -78,21 +73,34 @@ export class PaymentsService {
     private referralsService: ReferralsService,
     @Inject(forwardRef(() => PayoutsService))
     private payoutsService: PayoutsService,
+    @Inject(forwardRef(() => SocialPromotionsService))
+    private socialPromotionsService: SocialPromotionsService,
+    private readonly mercadoPagoProvider: MercadoPagoProvider,
+    private readonly mockPaymentProvider: MockPaymentProvider,
   ) {
-    const accessToken = this.configService.get<string>('MP_ACCESS_TOKEN');
+    const accessToken = (
+      this.configService.get<string>('MP_ACCESS_TOKEN') || ''
+    )
+      .trim()
+      .toLowerCase();
     const mpMockModeFlag = this.configService.get<boolean | string>(
       'MP_MOCK_MODE',
     );
-    this.mpMockMode =
+    const explicitProvider = (
+      this.configService.get<string>('PAYMENTS_PROVIDER') || ''
+    )
+      .trim()
+      .toLowerCase();
+
+    const mpMockMode =
       mpMockModeFlag === true ||
       (typeof mpMockModeFlag === 'string' &&
         mpMockModeFlag.trim().toLowerCase() === 'true') ||
       accessToken === 'mock';
+    this.paymentsProvider =
+      explicitProvider === 'mock' || mpMockMode ? 'mock' : 'mercadopago';
 
-    if (accessToken && !this.mpMockMode) {
-      this.mpClient = new MercadoPagoConfig({ accessToken });
-    }
-    if (this.mpMockMode) {
+    if (this.paymentsProvider === 'mock') {
       this.logger.warn('⚠️ Mercado Pago service in MOCK mode');
     }
     // Allow env override, otherwise use shared constant
@@ -102,25 +110,6 @@ export class PaymentsService {
     this.platformFeeRate = envFeePercent
       ? envFeePercent / 100
       : PLATFORM_FEE_RATE;
-  }
-
-  private getMpClient(): MercadoPagoConfig {
-    if (!this.mpClient) {
-      throw new BadRequestException(
-        'Mercado Pago no está configurado (MP_ACCESS_TOKEN faltante)',
-      );
-    }
-    return this.mpClient;
-  }
-
-  private normalizeBaseUrl(
-    value: string | undefined | null,
-    fallback: string,
-  ): string {
-    const raw = (value || '').trim();
-    const base = raw.length ? raw : fallback;
-    const withScheme = /^https?:\/\//i.test(base) ? base : `http://${base}`;
-    return withScheme.replace(/\/$/, '');
   }
 
   // ==================== Mercado Pago Preference ====================
@@ -136,86 +125,54 @@ export class PaymentsService {
     precioPorTicket: number;
     tituloRifa: string;
     reservationId: string;
+    grossSubtotal?: number;
+    discountApplied?: number;
+    mpChargeAmount?: number;
+    bonusGrantId?: string | null;
+    promotionBonusRedemptionId?: string | null;
+    promotionToken?: string | null;
   }): Promise<{ initPoint: string; preferenceId: string }> {
-    const totalAmount = data.cantidad * data.precioPorTicket;
-    const platformFee = totalAmount * this.platformFeeRate;
-    const frontendUrl = this.normalizeBaseUrl(
-      this.configService.get<string>('FRONTEND_URL'),
-      'http://localhost:3000',
-    );
-    const backendUrl = this.normalizeBaseUrl(
-      this.configService.get<string>('BACKEND_URL'),
-      'http://localhost:3001',
-    );
+    const grossSubtotal =
+      data.grossSubtotal ?? data.cantidad * data.precioPorTicket;
+    const cashChargedAmount = data.mpChargeAmount ?? grossSubtotal;
+    const discountApplied = data.discountApplied ?? 0;
 
-    const successUrl = `${frontendUrl}/checkout/status`;
-    const failureUrl = `${frontendUrl}/checkout/status`;
-    const pendingUrl = `${frontendUrl}/checkout/status`;
-
-    const shouldAutoReturn =
-      /^https:\/\//i.test(successUrl) &&
-      !/localhost|127\.0\.0\.1/i.test(successUrl);
-
-    this.logger.log(
-      `MP preference URLs: success=${successUrl} failure=${failureUrl} pending=${pendingUrl} (auto_return=${shouldAutoReturn})`,
-    );
-
-    const preference = new Preference(this.getMpClient());
-
-    try {
-      // Build preference body with delayed disbursement
-      // money_release_days is not in SDK types but is supported by MP API
-      const preferenceBody: ExtendedPreferenceRequest = {
-        items: [
-          {
-            id: data.raffleId,
-            title: `${data.cantidad} Ticket(s) - ${data.tituloRifa}`,
-            quantity: 1,
-            unit_price: totalAmount,
-            currency_id: 'ARS',
-          },
-        ],
-        payer: {
-          // In production, fetch buyer email from database
-        },
-        back_urls: {
-          success: successUrl,
-          failure: failureUrl,
-          pending: pendingUrl,
-        },
-        ...(shouldAutoReturn ? { auto_return: 'approved' as const } : {}),
-        external_reference: JSON.stringify({
-          raffleId: data.raffleId,
-          buyerId: data.buyerId,
-          cantidad: data.cantidad,
-          reservationId: data.reservationId,
-        }),
-        marketplace_fee: platformFee,
-        notification_url: `${backendUrl}/mp/webhook`,
-        // DELAYED DISBURSEMENT: Hold funds until release or auto-release date
-        // This ensures refunds are possible and disputes can be resolved
-        money_release_days: DEFAULT_MONEY_RELEASE_DAYS,
-      };
-
-      const preferenceResponse: PreferenceResponse = await preference.create({
-        body: preferenceBody,
-      });
-
-      this.logger.log(
-        `Created MP preference ${preferenceResponse.id} for raffle ${data.raffleId} (auto_return=${shouldAutoReturn})`,
+    if (this.paymentsProvider === 'mock') {
+      await this.expireSupersededInitiatedMockPayments(
+        data.buyerId,
+        data.raffleId,
       );
-
-      return {
-        initPoint: preferenceResponse.init_point!,
-        preferenceId: preferenceResponse.id!,
-      };
-    } catch (error: unknown) {
-      const details = isErrorWithMessage(error)
-        ? error.message
-        : 'Mercado Pago preference create failed';
-      this.logger.error(`MP preference create failed: ${details}`);
-      throw new BadRequestException(details);
     }
+
+    const sessionInput: CreateCheckoutSessionInput = {
+      raffleId: data.raffleId,
+      cantidad: data.cantidad,
+      buyerId: data.buyerId,
+      precioPorTicket: data.precioPorTicket,
+      tituloRifa: data.tituloRifa,
+      reservationId: data.reservationId,
+      grossSubtotal,
+      discountApplied,
+      cashChargedAmount,
+      bonusGrantId: data.bonusGrantId ?? null,
+      promotionBonusRedemptionId: data.promotionBonusRedemptionId ?? null,
+      promotionToken: data.promotionToken ?? null,
+    };
+
+    return this.paymentsProvider === 'mock'
+      ? this.mockPaymentProvider.createCheckoutSession(sessionInput)
+      : this.mercadoPagoProvider.createCheckoutSession(sessionInput);
+  }
+
+  async expireSupersededInitiatedMockPaymentsForRaffle(
+    buyerId: string,
+    raffleId: string,
+  ): Promise<void> {
+    if (this.paymentsProvider !== 'mock') {
+      return;
+    }
+
+    await this.expireSupersededInitiatedMockPayments(buyerId, raffleId);
   }
 
   // ==================== Payment Status ====================
@@ -227,15 +184,323 @@ export class PaymentsService {
     status: string;
     statusDetail: string;
     externalReference: string | null;
+    merchantOrderId?: string | null;
   }> {
-    const payment = new Payment(this.getMpClient());
-    const paymentData = await payment.get({ id: paymentId });
+    return this.isMockPaymentId(paymentId)
+      ? this.mockPaymentProvider.getPaymentStatus(paymentId)
+      : this.mercadoPagoProvider.getPaymentStatus(paymentId);
+  }
+
+  private isMockPaymentId(paymentId: string): boolean {
+    return paymentId.startsWith('mock_pay_');
+  }
+
+  async getMockPaymentForCheckout(
+    paymentId: string,
+    publicToken: string,
+  ): Promise<MockPaymentSummary> {
+    return this.mockPaymentProvider.getPaymentForCheckout(
+      paymentId,
+      publicToken,
+    );
+  }
+
+  async processMockPaymentAction(
+    paymentId: string,
+    publicToken: string,
+    action: MockPaymentAction,
+    amount?: number,
+  ): Promise<MockPaymentActionResult> {
+    const payment = await this.mockPaymentProvider.getPaymentForCheckout(
+      paymentId,
+      publicToken,
+    );
+
+    switch (action) {
+      case 'APPROVE':
+        await this.approveMockPayment(paymentId);
+        break;
+      case 'PEND':
+        await this.markMockPaymentPending(paymentId);
+        break;
+      case 'REJECT':
+        await this.rejectOrExpireMockPayment(paymentId, 'rejected');
+        break;
+      case 'EXPIRE':
+        await this.rejectOrExpireMockPayment(paymentId, 'expired');
+        break;
+      case 'REFUND_FULL':
+        await this.refundMockPayment(paymentId, undefined, true);
+        break;
+      case 'REFUND_PARTIAL':
+        if (typeof amount !== 'number' || amount <= 0) {
+          throw new BadRequestException(
+            'Debes indicar un monto válido para el reintegro parcial',
+          );
+        }
+        await this.refundMockPayment(paymentId, amount, false);
+        break;
+      default:
+        throw new BadRequestException('Acción mock no soportada');
+    }
+
+    const refreshed = await this.getPaymentStatus(paymentId);
 
     return {
-      status: paymentData.status || 'unknown',
-      statusDetail: paymentData.status_detail || '',
-      externalReference: paymentData.external_reference || null,
+      paymentId,
+      status: refreshed.status,
+      merchantOrderId: refreshed.merchantOrderId || payment.merchantOrderId,
+      redirectUrl: this.buildMockStatusRedirectUrl(
+        paymentId,
+        refreshed.status,
+        refreshed.merchantOrderId || payment.merchantOrderId,
+        publicToken,
+      ),
+      mockToken: publicToken,
     };
+  }
+
+  private buildMockStatusRedirectUrl(
+    paymentId: string,
+    status: string,
+    merchantOrderId: string,
+    publicToken: string,
+  ): string {
+    const frontendUrl =
+      this.configService.get<string>('FRONTEND_URL') || 'http://localhost:3000';
+    const baseUrl = frontendUrl.replace(/\/$/, '');
+    const params = new URLSearchParams({
+      payment_id: paymentId,
+      status,
+      merchant_order_id: merchantOrderId,
+      mock_token: publicToken,
+    });
+    return `${baseUrl}/checkout/status?${params.toString()}`;
+  }
+
+  private buildMockPaymentResponse(
+    payment: Awaited<ReturnType<MockPaymentProvider['getPayment']>>,
+    status: string,
+    statusDetail: string,
+  ): PaymentResponse {
+    return {
+      id: payment.id,
+      status,
+      status_detail: statusDetail,
+      transaction_amount: Number(payment.cashChargedAmount),
+      external_reference: payment.externalReference,
+      fee_details: [],
+      order: {
+        id: payment.merchantOrderId,
+      },
+    } as unknown as PaymentResponse;
+  }
+
+  private async expireSupersededInitiatedMockPayments(
+    buyerId: string,
+    raffleId: string,
+  ): Promise<void> {
+    const stalePayments = await this.prisma.mockPayment.findMany({
+      where: {
+        buyerId,
+        raffleId,
+        status: MockPaymentStatus.INITIATED,
+      },
+      orderBy: {
+        createdAt: 'asc',
+      },
+    });
+
+    for (const stalePayment of stalePayments) {
+      await this.prisma.ticket.deleteMany({
+        where: {
+          estado: 'RESERVADO',
+          mpExternalReference: stalePayment.reservationId,
+        },
+      });
+
+      await this.socialPromotionsService.releaseReservedRedemptionByReservation(
+        stalePayment.reservationId,
+      );
+
+      await this.mockPaymentProvider.updatePaymentStatus(
+        stalePayment.id,
+        MockPaymentStatus.EXPIRED,
+        'Pago mock expirado por reemplazo de checkout',
+        {
+          processedAt: new Date(),
+        },
+      );
+
+      await this.mockPaymentProvider.recordEvent({
+        paymentId: stalePayment.id,
+        eventType: this.mockPaymentProvider.getActionType('EXPIRE'),
+        status: MockPaymentStatus.EXPIRED,
+        metadata: {
+          reservationId: stalePayment.reservationId,
+          reason: 'superseded_by_new_checkout',
+        },
+      });
+    }
+  }
+
+  private async approveMockPayment(paymentId: string): Promise<void> {
+    const payment = await this.mockPaymentProvider.getPayment(paymentId);
+    if (payment.processedAt) {
+      return;
+    }
+
+    if (
+      payment.status === MockPaymentStatus.REJECTED ||
+      payment.status === MockPaymentStatus.EXPIRED ||
+      payment.status === MockPaymentStatus.REFUNDED_FULL ||
+      payment.status === MockPaymentStatus.REFUNDED_PARTIAL
+    ) {
+      throw new BadRequestException(
+        'No podés aprobar un pago mock en este estado',
+      );
+    }
+
+    const approvedPaymentData = this.buildMockPaymentResponse(
+      payment,
+      'approved',
+      'mock_approved',
+    );
+
+    await this.handlePaymentApproved(approvedPaymentData);
+    await this.mockPaymentProvider.updatePaymentStatus(
+      paymentId,
+      MockPaymentStatus.APPROVED,
+      'Pago mock aprobado',
+      {
+        approvedAt: new Date(),
+        processedAt: new Date(),
+      },
+    );
+    await this.mockPaymentProvider.recordEvent({
+      paymentId,
+      eventType: this.mockPaymentProvider.getActionType('APPROVE'),
+      status: MockPaymentStatus.APPROVED,
+      metadata: {
+        reservationId: payment.reservationId,
+      },
+    });
+  }
+
+  private async markMockPaymentPending(paymentId: string): Promise<void> {
+    const payment = await this.mockPaymentProvider.getPayment(paymentId);
+    if (
+      payment.status === MockPaymentStatus.APPROVED ||
+      payment.status === MockPaymentStatus.REJECTED ||
+      payment.status === MockPaymentStatus.EXPIRED ||
+      payment.status === MockPaymentStatus.REFUNDED_FULL ||
+      payment.status === MockPaymentStatus.REFUNDED_PARTIAL
+    ) {
+      throw new BadRequestException(
+        'No podés marcar como pendiente un pago mock en este estado',
+      );
+    }
+
+    await this.mockPaymentProvider.updatePaymentStatus(
+      paymentId,
+      MockPaymentStatus.PENDING,
+      'Pago mock pendiente',
+    );
+    await this.mockPaymentProvider.recordEvent({
+      paymentId,
+      eventType: this.mockPaymentProvider.getActionType('PEND'),
+      status: MockPaymentStatus.PENDING,
+    });
+  }
+
+  private async rejectOrExpireMockPayment(
+    paymentId: string,
+    mode: 'rejected' | 'expired',
+  ): Promise<void> {
+    const payment = await this.mockPaymentProvider.getPayment(paymentId);
+
+    if (
+      payment.status === MockPaymentStatus.APPROVED ||
+      payment.status === MockPaymentStatus.REFUNDED_FULL ||
+      payment.status === MockPaymentStatus.REFUNDED_PARTIAL
+    ) {
+      throw new BadRequestException(
+        'No podés rechazar o expirar un pago mock ya aprobado o reintegrado',
+      );
+    }
+
+    await this.prisma.ticket.deleteMany({
+      where: {
+        estado: 'RESERVADO',
+        mpExternalReference: payment.reservationId,
+      },
+    });
+    await this.socialPromotionsService.releaseReservedRedemptionByReservation(
+      payment.reservationId,
+    );
+
+    const status =
+      mode === 'rejected'
+        ? MockPaymentStatus.REJECTED
+        : MockPaymentStatus.EXPIRED;
+
+    await this.mockPaymentProvider.updatePaymentStatus(
+      paymentId,
+      status,
+      mode === 'rejected' ? 'Pago mock rechazado' : 'Pago mock expirado',
+      {
+        processedAt: new Date(),
+      },
+    );
+    await this.mockPaymentProvider.recordEvent({
+      paymentId,
+      eventType: this.mockPaymentProvider.getActionType(
+        mode === 'rejected' ? 'REJECT' : 'EXPIRE',
+      ),
+      status,
+      metadata: {
+        reservationId: payment.reservationId,
+      },
+    });
+  }
+
+  private async refundMockPayment(
+    paymentId: string,
+    amount?: number,
+    markTicketsRefunded = false,
+  ): Promise<void> {
+    const payment = await this.mockPaymentProvider.getPayment(paymentId);
+
+    if (payment.status !== MockPaymentStatus.APPROVED) {
+      throw new BadRequestException(
+        'Solo se puede reintegrar un pago mock aprobado',
+      );
+    }
+
+    const normalizedAmount =
+      typeof amount === 'number' && amount > 0
+        ? Math.round(amount * 100) / 100
+        : undefined;
+    const isFullRefund =
+      normalizedAmount === undefined ||
+      normalizedAmount >=
+        Number((Number(payment.cashChargedAmount) - 0.01).toFixed(2));
+
+    const success = await this.refundPayment(paymentId, normalizedAmount);
+
+    if (!success) {
+      throw new BadRequestException('No se pudo procesar el reintegro mock');
+    }
+
+    if (markTicketsRefunded && isFullRefund) {
+      await this.prisma.ticket.updateMany({
+        where: {
+          mpPaymentId: paymentId,
+          estado: 'PAGADO',
+        },
+        data: { estado: 'REEMBOLSADO' },
+      });
+    }
   }
 
   // ==================== Webhook Handlers ====================
@@ -264,11 +529,12 @@ export class PaymentsService {
     }
 
     // Get payment details
-    const payment = new Payment(this.getMpClient());
-    const paymentData = await payment.get({ id: paymentId });
+    const paymentData = await this.mercadoPagoProvider.getPayment(paymentId);
 
     if (paymentData.status === 'approved') {
       await this.handlePaymentApproved(paymentData);
+    } else {
+      await this.handlePaymentReleasedOrExpired(paymentData);
     }
 
     // Mark as processed
@@ -293,6 +559,10 @@ export class PaymentsService {
     alreadyProcessed: boolean;
     ticketsUpdated: number;
   }> {
+    if (this.isMockPaymentId(paymentId)) {
+      return this.mockPaymentProvider.syncPaymentStatus(paymentId);
+    }
+
     try {
       // Check if already processed
       const existing = await this.prisma.mpEvent.findUnique({
@@ -310,8 +580,7 @@ export class PaymentsService {
         };
       }
 
-      const payment = new Payment(this.getMpClient());
-      const paymentData = await payment.get({ id: paymentId });
+      const paymentData = await this.mercadoPagoProvider.getPayment(paymentId);
 
       if (paymentData.status === 'approved') {
         await this.handlePaymentApproved(paymentData);
@@ -337,6 +606,8 @@ export class PaymentsService {
           alreadyProcessed: false,
           ticketsUpdated: ticketCount,
         };
+      } else {
+        await this.handlePaymentReleasedOrExpired(paymentData);
       }
 
       return {
@@ -371,6 +642,8 @@ export class PaymentsService {
 
     const { raffleId, buyerId, cantidad: _cantidad } = refData;
     const reservationId = refData.reservationId;
+    const bonusGrantId = refData.bonusGrantId ?? null;
+    const promotionToken = refData.promotionToken ?? undefined;
     const mpPaymentId = String(paymentData.id);
 
     // Update tickets to PAGADO
@@ -417,13 +690,18 @@ export class PaymentsService {
     }
 
     const totalAmount = Number(paymentData.transaction_amount ?? 0);
-    const platformFee = totalAmount * this.platformFeeRate;
+    const grossAmount = Number(refData.grossSubtotal ?? totalAmount);
+    const promotionDiscountAmount = Number(refData.discountApplied ?? 0);
+    const cashChargedAmount = Number(refData.mpChargeAmount ?? totalAmount);
+    const platformFee = cashChargedAmount * this.platformFeeRate;
     const mpFee = Number(paymentData.fee_details?.[0]?.amount ?? 0);
-    const netAmount = totalAmount - platformFee - mpFee;
+    const netAmount = grossAmount - platformFee - mpFee;
 
     const transactionMetadata: Prisma.InputJsonValue = {
       externalReference: externalRef,
       reservationId: reservationId ?? null,
+      bonusGrantId,
+      promotionToken: promotionToken ?? null,
       status: paymentData.status ?? null,
       statusDetail: paymentData.status_detail ?? null,
     };
@@ -433,7 +711,10 @@ export class PaymentsService {
         tipo: 'COMPRA_TICKET',
         userId: buyerId,
         raffleId,
-        monto: totalAmount,
+        monto: cashChargedAmount,
+        grossAmount,
+        promotionDiscountAmount,
+        cashChargedAmount,
         comisionPlataforma: platformFee,
         feeProcesamiento: mpFee,
         montoNeto: netAmount,
@@ -442,6 +723,38 @@ export class PaymentsService {
         metadata: transactionMetadata,
       },
     });
+
+    if (promotionDiscountAmount > 0) {
+      await this.prisma.transaction.create({
+        data: {
+          tipo: 'SUBSIDIO_PROMOCIONAL_PLATAFORMA',
+          userId: buyerId,
+          raffleId,
+          monto: promotionDiscountAmount,
+          grossAmount,
+          promotionDiscountAmount,
+          cashChargedAmount,
+          comisionPlataforma: 0,
+          feeProcesamiento: 0,
+          montoNeto: promotionDiscountAmount,
+          estado: 'COMPLETADO',
+          metadata: transactionMetadata,
+        },
+      });
+    }
+
+    await this.socialPromotionsService.markRedemptionUsedByReservation({
+      reservationId,
+      bonusGrantId,
+      mpPaymentId,
+    });
+
+    await this.socialPromotionsService.recordPurchaseAttribution(
+      buyerId,
+      promotionToken,
+      updatedTickets.count,
+      grossAmount,
+    );
 
     // Send notifications for ticket purchase
     try {
@@ -481,7 +794,7 @@ export class PaymentsService {
           {
             raffleName: raffle.titulo,
             ticketNumbers,
-            amount: totalAmount,
+            amount: cashChargedAmount,
           },
         );
 
@@ -505,7 +818,7 @@ export class PaymentsService {
               sellerName,
               raffleName: raffle.titulo,
               ticketCount: ticketNumbers.length,
-              amount: totalAmount,
+              amount: cashChargedAmount,
               soldTickets,
               totalTickets: raffle.totalTickets,
               raffleId: raffle.id,
@@ -517,7 +830,7 @@ export class PaymentsService {
             raffle.seller.id,
             'INFO',
             '¡Nueva venta!',
-            `Vendiste ${ticketNumbers.length} ticket(s) en "${raffle.titulo}" por $${totalAmount.toFixed(2)}. Progreso: ${soldTickets}/${raffle.totalTickets}`,
+            `Vendiste ${ticketNumbers.length} ticket(s) en "${raffle.titulo}" por $${cashChargedAmount.toFixed(2)}. Progreso: ${soldTickets}/${raffle.totalTickets}`,
           );
         }
 
@@ -526,7 +839,7 @@ export class PaymentsService {
           buyerId,
           raffleId,
           ticketNumbers,
-          totalAmount,
+          cashChargedAmount,
           mpPaymentId,
         );
 
@@ -537,14 +850,18 @@ export class PaymentsService {
             raffleId,
             buyerId,
             ticketNumbers.length,
-            totalAmount,
+            cashChargedAmount,
             mpPaymentId,
           ),
         );
 
         // Process referral reward if this is the user's first purchase
         this.referralsService
-          .processFirstPurchaseReward(buyerId, totalAmount, tickets[0]?.id)
+          .processFirstPurchaseReward(
+            buyerId,
+            cashChargedAmount,
+            tickets[0]?.id,
+          )
           .catch((err: unknown) => {
             const errorMsg = isErrorWithMessage(err)
               ? err.message
@@ -626,51 +943,99 @@ export class PaymentsService {
    */
   async refundPayment(mpPaymentId: string, amount?: number): Promise<boolean> {
     try {
-      if (this.mpMockMode) {
-        const normalizedAmount =
-          typeof amount === 'number' && amount > 0
-            ? Math.round(amount * 100) / 100
-            : undefined;
-        this.logger.log(
-          `[MOCK] Refund processed for payment ${mpPaymentId}${normalizedAmount ? ` (amount: ${normalizedAmount})` : ''}`,
-        );
-        return true;
-      }
-
-      const mpClient = this.getMpClient();
       const normalizedAmount =
         typeof amount === 'number' && amount > 0
           ? Math.round(amount * 100) / 100
           : undefined;
 
-      // Mercado Pago SDK v2 uses PaymentRefund for refunds
-      const response = await fetch(
-        `https://api.mercadopago.com/v1/payments/${mpPaymentId}/refunds`,
-        {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${mpClient.accessToken}`,
-            'Content-Type': 'application/json',
-          },
-          body:
-            normalizedAmount !== undefined
-              ? JSON.stringify({ amount: normalizedAmount })
-              : undefined,
-        },
-      );
+      if (
+        this.isMockPaymentId(mpPaymentId) ||
+        this.paymentsProvider === 'mock'
+      ) {
+        this.logger.log(
+          `[MOCK] Refund processed for payment ${mpPaymentId}${normalizedAmount ? ` (amount: ${normalizedAmount})` : ''}`,
+        );
+        const mockPayment =
+          await this.mockPaymentProvider.getPayment(mpPaymentId);
+        const isFullRefund =
+          normalizedAmount === undefined ||
+          normalizedAmount >=
+            Number((Number(mockPayment.cashChargedAmount) - 0.01).toFixed(2));
 
-      if (!response.ok) {
-        throw new Error(`Refund failed: ${response.statusText}`);
+        await this.socialPromotionsService.reinstateRedemptionByPaymentId(
+          mpPaymentId,
+          normalizedAmount,
+        );
+        await this.mockPaymentProvider.updatePaymentStatus(
+          mpPaymentId,
+          isFullRefund
+            ? MockPaymentStatus.REFUNDED_FULL
+            : MockPaymentStatus.REFUNDED_PARTIAL,
+          isFullRefund
+            ? 'Pago mock reintegrado totalmente'
+            : 'Pago mock reintegrado parcialmente',
+          {
+            refundedAt: new Date(),
+            refundedAmount:
+              normalizedAmount ?? Number(mockPayment.cashChargedAmount),
+          },
+        );
+        await this.mockPaymentProvider.recordEvent({
+          paymentId: mpPaymentId,
+          eventType: this.mockPaymentProvider.getActionType(
+            isFullRefund ? 'REFUND_FULL' : 'REFUND_PARTIAL',
+          ),
+          status: isFullRefund
+            ? MockPaymentStatus.REFUNDED_FULL
+            : MockPaymentStatus.REFUNDED_PARTIAL,
+          amount: normalizedAmount ?? Number(mockPayment.cashChargedAmount),
+          metadata: {
+            reservationId: mockPayment.reservationId,
+          },
+        });
+        return true;
       }
+
+      await this.mercadoPagoProvider.refundPayment(
+        mpPaymentId,
+        normalizedAmount,
+      );
 
       this.logger.log(
         `Refund processed for payment ${mpPaymentId}${normalizedAmount ? ` (amount: ${normalizedAmount})` : ''}`,
+      );
+      await this.socialPromotionsService.reinstateRedemptionByPaymentId(
+        mpPaymentId,
+        normalizedAmount,
       );
       return true;
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
       this.logger.error(`Refund failed for ${mpPaymentId}: ${message}`);
       return false;
+    }
+  }
+
+  private async handlePaymentReleasedOrExpired(
+    paymentData: PaymentResponse,
+  ): Promise<void> {
+    const externalRef = paymentData.external_reference;
+    if (!externalRef) {
+      return;
+    }
+
+    try {
+      const refData = JSON.parse(externalRef) as ExternalReferenceData;
+      if (refData.reservationId) {
+        await this.socialPromotionsService.releaseReservedRedemptionByReservation(
+          refData.reservationId,
+        );
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.warn(
+        `Failed to release social promotion redemption for non-approved payment ${paymentData.id}: ${message}`,
+      );
     }
   }
 
@@ -711,7 +1076,7 @@ export class PaymentsService {
       };
     }
 
-    if (this.mpMockMode) {
+    if (this.paymentsProvider === 'mock') {
       const releasedPayments = tickets.length;
       await this.prisma.raffle.update({
         where: { id: raffleId },
@@ -723,50 +1088,14 @@ export class PaymentsService {
       return { success: true, releasedPayments, errors: [] };
     }
 
-    const mpClient = this.getMpClient();
-
     // Release each payment
     for (const ticket of tickets) {
       if (!ticket.mpPaymentId) continue;
 
       try {
-        // MP API: POST /v1/payments/{id}/releases to release held funds
-        const response = await fetch(
-          `https://api.mercadopago.com/v1/payments/${ticket.mpPaymentId}/releases`,
-          {
-            method: 'POST',
-            headers: {
-              Authorization: `Bearer ${mpClient.accessToken}`,
-              'Content-Type': 'application/json',
-            },
-          },
-        );
-
-        if (response.ok) {
-          releasedPayments++;
-          this.logger.log(`Released funds for payment ${ticket.mpPaymentId}`);
-        } else {
-          const errorData = (await response
-            .json()
-            .catch(() => ({}))) as MpApiErrorResponse;
-          const errorMsg: string = errorData.message || response.statusText;
-
-          // If already released, count as success
-          if (
-            response.status === 400 &&
-            errorMsg.includes('already released')
-          ) {
-            releasedPayments++;
-            this.logger.log(
-              `Payment ${ticket.mpPaymentId} was already released`,
-            );
-          } else {
-            errors.push(`Payment ${ticket.mpPaymentId}: ${errorMsg}`);
-            this.logger.error(
-              `Failed to release payment ${ticket.mpPaymentId}: ${errorMsg}`,
-            );
-          }
-        }
+        await this.mercadoPagoProvider.releasePayment(ticket.mpPaymentId);
+        releasedPayments++;
+        this.logger.log(`Released funds for payment ${ticket.mpPaymentId}`);
       } catch (error) {
         const message =
           error instanceof Error ? error.message : 'Unknown error';

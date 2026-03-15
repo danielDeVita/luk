@@ -73,11 +73,14 @@ export class AuthResolver {
     @Context() context: { req: Record<string, unknown>; res: Response },
     @Args('referralCode', { type: () => String, nullable: true })
     referralCode?: string,
+    @Args('promotionToken', { type: () => String, nullable: true })
+    promotionToken?: string,
   ): Promise<AuthPayload> {
     const result = await this.authService.verifyEmail(
       userId,
       code,
       referralCode,
+      promotionToken,
     );
 
     // Set httpOnly cookies for the tokens

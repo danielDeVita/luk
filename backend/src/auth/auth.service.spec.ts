@@ -10,6 +10,7 @@ import { ReferralsService } from '../referrals/referrals.service';
 import { ConflictException, UnauthorizedException } from '@nestjs/common';
 import { UserRole } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
+import { SocialPromotionsService } from '../social-promotions/social-promotions.service';
 
 jest.mock('bcrypt');
 
@@ -82,6 +83,10 @@ describe('AuthService', () => {
     applyReferralCode: jest.fn().mockResolvedValue(true),
   };
 
+  const mockSocialPromotionsService = {
+    recordRegistrationAttribution: jest.fn().mockResolvedValue(undefined),
+  };
+
   // Test user factory
   const createTestUser = (overrides = {}) => ({
     id: 'user-123',
@@ -115,6 +120,10 @@ describe('AuthService', () => {
         { provide: ActivityService, useValue: mockActivityService },
         { provide: LoginThrottlerService, useValue: mockLoginThrottler },
         { provide: ReferralsService, useValue: mockReferralsService },
+        {
+          provide: SocialPromotionsService,
+          useValue: mockSocialPromotionsService,
+        },
       ],
     }).compile();
 
@@ -352,6 +361,28 @@ describe('AuthService', () => {
         userId,
         referralCode,
       );
+    });
+
+    it('should record promotion attribution when a promotion token is provided', async () => {
+      const user = createTestUser();
+      mockPrismaService.user.findUnique.mockResolvedValue(user);
+      mockPrismaService.emailVerificationCode.findFirst.mockResolvedValue({
+        id: 'code-1',
+        userId,
+        code,
+        isUsed: false,
+        expiresAt: new Date(Date.now() + 10 * 60 * 1000),
+      });
+      mockPrismaService.$transaction.mockResolvedValue([{}, {}]);
+      mockPrismaService.refreshToken.create.mockResolvedValue({
+        token: 'refresh-token',
+      });
+
+      await service.verifyEmail(userId, code, undefined, 'promo-123');
+
+      expect(
+        mockSocialPromotionsService.recordRegistrationAttribution,
+      ).toHaveBeenCalledWith(userId, 'promo-123');
     });
   });
 

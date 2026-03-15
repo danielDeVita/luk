@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect, useMemo, Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useForm, useWatch } from 'react-hook-form';
@@ -16,6 +16,10 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Loader2, Check, AlertTriangle, Gift, Mail, RefreshCw } from 'lucide-react';
 import { PasswordInput } from '@/components/ui/password-input';
 import { toast } from 'sonner';
+import {
+  getStoredSocialPromotionToken,
+  persistSocialPromotionToken,
+} from '@/lib/social-promotions';
 
 const REGISTER_MUTATION = gql`
   mutation Register($email: String!, $password: String!, $nombre: String!, $apellido: String!, $fechaNacimiento: String!, $acceptTerms: Boolean!, $referralCode: String) {
@@ -32,8 +36,8 @@ const REGISTER_MUTATION = gql`
 `;
 
 const VERIFY_EMAIL_MUTATION = gql`
-  mutation VerifyEmail($userId: String!, $code: String!, $referralCode: String) {
-    verifyEmail(userId: $userId, code: $code, referralCode: $referralCode) {
+  mutation VerifyEmail($userId: String!, $code: String!, $referralCode: String, $promotionToken: String) {
+    verifyEmail(userId: $userId, code: $code, referralCode: $referralCode, promotionToken: $promotionToken) {
       token
       refreshToken
       user {
@@ -124,6 +128,7 @@ function RegisterPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const refCode = searchParams.get('ref');
+  const promoCode = searchParams.get('promo');
   const setAuth = useAuthStore((state) => state.setAuth);
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -134,12 +139,25 @@ function RegisterPageContent() {
   const [pendingEmail, setPendingEmail] = useState<string | null>(null);
   const [verificationCode, setVerificationCode] = useState('');
   const [storedReferralCode, setStoredReferralCode] = useState<string | null>(null);
+  const promotionToken = useMemo(() => {
+    if (promoCode) {
+      return promoCode;
+    }
+
+    return getStoredSocialPromotionToken();
+  }, [promoCode]);
 
   useEffect(() => {
     if (isAuthenticated) {
       router.push('/');
     }
   }, [isAuthenticated, router]);
+
+  useEffect(() => {
+    if (promoCode) {
+      persistSocialPromotionToken(promoCode);
+    }
+  }, [promoCode]);
 
   const {
     register,
@@ -192,6 +210,7 @@ function RegisterPageContent() {
           userId: pendingUserId,
           code: verificationCode,
           referralCode: storedReferralCode,
+          promotionToken,
         },
       });
 

@@ -78,6 +78,8 @@ describe('TicketsResolver', () => {
         user.id,
         raffleId,
         cantidad,
+        undefined,
+        undefined,
       );
     });
 
@@ -101,6 +103,8 @@ describe('TicketsResolver', () => {
         user.id,
         raffleId,
         1,
+        undefined,
+        undefined,
       );
     });
 
@@ -140,6 +144,8 @@ describe('TicketsResolver', () => {
         'specific-user-id',
         expect.any(String),
         expect.any(Number),
+        undefined,
+        undefined,
       );
     });
   });

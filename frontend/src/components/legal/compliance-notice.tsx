@@ -71,8 +71,11 @@ export function ComplianceNotice({
             )}
           >
             {LEGAL_OPERATOR_NAME} actua como intermediario tecnologico y no
-            comercializa fichas, saldo, creditos, monedas virtuales ni valores
-            utilizables fuera de este sitio. Consulta los{' '}
+            comercializa fichas, saldo, monedas virtuales ni valores
+            utilizables fuera de este sitio. La plataforma puede otorgar
+            bonificaciones promocionales internas, no transferibles y
+            utilizables solo dentro de Luk segun los terminos vigentes.
+            Consulta los{' '}
             <Link
               href="/legal/terminos"
               className={cn(
