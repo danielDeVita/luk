@@ -19,12 +19,18 @@ import {
 } from './entities/social-promotion.entity';
 import { SocialPromotionsService } from './social-promotions.service';
 
+/**
+ * GraphQL entrypoints for sellers and admins working with social promotions.
+ */
 @Resolver()
 export class SocialPromotionsResolver {
   constructor(
     private readonly socialPromotionsService: SocialPromotionsService,
   ) {}
 
+  /**
+   * Starts a verifiable promotion draft for the current seller.
+   */
   @Mutation(() => SocialPromotionDraft)
   @UseGuards(GqlAuthGuard)
   async startSocialPromotionDraft(
@@ -40,6 +46,9 @@ export class SocialPromotionsResolver {
     );
   }
 
+  /**
+   * Submits a public social post for validation against an existing draft.
+   */
   @Mutation(() => SocialPromotionPost)
   @UseGuards(GqlAuthGuard)
   async submitSocialPromotionPost(
@@ -54,6 +63,9 @@ export class SocialPromotionsResolver {
     );
   }
 
+  /**
+   * Returns the current seller's promotion posts.
+   */
   @Query(() => [SocialPromotionPost])
   @UseGuards(GqlAuthGuard)
   async mySocialPromotionPosts(
@@ -66,6 +78,9 @@ export class SocialPromotionsResolver {
     );
   }
 
+  /**
+   * Returns the current seller's earned promotion bonus grants.
+   */
   @Query(() => [PromotionBonusGrant])
   @UseGuards(GqlAuthGuard)
   async myPromotionBonusGrants(
@@ -82,6 +97,9 @@ export class SocialPromotionsResolver {
     );
   }
 
+  /**
+   * Previews how a selected promotion bonus would affect the current purchase.
+   */
   @Query(() => PromotionBonusPreview)
   @UseGuards(GqlAuthGuard)
   async previewPromotionBonus(
@@ -98,6 +116,9 @@ export class SocialPromotionsResolver {
     );
   }
 
+  /**
+   * Returns the admin queue for posts blocked in technical review.
+   */
   @Query(() => [SocialPromotionPost])
   @UseGuards(GqlAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
@@ -105,6 +126,9 @@ export class SocialPromotionsResolver {
     return this.socialPromotionsService.getTechnicalReviewQueue();
   }
 
+  /**
+   * Sends a technical-review post back through validation.
+   */
   @Mutation(() => SocialPromotionPost)
   @UseGuards(GqlAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
@@ -114,6 +138,9 @@ export class SocialPromotionsResolver {
     return this.socialPromotionsService.retryTechnicalReview(postId);
   }
 
+  /**
+   * Allows an admin to disqualify a promotion post explicitly.
+   */
   @Mutation(() => SocialPromotionPost)
   @UseGuards(GqlAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)

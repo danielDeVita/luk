@@ -66,6 +66,9 @@ interface ValidationAttemptResult {
   };
 }
 
+/**
+ * Orchestrates verifiable social promotion drafts, validation, settlement, and bonus usage.
+ */
 @Injectable()
 export class SocialPromotionsService {
   private readonly logger = new Logger(SocialPromotionsService.name);
@@ -108,6 +111,9 @@ export class SocialPromotionsService {
     this.allowedNetworks = this.getAllowedNetworks();
   }
 
+  /**
+   * Creates a seller-scoped draft with a Luk tracking link and promotion token.
+   */
   async startSocialPromotionDraft(
     sellerId: string,
     raffleId: string,
@@ -161,6 +167,9 @@ export class SocialPromotionsService {
     return draft as unknown as SocialPromotionDraft;
   }
 
+  /**
+   * Registers a submitted public post against a draft and queues it for validation.
+   */
   async submitSocialPromotionPost(
     sellerId: string,
     draftId: string,
@@ -226,6 +235,9 @@ export class SocialPromotionsService {
     return this.mapSocialPromotionPost(post);
   }
 
+  /**
+   * Lists the seller's submitted promotion posts, optionally filtered by raffle.
+   */
   async mySocialPromotionPosts(sellerId: string, raffleId?: string) {
     const posts = await this.prisma.socialPromotionPost.findMany({
       where: {
@@ -242,6 +254,9 @@ export class SocialPromotionsService {
     return posts.map((post) => this.mapSocialPromotionPost(post));
   }
 
+  /**
+   * Lists promotion bonus grants earned by the seller.
+   */
   async myPromotionBonusGrants(
     sellerId: string,
     status?: PromotionBonusGrantStatus,
@@ -257,6 +272,9 @@ export class SocialPromotionsService {
     return grants.map((grant) => this.mapPromotionBonusGrant(grant));
   }
 
+  /**
+   * Calculates the promotion bonus preview for a buyer before checkout reservation.
+   */
   async previewPromotionBonus(
     buyerId: string,
     raffleId: string,
@@ -284,6 +302,9 @@ export class SocialPromotionsService {
     return this.buildBonusPreview(grant, grossSubtotal);
   }
 
+  /**
+   * Reserves an available promotion bonus and creates a checkout-bound redemption record.
+   */
   async reserveBonusForCheckout(
     params: ReserveBonusParams,
     tx?: Prisma.TransactionClient,
@@ -341,6 +362,9 @@ export class SocialPromotionsService {
     };
   }
 
+  /**
+   * Marks a reserved redemption as consumed once the linked payment is approved.
+   */
   async markRedemptionUsedByReservation(params: {
     reservationId?: string;
     bonusGrantId?: string | null;
@@ -381,6 +405,9 @@ export class SocialPromotionsService {
     ]);
   }
 
+  /**
+   * Releases reserved bonus redemptions when the checkout does not complete successfully.
+   */
   async releaseReservedRedemptionByReservation(
     reservationId: string,
   ): Promise<void> {
@@ -410,6 +437,9 @@ export class SocialPromotionsService {
     }
   }
 
+  /**
+   * Restores bonus availability after a full refund and records the reversal transaction.
+   */
   async reinstateRedemptionByPaymentId(
     mpPaymentId: string,
     refundAmount?: number,
@@ -478,6 +508,9 @@ export class SocialPromotionsService {
     }
   }
 
+  /**
+   * Processes posts that are pending validation or due for a scheduled re-check.
+   */
   async processDueSocialPromotionPosts(): Promise<number> {
     const posts = await this.withPrismaReconnect(
       'load due social promotion posts',
@@ -515,6 +548,9 @@ export class SocialPromotionsService {
     return processed;
   }
 
+  /**
+   * Settles eligible promotion posts once their raffle has effectively closed.
+   */
   async settleClosedSocialPromotionPosts(): Promise<number> {
     const posts = await this.withPrismaReconnect(
       'load closed social promotion posts',
@@ -558,6 +594,9 @@ export class SocialPromotionsService {
     return settled;
   }
 
+  /**
+   * Loads a submitted public post, captures metrics, and updates its validation status.
+   */
   async validateSocialPromotionPost(postId: string): Promise<void> {
     const post = await this.withPrismaReconnect(
       `load promotion post ${postId}`,
@@ -698,6 +737,9 @@ export class SocialPromotionsService {
     }
   }
 
+  /**
+   * Computes the final promotion score and issues a seller bonus grant when a tier matches.
+   */
   async settleSocialPromotionPost(postId: string): Promise<void> {
     const post = await this.withPrismaReconnect(
       `load settlement candidate ${postId}`,
@@ -798,6 +840,9 @@ export class SocialPromotionsService {
     );
   }
 
+  /**
+   * Records a click attribution event when the token resolves to a known promotion.
+   */
   async trackPromotionClickByToken(token: string): Promise<string> {
     const draft = await this.prisma.socialPromotionDraft.findUnique({
       where: { promotionToken: token },
@@ -824,6 +869,9 @@ export class SocialPromotionsService {
     return `${this.frontendUrl}/raffle/${draft.raffleId}?promo=${token}`;
   }
 
+  /**
+   * Stores a registration attribution event once per user and promotion token.
+   */
   async recordRegistrationAttribution(
     userId: string,
     promotionToken?: string | null,
@@ -853,6 +901,9 @@ export class SocialPromotionsService {
     });
   }
 
+  /**
+   * Stores purchase attribution for a promotion-driven ticket purchase.
+   */
   async recordPurchaseAttribution(
     userId: string,
     promotionToken: string | undefined,
@@ -875,6 +926,9 @@ export class SocialPromotionsService {
     });
   }
 
+  /**
+   * Returns posts currently blocked in technical review.
+   */
   async getTechnicalReviewQueue(): Promise<SocialPromotionPost[]> {
     const posts = await this.prisma.socialPromotionPost.findMany({
       where: { status: SocialPromotionStatus.TECHNICAL_REVIEW },
@@ -888,6 +942,9 @@ export class SocialPromotionsService {
     return posts.map((post) => this.mapSocialPromotionPost(post));
   }
 
+  /**
+   * Moves a technical-review post back to pending validation.
+   */
   async retryTechnicalReview(postId: string): Promise<SocialPromotionPost> {
     const updated = await this.prisma.socialPromotionPost.update({
       where: { id: postId },
@@ -904,6 +961,9 @@ export class SocialPromotionsService {
     return this.mapSocialPromotionPost(updated);
   }
 
+  /**
+   * Force-disqualifies a post and stores the admin reason.
+   */
   async adminDisqualifyPost(
     postId: string,
     reason: string,
@@ -956,6 +1016,9 @@ export class SocialPromotionsService {
     return grant;
   }
 
+  /**
+   * Calculates the capped discount and remaining Mercado Pago charge for a grant.
+   */
   private buildBonusPreview(
     grant: {
       id: string;
@@ -1042,6 +1105,9 @@ export class SocialPromotionsService {
     return { loadedPage, parsed };
   }
 
+  /**
+   * Retries validation with Playwright when the fetch pass lacks usable visible metrics.
+   */
   private async retryWithBrowserForVisibleMetrics(params: {
     network: SocialPromotionNetwork;
     permalink: string;
@@ -1082,6 +1148,9 @@ export class SocialPromotionsService {
     return initialAttempt;
   }
 
+  /**
+   * Chooses whether the browser retry improved the validation result enough to replace the first pass.
+   */
   private shouldUseBrowserAttempt(
     currentAttempt: ValidationAttemptResult,
     browserAttempt: ValidationAttemptResult,
@@ -1136,6 +1205,9 @@ export class SocialPromotionsService {
     ].some((value) => typeof value === 'number');
   }
 
+  /**
+   * Retries a Prisma operation once after reconnecting when the failure looks transient.
+   */
   private async withPrismaReconnect<T>(
     context: string,
     operation: () => Promise<T>,

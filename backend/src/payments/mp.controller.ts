@@ -91,6 +91,9 @@ function extractEventType(payload: MpWebhookPayload): string | undefined {
   return undefined;
 }
 
+/**
+ * Handles Mercado Pago webhooks and payment status sync endpoints used by the frontend.
+ */
 @Controller('mp')
 export class MpController {
   private readonly logger = new Logger(MpController.name);
@@ -101,9 +104,7 @@ export class MpController {
   ) {}
 
   /**
-   * Mercado Pago IPN (Instant Payment Notification) webhook endpoint.
-   * MP sends notifications when payment status changes.
-   * Verifies webhook signature using x-signature header.
+   * Receives Mercado Pago payment notifications and forwards valid events to the payments service.
    */
   @Post('webhook')
   @Public()
@@ -176,8 +177,7 @@ export class MpController {
   }
 
   /**
-   * Endpoint to check payment status (used when user returns from MP checkout).
-   * Rate limited to prevent enumeration attacks.
+   * Returns the latest payment status for the checkout return flow.
    */
   @Get('payment-status')
   @Public()
@@ -213,9 +213,7 @@ export class MpController {
   }
 
   /**
-   * Dedicated sync endpoint - forces a sync with Mercado Pago.
-   * Used by frontend when webhook may have failed.
-   * Rate limited to prevent abuse.
+   * Forces a provider sync for a payment when webhook processing may have been missed.
    */
   @Get('sync-payment/:paymentId')
   @Public()

@@ -23,6 +23,9 @@ interface MpErrorResponse {
   message?: string;
 }
 
+/**
+ * Manages Mercado Pago Connect OAuth, token storage, and refresh for seller accounts.
+ */
 @Injectable()
 export class MpConnectService implements OnModuleDestroy {
   private readonly logger = new Logger(MpConnectService.name);
@@ -47,12 +50,15 @@ export class MpConnectService implements OnModuleDestroy {
     this.cleanupInterval.unref();
   }
 
+  /**
+   * Stops the background PKCE cleanup interval when the module is destroyed.
+   */
   onModuleDestroy() {
     clearInterval(this.cleanupInterval);
   }
 
   /**
-   * Generate the MP OAuth authorization URL with PKCE
+   * Builds the Mercado Pago OAuth authorization URL and stores the PKCE verifier for the callback.
    */
   generateAuthUrl(userId: string): { authUrl: string; state: string } {
     const clientId = this.configService.get<string>('MP_CLIENT_ID');
@@ -95,7 +101,7 @@ export class MpConnectService implements OnModuleDestroy {
   }
 
   /**
-   * Exchange authorization code for tokens (with PKCE)
+   * Exchanges an OAuth code for seller tokens and persists the encrypted credentials.
    */
   async exchangeCodeForTokens(
     code: string,
@@ -185,7 +191,7 @@ export class MpConnectService implements OnModuleDestroy {
   }
 
   /**
-   * Refresh MP access token using refresh token
+   * Refreshes a seller's Mercado Pago access token using the stored refresh token.
    */
   async refreshAccessToken(userId: string): Promise<boolean> {
     const user = await this.prisma.user.findUnique({
@@ -250,7 +256,7 @@ export class MpConnectService implements OnModuleDestroy {
   }
 
   /**
-   * Disconnect MP account
+   * Removes the stored Mercado Pago connection from a seller account.
    */
   async disconnect(userId: string): Promise<void> {
     await this.prisma.user.update({
@@ -267,7 +273,7 @@ export class MpConnectService implements OnModuleDestroy {
   }
 
   /**
-   * Get user's MP connection status
+   * Returns whether the user currently has a connected Mercado Pago account.
    */
   async getConnectionStatus(userId: string): Promise<{
     connected: boolean;

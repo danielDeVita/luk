@@ -17,6 +17,9 @@ import {
   MP_FEE_ESTIMATE_RATE,
 } from '../common/constants/fees.constants';
 
+/**
+ * Creates, schedules, and processes seller payouts once raffle delivery and release rules are satisfied.
+ */
 @Injectable()
 export class PayoutsService {
   private readonly logger = new Logger(PayoutsService.name);
@@ -31,7 +34,7 @@ export class PayoutsService {
   ) {}
 
   /**
-   * Create a payout record when a raffle is completed (all tickets sold and drawn)
+   * Creates the payout record for a raffle once the paid-ticket totals are known.
    */
   async createPayout(raffleId: string) {
     const raffle = await this.prisma.raffle.findUnique({
@@ -88,7 +91,7 @@ export class PayoutsService {
   }
 
   /**
-   * Schedule payout after delivery is confirmed
+   * Schedules a payout after delivery confirmation and notifies the seller.
    */
   async schedulePayoutAfterDelivery(raffleId: string) {
     const payout = await this.prisma.payout.findUnique({
@@ -131,8 +134,7 @@ export class PayoutsService {
   }
 
   /**
-   * Process pending payouts that are due
-   * This should be called by a cron job
+   * Processes every pending payout whose scheduled date has already arrived.
    */
   async processDuePayouts() {
     const duePayouts = await this.prisma.payout.findMany({
@@ -169,8 +171,7 @@ export class PayoutsService {
   }
 
   /**
-   * Immediately process payout for a specific raffle once release conditions are met.
-   * Used when delivery is explicitly confirmed or auto-confirmed by policy.
+   * Forces the payout for a raffle into immediate processing once release conditions are met.
    */
   async processPayoutForRaffle(raffleId: string) {
     let payout = await this.prisma.payout.findUnique({
@@ -218,7 +219,7 @@ export class PayoutsService {
   }
 
   /**
-   * Process a single payout via Mercado Pago
+   * Processes a single payout, updates raffle state, and notifies the seller of the outcome.
    */
   async processPayout(payoutId: string) {
     const payout = await this.prisma.payout.findUnique({
@@ -334,7 +335,7 @@ export class PayoutsService {
   }
 
   /**
-   * Manually release payout (admin action)
+   * Lets an admin trigger payout processing manually and records the audit trail.
    */
   async releasePayoutManually(
     adminId: string,
@@ -363,7 +364,7 @@ export class PayoutsService {
   }
 
   /**
-   * Get payout by raffle ID
+   * Returns the payout linked to a raffle, including minimal raffle context.
    */
   async getPayoutByRaffle(raffleId: string) {
     return this.prisma.payout.findUnique({
@@ -374,6 +375,9 @@ export class PayoutsService {
     });
   }
 
+  /**
+   * Returns the raffle payout only when the requester owns it or is an admin.
+   */
   async getPayoutByRaffleForUser(
     raffleId: string,
     requesterId: string,
@@ -393,7 +397,7 @@ export class PayoutsService {
   }
 
   /**
-   * Get all payouts for a seller
+   * Lists all payouts for a seller with the raffle title flattened into the result.
    */
   async getSellerPayouts(sellerId: string) {
     const payouts = await this.prisma.payout.findMany({
@@ -411,7 +415,7 @@ export class PayoutsService {
   }
 
   /**
-   * Get pending payouts (admin)
+   * Lists all payouts that are still pending processing for admin views.
    */
   async getPendingPayouts() {
     return this.prisma.payout.findMany({

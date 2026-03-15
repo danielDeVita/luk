@@ -30,6 +30,9 @@ interface RaffleWithSoldCount {
   sold_count: bigint;
 }
 
+/**
+ * Handles ticket reservation, refund, and read access rules around raffle participation.
+ */
 @Injectable()
 export class TicketsService {
   private readonly logger = new Logger(TicketsService.name);
@@ -44,8 +47,7 @@ export class TicketsService {
   ) {}
 
   /**
-   * Buy tickets with pessimistic locking to prevent overselling.
-   * Returns Mercado Pago checkout URL (init_point) for payment.
+   * Reserves ticket numbers inside a serializable transaction and returns checkout data for payment.
    */
   async buyTickets(
     userId: string,
@@ -227,6 +229,9 @@ export class TicketsService {
     );
   }
 
+  /**
+   * Marks reserved tickets as paid for a confirmed payment identifier.
+   */
   async confirmTicketPurchase(mpPaymentId: string) {
     return this.prisma.ticket.updateMany({
       where: { mpPaymentId, estado: 'RESERVADO' },
@@ -234,6 +239,9 @@ export class TicketsService {
     });
   }
 
+  /**
+   * Refunds all paid tickets in a raffle and emits grouped refund events for affected buyers.
+   */
   async refundTickets(raffleId: string) {
     const tickets = await this.prisma.ticket.findMany({
       where: { raffleId, estado: 'PAGADO' },
@@ -298,6 +306,9 @@ export class TicketsService {
     return result;
   }
 
+  /**
+   * Counts how many non-refunded tickets a user already holds in a raffle.
+   */
   async getUserTicketCount(userId: string, raffleId: string) {
     return this.prisma.ticket.count({
       where: {
@@ -308,6 +319,9 @@ export class TicketsService {
     });
   }
 
+  /**
+   * Returns the currently free ticket numbers for a raffle.
+   */
   async getAvailableTicketNumbers(raffleId: string, totalTickets: number) {
     const usedTickets = await this.prisma.ticket.findMany({
       where: { raffleId },
@@ -326,6 +340,9 @@ export class TicketsService {
     return availableNumbers;
   }
 
+  /**
+   * Lists the current user's tickets with raffle and product context.
+   */
   async findByUser(userId: string) {
     return this.prisma.ticket.findMany({
       where: { buyerId: userId },
@@ -334,6 +351,9 @@ export class TicketsService {
     });
   }
 
+  /**
+   * Returns a single ticket when the requester is the buyer, seller, or an admin.
+   */
   async findOne(id: string, requesterId: string, requesterRole: UserRole) {
     const ticket = await this.prisma.ticket.findUnique({
       where: { id },

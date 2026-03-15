@@ -10,6 +10,9 @@ function isDisabledFlag(value: boolean | string | undefined): boolean {
   );
 }
 
+/**
+ * Runs scheduled validation and settlement jobs for social promotion posts.
+ */
 @Injectable()
 export class SocialPromotionWorkerService {
   private readonly logger = new Logger(SocialPromotionWorkerService.name);
@@ -25,6 +28,9 @@ export class SocialPromotionWorkerService {
     this.enabled = !isDisabledFlag(featureEnabled);
   }
 
+  /**
+   * Validates promotion posts that are due for their next check.
+   */
   @Cron(process.env.SOCIAL_PROMOTION_CHECK_CRON || '0 */6 * * *')
   async processDuePosts() {
     if (!this.enabled) return;
@@ -38,6 +44,9 @@ export class SocialPromotionWorkerService {
     }
   }
 
+  /**
+   * Settles closed promotion posts and emits any resulting seller bonus grants.
+   */
   @Cron(CronExpression.EVERY_30_MINUTES)
   async settleClosedPosts() {
     if (!this.enabled) return;

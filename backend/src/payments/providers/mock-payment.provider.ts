@@ -20,6 +20,9 @@ import {
   SyncStatusResult,
 } from './payment-provider.types';
 
+/**
+ * Provides a local payment backend that mimics checkout, status changes, and refunds for QA flows.
+ */
 @Injectable()
 export class MockPaymentProvider {
   constructor(
@@ -37,6 +40,9 @@ export class MockPaymentProvider {
     return withScheme.replace(/\/$/, '');
   }
 
+  /**
+   * Returns whether mock payments are enabled by environment configuration.
+   */
   isEnabled(): boolean {
     const provider = (
       this.configService.get<string>('PAYMENTS_PROVIDER') || ''
@@ -52,6 +58,9 @@ export class MockPaymentProvider {
     return provider.toLowerCase() === 'mock' || legacyEnabled;
   }
 
+  /**
+   * Guards mutating mock-payment operations when the feature is disabled.
+   */
   assertEnabled(): void {
     const isProduction = this.configService.get('NODE_ENV') === 'production';
     const allowInProduction =
@@ -102,6 +111,9 @@ export class MockPaymentProvider {
     }
   }
 
+  /**
+   * Creates a local checkout session and persists the mock payment record.
+   */
   async createCheckoutSession(
     data: CreateCheckoutSessionInput,
   ): Promise<CreateCheckoutSessionResult> {
@@ -142,6 +154,9 @@ export class MockPaymentProvider {
     };
   }
 
+  /**
+   * Returns normalized status data for a stored mock payment.
+   */
   async getPaymentStatus(paymentId: string): Promise<PaymentStatusResult> {
     const payment = await this.prisma.mockPayment.findUnique({
       where: { id: paymentId },
@@ -159,6 +174,9 @@ export class MockPaymentProvider {
     };
   }
 
+  /**
+   * Returns the latest mock payment status plus whether ticket confirmation already happened.
+   */
   async syncPaymentStatus(paymentId: string): Promise<SyncStatusResult> {
     const payment = await this.prisma.mockPayment.findUnique({
       where: { id: paymentId },
@@ -184,6 +202,9 @@ export class MockPaymentProvider {
     };
   }
 
+  /**
+   * Loads the raw stored mock payment record.
+   */
   async getPayment(paymentId: string) {
     const payment = await this.prisma.mockPayment.findUnique({
       where: { id: paymentId },
@@ -196,6 +217,9 @@ export class MockPaymentProvider {
     return payment;
   }
 
+  /**
+   * Loads the mock payment summary exposed to the browser checkout screen.
+   */
   async getPaymentForCheckout(
     paymentId: string,
     publicToken: string,
@@ -249,6 +273,9 @@ export class MockPaymentProvider {
     };
   }
 
+  /**
+   * Persists a new mock payment status and any related metadata changes.
+   */
   async updatePaymentStatus(
     paymentId: string,
     status: MockPaymentStatus,
@@ -265,6 +292,9 @@ export class MockPaymentProvider {
     });
   }
 
+  /**
+   * Persists an audit event for a mock payment action.
+   */
   async recordEvent(params: {
     paymentId: string;
     eventType: MockPaymentEventType;
@@ -283,6 +313,9 @@ export class MockPaymentProvider {
     });
   }
 
+  /**
+   * Maps a UI action to the corresponding mock payment event type.
+   */
   getActionType(action: MockPaymentAction): MockPaymentEventType {
     switch (action) {
       case 'APPROVE':

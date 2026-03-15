@@ -1,6 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
+/**
+ * Loaded page payload used by the validation pipeline after fetch or Playwright fallback.
+ */
 export interface SocialPromotionLoadedPage {
   html: string;
   finalUrl: string;
@@ -11,6 +14,9 @@ interface LoadPublicPageOptions {
   preferBrowser?: boolean;
 }
 
+/**
+ * Loads publicly accessible social post pages, preferring fetch and falling back to Playwright when needed.
+ */
 @Injectable()
 export class SocialPromotionPageLoaderService {
   private readonly logger = new Logger(SocialPromotionPageLoaderService.name);
@@ -28,6 +34,9 @@ export class SocialPromotionPageLoaderService {
     );
   }
 
+  /**
+   * Loads a public post page and falls back to a browser when the HTML shell is not enough.
+   */
   async loadPublicPage(
     url: string,
     options: LoadPublicPageOptions = {},

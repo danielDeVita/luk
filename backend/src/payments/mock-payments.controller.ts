@@ -19,10 +19,16 @@ interface MockPaymentActionBody {
   amount?: number;
 }
 
+/**
+ * Exposes read-only and action endpoints for the local mock checkout flow used in QA.
+ */
 @Controller('payments/mock')
 export class MockPaymentsController {
   constructor(private readonly paymentsService: PaymentsService) {}
 
+  /**
+   * Returns the public checkout summary for a mock payment.
+   */
   @Get(':mockPaymentId')
   @Public()
   @UseGuards(ThrottlerGuard)
@@ -41,6 +47,9 @@ export class MockPaymentsController {
     );
   }
 
+  /**
+   * Applies a QA action to a mock payment and returns the updated checkout state.
+   */
   @Post(':mockPaymentId/action')
   @Public()
   @UseGuards(ThrottlerGuard)

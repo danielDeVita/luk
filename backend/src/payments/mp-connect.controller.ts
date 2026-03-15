@@ -25,6 +25,9 @@ interface JwtPayload {
   exp?: number;
 }
 
+/**
+ * Starts and completes the seller OAuth flow for Mercado Pago Connect.
+ */
 @Controller('mp/connect')
 export class MpConnectController {
   private readonly logger = new Logger(MpConnectController.name);
@@ -36,9 +39,7 @@ export class MpConnectController {
   ) {}
 
   /**
-   * Start MP OAuth flow - redirects user to Mercado Pago authorization page.
-   * Accepts token via query param (for cross-subdomain where cookies are blocked)
-   * or via Authorization header/cookie (standard auth).
+   * Resolves the current user and redirects them to the Mercado Pago authorization screen.
    */
   @Get()
   @Public() // Public because we handle auth manually to support query param token
@@ -110,8 +111,7 @@ export class MpConnectController {
   }
 
   /**
-   * MP OAuth callback - receives authorization code and exchanges for tokens.
-   * This endpoint is public because MP redirects here directly.
+   * Completes the Mercado Pago OAuth callback and redirects back to dashboard settings.
    */
   @Get('callback')
   @Public()
@@ -166,7 +166,7 @@ export class MpConnectController {
   }
 
   /**
-   * Get current user's MP connection status.
+   * Returns the current seller's Mercado Pago connection status.
    */
   @Get('status')
   @UseGuards(JwtAuthGuard)
@@ -175,7 +175,7 @@ export class MpConnectController {
   }
 
   /**
-   * Disconnect MP account from user.
+   * Disconnects the current seller from Mercado Pago.
    */
   @Post('disconnect')
   @UseGuards(JwtAuthGuard)

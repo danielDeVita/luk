@@ -57,6 +57,10 @@ interface ExternalReferenceData {
   promotionToken?: string | null;
 }
 
+/**
+ * Coordinates checkout creation, payment state transitions, and post-payment side effects
+ * across Mercado Pago and the local mock provider.
+ */
 @Injectable()
 export class PaymentsService {
   private readonly logger = new Logger(PaymentsService.name);
@@ -115,8 +119,7 @@ export class PaymentsService {
   // ==================== Mercado Pago Preference ====================
 
   /**
-   * Creates a Mercado Pago payment preference for ticket purchase.
-   * Returns the init_point URL where the buyer should be redirected.
+   * Creates a checkout session for a reserved ticket purchase using the active provider.
    */
   async createPreference(data: {
     raffleId: string;
@@ -164,6 +167,9 @@ export class PaymentsService {
       : this.mercadoPagoProvider.createCheckoutSession(sessionInput);
   }
 
+  /**
+   * Expires older initiated mock checkouts for the same buyer and raffle before opening a new one.
+   */
   async expireSupersededInitiatedMockPaymentsForRaffle(
     buyerId: string,
     raffleId: string,
@@ -178,7 +184,7 @@ export class PaymentsService {
   // ==================== Payment Status ====================
 
   /**
-   * Gets the status of a Mercado Pago payment by ID.
+   * Returns normalized payment status data for either Mercado Pago or the mock provider.
    */
   async getPaymentStatus(paymentId: string): Promise<{
     status: string;
@@ -195,6 +201,9 @@ export class PaymentsService {
     return paymentId.startsWith('mock_pay_');
   }
 
+  /**
+   * Loads the mock checkout summary after validating its public token.
+   */
   async getMockPaymentForCheckout(
     paymentId: string,
     publicToken: string,
@@ -205,6 +214,9 @@ export class PaymentsService {
     );
   }
 
+  /**
+   * Applies a QA action to a mock payment and returns the resulting checkout redirect data.
+   */
   async processMockPaymentAction(
     paymentId: string,
     publicToken: string,
@@ -296,6 +308,10 @@ export class PaymentsService {
     } as unknown as PaymentResponse;
   }
 
+  /**
+   * Clears stale mock payments, reserved tickets, and reserved promotion bonuses
+   * that were superseded by a newer checkout attempt.
+   */
   private async expireSupersededInitiatedMockPayments(
     buyerId: string,
     raffleId: string,
@@ -506,7 +522,7 @@ export class PaymentsService {
   // ==================== Webhook Handlers ====================
 
   /**
-   * Handles Mercado Pago IPN (Instant Payment Notification) webhook.
+   * Processes a Mercado Pago payment webhook with idempotency and status routing.
    */
   async handleMpWebhook(data: {
     type: string;
@@ -550,9 +566,7 @@ export class PaymentsService {
   }
 
   /**
-   * Manually syncs payment status with Mercado Pago.
-   * Useful when webhook fails or for local development without tunnels.
-   * Returns sync result with status and whether tickets were processed.
+   * Pulls the latest payment state from the provider when webhook delivery is missing or delayed.
    */
   async syncPaymentStatus(paymentId: string): Promise<{
     status: string;
@@ -623,7 +637,8 @@ export class PaymentsService {
   }
 
   /**
-   * Handles approved payment - confirms tickets and records transaction.
+   * Finalizes an approved payment by confirming tickets, creating transactions,
+   * and triggering downstream purchase side effects.
    */
   async handlePaymentApproved(paymentData: PaymentResponse): Promise<void> {
     const externalRef = paymentData.external_reference;
@@ -884,8 +899,7 @@ export class PaymentsService {
   // ==================== Transfers to Sellers ====================
 
   /**
-   * For MVP: Records transfer to seller (manual payout in MP dashboard).
-   * In production with Marketplace API, this would use splits.
+   * Records a manual seller transfer for the legacy payout flow.
    */
   async transferToSeller(
     raffleId: string,
@@ -939,7 +953,7 @@ export class PaymentsService {
   // ==================== Refunds ====================
 
   /**
-   * Refunds a Mercado Pago payment.
+   * Refunds a payment through the active provider and restores promotion bonus state when needed.
    */
   async refundPayment(mpPaymentId: string, amount?: number): Promise<boolean> {
     try {
@@ -1016,6 +1030,9 @@ export class PaymentsService {
     }
   }
 
+  /**
+   * Releases any reserved promotion redemption tied to a payment that did not end up approved.
+   */
   private async handlePaymentReleasedOrExpired(
     paymentData: PaymentResponse,
   ): Promise<void> {
@@ -1042,11 +1059,7 @@ export class PaymentsService {
   // ==================== Fund Release (Delayed Disbursement) ====================
 
   /**
-   * Releases held funds to the seller after delivery confirmation.
-   * This is used with delayed disbursement (money_release_days) to release funds early.
-   *
-   * @param raffleId - The raffle ID to release funds for
-   * @returns Object with release status and details
+   * Releases delayed-disbursement funds for all paid tickets in a raffle once payout conditions are met.
    */
   async releaseFundsToSeller(raffleId: string): Promise<{
     success: boolean;
@@ -1124,8 +1137,7 @@ export class PaymentsService {
   }
 
   /**
-   * Check if funds can be released for a raffle.
-   * Funds can be released when delivery is confirmed or after auto-release period.
+   * Checks whether a raffle is eligible for fund release.
    */
   async canReleaseFunds(raffleId: string): Promise<{
     canRelease: boolean;
@@ -1172,10 +1184,16 @@ export class PaymentsService {
 
   // ==================== Calculations ====================
 
+  /**
+   * Estimates Mercado Pago processing fees for a given amount.
+   */
   calculateMpFees(amount: number): number {
     return amount * MP_FEE_ESTIMATE_RATE;
   }
 
+  /**
+   * Splits a gross amount into platform fee, processing fee, and seller net amount.
+   */
   calculateCommissions(totalAmount: number) {
     const platformFee = totalAmount * this.platformFeeRate;
     const mpFee = this.calculateMpFees(totalAmount);
@@ -1187,6 +1205,9 @@ export class PaymentsService {
 
   // ==================== Idempotency ====================
 
+  /**
+   * Checks whether a Mercado Pago event has already been persisted for idempotency.
+   */
   async isEventProcessed(eventId: string): Promise<boolean> {
     const event = await this.prisma.mpEvent.findUnique({
       where: { eventId },
@@ -1194,6 +1215,9 @@ export class PaymentsService {
     return !!event;
   }
 
+  /**
+   * Persists a processed Mercado Pago event marker for idempotency.
+   */
   async markEventProcessed(eventId: string, eventType: string): Promise<void> {
     await this.prisma.mpEvent.create({
       data: {
@@ -1205,6 +1229,9 @@ export class PaymentsService {
 
   // ==================== Helper Methods ====================
 
+  /**
+   * Draws a winner once a raffle is complete and has paid tickets, then triggers draw side effects.
+   */
   async drawRaffleIfEligible(raffleId: string): Promise<boolean> {
     const raffle = await this.prisma.raffle.findUnique({
       where: { id: raffleId },

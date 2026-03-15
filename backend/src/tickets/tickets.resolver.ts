@@ -7,10 +7,16 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { User } from '../users/entities/user.entity';
 
+/**
+ * GraphQL entrypoints for buying tickets and reading ticket ownership data.
+ */
 @Resolver(() => Ticket)
 export class TicketsResolver {
   constructor(private readonly ticketsService: TicketsService) {}
 
+  /**
+   * Reserves tickets for the current user and returns checkout information.
+   */
   @Mutation(() => BuyTicketsResult)
   @UseGuards(JwtAuthGuard)
   async buyTickets(
@@ -31,6 +37,9 @@ export class TicketsResolver {
     return result as unknown as BuyTicketsResult;
   }
 
+  /**
+   * Returns the authenticated user's ticket history.
+   */
   @Query(() => [Ticket])
   @UseGuards(JwtAuthGuard)
   async myTickets(@CurrentUser() user: User): Promise<Ticket[]> {
@@ -38,6 +47,9 @@ export class TicketsResolver {
     return tickets as unknown as Ticket[];
   }
 
+  /**
+   * Returns a single ticket when the current user is allowed to see it.
+   */
   @Query(() => Ticket)
   @UseGuards(JwtAuthGuard)
   async ticket(

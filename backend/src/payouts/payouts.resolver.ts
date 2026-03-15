@@ -8,16 +8,25 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { UserRole } from '@prisma/client';
 
+/**
+ * GraphQL entrypoints for seller payout visibility and admin payout operations.
+ */
 @Resolver(() => Payout)
 export class PayoutsResolver {
   constructor(private payoutsService: PayoutsService) {}
 
+  /**
+   * Returns the authenticated seller's payout history.
+   */
   @Query(() => [Payout])
   @UseGuards(JwtAuthGuard)
   async myPayouts(@CurrentUser() user: { id: string }) {
     return this.payoutsService.getSellerPayouts(user.id);
   }
 
+  /**
+   * Returns the payout for a raffle when the current user is allowed to see it.
+   */
   @Query(() => Payout, { nullable: true })
   @UseGuards(JwtAuthGuard)
   async rafflePayout(
@@ -31,6 +40,9 @@ export class PayoutsResolver {
     );
   }
 
+  /**
+   * Returns pending payouts for admins.
+   */
   @Query(() => [Payout])
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
@@ -38,6 +50,9 @@ export class PayoutsResolver {
     return this.payoutsService.getPendingPayouts();
   }
 
+  /**
+   * Lets an admin release a payout manually with an audit reason.
+   */
   @Mutation(() => Boolean)
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
@@ -49,6 +64,9 @@ export class PayoutsResolver {
     return this.payoutsService.releasePayoutManually(user.id, payoutId, reason);
   }
 
+  /**
+   * Triggers processing for all payouts that are currently due.
+   */
   @Mutation(() => Boolean)
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)

@@ -18,6 +18,9 @@ interface ExtendedPreferenceRequest extends PreferenceRequest {
 
 const DEFAULT_MONEY_RELEASE_DAYS = 30;
 
+/**
+ * Wraps direct Mercado Pago API calls behind a small provider interface used by the payments service.
+ */
 @Injectable()
 export class MercadoPagoProvider {
   private readonly logger = new Logger(MercadoPagoProvider.name);
@@ -30,6 +33,9 @@ export class MercadoPagoProvider {
     }
   }
 
+  /**
+   * Returns whether Mercado Pago credentials are available for live operations.
+   */
   isConfigured(): boolean {
     return Boolean(this.client);
   }
@@ -53,6 +59,9 @@ export class MercadoPagoProvider {
     return withScheme.replace(/\/$/, '');
   }
 
+  /**
+   * Creates a Checkout Pro session for a ticket purchase and embeds Luk-specific metadata.
+   */
   async createCheckoutSession(
     data: CreateCheckoutSessionInput,
   ): Promise<CreateCheckoutSessionResult> {
@@ -128,6 +137,9 @@ export class MercadoPagoProvider {
     }
   }
 
+  /**
+   * Fetches normalized status data for a Mercado Pago payment.
+   */
   async getPaymentStatus(paymentId: string): Promise<PaymentStatusResult> {
     const payment = new Payment(this.getClient());
     const paymentData = await payment.get({ id: paymentId });
@@ -142,11 +154,17 @@ export class MercadoPagoProvider {
     };
   }
 
+  /**
+   * Retrieves the raw Mercado Pago payment payload.
+   */
   async getPayment(paymentId: string): Promise<PaymentResponse> {
     const payment = new Payment(this.getClient());
     return payment.get({ id: paymentId });
   }
 
+  /**
+   * Requests a full or partial refund for a Mercado Pago payment.
+   */
   async refundPayment(paymentId: string, amount?: number): Promise<void> {
     const normalizedAmount =
       typeof amount === 'number' && amount > 0
@@ -174,6 +192,9 @@ export class MercadoPagoProvider {
     }
   }
 
+  /**
+   * Releases a delayed-disbursement payment so Mercado Pago can pay out the seller.
+   */
   async releasePayment(paymentId: string): Promise<void> {
     const client = this.getClient();
     const response = await fetch(

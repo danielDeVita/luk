@@ -1,6 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { SocialPromotionNetwork } from '../entities/social-promotion.entity';
 
+/**
+ * Parsed engagement metrics extracted from the visible public post content.
+ */
 export interface ParsedSocialPromotionMetrics {
   likesCount?: number;
   commentsCount?: number;
@@ -8,6 +11,9 @@ export interface ParsedSocialPromotionMetrics {
   viewsCount?: number;
 }
 
+/**
+ * Normalized result of parsing a public social post page.
+ */
 export interface ParsedSocialPromotionResult {
   canonicalPermalink: string;
   canonicalPostId?: string;
@@ -16,8 +22,14 @@ export interface ParsedSocialPromotionResult {
   metrics: ParsedSocialPromotionMetrics;
 }
 
+/**
+ * Normalizes public post URLs and extracts verification signals from the loaded HTML.
+ */
 @Injectable()
 export class SocialPromotionParserService {
+  /**
+   * Detects which supported social network a submitted URL belongs to.
+   */
   detectNetworkFromUrl(rawUrl: string): SocialPromotionNetwork {
     const url = new URL(rawUrl);
     const host = url.hostname.toLowerCase();
@@ -36,6 +48,9 @@ export class SocialPromotionParserService {
     throw new Error(`Unsupported social promotion host: ${host}`);
   }
 
+  /**
+   * Removes unstable URL parts so the same public post resolves to a canonical permalink.
+   */
   canonicalizePermalink(rawUrl: string): string {
     const url = new URL(rawUrl);
     url.hash = '';
@@ -54,6 +69,9 @@ export class SocialPromotionParserService {
     return url.toString();
   }
 
+  /**
+   * Parses public HTML into the canonical URL, accessibility flags, token presence, and metrics.
+   */
   parsePublicContent(params: {
     network: SocialPromotionNetwork;
     rawUrl: string;
@@ -81,6 +99,9 @@ export class SocialPromotionParserService {
     };
   }
 
+  /**
+   * Checks whether the promotion token or tracking URL is visible in the public content.
+   */
   detectTokenPresence(
     html: string,
     promotionToken: string,
