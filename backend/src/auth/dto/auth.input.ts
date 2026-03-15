@@ -53,6 +53,12 @@ export class RegisterInput {
   @IsString()
   @MaxLength(20)
   referralCode?: string;
+
+  @Field({ nullable: true })
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  promotionToken?: string;
 }
 
 @InputType()

@@ -13,6 +13,7 @@ import { PrismaModule } from '../prisma/prisma.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { ReferralsModule } from '../referrals/referrals.module';
 import { UsersModule } from '../users/users.module';
+import { SocialPromotionsModule } from '../social-promotions/social-promotions.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { UsersModule } from '../users/users.module';
     NotificationsModule,
     UsersModule,
     forwardRef(() => ReferralsModule),
+    SocialPromotionsModule,
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.registerAsync({
       inject: [ConfigService],

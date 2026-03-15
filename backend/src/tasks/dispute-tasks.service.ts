@@ -32,7 +32,7 @@ export class DisputeTasksService {
    * - Escalate disputes without seller response after 48h
    * - Auto-refund disputes without resolution after 15 days
    */
-  @Cron('0 */6 * * *') // Every 6 hours
+  @Cron('0 */6 * * *')
   async processDisputeEscalations() {
     if (!this.cronEnabled) return;
 

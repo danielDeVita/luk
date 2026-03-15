@@ -56,6 +56,16 @@ export class PayoutsService {
       (sum, t) => sum + Number(t.precioPagado),
       0,
     );
+    const subsidyAggregate = await this.prisma.transaction.aggregate({
+      where: {
+        raffleId,
+        tipo: 'SUBSIDIO_PROMOCIONAL_PLATAFORMA',
+        estado: 'COMPLETADO',
+        isDeleted: false,
+      },
+      _sum: { monto: true },
+    });
+    const platformSubsidyAmount = Number(subsidyAggregate._sum.monto ?? 0);
     const platformFee = grossAmount * PLATFORM_FEE_RATE;
     const processingFee = grossAmount * MP_FEE_ESTIMATE_RATE;
     const netAmount = grossAmount - platformFee - processingFee;
@@ -65,6 +75,7 @@ export class PayoutsService {
         raffleId,
         sellerId: raffle.sellerId,
         grossAmount,
+        platformSubsidyAmount,
         platformFee,
         processingFee,
         netAmount,

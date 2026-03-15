@@ -21,6 +21,33 @@ type AdminStats {
   totalUsers: Int!
 }
 
+type AdminTransaction {
+  cashChargedAmount: Float
+  createdAt: DateTime!
+  estado: String
+  grossAmount: Float
+  id: ID!
+  metadata: JSON
+  monto: Float!
+  mpPaymentId: String
+  promotionDiscountAmount: Float
+  raffle: RaffleMinimal
+  tipo: String!
+  user: AdminTransactionUser
+}
+
+type AdminTransactionList {
+  total: Int!
+  transactions: [AdminTransaction!]!
+}
+
+type AdminTransactionUser {
+  apellido: String
+  email: String!
+  id: String!
+  nombre: String!
+}
+
 type AdminUser {
   apellido: String!
   createdAt: DateTime!
@@ -99,8 +126,12 @@ type BulkResolveResult {
 }
 
 type BuyTicketsResult {
+  bonusGrantId: String
   cantidadComprada: Int!
+  discountApplied: Float!
+  grossSubtotal: Float!
   initPoint: String!
+  mpChargeAmount: Float!
   preferenceId: String!
   tickets: [Ticket!]!
   ticketsRestantesQuePuedeComprar: Int!
@@ -334,6 +365,8 @@ type MpEventList {
 type Mutation {
   acceptTerms(input: AcceptTermsInput!): User!
   addFavorite(raffleId: String!): Favorite!
+  adminDisqualifySocialPromotionPost(postId: String!, reason: String!): SocialPromotionPost!
+  adminRetrySocialPromotionPost(postId: String!): SocialPromotionPost!
   answerQuestion(input: AnswerQuestionInput!): RaffleAnswer!
   applyReferralCode(code: String!): Boolean!
 
@@ -348,7 +381,7 @@ type Mutation {
 
   """Resolve multiple disputes at once"""
   bulkResolveDisputes(adminNotes: String, decision: String!, disputeIds: [String!]!, resolucion: String!): BulkResolveResult!
-  buyTickets(cantidad: Int!, raffleId: String!): BuyTicketsResult!
+  buyTickets(bonusGrantId: String, cantidad: Int!, promotionToken: String, raffleId: String!): BuyTicketsResult!
   cancelRaffle(id: String!): Raffle!
   changePassword(input: ChangePasswordInput!): User!
   closeConversation(conversationId: String!): Boolean!
@@ -387,6 +420,8 @@ type Mutation {
   sendMessage(input: SendMessageInput!): Message!
   setDefaultShippingAddress(id: String!): Boolean!
   startConversation(input: StartConversationInput!): Conversation!
+  startSocialPromotionDraft(network: SocialPromotionNetwork!, raffleId: String!): SocialPromotionDraft!
+  submitSocialPromotionPost(draftId: String!, permalink: String!): SocialPromotionPost!
   testEmail: Boolean!
 
   """Unban a user"""
@@ -399,7 +434,7 @@ type Mutation {
   updateRaffle(id: String!, input: UpdateRaffleInput!): Raffle!
   updateRafflePrice(newPrice: Float!, raffleId: String!): Raffle!
   updateShippingAddress(id: String!, input: UpdateShippingAddressInput!): ShippingAddress!
-  verifyEmail(code: String!, referralCode: String, userId: String!): AuthPayload!
+  verifyEmail(code: String!, promotionToken: String, referralCode: String, userId: String!): AuthPayload!
 }
 
 type Notification {
@@ -529,6 +564,46 @@ input ProductInput {
   nombre: String!
 }
 
+type PromotionBonusGrant {
+  createdAt: DateTime!
+  discountPercent: Float!
+  expiresAt: DateTime!
+  id: ID!
+  maxDiscountAmount: Float!
+  sellerId: String!
+  sourceSettlementId: String!
+  status: PromotionBonusGrantStatus!
+  usedAt: DateTime
+}
+
+enum PromotionBonusGrantStatus {
+  AVAILABLE
+  EXPIRED
+  RESERVED
+  REVERSED
+  USED
+}
+
+type PromotionBonusPreview {
+  bonusGrantId: String!
+  discountApplied: Float!
+  grossSubtotal: Float!
+  mpChargeAmount: Float!
+}
+
+type PromotionScoreSettlement {
+  baseScore: Float!
+  conversionScore: Float!
+  engagementScore: Float!
+  id: ID!
+  raffleId: String!
+  sellerId: String!
+  settledAt: DateTime!
+  settlementStatus: SocialPromotionStatus!
+  socialPromotionPostId: String!
+  totalScore: Float!
+}
+
 type PublicSellerProfile {
   apellido: String!
   createdAt: DateTime!
@@ -575,12 +650,14 @@ type Query {
   myFavorites: [Favorite!]!
   myNotifications: [Notification!]!
   myPayouts: [Payout!]!
+  myPromotionBonusGrants(status: PromotionBonusGrantStatus): [PromotionBonusGrant!]!
   myRafflesAsSeller: [Raffle!]!
   myReferralCode: String
   myReferralCredits: [ReferralCredit!]!
   myReferralStats: ReferralStats!
   myReferredUsers: [ReferredUser!]!
   myShippingAddresses: [ShippingAddress!]!
+  mySocialPromotionPosts(raffleId: String): [SocialPromotionPost!]!
   myTickets: [Ticket!]!
 
   """Debug payment by MP payment ID"""
@@ -590,7 +667,11 @@ type Query {
   """List pending KYC submissions for review"""
   pendingKycSubmissions(limit: Int, offset: Int): KycSubmissionList!
   pendingPayouts: [Payout!]!
+  previewPromotionBonus(bonusGrantId: String!, cantidad: Float!, raffleId: String!): PromotionBonusPreview!
   priceHistory(raffleId: String!): [PriceHistory!]!
+
+  """List grant reversal transactions created after full refunds"""
+  promotionGrantReversalLogs(limit: Int, offset: Int): AdminTransactionList!
   raffle(id: String!): Raffle!
   rafflePayout(raffleId: String!): Payout
   raffleQuestions(raffleId: String!): [RaffleQuestion!]!
@@ -600,6 +681,7 @@ type Query {
   sellerDashboardStats: SellerDashboardStats!
   sellerProfile(id: String!): PublicSellerProfile!
   shippingAddress(id: String!): ShippingAddress!
+  socialPromotionReviewQueue: [SocialPromotionPost!]!
   ticket(id: String!): Ticket!
 }
 
@@ -735,6 +817,7 @@ input RegisterInput {
   fechaNacimiento: String!
   nombre: String!
   password: String!
+  promotionToken: String
   referralCode: String
 }
 
@@ -803,6 +886,72 @@ type ShippingAddress {
   street: String!
   updatedAt: DateTime!
   userId: String!
+}
+
+type SocialPromotionDraft {
+  createdAt: DateTime!
+  expiresAt: DateTime!
+  id: ID!
+  network: SocialPromotionNetwork!
+  promotionToken: String!
+  raffleId: String!
+  sellerId: String!
+  suggestedCopy: String
+  trackingUrl: String!
+  updatedAt: DateTime!
+}
+
+type SocialPromotionMetricSnapshot {
+  checkedAt: DateTime!
+  clicksAttributed: Int!
+  commentsCount: Int
+  failureReason: String
+  id: ID!
+  isAccessible: Boolean!
+  likesCount: Int
+  parserVersion: String
+  registrationsAttributed: Int!
+  repostsOrSharesCount: Int
+  socialPromotionPostId: String!
+  ticketPurchasesAttributed: Int!
+  tokenPresent: Boolean!
+  viewsCount: Int
+}
+
+enum SocialPromotionNetwork {
+  FACEBOOK
+  INSTAGRAM
+  THREADS
+  X
+}
+
+type SocialPromotionPost {
+  canonicalPermalink: String
+  canonicalPostId: String
+  disqualificationReason: String
+  disqualifiedAt: DateTime
+  draftId: String!
+  id: ID!
+  lastCheckedAt: DateTime
+  network: SocialPromotionNetwork!
+  nextCheckAt: DateTime
+  publishedAt: DateTime
+  raffleId: String!
+  sellerId: String!
+  settlement: PromotionScoreSettlement
+  snapshots: [SocialPromotionMetricSnapshot!]
+  status: SocialPromotionStatus!
+  submittedAt: DateTime!
+  submittedPermalink: String!
+  validatedAt: DateTime
+}
+
+enum SocialPromotionStatus {
+  ACTIVE
+  DISQUALIFIED
+  PENDING_VALIDATION
+  SETTLED
+  TECHNICAL_REVIEW
 }
 
 input StartConversationInput {

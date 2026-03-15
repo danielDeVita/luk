@@ -21,6 +21,11 @@ enum Environment {
   Test = 'test',
 }
 
+enum PaymentsProvider {
+  MercadoPago = 'mercadopago',
+  Mock = 'mock',
+}
+
 export class EnvironmentVariables {
   // Database - Critical
   @IsString()
@@ -76,6 +81,14 @@ export class EnvironmentVariables {
   @IsBoolean()
   @IsOptional()
   MP_MOCK_MODE: boolean = false;
+
+  @IsEnum(PaymentsProvider)
+  @IsOptional()
+  PAYMENTS_PROVIDER: PaymentsProvider = PaymentsProvider.MercadoPago;
+
+  @IsBoolean()
+  @IsOptional()
+  ALLOW_MOCK_PAYMENTS: boolean = false;
 
   @IsString()
   @IsOptional()
@@ -166,6 +179,52 @@ export class EnvironmentVariables {
   @IsString()
   @IsOptional()
   REDIS_URL: string = '';
+
+  // Social promotions
+  @IsBoolean()
+  @IsOptional()
+  SOCIAL_PROMOTION_ENABLED: boolean = true;
+
+  @IsString()
+  @IsOptional()
+  SOCIAL_PROMOTION_ALLOWED_NETWORKS: string = 'facebook,instagram,x,threads';
+
+  @IsNumber()
+  @IsOptional()
+  @Min(1)
+  SOCIAL_PROMOTION_SUBMISSION_WINDOW_HOURS: number = 24;
+
+  @IsString()
+  @IsOptional()
+  SOCIAL_PROMOTION_CHECK_CRON: string = '0 */6 * * *';
+
+  @IsNumber()
+  @IsOptional()
+  @Min(1000)
+  SOCIAL_PROMOTION_FETCH_TIMEOUT_MS: number = 30000;
+
+  @IsNumber()
+  @IsOptional()
+  @Min(1)
+  SOCIAL_PROMOTION_MIN_MP_CHARGE: number = 1;
+
+  @IsNumber()
+  @IsOptional()
+  @Min(1)
+  SOCIAL_PROMOTION_TOKEN_TTL_HOURS: number = 24;
+
+  @IsString()
+  @IsOptional()
+  SOCIAL_PROMOTION_DEFAULT_BONUS_TIER_JSON: string = '';
+
+  @IsNumber()
+  @IsOptional()
+  @Min(0)
+  SOCIAL_PROMOTION_MAX_USER_MONTHLY_SUBSIDY: number = 0;
+
+  @IsBoolean()
+  @IsOptional()
+  SOCIAL_PROMOTION_BROWSER_ENABLED: boolean = false;
 }
 
 export function validate(config: Record<string, unknown>) {

@@ -46,6 +46,7 @@ export default function PrivacidadPage() {
           <li><strong>Datos de uso:</strong> Páginas visitadas, rifas en las que participás, compras realizadas.</li>
           <li><strong>Datos técnicos:</strong> Dirección IP, tipo de navegador, dispositivo y sistema operativo.</li>
           <li><strong>Cookies:</strong> Utilizamos cookies para mejorar tu experiencia. Consultá nuestra sección de cookies.</li>
+          <li><strong>Datos de promoción social:</strong> Si participás del programa de promoción social, podemos almacenar el permalink del post público, su estado de accesibilidad, métricas públicas visibles y eventos atribuidos dentro de Luk.</li>
         </ul>
 
         <h2>2. Cómo Usamos tu Información</h2>
@@ -60,6 +61,7 @@ export default function PrivacidadPage() {
           <li>Cumplir con obligaciones legales (Ley 25.246 - UIF, ARCA, etc.).</li>
           <li>Prevenir fraudes y actividades ilegales.</li>
           <li>Mejorar nuestros servicios y personalizar tu experiencia.</li>
+          <li>Validar publicaciones públicas asociadas al programa de promoción social y calcular bonificaciones promocionales internas.</li>
         </ul>
 
         <h2>3. Base Legal para el Tratamiento</h2>

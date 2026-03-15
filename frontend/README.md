@@ -7,7 +7,7 @@ Next.js 16 application with TypeScript, Tailwind CSS v4, and Shadcn/UI.
 ## Quick Start (Docker - Recommended)
 
 ```bash
-# From project root - starts frontend, backend, postgres, redis
+# From project root - starts frontend, backend, redis and social-worker
 npm run docker:dev:build    # First time
 npm run docker:dev          # Subsequent runs
 ```
@@ -49,6 +49,7 @@ npm run dev
 | `/` | Home with featured raffles | Public |
 | `/search` | Search and filter raffles | Public |
 | `/raffle/[id]` | Raffle details + ticket purchase + public Q&A | Public |
+| `/checkout/mock/[mockPaymentId]` | Local QA checkout used when `PAYMENTS_PROVIDER=mock` | Public |
 | `/checkout/status` | Payment result handler | Public |
 | `/auth/login` | Login (email + Google) | Public |
 | `/auth/register` | Registration with email verification (two-step flow) | Public |
@@ -74,6 +75,8 @@ NEXT_PUBLIC_MP_PUBLIC_KEY="TEST-..."
 NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME="..."
 NEXT_PUBLIC_GA_MEASUREMENT_ID="G-XXXXXXXXXX"
 ```
+
+If the backend runs with `PAYMENTS_PROVIDER="mock"`, purchases redirect to the local mock checkout page instead of Mercado Pago. This is useful for QA of ticket confirmation, refunds, and promotion bonus reversals without a real PSP.
 
 ## Project Structure
 
@@ -129,6 +132,22 @@ Raffle detail pages generate dynamic Open Graph meta tags server-side using Next
 The page uses a server/client component split:
 - `page.tsx` - Server component that generates metadata and renders the client component
 - `raffle-content.tsx` - Client component with interactive UI (buy tickets, favorites, etc.)
+
+### Seller Social Promotions
+
+The seller flow now includes a dedicated `Promocionar y medir` action:
+
+- available to the raffle owner;
+- generates a promotion draft with `trackingUrl` and `promotionToken`;
+- lets the seller submit a public permalink from `Facebook`, `Instagram`, `X` or `Threads`;
+- shows stored promotion status and visible metrics in `/dashboard/sales`;
+- supports a generated social asset and caption flow, including image selection, for visual networks.
+
+Implementation details:
+
+- seller CTA on raffle detail remains compact;
+- detailed post summaries live only in the seller dashboard;
+- generated promo assets are served from `GET /api/social-promotions/instagram-asset`.
 
 ### Responsive Design
 - Mobile-first approach with Tailwind breakpoints
@@ -201,6 +220,7 @@ Enhanced seller panel at `/dashboard/sales`:
 - **Bulk Actions** - Cancel or extend multiple raffles at once
 - **Per-Raffle Stats** - Views and conversion rate per raffle
 - **CSV Export** - Includes analytics data
+- **Social Promotion Panel** - Seller-only promotion CTA, registered posts, public metrics snapshots
 
 ### Buyer Dashboard
 Enhanced buyer panel at `/dashboard/tickets`:

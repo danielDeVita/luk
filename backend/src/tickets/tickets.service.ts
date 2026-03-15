@@ -4,6 +4,8 @@ import {
   NotFoundException,
   ForbiddenException,
   Logger,
+  Inject,
+  forwardRef,
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../prisma/prisma.service';
@@ -11,6 +13,7 @@ import { PaymentsService } from '../payments/payments.service';
 import { Prisma, RaffleStatus, UserRole } from '@prisma/client';
 import { randomUUID } from 'crypto';
 import { RaffleEvents, TicketsRefundedEvent } from '../common/events';
+import { SocialPromotionsService } from '../social-promotions/social-promotions.service';
 
 /**
  * Type for raw SQL query result when selecting raffle with sold count.
@@ -34,7 +37,9 @@ export class TicketsService {
 
   constructor(
     private prisma: PrismaService,
+    @Inject(forwardRef(() => PaymentsService))
     private paymentsService: PaymentsService,
+    private socialPromotionsService: SocialPromotionsService,
     private eventEmitter: EventEmitter2,
   ) {}
 
@@ -42,7 +47,13 @@ export class TicketsService {
    * Buy tickets with pessimistic locking to prevent overselling.
    * Returns Mercado Pago checkout URL (init_point) for payment.
    */
-  async buyTickets(userId: string, raffleId: string, cantidad: number) {
+  async buyTickets(
+    userId: string,
+    raffleId: string,
+    cantidad: number,
+    bonusGrantId?: string | null,
+    promotionToken?: string | null,
+  ) {
     // Check if buyer has at least one shipping address (for prize delivery)
     const buyerAddressCount = await this.prisma.shippingAddress.count({
       where: { userId },
@@ -54,6 +65,11 @@ export class TicketsService {
       );
     }
 
+    await this.paymentsService.expireSupersededInitiatedMockPaymentsForRaffle(
+      userId,
+      raffleId,
+    );
+
     return this.prisma.$transaction(
       async (tx) => {
         const reservationId = randomUUID();
@@ -61,7 +77,7 @@ export class TicketsService {
         // Lock the raffle row for update to prevent concurrent modifications
         const [raffle] = await tx.$queryRaw<RaffleWithSoldCount[]>`
         SELECT r.*,
-               (SELECT COUNT(*) FROM tickets t WHERE t.raffle_id = r.id AND t.estado != 'REEMBOLSADO') as sold_count
+               (SELECT COUNT(*) FROM tickets t WHERE t.raffle_id = r.id) as sold_count
         FROM raffles r
         WHERE r.id = ${raffleId}
         FOR UPDATE
@@ -81,7 +97,7 @@ export class TicketsService {
 
         if (raffle.seller_id === userId) {
           throw new BadRequestException(
-            'No puedes comprar tickets de tu propia rifa',
+            'No podés comprar tickets de tu propia rifa',
           );
         }
 
@@ -116,7 +132,7 @@ export class TicketsService {
 
         // Get available ticket numbers within transaction
         const usedTickets = await tx.ticket.findMany({
-          where: { raffleId, estado: { not: 'REEMBOLSADO' } },
+          where: { raffleId },
           select: { numeroTicket: true },
         });
 
@@ -137,7 +153,7 @@ export class TicketsService {
           );
         }
 
-        const totalAmount = Number(raffle.precio_por_ticket) * cantidad;
+        const grossSubtotal = Number(raffle.precio_por_ticket) * cantidad;
 
         // Create tickets in RESERVADO state (will be confirmed by webhook)
         const tickets = await Promise.all(
@@ -159,6 +175,19 @@ export class TicketsService {
           `User ${userId} reserved ${cantidad} tickets for raffle ${raffleId}`,
         );
 
+        const reservedBonus =
+          await this.socialPromotionsService.reserveBonusForCheckout(
+            {
+              buyerId: userId,
+              raffleId,
+              raffleSellerId: raffle.seller_id,
+              reservationId,
+              grossSubtotal,
+              bonusGrantId,
+            },
+            tx,
+          );
+
         // Create Mercado Pago preference (outside transaction is ok)
         const { initPoint, preferenceId } =
           await this.paymentsService.createPreference({
@@ -168,13 +197,25 @@ export class TicketsService {
             precioPorTicket: Number(raffle.precio_por_ticket),
             tituloRifa: raffle.titulo,
             reservationId,
+            grossSubtotal,
+            discountApplied: reservedBonus?.preview.discountApplied ?? 0,
+            mpChargeAmount:
+              reservedBonus?.preview.mpChargeAmount ?? grossSubtotal,
+            bonusGrantId: reservedBonus?.grant.id ?? null,
+            promotionBonusRedemptionId: reservedBonus?.redemption.id ?? null,
+            promotionToken: promotionToken ?? null,
           });
 
         return {
           tickets,
           initPoint, // MP checkout URL
           preferenceId,
-          totalAmount,
+          totalAmount: reservedBonus?.preview.mpChargeAmount ?? grossSubtotal,
+          grossSubtotal,
+          discountApplied: reservedBonus?.preview.discountApplied ?? 0,
+          mpChargeAmount:
+            reservedBonus?.preview.mpChargeAmount ?? grossSubtotal,
+          bonusGrantId: reservedBonus?.grant.id ?? null,
           cantidadComprada: cantidad,
           ticketsRestantesQuePuedeComprar: remainingAllowed - cantidad,
         };
@@ -269,7 +310,7 @@ export class TicketsService {
 
   async getAvailableTicketNumbers(raffleId: string, totalTickets: number) {
     const usedTickets = await this.prisma.ticket.findMany({
-      where: { raffleId, estado: { not: 'REEMBOLSADO' } },
+      where: { raffleId },
       select: { numeroTicket: true },
     });
 

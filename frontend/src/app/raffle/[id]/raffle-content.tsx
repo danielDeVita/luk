@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation } from '@apollo/client/react';
 import { gql } from '@apollo/client/core';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuthStore } from '@/store/auth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -23,6 +23,12 @@ import { formatProductCondition } from '@/lib/format-condition';
 import { RaffleQA } from './raffle-qa';
 import { useConfirmDialog } from '@/hooks/use-confirm-dialog';
 import { ComplianceNotice } from '@/components/legal/compliance-notice';
+import { PromotionBonusSelector } from '@/components/social-promotions/promotion-bonus-selector';
+import { SocialPromotionManager } from '@/components/social-promotions/social-promotion-manager';
+import {
+  getStoredSocialPromotionToken,
+  persistSocialPromotionToken,
+} from '@/lib/social-promotions';
 
 
 
@@ -59,11 +65,20 @@ const GET_RAFFLE = gql`
 `;
 
 const BUY_TICKETS = gql`
-  mutation BuyTickets($raffleId: String!, $cantidad: Int!) {
-    buyTickets(raffleId: $raffleId, cantidad: $cantidad) {
+  mutation BuyTickets($raffleId: String!, $cantidad: Int!, $bonusGrantId: String, $promotionToken: String) {
+    buyTickets(
+      raffleId: $raffleId
+      cantidad: $cantidad
+      bonusGrantId: $bonusGrantId
+      promotionToken: $promotionToken
+    ) {
       initPoint
       preferenceId
       totalAmount
+      grossSubtotal
+      discountApplied
+      mpChargeAmount
+      bonusGrantId
       cantidadComprada
     }
   }
@@ -82,6 +97,27 @@ const GET_PRICE_HISTORY = gql`
       previousPrice
       newPrice
       changedAt
+    }
+  }
+`;
+
+const MY_SOCIAL_PROMOTION_POSTS = gql`
+  query MySocialPromotionPosts($raffleId: String) {
+    mySocialPromotionPosts(raffleId: $raffleId) {
+      id
+      raffleId
+      network
+      status
+      submittedPermalink
+      canonicalPermalink
+      disqualificationReason
+      snapshots {
+        checkedAt
+        likesCount
+        commentsCount
+        repostsOrSharesCount
+        viewsCount
+      }
     }
   }
 `;
@@ -120,8 +156,19 @@ interface BuyTicketsResult {
     initPoint: string;
     preferenceId: string;
     totalAmount: number;
+    grossSubtotal: number;
+    discountApplied: number;
+    mpChargeAmount: number;
+    bonusGrantId?: string;
     cantidadComprada: number;
   };
+}
+
+interface PromotionBonusPreview {
+  bonusGrantId: string;
+  grossSubtotal: number;
+  discountApplied: number;
+  mpChargeAmount: number;
 }
 
 interface PriceHistoryEntry {
@@ -135,26 +182,63 @@ interface PriceHistoryResult {
   priceHistory: PriceHistoryEntry[];
 }
 
+interface SocialPromotionSnapshot {
+  checkedAt: string;
+  likesCount?: number;
+  commentsCount?: number;
+  repostsOrSharesCount?: number;
+  viewsCount?: number;
+}
+
+interface SocialPromotionPostSummary {
+  id: string;
+  raffleId: string;
+  network: string;
+  status: string;
+  submittedPermalink: string;
+  canonicalPermalink?: string;
+  disqualificationReason?: string;
+  snapshots?: SocialPromotionSnapshot[];
+}
+
 interface RaffleContentProps {
   id: string;
 }
 
 export function RaffleContent({ id }: RaffleContentProps) {
   const router = useRouter();
-  const { isAuthenticated } = useAuthStore();
+  const searchParams = useSearchParams();
+  const { isAuthenticated, user } = useAuthStore();
   const [quantity, setQuantity] = useState(1);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [isFavorite, setIsFavorite] = useState(false);
+  const [selectedBonusGrantId, setSelectedBonusGrantId] = useState<string | null>(null);
+  const [bonusPreview, setBonusPreview] = useState<PromotionBonusPreview | null>(null);
   const confirm = useConfirmDialog();
 
 
   const { data, loading, error } = useQuery<RaffleResult>(GET_RAFFLE, {
     variables: { id },
   });
+  const isSellerOwner = Boolean(
+    isAuthenticated &&
+      data?.raffle?.seller?.id &&
+      user?.id === data.raffle.seller.id,
+  );
 
   // Query price history
   const { data: priceHistoryData } = useQuery<PriceHistoryResult>(GET_PRICE_HISTORY, {
     variables: { raffleId: id },
+  });
+
+  const {
+    data: socialPromotionData,
+    refetch: refetchSocialPromotionPosts,
+  } = useQuery<{
+    mySocialPromotionPosts: SocialPromotionPostSummary[];
+  }>(MY_SOCIAL_PROMOTION_POSTS, {
+    variables: { raffleId: id },
+    skip: !isSellerOwner,
   });
 
   // Query favorite status
@@ -226,6 +310,22 @@ export function RaffleContent({ id }: RaffleContentProps) {
     }
   }, [id, incrementViews]);
 
+  useEffect(() => {
+    const promoFromUrl = searchParams.get('promo');
+    if (promoFromUrl) {
+      persistSocialPromotionToken(promoFromUrl, id);
+    }
+  }, [id, searchParams]);
+
+  const promotionToken = useMemo(() => {
+    const promoFromUrl = searchParams.get('promo');
+    if (promoFromUrl) {
+      return promoFromUrl;
+    }
+
+    return getStoredSocialPromotionToken(id);
+  }, [id, searchParams]);
+
   // Handle buy success - redirect to Mercado Pago checkout
   useEffect(() => {
     if (buyData?.buyTickets?.initPoint) {
@@ -260,16 +360,30 @@ export function RaffleContent({ id }: RaffleContentProps) {
   }
 
   const raffle = data.raffle;
+  const socialPromotionPosts = socialPromotionData?.mySocialPromotionPosts || [];
+  const canPromoteThisRaffle = isSellerOwner && raffle.estado === 'ACTIVA';
+  const canBuyThisRaffle = raffle.estado === 'ACTIVA' && !isSellerOwner;
+  const shouldShowOwnRafflePurchaseNotice =
+    raffle.estado === 'ACTIVA' && isSellerOwner;
   const images = raffle.product?.imagenes || [];
   const soldTickets = raffle.tickets?.filter((t) => t.estado !== 'REEMBOLSADO').length || 0;
   const progress = (soldTickets / raffle.totalTickets) * 100;
+  const grossSubtotal = Number((quantity * raffle.precioPorTicket).toFixed(2));
+  const totalToCharge = bonusPreview?.mpChargeAmount ?? grossSubtotal;
 
   const handleBuy = () => {
     if (!isAuthenticated) {
       router.push('/auth/login');
       return;
     }
-    buyTickets({ variables: { raffleId: id, cantidad: quantity } });
+    buyTickets({
+      variables: {
+        raffleId: id,
+        cantidad: quantity,
+        bonusGrantId: selectedBonusGrantId,
+        promotionToken,
+      },
+    });
   };
 
   return (
@@ -425,7 +539,7 @@ export function RaffleContent({ id }: RaffleContentProps) {
           )}
 
           {/* Buy Section */}
-          {raffle.estado === 'ACTIVA' && (
+          {canBuyThisRaffle && (
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center justify-between">
@@ -461,14 +575,29 @@ export function RaffleContent({ id }: RaffleContentProps) {
                   </div>
                 </div>
 
+                <PromotionBonusSelector
+                  raffleId={id}
+                  quantity={quantity}
+                  sellerId={user?.id !== raffle.seller?.id ? raffle.seller?.id : undefined}
+                  selectedBonusGrantId={selectedBonusGrantId}
+                  onSelectedBonusGrantIdChange={setSelectedBonusGrantId}
+                  onPreviewChange={setBonusPreview}
+                />
+
                 <div className="p-4 bg-muted/50 rounded-lg">
                   <div className="flex justify-between mb-2">
                     <span>Subtotal</span>
-                    <span>${(quantity * raffle.precioPorTicket).toFixed(2)}</span>
+                    <span>${grossSubtotal.toFixed(2)}</span>
                   </div>
+                  {bonusPreview && (
+                    <div className="flex justify-between mb-2 text-green-600">
+                      <span>Bonificación aplicada</span>
+                      <span>-${bonusPreview.discountApplied.toFixed(2)}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between font-bold text-lg">
                     <span>Total</span>
-                    <span className="text-primary">${(quantity * raffle.precioPorTicket).toFixed(2)}</span>
+                    <span className="text-primary">${totalToCharge.toFixed(2)}</span>
                   </div>
                 </div>
 
@@ -494,11 +623,32 @@ export function RaffleContent({ id }: RaffleContentProps) {
             </Card>
           )}
 
+          {shouldShowOwnRafflePurchaseNotice && (
+            <Card>
+              <CardHeader>
+                <CardTitle>No podés comprar tickets de tu propia rifa</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100">
+                  <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" />
+                  <p>
+                    La compra está bloqueada para evitar autocompras. Podés compartirla o
+                    promocionarla para atraer participantes.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Actions: Favorite & Share */}
-          <div className="flex gap-3">
+          <div
+            className={`grid gap-3 ${
+              canPromoteThisRaffle ? 'sm:grid-cols-2 xl:grid-cols-3' : 'sm:grid-cols-2'
+            }`}
+          >
             <Button
               variant="outline"
-              className="flex-1"
+              className="w-full h-auto min-h-9 whitespace-normal px-3 py-2 text-center leading-snug"
               onClick={handleFavoriteClick}
               disabled={isTogglingFavorite}
             >
@@ -512,7 +662,25 @@ export function RaffleContent({ id }: RaffleContentProps) {
             <ShareButtons
               url={typeof window !== 'undefined' ? window.location.href : ''}
               title={raffle.titulo}
+              label={canPromoteThisRaffle ? 'Compartir rápido' : 'Compartir'}
+              className="w-full"
             />
+            {canPromoteThisRaffle && (
+              <div className="w-full sm:col-span-2 xl:col-span-1">
+                <SocialPromotionManager
+                  raffleId={raffle.id}
+                  raffleTitle={raffle.titulo}
+                  raffleImages={raffle.product?.imagenes || []}
+                  ticketPrice={raffle.precioPorTicket}
+                  posts={socialPromotionPosts}
+                  showHelperText={false}
+                  showSummary={false}
+                  onChanged={async () => {
+                    await refetchSocialPromotionPosts();
+                  }}
+                />
+              </div>
+            )}
           </div>
         </div>
       </div>

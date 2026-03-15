@@ -1,4 +1,5 @@
 import { ObjectType, Field, Int, Float, ID } from '@nestjs/graphql';
+import { GraphQLJSON } from 'graphql-type-json';
 import { UserRole, MpConnectStatus } from '../../common/enums';
 
 // ==================== User Management Entities ====================
@@ -168,6 +169,69 @@ export class UserMinimal {
 
   @Field()
   nombre!: string;
+}
+
+@ObjectType()
+export class AdminTransactionUser {
+  @Field()
+  id!: string;
+
+  @Field()
+  email!: string;
+
+  @Field()
+  nombre!: string;
+
+  @Field(() => String, { nullable: true })
+  apellido?: string;
+}
+
+@ObjectType()
+export class AdminTransaction {
+  @Field(() => ID)
+  id!: string;
+
+  @Field()
+  tipo!: string;
+
+  @Field(() => Float)
+  monto!: number;
+
+  @Field(() => Float, { nullable: true })
+  grossAmount?: number;
+
+  @Field(() => Float, { nullable: true })
+  promotionDiscountAmount?: number;
+
+  @Field(() => Float, { nullable: true })
+  cashChargedAmount?: number;
+
+  @Field(() => String, { nullable: true })
+  estado?: string;
+
+  @Field(() => String, { nullable: true })
+  mpPaymentId?: string;
+
+  @Field(() => GraphQLJSON, { nullable: true })
+  metadata?: Record<string, unknown>;
+
+  @Field()
+  createdAt!: Date;
+
+  @Field(() => AdminTransactionUser, { nullable: true })
+  user?: AdminTransactionUser;
+
+  @Field(() => RaffleMinimal, { nullable: true })
+  raffle?: RaffleMinimal;
+}
+
+@ObjectType()
+export class AdminTransactionList {
+  @Field(() => [AdminTransaction])
+  transactions!: AdminTransaction[];
+
+  @Field(() => Int)
+  total!: number;
 }
 
 @ObjectType()

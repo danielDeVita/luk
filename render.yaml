@@ -46,6 +46,39 @@ services:
         value: "false"
       - key: GRAPHQL_DEBUG
         value: "false"
+      - key: SOCIAL_PROMOTION_ENABLED
+        value: "true"
+      - key: SOCIAL_PROMOTION_BROWSER_ENABLED
+        value: "false"
+
+  - type: worker
+    name: raffle-social-promotion-worker
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile.social-worker
+    dockerContext: ./backend
+    region: oregon
+    plan: free
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: ENCRYPTION_KEY
+        sync: false
+      - key: FRONTEND_URL
+        sync: false
+      - key: BACKEND_URL
+        sync: false
+      - key: SOCIAL_PROMOTION_ENABLED
+        value: "true"
+      - key: SOCIAL_PROMOTION_BROWSER_ENABLED
+        value: "true"
+      - key: SOCIAL_PROMOTION_CHECK_CRON
+        value: "0 */6 * * *"
+      - key: SOCIAL_PROMOTION_FETCH_TIMEOUT_MS
+        value: "30000"
 
   # Frontend (Next.js)
   - type: web

@@ -6,6 +6,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { PaymentsService } from '../payments/payments.service';
 import { Prisma } from '@prisma/client';
 import { RaffleEvents } from '../common/events';
+import { SocialPromotionsService } from '../social-promotions/social-promotions.service';
 
 type MockPrismaService = {
   shippingAddress: { count: jest.Mock };
@@ -23,10 +24,15 @@ type MockPrismaService = {
 type MockPaymentsService = {
   createPreference: jest.Mock;
   refundPayment: jest.Mock;
+  expireSupersededInitiatedMockPaymentsForRaffle: jest.Mock;
 };
 
 type MockEventEmitter = {
   emit: jest.Mock;
+};
+
+type MockSocialPromotionsService = {
+  reserveBonusForCheckout: jest.Mock;
 };
 
 describe('TicketsService', () => {
@@ -34,6 +40,7 @@ describe('TicketsService', () => {
   let prisma: MockPrismaService;
   let paymentsService: MockPaymentsService;
   let eventEmitter: MockEventEmitter;
+  let socialPromotionsService: MockSocialPromotionsService;
 
   const mockPrismaService = (): MockPrismaService => ({
     shippingAddress: { count: jest.fn() },
@@ -51,10 +58,17 @@ describe('TicketsService', () => {
   const mockPaymentsService = (): MockPaymentsService => ({
     createPreference: jest.fn(),
     refundPayment: jest.fn(),
+    expireSupersededInitiatedMockPaymentsForRaffle: jest
+      .fn()
+      .mockResolvedValue(undefined),
   });
 
   const mockEventEmitter = (): MockEventEmitter => ({
     emit: jest.fn(),
+  });
+
+  const mockSocialPromotionsService = (): MockSocialPromotionsService => ({
+    reserveBonusForCheckout: jest.fn().mockResolvedValue(null),
   });
 
   beforeEach(async () => {
@@ -65,6 +79,10 @@ describe('TicketsService', () => {
         TicketsService,
         { provide: PrismaService, useValue: mockPrismaService() },
         { provide: PaymentsService, useValue: mockPaymentsService() },
+        {
+          provide: SocialPromotionsService,
+          useValue: mockSocialPromotionsService(),
+        },
         { provide: EventEmitter2, useValue: mockEventEmitter() },
       ],
     }).compile();
@@ -75,6 +93,9 @@ describe('TicketsService', () => {
       PaymentsService,
     ) as unknown as MockPaymentsService;
     eventEmitter = module.get(EventEmitter2) as unknown as MockEventEmitter;
+    socialPromotionsService = module.get(
+      SocialPromotionsService,
+    ) as unknown as MockSocialPromotionsService;
   });
 
   describe('buyTickets - Validation', () => {
@@ -151,7 +172,7 @@ describe('TicketsService', () => {
       });
 
       await expect(service.buyTickets('user-1', 'raffle-1', 5)).rejects.toThrow(
-        BadRequestException,
+        'No podés comprar tickets de tu propia rifa',
       );
     });
 
@@ -236,6 +257,9 @@ describe('TicketsService', () => {
 
       const result = await service.buyTickets('user-1', 'raffle-1', 3);
 
+      expect(
+        paymentsService.expireSupersededInitiatedMockPaymentsForRaffle,
+      ).toHaveBeenCalledWith('user-1', 'raffle-1');
       expect(result.tickets).toHaveLength(3);
       expect(result.initPoint).toBe('https://mp.com/checkout/123');
       expect(result.preferenceId).toBe('mp-pref-123');
@@ -290,6 +314,91 @@ describe('TicketsService', () => {
       );
     });
 
+    it('should reserve a promotion bonus and send discounted amounts to Mercado Pago', async () => {
+      prisma.shippingAddress.count.mockResolvedValue(1);
+
+      const mockRaffle = {
+        id: 'raffle-1',
+        estado: 'ACTIVA',
+        seller_id: 'seller-1',
+        total_tickets: 100,
+        precio_por_ticket: new Prisma.Decimal(500),
+        titulo: 'iPhone 15 Pro',
+        sold_count: BigInt(10),
+        is_hidden: false,
+      };
+
+      prisma.$transaction.mockImplementation(async (callback) => {
+        const mockTx = {
+          $queryRaw: jest.fn().mockResolvedValue([mockRaffle]),
+          ticket: {
+            count: jest.fn().mockResolvedValue(0),
+            findMany: jest.fn().mockResolvedValue([]),
+            create: jest.fn().mockResolvedValue({
+              id: 'ticket-1',
+              numeroTicket: 1,
+              estado: 'RESERVADO',
+            }),
+          },
+          promotionBonusGrant: {
+            findFirst: jest.fn(),
+            update: jest.fn(),
+          },
+          promotionBonusRedemption: {
+            create: jest.fn(),
+          },
+        };
+        return callback(mockTx);
+      });
+
+      socialPromotionsService.reserveBonusForCheckout.mockResolvedValue({
+        grant: { id: 'grant-1' },
+        redemption: { id: 'redemption-1' },
+        preview: {
+          grossSubtotal: 1000,
+          discountApplied: 100,
+          mpChargeAmount: 900,
+        },
+      });
+      paymentsService.createPreference.mockResolvedValue({
+        initPoint: 'https://mp.com/checkout/123',
+        preferenceId: 'mp-pref-123',
+      });
+
+      const result = await service.buyTickets(
+        'user-1',
+        'raffle-1',
+        2,
+        'grant-1',
+        'promo-123',
+      );
+
+      expect(
+        socialPromotionsService.reserveBonusForCheckout,
+      ).toHaveBeenCalledWith(
+        expect.objectContaining({
+          buyerId: 'user-1',
+          raffleId: 'raffle-1',
+          raffleSellerId: 'seller-1',
+          grossSubtotal: 1000,
+          bonusGrantId: 'grant-1',
+        }),
+        expect.any(Object),
+      );
+      expect(paymentsService.createPreference).toHaveBeenCalledWith(
+        expect.objectContaining({
+          grossSubtotal: 1000,
+          discountApplied: 100,
+          mpChargeAmount: 900,
+          bonusGrantId: 'grant-1',
+          promotionBonusRedemptionId: 'redemption-1',
+          promotionToken: 'promo-123',
+        }),
+      );
+      expect(result.discountApplied).toBe(100);
+      expect(result.mpChargeAmount).toBe(900);
+    });
+
     it('should use serializable transaction with timeout', async () => {
       prisma.shippingAddress.count.mockResolvedValue(1);
 
@@ -333,6 +442,52 @@ describe('TicketsService', () => {
           timeout: 10000,
         }),
       );
+    });
+
+    it('should not reuse ticket numbers that already exist as REEMBOLSADO', async () => {
+      prisma.shippingAddress.count.mockResolvedValue(1);
+
+      const mockRaffle = {
+        id: 'raffle-1',
+        estado: 'ACTIVA',
+        seller_id: 'seller-1',
+        total_tickets: 100,
+        precio_por_ticket: new Prisma.Decimal(500),
+        titulo: 'Test Raffle',
+        sold_count: BigInt(10),
+        is_hidden: false,
+      };
+
+      prisma.$transaction.mockImplementation(async (callback) => {
+        const mockTx = {
+          $queryRaw: jest.fn().mockResolvedValue([mockRaffle]),
+          ticket: {
+            count: jest.fn().mockResolvedValue(0),
+            findMany: jest
+              .fn()
+              .mockResolvedValue([
+                { numeroTicket: 1 },
+                { numeroTicket: 2 },
+                { numeroTicket: 3 },
+              ]),
+            create: jest.fn().mockImplementation(async (data) => ({
+              id: 'ticket-4',
+              numeroTicket: data.data.numeroTicket,
+              estado: 'RESERVADO',
+            })),
+          },
+        };
+        return callback(mockTx);
+      });
+
+      paymentsService.createPreference.mockResolvedValue({
+        initPoint: 'https://mp.com/checkout/123',
+        preferenceId: 'mp-pref-123',
+      });
+
+      const result = await service.buyTickets('user-1', 'raffle-1', 1);
+
+      expect(result.tickets[0].numeroTicket).toBe(4);
     });
   });
 
@@ -461,6 +616,27 @@ describe('TicketsService', () => {
           refundAmount: 1000,
         }),
       );
+    });
+  });
+
+  describe('getAvailableTicketNumbers', () => {
+    it('should exclude ticket numbers that already exist as REEMBOLSADO', async () => {
+      prisma.ticket.findMany.mockResolvedValue([
+        { numeroTicket: 1 },
+        { numeroTicket: 2 },
+        { numeroTicket: 3 },
+      ]);
+
+      const availableNumbers = await service.getAvailableTicketNumbers(
+        'raffle-1',
+        5,
+      );
+
+      expect(prisma.ticket.findMany).toHaveBeenCalledWith({
+        where: { raffleId: 'raffle-1' },
+        select: { numeroTicket: true },
+      });
+      expect(availableNumbers).toEqual([4, 5]);
     });
   });
 });

@@ -12,6 +12,7 @@
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/main.js",
+    "start:social-worker": "node dist/main-social-worker.js",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
     "test": "jest",
     "test:watch": "jest --watch",
@@ -23,7 +24,8 @@
     "db:generate": "npx prisma generate",
     "db:studio": "npx prisma studio",
     "db:seed": "npx ts-node prisma/seed.ts",
-    "db:seed:manual-qa": "npx ts-node prisma/seed.manual-qa.ts"
+    "db:seed:manual-qa": "npx ts-node prisma/seed.manual-qa.ts",
+    "db:seed:promotion-bonus-qa": "npx ts-node prisma/seed.promotion-bonus-qa.ts"
   },
   "prisma": {
     "seed": "ts-node prisma/seed.ts"
@@ -69,6 +71,7 @@
     "passport-google-oauth20": "^2.0.0",
     "passport-jwt": "^4.0.1",
     "passport-local": "^1.0.0",
+    "playwright": "^1.53.2",
     "redis": "^5.10.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",

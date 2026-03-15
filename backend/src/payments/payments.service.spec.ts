@@ -2,40 +2,39 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { PaymentsService } from './payments.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { ConfigService } from '@nestjs/config';
-import { BadRequestException } from '@nestjs/common';
 import { NotificationsService } from '../notifications/notifications.service';
 import { ActivityService } from '../activity/activity.service';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { ReferralsService } from '../referrals/referrals.service';
 import { PayoutsService } from '../payouts/payouts.service';
-
-// Mock mercadopago
-jest.mock('mercadopago', () => ({
-  MercadoPagoConfig: jest.fn().mockImplementation(() => ({
-    accessToken: 'TEST-access-token',
-  })),
-  Preference: jest.fn().mockImplementation(() => ({
-    create: jest.fn(),
-  })),
-  Payment: jest.fn().mockImplementation(() => ({
-    get: jest.fn(),
-  })),
-}));
-
-import { Payment } from 'mercadopago';
+import { SocialPromotionsService } from '../social-promotions/social-promotions.service';
+import { MercadoPagoProvider } from './providers/mercado-pago.provider';
+import { MockPaymentProvider } from './providers/mock-payment.provider';
 import type { PaymentResponse } from 'mercadopago/dist/clients/payment/commonTypes';
 
 describe('PaymentsService', () => {
   let service: PaymentsService;
   let _prisma: jest.Mocked<PrismaService>;
+  const originalFetch = global.fetch;
 
   const mockPrismaService = {
     mpEvent: {
       findUnique: jest.fn(),
       create: jest.fn(),
     },
+    mockPayment: {
+      findUnique: jest.fn(),
+      findFirst: jest.fn(),
+      findMany: jest.fn(),
+      create: jest.fn(),
+      update: jest.fn(),
+    },
+    mockPaymentEvent: {
+      create: jest.fn(),
+    },
     ticket: {
       updateMany: jest.fn(),
+      deleteMany: jest.fn(),
       count: jest.fn(),
       findMany: jest.fn(),
     },
@@ -54,10 +53,11 @@ describe('PaymentsService', () => {
 
   const mockConfigService = {
     get: jest.fn((key: string) => {
-      const config: Record<string, string> = {
+      const config: Record<string, string | boolean> = {
         MP_ACCESS_TOKEN: 'TEST-access-token',
         FRONTEND_URL: 'http://localhost:3000',
         BACKEND_URL: 'http://localhost:3001',
+        PAYMENTS_PROVIDER: 'mercadopago',
       };
       return config[key];
     }),
@@ -85,8 +85,41 @@ describe('PaymentsService', () => {
     createPayout: jest.fn().mockResolvedValue({ id: 'payout-1' }),
   };
 
+  const mockSocialPromotionsService = {
+    markRedemptionUsedByReservation: jest.fn().mockResolvedValue(undefined),
+    releaseReservedRedemptionByReservation: jest
+      .fn()
+      .mockResolvedValue(undefined),
+    reinstateRedemptionByPaymentId: jest.fn().mockResolvedValue(undefined),
+    recordPurchaseAttribution: jest.fn().mockResolvedValue(undefined),
+  };
+
+  const mockMercadoPagoProvider = {
+    createCheckoutSession: jest.fn(),
+    getPaymentStatus: jest.fn(),
+    getPayment: jest.fn(),
+    refundPayment: jest.fn(),
+    releasePayment: jest.fn(),
+  };
+
+  const mockMockPaymentProvider = {
+    isEnabled: jest.fn().mockReturnValue(true),
+    assertEnabled: jest.fn(),
+    createCheckoutSession: jest.fn(),
+    getPaymentStatus: jest.fn(),
+    getPayment: jest.fn(),
+    getPaymentForCheckout: jest.fn(),
+    syncPaymentStatus: jest.fn(),
+    updatePaymentStatus: jest.fn(),
+    recordEvent: jest.fn(),
+    getActionType: jest.fn((action: string) => action),
+  };
+
   beforeEach(async () => {
     jest.clearAllMocks();
+    global.fetch = jest.fn();
+    mockPrismaService.mockPayment.findMany.mockResolvedValue([]);
+    mockPrismaService.ticket.deleteMany.mockResolvedValue({ count: 0 });
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -98,10 +131,26 @@ describe('PaymentsService', () => {
         { provide: EventEmitter2, useValue: mockEventEmitter },
         { provide: ReferralsService, useValue: mockReferralsService },
         { provide: PayoutsService, useValue: mockPayoutsService },
+        {
+          provide: SocialPromotionsService,
+          useValue: mockSocialPromotionsService,
+        },
+        {
+          provide: MercadoPagoProvider,
+          useValue: mockMercadoPagoProvider,
+        },
+        {
+          provide: MockPaymentProvider,
+          useValue: mockMockPaymentProvider,
+        },
       ],
     }).compile();
 
     service = module.get<PaymentsService>(PaymentsService);
+  });
+
+  afterAll(() => {
+    global.fetch = originalFetch;
   });
 
   describe('handlePaymentApproved', () => {
@@ -115,6 +164,11 @@ describe('PaymentsService', () => {
         buyerId: 'buyer-456',
         cantidad: 2,
         reservationId: 'res-789',
+        bonusGrantId: 'grant-123',
+        grossSubtotal: 1200,
+        discountApplied: 200,
+        mpChargeAmount: 1000,
+        promotionToken: 'promo-123',
       }),
       fee_details: [{ amount: 50 }],
       api_response: { status: 200, headers: [] },
@@ -181,10 +235,37 @@ describe('PaymentsService', () => {
           userId: 'buyer-456',
           raffleId: 'raffle-123',
           monto: 1000,
+          grossAmount: 1200,
+          promotionDiscountAmount: 200,
+          cashChargedAmount: 1000,
           mpPaymentId: '12345678',
           estado: 'COMPLETADO',
         }),
       });
+    });
+
+    it('should mark the bonus redemption as used and record purchase attribution', async () => {
+      mockPrismaService.ticket.updateMany.mockResolvedValue({ count: 2 });
+      mockPrismaService.transaction.findFirst.mockResolvedValue(null);
+      mockPrismaService.transaction.create.mockResolvedValue({ id: 'tx-1' });
+      mockPrismaService.raffle.findUnique.mockResolvedValue({
+        id: 'raffle-123',
+        totalTickets: 10,
+        tickets: [],
+      });
+
+      await service.handlePaymentApproved(mockPaymentData);
+
+      expect(
+        mockSocialPromotionsService.markRedemptionUsedByReservation,
+      ).toHaveBeenCalledWith({
+        reservationId: 'res-789',
+        bonusGrantId: 'grant-123',
+        mpPaymentId: '12345678',
+      });
+      expect(
+        mockSocialPromotionsService.recordPurchaseAttribution,
+      ).toHaveBeenCalledWith('buyer-456', 'promo-123', 2, 1200);
     });
 
     it('should handle missing external_reference gracefully', async () => {
@@ -253,7 +334,7 @@ describe('PaymentsService', () => {
 
   describe('handleMpWebhook', () => {
     beforeEach(() => {
-      const mockPaymentGet = jest.fn().mockResolvedValue({
+      mockMercadoPagoProvider.getPayment.mockResolvedValue({
         id: '12345678',
         status: 'approved',
         status_detail: 'accredited',
@@ -264,9 +345,6 @@ describe('PaymentsService', () => {
           cantidad: 2,
         }),
       });
-      (Payment as jest.Mock).mockImplementation(() => ({
-        get: mockPaymentGet,
-      }));
     });
 
     it('should ignore non-payment webhook types', async () => {
@@ -321,7 +399,7 @@ describe('PaymentsService', () => {
 
   describe('syncPaymentStatus', () => {
     beforeEach(() => {
-      const mockPaymentGet = jest.fn().mockResolvedValue({
+      mockMercadoPagoProvider.getPayment.mockResolvedValue({
         id: '12345678',
         status: 'approved',
         status_detail: 'accredited',
@@ -332,9 +410,6 @@ describe('PaymentsService', () => {
           cantidad: 2,
         }),
       });
-      (Payment as jest.Mock).mockImplementation(() => ({
-        get: mockPaymentGet,
-      }));
     });
 
     it('should return alreadyProcessed=true if event exists', async () => {
@@ -375,12 +450,16 @@ describe('PaymentsService', () => {
     });
 
     it('should return ticketsUpdated=0 for pending payments', async () => {
-      (Payment as jest.Mock).mockImplementation(() => ({
-        get: jest.fn().mockResolvedValue({
-          id: '12345678',
-          status: 'pending',
+      mockMercadoPagoProvider.getPayment.mockResolvedValue({
+        id: '12345678',
+        status: 'pending',
+        external_reference: JSON.stringify({
+          raffleId: 'raffle-123',
+          buyerId: 'buyer-456',
+          cantidad: 2,
+          reservationId: 'res-789',
         }),
-      }));
+      });
 
       mockPrismaService.mpEvent.findUnique.mockResolvedValue(null);
 
@@ -391,6 +470,261 @@ describe('PaymentsService', () => {
         alreadyProcessed: false,
         ticketsUpdated: 0,
       });
+      expect(
+        mockSocialPromotionsService.releaseReservedRedemptionByReservation,
+      ).toHaveBeenCalledWith('res-789');
+    });
+  });
+
+  describe('refundPayment', () => {
+    it('passes the refund amount to social promotions for partial refunds', async () => {
+      mockMercadoPagoProvider.refundPayment.mockResolvedValue(undefined);
+
+      const result = await service.refundPayment('mp-123', 250.456);
+
+      expect(result).toBe(true);
+      expect(
+        mockSocialPromotionsService.reinstateRedemptionByPaymentId,
+      ).toHaveBeenCalledWith('mp-123', 250.46);
+    });
+
+    it('reinstates through social promotions in mock mode too', async () => {
+      const mockModeConfigService = {
+        get: jest.fn((key: string) => {
+          const config: Record<string, string | boolean> = {
+            MP_ACCESS_TOKEN: 'mock',
+            MP_MOCK_MODE: true,
+            FRONTEND_URL: 'http://localhost:3000',
+            BACKEND_URL: 'http://localhost:3001',
+            PAYMENTS_PROVIDER: 'mock',
+          };
+          return config[key];
+        }),
+      };
+
+      const module: TestingModule = await Test.createTestingModule({
+        providers: [
+          PaymentsService,
+          { provide: PrismaService, useValue: mockPrismaService },
+          { provide: ConfigService, useValue: mockModeConfigService },
+          { provide: NotificationsService, useValue: mockNotificationsService },
+          { provide: ActivityService, useValue: mockActivityService },
+          { provide: EventEmitter2, useValue: mockEventEmitter },
+          { provide: ReferralsService, useValue: mockReferralsService },
+          { provide: PayoutsService, useValue: mockPayoutsService },
+          {
+            provide: SocialPromotionsService,
+            useValue: mockSocialPromotionsService,
+          },
+          {
+            provide: MercadoPagoProvider,
+            useValue: mockMercadoPagoProvider,
+          },
+          {
+            provide: MockPaymentProvider,
+            useValue: {
+              ...mockMockPaymentProvider,
+              getPayment: jest.fn().mockResolvedValue({
+                id: 'mp-456',
+                cashChargedAmount: 900,
+              }),
+              updatePaymentStatus: jest.fn().mockResolvedValue(undefined),
+            },
+          },
+        ],
+      }).compile();
+
+      const mockModeService = module.get<PaymentsService>(PaymentsService);
+
+      const result = await mockModeService.refundPayment('mp-456');
+
+      expect(result).toBe(true);
+      expect(
+        mockSocialPromotionsService.reinstateRedemptionByPaymentId,
+      ).toHaveBeenCalledWith('mp-456', undefined);
+    });
+
+    it('returns mock provider status for mock ids', async () => {
+      mockMockPaymentProvider.getPaymentStatus.mockResolvedValue({
+        status: 'approved',
+        statusDetail: 'mock_approved',
+        externalReference: '{"raffleId":"123"}',
+        merchantOrderId: 'mock_order_1',
+      });
+
+      const result = await service.getPaymentStatus('mock_pay_123');
+
+      expect(mockMockPaymentProvider.getPaymentStatus).toHaveBeenCalledWith(
+        'mock_pay_123',
+      );
+      expect(result.status).toBe('approved');
+      expect(result.merchantOrderId).toBe('mock_order_1');
+    });
+
+    it('creates local checkout sessions in mock mode without MP token', async () => {
+      const mockModeConfigService = {
+        get: jest.fn((key: string) => {
+          const config: Record<string, string | boolean> = {
+            FRONTEND_URL: 'http://localhost:3000',
+            BACKEND_URL: 'http://localhost:3001',
+            PAYMENTS_PROVIDER: 'mock',
+          };
+          return config[key];
+        }),
+      };
+
+      const mockCreateCheckoutSession = jest.fn().mockResolvedValue({
+        initPoint:
+          'http://localhost:3000/checkout/mock/mock_pay_123?token=test',
+        preferenceId: 'mock_pay_123',
+      });
+
+      const module: TestingModule = await Test.createTestingModule({
+        providers: [
+          PaymentsService,
+          { provide: PrismaService, useValue: mockPrismaService },
+          { provide: ConfigService, useValue: mockModeConfigService },
+          { provide: NotificationsService, useValue: mockNotificationsService },
+          { provide: ActivityService, useValue: mockActivityService },
+          { provide: EventEmitter2, useValue: mockEventEmitter },
+          { provide: ReferralsService, useValue: mockReferralsService },
+          { provide: PayoutsService, useValue: mockPayoutsService },
+          {
+            provide: SocialPromotionsService,
+            useValue: mockSocialPromotionsService,
+          },
+          {
+            provide: MercadoPagoProvider,
+            useValue: mockMercadoPagoProvider,
+          },
+          {
+            provide: MockPaymentProvider,
+            useValue: {
+              ...mockMockPaymentProvider,
+              createCheckoutSession: mockCreateCheckoutSession,
+            },
+          },
+        ],
+      }).compile();
+
+      const mockModeService = module.get<PaymentsService>(PaymentsService);
+      const result = await mockModeService.createPreference({
+        raffleId: 'raffle-1',
+        cantidad: 2,
+        buyerId: 'buyer-1',
+        precioPorTicket: 500,
+        tituloRifa: 'QA raffle',
+        reservationId: 'reservation-1',
+      });
+
+      expect(mockCreateCheckoutSession).toHaveBeenCalled();
+      expect(result.preferenceId).toBe('mock_pay_123');
+      expect(result.initPoint).toContain('/checkout/mock/mock_pay_123');
+    });
+
+    it('expires previous initiated mock payments for the same buyer and raffle before creating a new one', async () => {
+      const mockModeConfigService = {
+        get: jest.fn((key: string) => {
+          const config: Record<string, string | boolean> = {
+            FRONTEND_URL: 'http://localhost:3000',
+            BACKEND_URL: 'http://localhost:3001',
+            PAYMENTS_PROVIDER: 'mock',
+          };
+          return config[key];
+        }),
+      };
+
+      const mockCreateCheckoutSession = jest.fn().mockResolvedValue({
+        initPoint:
+          'http://localhost:3000/checkout/mock/mock_pay_456?token=test',
+        preferenceId: 'mock_pay_456',
+      });
+
+      mockPrismaService.mockPayment.findMany.mockResolvedValue([
+        {
+          id: 'mock_pay_old',
+          reservationId: 'reservation-old',
+          createdAt: new Date('2026-03-14T22:00:00Z'),
+        },
+      ]);
+      mockPrismaService.ticket.deleteMany.mockResolvedValue({ count: 3 });
+
+      const module: TestingModule = await Test.createTestingModule({
+        providers: [
+          PaymentsService,
+          { provide: PrismaService, useValue: mockPrismaService },
+          { provide: ConfigService, useValue: mockModeConfigService },
+          { provide: NotificationsService, useValue: mockNotificationsService },
+          { provide: ActivityService, useValue: mockActivityService },
+          { provide: EventEmitter2, useValue: mockEventEmitter },
+          { provide: ReferralsService, useValue: mockReferralsService },
+          { provide: PayoutsService, useValue: mockPayoutsService },
+          {
+            provide: SocialPromotionsService,
+            useValue: mockSocialPromotionsService,
+          },
+          {
+            provide: MercadoPagoProvider,
+            useValue: mockMercadoPagoProvider,
+          },
+          {
+            provide: MockPaymentProvider,
+            useValue: {
+              ...mockMockPaymentProvider,
+              createCheckoutSession: mockCreateCheckoutSession,
+            },
+          },
+        ],
+      }).compile();
+
+      const mockModeService = module.get<PaymentsService>(PaymentsService);
+      await mockModeService.createPreference({
+        raffleId: 'raffle-1',
+        cantidad: 2,
+        buyerId: 'buyer-1',
+        precioPorTicket: 500,
+        tituloRifa: 'QA raffle',
+        reservationId: 'reservation-new',
+      });
+
+      expect(mockPrismaService.mockPayment.findMany).toHaveBeenCalledWith({
+        where: {
+          buyerId: 'buyer-1',
+          raffleId: 'raffle-1',
+          status: 'INITIATED',
+        },
+        orderBy: {
+          createdAt: 'asc',
+        },
+      });
+      expect(mockPrismaService.ticket.deleteMany).toHaveBeenCalledWith({
+        where: {
+          estado: 'RESERVADO',
+          mpExternalReference: 'reservation-old',
+        },
+      });
+      expect(
+        mockSocialPromotionsService.releaseReservedRedemptionByReservation,
+      ).toHaveBeenCalledWith('reservation-old');
+      expect(mockMockPaymentProvider.updatePaymentStatus).toHaveBeenCalledWith(
+        'mock_pay_old',
+        'EXPIRED',
+        'Pago mock expirado por reemplazo de checkout',
+        expect.objectContaining({
+          processedAt: expect.any(Date),
+        }),
+      );
+      expect(mockMockPaymentProvider.recordEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          paymentId: 'mock_pay_old',
+          status: 'EXPIRED',
+          metadata: expect.objectContaining({
+            reservationId: 'reservation-old',
+            reason: 'superseded_by_new_checkout',
+          }),
+        }),
+      );
+      expect(mockCreateCheckoutSession).toHaveBeenCalled();
     });
   });
 
@@ -420,34 +754,6 @@ describe('PaymentsService', () => {
       expect(result.mpFee).toBeCloseTo(50); // 5% MP fee
       expect(result.netAmount).toBeCloseTo(910);
       expect(result.totalFees).toBeCloseTo(90);
-    });
-  });
-
-  describe('getMpClient', () => {
-    it('should throw BadRequestException when MP is not configured', async () => {
-      // Create a new service instance without MP_ACCESS_TOKEN
-      const noMpConfigService = {
-        get: jest.fn().mockReturnValue(undefined),
-      };
-
-      const module: TestingModule = await Test.createTestingModule({
-        providers: [
-          PaymentsService,
-          { provide: PrismaService, useValue: mockPrismaService },
-          { provide: ConfigService, useValue: noMpConfigService },
-          { provide: NotificationsService, useValue: mockNotificationsService },
-          { provide: ActivityService, useValue: mockActivityService },
-          { provide: EventEmitter2, useValue: mockEventEmitter },
-          { provide: ReferralsService, useValue: mockReferralsService },
-          { provide: PayoutsService, useValue: mockPayoutsService },
-        ],
-      }).compile();
-
-      const serviceWithoutMp = module.get<PaymentsService>(PaymentsService);
-
-      await expect(serviceWithoutMp.getPaymentStatus('123')).rejects.toThrow(
-        BadRequestException,
-      );
     });
   });
 });

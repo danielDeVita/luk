@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
+import { SocialPromotionsService } from '../social-promotions/social-promotions.service';
 
 function isFalseEnvFlag(value: boolean | string | undefined): boolean {
   return (
@@ -18,6 +19,7 @@ export class CleanupTasksService {
   constructor(
     private prisma: PrismaService,
     private configService: ConfigService,
+    private socialPromotionsService: SocialPromotionsService,
   ) {
     const cronFlag = this.configService.get<boolean | string>(
       'ENABLE_CRON_JOBS',
@@ -28,7 +30,7 @@ export class CleanupTasksService {
   /**
    * Daily at 3 AM - Cleanup and maintenance tasks
    */
-  @Cron('0 3 * * *') // 3:00 AM every day
+  @Cron('0 3 * * *')
   async dailyCleanup() {
     if (!this.cronEnabled) return;
 
@@ -57,12 +59,30 @@ export class CleanupTasksService {
     const thirtyMinutesAgo = new Date();
     thirtyMinutesAgo.setMinutes(thirtyMinutesAgo.getMinutes() - 30);
 
+    const expiredReservations = await this.prisma.ticket.findMany({
+      where: {
+        estado: 'RESERVADO',
+        createdAt: { lte: thirtyMinutesAgo },
+        mpExternalReference: { not: null },
+      },
+      select: { mpExternalReference: true },
+      distinct: ['mpExternalReference'],
+    });
+
     const result = await this.prisma.ticket.deleteMany({
       where: {
         estado: 'RESERVADO',
         createdAt: { lte: thirtyMinutesAgo },
       },
     });
+
+    for (const reservation of expiredReservations) {
+      if (reservation.mpExternalReference) {
+        await this.socialPromotionsService.releaseReservedRedemptionByReservation(
+          reservation.mpExternalReference,
+        );
+      }
+    }
 
     if (result.count > 0) {
       this.logger.log(`Cleaned up ${result.count} expired reserved tickets`);

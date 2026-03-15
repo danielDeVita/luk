@@ -138,6 +138,20 @@ export default function TerminosPage() {
           <li>Los pagos se procesan a través de pasarelas integradas (ej. Mercado Pago). La Empresa cobra una comisión base del <strong>{PLATFORM_COMMISSION_PERCENT}%</strong> por transacción, salvo promociones o condiciones particulares informadas al momento de operar.</li>
           <li>Los Usuarios son responsables de impuestos aplicables (por ejemplo, percepción impositiva sobre apuestas online según Resolución General ARCA 5791/2025). Para rifas, tasas como el 5-10% sobre premios (Resolución N° 17/2011 de Lotería Nacional).</li>
           <li>No hay reembolsos por boletos comprados, salvo excepciones legales.</li>
+          <li>La Plataforma podrá otorgar <strong>bonificaciones promocionales internas</strong>, no transferibles y no canjeables por dinero, aplicables únicamente a compras futuras dentro de Luk y sujetas a condiciones de elegibilidad, vencimiento y uso en rifas de terceros.</li>
+        </ul>
+
+        <h2>5 bis. Programa de Promoción Social</h2>
+
+        <p>
+          La Plataforma podrá ofrecer un programa opcional mediante el cual un Organizador publique manualmente una rifa en redes sociales y registre el permalink público de dicha publicación para su validación.
+        </p>
+
+        <ul>
+          <li>Solo califican publicaciones públicas, persistentes y con URL verificable.</li>
+          <li>La publicación debe conservar visible el link o token de seguimiento provisto por Luk durante toda la vigencia de la rifa.</li>
+          <li>La Plataforma podrá monitorear automáticamente la accesibilidad pública del post y capturar métricas públicas visibles, así como clicks, registros y compras atribuidas dentro de Luk.</li>
+          <li>Si la publicación se elimina, se vuelve privada o deja de ser verificable antes del cierre de la rifa, podrá quedar descalificada y perder cualquier bonificación asociada.</li>
         </ul>
 
         <h2>6. Protección de Datos Personales</h2>
