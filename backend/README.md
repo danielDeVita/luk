@@ -16,10 +16,31 @@ npm run docker:db:push      # Create tables
 
 Requires Node.js 22 installed globally.
 
+Local Docker PostgreSQL is exposed on `localhost:5433` to avoid conflicts with native PostgreSQL on `5432`.
+
 ```bash
-npm install
-npx prisma db push
-npm run start:dev
+# From project root
+npm run docker:infra:up
+
+# Backend
+cd backend && npm install
+cd backend && npx prisma db push
+cd backend && npm run db:seed:manual-qa    # Optional but recommended
+cd backend && npm run start:dev
+```
+
+For frontend in local host mode:
+
+```bash
+cd frontend && npm install && npm run dev
+```
+
+Recommended local payment config in the root `.env`:
+
+```bash
+PAYMENTS_PROVIDER="mock"
+ALLOW_MOCK_PAYMENTS="true"
+MP_ACCESS_TOKEN=""
 ```
 
 | Command | Description |
@@ -93,11 +114,12 @@ private referralsService: ReferralsService;
 
 ## Environment
 
-The backend reads from `../.env` (root). Key variables:
+The backend reads from `../.env` (root). `backend/.env` is a symlink to that file. Key variables:
 
 ```bash
 DATABASE_URL="postgresql://..."
 JWT_SECRET="..."
+PLATFORM_FEE_PERCENT="4"
 MP_ACCESS_TOKEN="TEST-..."
 MP_PUBLIC_KEY="TEST-..."
 MP_CLIENT_ID="..."           # For MP Connect OAuth
@@ -502,6 +524,7 @@ const preference = await this.mercadopago.preferences.create({
 |----------|-------------|
 | `DATABASE_URL` | PostgreSQL connection string |
 | `JWT_SECRET` | Secret for JWT tokens (min 32 chars) |
+| `PLATFORM_FEE_PERCENT` | Luk platform fee percentage applied to ticket sales |
 | `MP_ACCESS_TOKEN` | Mercado Pago access token |
 | `MP_PUBLIC_KEY` | Mercado Pago public key |
 | `MP_CLIENT_ID` | MP OAuth Client ID (for MP Connect) |

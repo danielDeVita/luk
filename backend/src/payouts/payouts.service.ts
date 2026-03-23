@@ -12,10 +12,6 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { AuditService } from '../audit/audit.service';
 import { PaymentsService } from '../payments/payments.service';
 import { PayoutStatus, UserRole } from '@prisma/client';
-import {
-  PLATFORM_FEE_RATE,
-  MP_FEE_ESTIMATE_RATE,
-} from '../common/constants/fees.constants';
 
 /**
  * Creates, schedules, and processes seller payouts once raffle delivery and release rules are satisfied.
@@ -69,9 +65,11 @@ export class PayoutsService {
       _sum: { monto: true },
     });
     const platformSubsidyAmount = Number(subsidyAggregate._sum.monto ?? 0);
-    const platformFee = grossAmount * PLATFORM_FEE_RATE;
-    const processingFee = grossAmount * MP_FEE_ESTIMATE_RATE;
-    const netAmount = grossAmount - platformFee - processingFee;
+    const {
+      platformFee,
+      mpFee: processingFee,
+      netAmount,
+    } = this.paymentsService.calculateCommissions(grossAmount);
 
     const payout = await this.prisma.payout.create({
       data: {

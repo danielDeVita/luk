@@ -58,6 +58,7 @@ describe('PaymentsService', () => {
         FRONTEND_URL: 'http://localhost:3000',
         BACKEND_URL: 'http://localhost:3001',
         PAYMENTS_PROVIDER: 'mercadopago',
+        PLATFORM_FEE_PERCENT: '4',
       };
       return config[key];
     }),
@@ -169,6 +170,10 @@ describe('PaymentsService', () => {
         discountApplied: 200,
         mpChargeAmount: 1000,
         promotionToken: 'promo-123',
+        purchaseMode: 'CHOOSE_NUMBERS',
+        selectedNumbers: [7, 11],
+        selectionPremiumPercent: 5,
+        selectionPremiumAmount: 50,
       }),
       fee_details: [{ amount: 50 }],
       api_response: { status: 200, headers: [] },
@@ -240,6 +245,30 @@ describe('PaymentsService', () => {
           cashChargedAmount: 1000,
           mpPaymentId: '12345678',
           estado: 'COMPLETADO',
+        }),
+      });
+    });
+
+    it('should persist purchase mode and premium details in transaction metadata', async () => {
+      mockPrismaService.ticket.updateMany.mockResolvedValue({ count: 2 });
+      mockPrismaService.transaction.findFirst.mockResolvedValue(null);
+      mockPrismaService.transaction.create.mockResolvedValue({ id: 'tx-1' });
+      mockPrismaService.raffle.findUnique.mockResolvedValue({
+        id: 'raffle-123',
+        totalTickets: 10,
+        tickets: [],
+      });
+
+      await service.handlePaymentApproved(mockPaymentData);
+
+      expect(mockPrismaService.transaction.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          metadata: expect.objectContaining({
+            purchaseMode: 'CHOOSE_NUMBERS',
+            selectedNumbers: [7, 11],
+            selectionPremiumPercent: 5,
+            selectionPremiumAmount: 50,
+          }),
         }),
       });
     });
@@ -497,6 +526,7 @@ describe('PaymentsService', () => {
             FRONTEND_URL: 'http://localhost:3000',
             BACKEND_URL: 'http://localhost:3001',
             PAYMENTS_PROVIDER: 'mock',
+            PLATFORM_FEE_PERCENT: '4',
           };
           return config[key];
         }),
@@ -568,6 +598,7 @@ describe('PaymentsService', () => {
             FRONTEND_URL: 'http://localhost:3000',
             BACKEND_URL: 'http://localhost:3001',
             PAYMENTS_PROVIDER: 'mock',
+            PLATFORM_FEE_PERCENT: '4',
           };
           return config[key];
         }),
@@ -629,6 +660,7 @@ describe('PaymentsService', () => {
             FRONTEND_URL: 'http://localhost:3000',
             BACKEND_URL: 'http://localhost:3001',
             PAYMENTS_PROVIDER: 'mock',
+            PLATFORM_FEE_PERCENT: '4',
           };
           return config[key];
         }),
@@ -754,6 +786,53 @@ describe('PaymentsService', () => {
       expect(result.mpFee).toBeCloseTo(50); // 5% MP fee
       expect(result.netAmount).toBeCloseTo(910);
       expect(result.totalFees).toBeCloseTo(90);
+    });
+
+    it('uses PLATFORM_FEE_PERCENT from configuration', async () => {
+      const customConfigService = {
+        get: jest.fn((key: string) => {
+          const config: Record<string, string | boolean> = {
+            MP_ACCESS_TOKEN: 'TEST-access-token',
+            FRONTEND_URL: 'http://localhost:3000',
+            BACKEND_URL: 'http://localhost:3001',
+            PAYMENTS_PROVIDER: 'mercadopago',
+            PLATFORM_FEE_PERCENT: '7',
+          };
+          return config[key];
+        }),
+      };
+
+      const module: TestingModule = await Test.createTestingModule({
+        providers: [
+          PaymentsService,
+          { provide: PrismaService, useValue: mockPrismaService },
+          { provide: ConfigService, useValue: customConfigService },
+          { provide: NotificationsService, useValue: mockNotificationsService },
+          { provide: ActivityService, useValue: mockActivityService },
+          { provide: EventEmitter2, useValue: mockEventEmitter },
+          { provide: ReferralsService, useValue: mockReferralsService },
+          { provide: PayoutsService, useValue: mockPayoutsService },
+          {
+            provide: SocialPromotionsService,
+            useValue: mockSocialPromotionsService,
+          },
+          {
+            provide: MercadoPagoProvider,
+            useValue: mockMercadoPagoProvider,
+          },
+          {
+            provide: MockPaymentProvider,
+            useValue: mockMockPaymentProvider,
+          },
+        ],
+      }).compile();
+
+      const customFeeService = module.get<PaymentsService>(PaymentsService);
+      const result = customFeeService.calculateCommissions(1000);
+
+      expect(result.platformFee).toBeCloseTo(70);
+      expect(result.mpFee).toBeCloseTo(50);
+      expect(result.netAmount).toBeCloseTo(880);
     });
   });
 });

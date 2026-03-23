@@ -6,6 +6,7 @@ import {
   Logger,
   Inject,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { CACHE_MANAGER, Cache } from '@nestjs/cache-manager';
 import { PrismaService } from '../prisma/prisma.service';
@@ -18,10 +19,10 @@ import { RelaunchRaffleInput } from './dto/relaunch-raffle.input';
 import { Prisma, TicketStatus } from '@prisma/client';
 import { RaffleSort } from '../common/enums';
 import {
-  PLATFORM_FEE_RATE,
   STRIPE_FEE_RATE,
   STRIPE_FIXED_FEE,
 } from '../common/constants/fees.constants';
+import { getPlatformFeeRate } from '../common/config/platform-fee.util';
 import { NotificationsService } from '../notifications/notifications.service';
 import { ActivityService } from '../activity/activity.service';
 import { ReputationService } from '../users/reputation.service';
@@ -69,6 +70,7 @@ type RaffleFromFindOne = Prisma.RaffleGetPayload<{
     seller: true;
     tickets: true;
     winner: true;
+    drawResult: true;
     dispute: true;
   };
 }>;
@@ -97,6 +99,10 @@ interface RaffleWithTickets {
   tickets?: Array<{ estado: TicketStatus }>;
 }
 
+type RaffleWithDrawResult = {
+  drawResult?: { winningTicketId: string } | null;
+};
+
 // Cache configuration
 const CACHE_KEYS = {
   RAFFLE_LIST: 'raffles:list',
@@ -111,6 +117,7 @@ export class RafflesService {
   private readonly logger = new Logger(RafflesService.name);
   private readonly listCacheKeys = new Set<string>();
   private raffleSearchVectorFnExists: boolean | null = null;
+  private readonly platformFeeRate: number;
 
   constructor(
     private prisma: PrismaService,
@@ -118,9 +125,12 @@ export class RafflesService {
     private activityService: ActivityService,
     private reputationService: ReputationService,
     private payoutsService: PayoutsService,
+    private configService: ConfigService,
     private eventEmitter: EventEmitter2,
     @Inject(CACHE_MANAGER) private cache: Cache,
-  ) {}
+  ) {
+    this.platformFeeRate = getPlatformFeeRate(this.configService);
+  }
 
   private validateAllowedRaffleContent(
     values: Array<string | null | undefined>,
@@ -234,6 +244,50 @@ export class RafflesService {
     } catch (error) {
       this.logger.warn(`Cache invalidation failed: ${error}`);
     }
+  }
+
+  private async attachWinningTicketNumbers<T extends RaffleWithDrawResult>(
+    raffles: T[],
+  ): Promise<Array<T & { winningTicketNumber: number | null }>> {
+    const winningTicketIds = [
+      ...new Set(
+        raffles
+          .map((raffle) => raffle.drawResult?.winningTicketId)
+          .filter((ticketId): ticketId is string => Boolean(ticketId)),
+      ),
+    ];
+
+    if (winningTicketIds.length === 0) {
+      return raffles.map((raffle) => ({
+        ...raffle,
+        winningTicketNumber: null,
+      }));
+    }
+
+    const winningTickets = await this.prisma.ticket.findMany({
+      where: { id: { in: winningTicketIds } },
+      select: { id: true, numeroTicket: true },
+    });
+    const winningTicketNumbersById = new Map(
+      winningTickets.map((ticket) => [ticket.id, ticket.numeroTicket]),
+    );
+
+    return raffles.map((raffle) => ({
+      ...raffle,
+      winningTicketNumber: raffle.drawResult?.winningTicketId
+        ? (winningTicketNumbersById.get(raffle.drawResult.winningTicketId) ??
+          null)
+        : null,
+    }));
+  }
+
+  private async attachWinningTicketNumber<T extends RaffleWithDrawResult>(
+    raffle: T,
+  ): Promise<T & { winningTicketNumber: number | null }> {
+    const [raffleWithWinningTicketNumber] =
+      await this.attachWinningTicketNumbers([raffle]);
+
+    return raffleWithWinningTicketNumber;
   }
 
   async create(sellerId: string, input: CreateRaffleInput) {
@@ -615,6 +669,7 @@ export class RafflesService {
         seller: true,
         tickets: true,
         winner: true,
+        drawResult: true,
         dispute: true,
       },
     });
@@ -623,7 +678,7 @@ export class RafflesService {
       throw new NotFoundException('Rifa no encontrada');
     }
 
-    return raffle;
+    return this.attachWinningTicketNumber(raffle);
   }
 
   async findOnePublic(id: string) {
@@ -638,6 +693,7 @@ export class RafflesService {
         seller: true,
         tickets: true,
         winner: true,
+        drawResult: true,
         dispute: true,
       },
     });
@@ -646,15 +702,23 @@ export class RafflesService {
       throw new NotFoundException('Rifa no encontrada');
     }
 
-    return raffle;
+    return this.attachWinningTicketNumber(raffle);
   }
 
   async findByUser(userId: string) {
-    return this.prisma.raffle.findMany({
+    const raffles = await this.prisma.raffle.findMany({
       where: { sellerId: userId },
-      include: { product: true, _count: { select: { tickets: true } } },
+      include: {
+        product: true,
+        tickets: true,
+        winner: true,
+        drawResult: true,
+        _count: { select: { tickets: true } },
+      },
       orderBy: { createdAt: 'desc' },
     });
+
+    return this.attachWinningTicketNumbers(raffles);
   }
 
   async update(id: string, userId: string, input: UpdateRaffleInput) {
@@ -1149,6 +1213,7 @@ export class RafflesService {
           raffleName: raffle.titulo,
           productName: raffle.product?.nombre || raffle.titulo,
           sellerEmail: raffle.seller?.email || '',
+          winningTicketNumber: winningTicket.numeroTicket,
         }),
       );
       notifications.push(
@@ -1156,7 +1221,7 @@ export class RafflesService {
           raffle.winnerId ?? '',
           'WIN',
           '🎉 ¡GANASTE!',
-          `¡Felicitaciones! Has ganado la rifa "${raffle.titulo}". El vendedor se pondrá en contacto contigo pronto.`,
+          `¡Felicitaciones! Ganaste la rifa "${raffle.titulo}" con el número #${winningTicket.numeroTicket}. El vendedor se pondrá en contacto contigo pronto.`,
           '/dashboard/tickets',
         ),
       );
@@ -1168,6 +1233,7 @@ export class RafflesService {
         this.notifications.sendSellerMustContactWinner(raffle.seller.email, {
           raffleName: raffle.titulo,
           winnerEmail: raffle.winner.email,
+          winningTicketNumber: winningTicket.numeroTicket,
         }),
       );
       notifications.push(
@@ -1175,7 +1241,7 @@ export class RafflesService {
           raffle.sellerId,
           'INFO',
           '¡Tu rifa tiene un ganador!',
-          `La rifa "${raffle.titulo}" ha sido sorteada. Tienes 48hs para contactar al ganador.`,
+          `La rifa "${raffle.titulo}" ha sido sorteada. El número ganador fue el #${winningTicket.numeroTicket}. Tenés 48hs para contactar al ganador.`,
           '/dashboard/sales',
         ),
       );
@@ -1293,7 +1359,7 @@ export class RafflesService {
   }
 
   calculateCommissions(totalAmount: number) {
-    const platformFee = totalAmount * PLATFORM_FEE_RATE;
+    const platformFee = totalAmount * this.platformFeeRate;
     const stripeFee = totalAmount * STRIPE_FEE_RATE + STRIPE_FIXED_FEE;
     const totalFees = platformFee + stripeFee;
     const netAmount = totalAmount - totalFees;
@@ -1668,10 +1734,20 @@ export class RafflesService {
     // Calculate stats
     const paidTickets = tickets.filter((t) => t.estado === 'PAGADO');
     const totalTicketsPurchased = paidTickets.length;
-    const totalSpent = paidTickets.reduce(
-      (sum, t) => sum + Number(t.precioPagado),
-      0,
-    );
+    const totalSpentAggregate = await this.prisma.transaction.aggregate({
+      where: {
+        userId,
+        tipo: 'COMPRA_TICKET',
+        estado: 'COMPLETADO',
+        isDeleted: false,
+      },
+      _sum: {
+        cashChargedAmount: true,
+      },
+    });
+    const totalSpent =
+      Number(totalSpentAggregate._sum.cashChargedAmount ?? 0) ||
+      paidTickets.reduce((sum, t) => sum + Number(t.precioPagado), 0);
 
     // Count unique raffles participated
     const uniqueRaffles = new Set(paidTickets.map((t) => t.raffleId)).size;

@@ -48,6 +48,9 @@ export class Raffle {
   @Field(() => Date, { nullable: true })
   fechaSorteoReal?: Date;
 
+  @Field(() => Int, { nullable: true })
+  winningTicketNumber?: number | null;
+
   @Field(() => DeliveryStatus)
   deliveryStatus!: DeliveryStatus;
 

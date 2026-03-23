@@ -9,6 +9,8 @@ describe('TicketsResolver', () => {
 
   const mockTicketsService = {
     buyTickets: jest.fn(),
+    buySelectedTickets: jest.fn(),
+    getTicketNumberAvailability: jest.fn(),
     findByUser: jest.fn(),
     findOne: jest.fn(),
   };
@@ -145,6 +147,78 @@ describe('TicketsResolver', () => {
         expect.any(String),
         expect.any(Number),
         undefined,
+        undefined,
+      );
+    });
+  });
+
+  describe('buySelectedTickets', () => {
+    it('should purchase the requested numbers through the selected-number flow', async () => {
+      const user = createTestUser();
+      const resultPayload = {
+        tickets: [
+          createTestTicket({ numeroTicket: 7 }),
+          createTestTicket({ numeroTicket: 11 }),
+        ],
+        initPoint: 'https://mercadopago.com/checkout/v1/selected',
+        preferenceId: 'pref-selected-1',
+        totalAmount: 210,
+        grossSubtotal: 200,
+        discountApplied: 0,
+        mpChargeAmount: 210,
+        cantidadComprada: 2,
+        ticketsRestantesQuePuedeComprar: 48,
+        purchaseMode: 'CHOOSE_NUMBERS',
+        selectionPremiumPercent: 5,
+        selectionPremiumAmount: 10,
+      };
+
+      ticketsService.buySelectedTickets.mockResolvedValue(resultPayload);
+
+      const result = await resolver.buySelectedTickets(
+        user,
+        'raffle-1',
+        [7, 11],
+      );
+
+      expect(result).toEqual(resultPayload);
+      expect(ticketsService.buySelectedTickets).toHaveBeenCalledWith(
+        user.id,
+        'raffle-1',
+        [7, 11],
+        undefined,
+        undefined,
+      );
+    });
+  });
+
+  describe('ticketNumberAvailability', () => {
+    it('should return paginated number availability for a raffle', async () => {
+      const availabilityResult = {
+        items: [
+          { number: 1, isAvailable: false },
+          { number: 2, isAvailable: true },
+        ],
+        totalTickets: 100,
+        page: 1,
+        pageSize: 2,
+        totalPages: 50,
+        availableCount: 99,
+        maxSelectable: 50,
+        premiumPercent: 5,
+      };
+
+      ticketsService.getTicketNumberAvailability.mockResolvedValue(
+        availabilityResult,
+      );
+
+      const result = await resolver.ticketNumberAvailability('raffle-1', 1, 2);
+
+      expect(result).toEqual(availabilityResult);
+      expect(ticketsService.getTicketNumberAvailability).toHaveBeenCalledWith(
+        'raffle-1',
+        1,
+        2,
         undefined,
       );
     });

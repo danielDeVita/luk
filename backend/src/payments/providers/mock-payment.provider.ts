@@ -88,6 +88,10 @@ export class MockPaymentProvider {
       discountApplied: data.discountApplied,
       mpChargeAmount: data.cashChargedAmount,
       promotionToken: data.promotionToken ?? null,
+      purchaseMode: data.purchaseMode,
+      selectedNumbers: data.selectedNumbers ?? null,
+      selectionPremiumPercent: data.selectionPremiumPercent,
+      selectionPremiumAmount: data.selectionPremiumAmount,
     });
   }
 
@@ -262,6 +266,30 @@ export class MockPaymentProvider {
       grossSubtotal: Number(payment.grossSubtotal),
       discountApplied: Number(payment.discountApplied),
       cashChargedAmount: Number(payment.cashChargedAmount),
+      purchaseMode: ((
+        JSON.parse(payment.externalReference || '{}') as {
+          purchaseMode?: MockPaymentSummary['purchaseMode'];
+        }
+      ).purchaseMode ?? 'RANDOM') as MockPaymentSummary['purchaseMode'],
+      selectedNumbers: (
+        JSON.parse(payment.externalReference || '{}') as {
+          selectedNumbers?: number[] | null;
+        }
+      ).selectedNumbers,
+      selectionPremiumPercent: Number(
+        (
+          JSON.parse(payment.externalReference || '{}') as {
+            selectionPremiumPercent?: number;
+          }
+        ).selectionPremiumPercent ?? 0,
+      ),
+      selectionPremiumAmount: Number(
+        (
+          JSON.parse(payment.externalReference || '{}') as {
+            selectionPremiumAmount?: number;
+          }
+        ).selectionPremiumAmount ?? 0,
+      ),
       status: this.mapStatus(payment.status),
       statusDetail: payment.statusDetail || '',
       merchantOrderId: payment.merchantOrderId,

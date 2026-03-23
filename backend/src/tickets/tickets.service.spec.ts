@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import { ConfigService } from '@nestjs/config';
 import { TicketsService } from './tickets.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { PaymentsService } from '../payments/payments.service';
@@ -16,6 +17,9 @@ type MockPrismaService = {
     create: jest.Mock;
     updateMany: jest.Mock;
     findUnique: jest.Mock;
+  };
+  transaction: {
+    findMany: jest.Mock;
   };
   $transaction: jest.Mock;
   $queryRaw: jest.Mock;
@@ -51,6 +55,9 @@ describe('TicketsService', () => {
       updateMany: jest.fn(),
       findUnique: jest.fn(),
     },
+    transaction: {
+      findMany: jest.fn(),
+    },
     $transaction: jest.fn(),
     $queryRaw: jest.fn(),
   });
@@ -71,6 +78,16 @@ describe('TicketsService', () => {
     reserveBonusForCheckout: jest.fn().mockResolvedValue(null),
   });
 
+  const mockConfigService = {
+    get: jest.fn((key: string) => {
+      if (key === 'SELECTED_NUMBER_PREMIUM_PERCENT') {
+        return 5;
+      }
+
+      return undefined;
+    }),
+  };
+
   beforeEach(async () => {
     jest.clearAllMocks();
 
@@ -79,6 +96,7 @@ describe('TicketsService', () => {
         TicketsService,
         { provide: PrismaService, useValue: mockPrismaService() },
         { provide: PaymentsService, useValue: mockPaymentsService() },
+        { provide: ConfigService, useValue: mockConfigService },
         {
           provide: SocialPromotionsService,
           useValue: mockSocialPromotionsService(),
@@ -491,6 +509,118 @@ describe('TicketsService', () => {
     });
   });
 
+  describe('buySelectedTickets', () => {
+    it('should reserve the requested numbers and add the selected-number premium', async () => {
+      prisma.shippingAddress.count.mockResolvedValue(1);
+
+      const mockRaffle = {
+        id: 'raffle-1',
+        estado: 'ACTIVA',
+        seller_id: 'seller-1',
+        total_tickets: 100,
+        precio_por_ticket: new Prisma.Decimal(500),
+        titulo: 'iPhone 15 Pro',
+        sold_count: BigInt(3),
+        is_hidden: false,
+      };
+
+      prisma.$transaction.mockImplementation(async (callback) => {
+        const mockTx = {
+          $queryRaw: jest.fn().mockResolvedValue([mockRaffle]),
+          ticket: {
+            count: jest.fn().mockResolvedValue(0),
+            findMany: jest
+              .fn()
+              .mockResolvedValue([
+                { numeroTicket: 1 },
+                { numeroTicket: 2 },
+                { numeroTicket: 3 },
+              ]),
+            create: jest.fn().mockImplementation(async (args) => ({
+              id: `ticket-${args.data.numeroTicket}`,
+              numeroTicket: args.data.numeroTicket,
+              estado: 'RESERVADO',
+            })),
+          },
+        };
+
+        return callback(mockTx);
+      });
+
+      paymentsService.createPreference.mockResolvedValue({
+        initPoint: 'https://mp.com/checkout/selected',
+        preferenceId: 'mp-pref-selected',
+      });
+
+      const result = await service.buySelectedTickets(
+        'user-1',
+        'raffle-1',
+        [10, 15],
+      );
+
+      expect(result.tickets.map((ticket) => ticket.numeroTicket)).toEqual([
+        10, 15,
+      ]);
+      expect(result.purchaseMode).toBe('CHOOSE_NUMBERS');
+      expect(result.selectionPremiumPercent).toBe(5);
+      expect(result.selectionPremiumAmount).toBe(50);
+      expect(result.grossSubtotal).toBe(1000);
+      expect(result.totalAmount).toBe(1050);
+      expect(result.mpChargeAmount).toBe(1050);
+      expect(paymentsService.createPreference).toHaveBeenCalledWith(
+        expect.objectContaining({
+          cantidad: 2,
+          purchaseMode: 'CHOOSE_NUMBERS',
+          selectedNumbers: [10, 15],
+          selectionPremiumPercent: 5,
+          selectionPremiumAmount: 50,
+          grossSubtotal: 1000,
+          mpChargeAmount: 1050,
+        }),
+      );
+    });
+
+    it('should reject duplicate selected numbers', async () => {
+      prisma.shippingAddress.count.mockResolvedValue(1);
+
+      await expect(
+        service.buySelectedTickets('user-1', 'raffle-1', [10, 10]),
+      ).rejects.toThrow('No podés elegir números repetidos');
+    });
+
+    it('should reject selected numbers that are no longer available', async () => {
+      prisma.shippingAddress.count.mockResolvedValue(1);
+
+      const mockRaffle = {
+        id: 'raffle-1',
+        estado: 'ACTIVA',
+        seller_id: 'seller-1',
+        total_tickets: 100,
+        precio_por_ticket: new Prisma.Decimal(500),
+        titulo: 'iPhone 15 Pro',
+        sold_count: BigInt(1),
+        is_hidden: false,
+      };
+
+      prisma.$transaction.mockImplementation(async (callback) => {
+        const mockTx = {
+          $queryRaw: jest.fn().mockResolvedValue([mockRaffle]),
+          ticket: {
+            count: jest.fn().mockResolvedValue(0),
+            findMany: jest.fn().mockResolvedValue([{ numeroTicket: 15 }]),
+            create: jest.fn(),
+          },
+        };
+
+        return callback(mockTx);
+      });
+
+      await expect(
+        service.buySelectedTickets('user-1', 'raffle-1', [10, 15]),
+      ).rejects.toThrow('Los siguientes números ya no están disponibles: 15');
+    });
+  });
+
   describe('confirmTicketPurchase', () => {
     it('should update RESERVADO tickets to PAGADO by mpPaymentId', async () => {
       prisma.ticket.updateMany.mockResolvedValue({ count: 3 });
@@ -614,6 +744,55 @@ describe('TicketsService', () => {
           buyerId: 'buyer-2',
           ticketCount: 1,
           refundAmount: 1000,
+        }),
+      );
+    });
+
+    it('should refund each payment only once and emit the full charged amount', async () => {
+      const mockTickets = [
+        {
+          id: 'ticket-1',
+          buyerId: 'buyer-1',
+          mpPaymentId: 'mp-1',
+          precioPagado: new Prisma.Decimal(500),
+          estado: 'PAGADO',
+        },
+        {
+          id: 'ticket-2',
+          buyerId: 'buyer-1',
+          mpPaymentId: 'mp-1',
+          precioPagado: new Prisma.Decimal(500),
+          estado: 'PAGADO',
+        },
+        {
+          id: 'ticket-3',
+          buyerId: 'buyer-2',
+          mpPaymentId: 'mp-2',
+          precioPagado: new Prisma.Decimal(500),
+          estado: 'PAGADO',
+        },
+      ];
+
+      prisma.ticket.findMany.mockResolvedValue(mockTickets);
+      prisma.transaction.findMany.mockResolvedValue([
+        { mpPaymentId: 'mp-1', cashChargedAmount: new Prisma.Decimal(1050) },
+        { mpPaymentId: 'mp-2', cashChargedAmount: new Prisma.Decimal(500) },
+      ]);
+      prisma.ticket.updateMany.mockResolvedValue({ count: 3 });
+      paymentsService.refundPayment.mockResolvedValue(true);
+
+      await service.refundTickets('raffle-1');
+
+      expect(paymentsService.refundPayment).toHaveBeenCalledTimes(2);
+      expect(paymentsService.refundPayment).toHaveBeenCalledWith('mp-1');
+      expect(paymentsService.refundPayment).toHaveBeenCalledWith('mp-2');
+      expect(eventEmitter.emit).toHaveBeenCalledWith(
+        RaffleEvents.TICKETS_REFUNDED,
+        expect.objectContaining({
+          raffleId: 'raffle-1',
+          buyerId: 'buyer-1',
+          ticketCount: 2,
+          refundAmount: 1050,
         }),
       );
     });

@@ -246,7 +246,12 @@ export class NotificationsService {
 
   async sendWinnerNotification(
     email: string,
-    data: { raffleName: string; productName: string; sellerEmail: string },
+    data: {
+      raffleName: string;
+      productName: string;
+      sellerEmail: string;
+      winningTicketNumber: number;
+    },
   ) {
     const html = getWinnerNotificationContent(data, this.configService);
     return this.sendEmail({
@@ -333,7 +338,11 @@ export class NotificationsService {
 
   async sendSellerMustContactWinner(
     email: string,
-    data: { raffleName: string; winnerEmail: string },
+    data: {
+      raffleName: string;
+      winnerEmail: string;
+      winningTicketNumber: number;
+    },
   ) {
     const html = getSellerMustContactWinnerContent(data, this.configService);
     return this.sendEmail({

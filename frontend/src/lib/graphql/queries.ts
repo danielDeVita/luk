@@ -42,6 +42,7 @@ export const GET_RAFFLE = gql`
       maxTicketsPorUsuario
       deliveryStatus
       trackingNumber
+      winningTicketNumber
       seller {
         id
         nombre
@@ -94,6 +95,7 @@ export const GET_MY_RAFFLES = gql`
       totalTickets
       precioPorTicket
       estado
+      winningTicketNumber
       ticketsVendidos
       fechaLimiteSorteo
       product {

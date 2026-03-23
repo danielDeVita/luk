@@ -3,9 +3,6 @@
  * Centralized to avoid duplication across services.
  */
 
-// Platform fee charged on each transaction (4%)
-export const PLATFORM_FEE_RATE = 0.04;
-
 // Estimated Mercado Pago processing fee (~5%)
 export const MP_FEE_ESTIMATE_RATE = 0.05;
 

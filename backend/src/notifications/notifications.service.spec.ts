@@ -50,6 +50,14 @@ describe('NotificationsService', () => {
     }),
   };
 
+  const getSendEmailSpy = () =>
+    jest.spyOn(
+      service as unknown as {
+        sendEmail: (options: unknown) => Promise<boolean>;
+      },
+      'sendEmail',
+    );
+
   beforeEach(async () => {
     jest.clearAllMocks();
 
@@ -231,17 +239,30 @@ describe('NotificationsService', () => {
     });
 
     describe('sendWinnerNotification', () => {
-      it('should send winner notification', async () => {
+      it('should include the winning number in the winner email', async () => {
+        const sendEmailSpy = getSendEmailSpy().mockResolvedValue(true);
+
         const result = await service.sendWinnerNotification(
           'winner@example.com',
           {
             raffleName: 'iPhone 15 Pro',
             productName: 'iPhone 15 Pro 256GB',
             sellerEmail: 'seller@example.com',
+            winningTicketNumber: 42,
           },
         );
 
         expect(result).toBe(true);
+        expect(sendEmailSpy).toHaveBeenCalledWith(
+          expect.objectContaining({
+            html: expect.stringContaining('Número ganador'),
+          }),
+        );
+        expect(sendEmailSpy).toHaveBeenCalledWith(
+          expect.objectContaining({
+            html: expect.stringContaining('42'),
+          }),
+        );
       });
     });
 
@@ -324,16 +345,29 @@ describe('NotificationsService', () => {
 
   describe('Delivery Notifications', () => {
     describe('sendSellerMustContactWinner', () => {
-      it('should send notification to seller to contact winner', async () => {
+      it('should include the winning number in the seller email', async () => {
+        const sendEmailSpy = getSendEmailSpy().mockResolvedValue(true);
+
         const result = await service.sendSellerMustContactWinner(
           'seller@example.com',
           {
             raffleName: 'iPhone 15 Pro',
             winnerEmail: 'winner@example.com',
+            winningTicketNumber: 42,
           },
         );
 
         expect(result).toBe(true);
+        expect(sendEmailSpy).toHaveBeenCalledWith(
+          expect.objectContaining({
+            html: expect.stringContaining('Número ganador'),
+          }),
+        );
+        expect(sendEmailSpy).toHaveBeenCalledWith(
+          expect.objectContaining({
+            html: expect.stringContaining('42'),
+          }),
+        );
       });
     });
 

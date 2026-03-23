@@ -1,10 +1,58 @@
-# LUK Developer Commands (Docker-Only)
+# LUK Developer Commands
 
 All commands run from the **project root**.
 
 ---
 
-## Start / Stop
+## Local Infra Only
+
+Recommended when you want to develop locally without depending on Neon or Render.
+
+`backend/.env` and `frontend/.env.local` are symlinks to the root [`.env`](/Users/danieldevita/Desktop/p/luk/.env), so changing `DATABASE_URL` there is enough.
+
+The local Docker PostgreSQL is exposed on `localhost:5433` to avoid conflicts with native PostgreSQL already using `5432`.
+
+```bash
+npm run docker:infra:up        # Start PostgreSQL + Redis only
+npm run docker:infra:ps        # Check infra status
+npm run docker:infra:logs      # Follow PostgreSQL + Redis logs
+npm run docker:infra:down      # Stop PostgreSQL + Redis
+```
+
+Then run the app on your host machine:
+
+```bash
+cd backend && npx prisma db push
+cd backend && npm run db:seed:manual-qa   # Optional but recommended
+cd backend && npm run start:dev
+
+cd frontend && npm run dev
+```
+
+### Local QA without Mercado Pago
+
+In [`.env`](/Users/danieldevita/Desktop/p/luk/.env):
+
+```bash
+PAYMENTS_PROVIDER="mock"
+ALLOW_MOCK_PAYMENTS="true"
+MP_ACCESS_TOKEN=""
+```
+
+That enables the internal QA checkout under `/checkout/mock/...`.
+
+### Optional Social Worker
+
+Only run it when you are working on social promotions or scheduled jobs:
+
+```bash
+cd backend && npm run build
+cd backend && npm run start:social-worker
+```
+
+---
+
+## Docker Dev Stack
 
 ```bash
 cp .env.example .env          # First time only
@@ -53,6 +101,14 @@ curl http://localhost:3001/health/ready
 ```bash
 npm run docker:db:push                # Prisma db push inside backend container
 npm run docker:db:seed:manual-qa      # Manual QA seed inside backend container
+```
+
+## Database (Host Dev + Docker Infra)
+
+```bash
+cd backend && npx prisma db push
+cd backend && npm run db:seed:manual-qa
+cd backend && npx prisma studio
 ```
 
 ---

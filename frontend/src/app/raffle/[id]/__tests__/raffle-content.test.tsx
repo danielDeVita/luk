@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { useMutation, useQuery } from '@apollo/client/react';
 import { useAuthStore } from '@/store/auth';
@@ -37,6 +38,13 @@ function createQueryResult<TData>(data: TData) {
     previousData: undefined,
     called: true,
   } as ReturnType<typeof useQuery>;
+}
+
+function getOperationName(query: unknown) {
+  const document = query as {
+    definitions?: Array<{ name?: { value?: string } }>;
+  };
+  return document.definitions?.[0]?.name?.value;
 }
 
 vi.mock('../raffle-qa', () => ({
@@ -114,6 +122,7 @@ describe('RaffleContent', () => {
       estado: 'ACTIVA',
       fechaLimiteSorteo: '2026-12-31T00:00:00.000Z',
       winnerId: null,
+      winningTicketNumber: null,
       product: {
         nombre: 'MacBook Pro',
         descripcionDetallada: 'Detalle',
@@ -131,6 +140,23 @@ describe('RaffleContent', () => {
     },
   };
 
+  const availabilityData = {
+    ticketNumberAvailability: {
+      items: [
+        { number: 1, isAvailable: false },
+        { number: 2, isAvailable: true },
+        { number: 3, isAvailable: true },
+      ],
+      totalTickets: 100,
+      page: 1,
+      pageSize: 100,
+      totalPages: 1,
+      availableCount: 99,
+      maxSelectable: 50,
+      premiumPercent: 5,
+    },
+  };
+
   beforeEach(() => {
     vi.clearAllMocks();
 
@@ -139,11 +165,26 @@ describe('RaffleContent', () => {
 
   function mockQueries() {
     mockUseQuery.mockReset();
-    mockUseQuery
-      .mockReturnValueOnce(createQueryResult(raffleData))
-      .mockReturnValueOnce(createQueryResult({ priceHistory: [] }))
-      .mockReturnValueOnce(createQueryResult({ mySocialPromotionPosts: [] }))
-      .mockReturnValueOnce(createQueryResult({ isFavorite: false }));
+    mockUseQuery.mockImplementation((query, options) => {
+      if ((options as { skip?: boolean } | undefined)?.skip) {
+        return createQueryResult(undefined as never);
+      }
+
+      switch (getOperationName(query)) {
+        case 'GetRaffle':
+          return createQueryResult(raffleData);
+        case 'GetPriceHistory':
+          return createQueryResult({ priceHistory: [] });
+        case 'MySocialPromotionPosts':
+          return createQueryResult({ mySocialPromotionPosts: [] });
+        case 'IsFavorite':
+          return createQueryResult({ isFavorite: false });
+        case 'TicketNumberAvailability':
+          return createQueryResult(availabilityData);
+        default:
+          return createQueryResult(undefined as never);
+      }
+    });
   }
 
   it('replaces the buy form with an informational block for the raffle owner', () => {
@@ -205,6 +246,10 @@ describe('RaffleContent', () => {
     render(<RaffleContent id="raffle-1" />);
 
     expect(screen.getByText('Comprar Tickets')).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Aleatorio' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('tab', { name: 'Elegir números' }),
+    ).toBeInTheDocument();
     expect(
       screen.getByRole('button', { name: /Comprar 1 Ticket/i }),
     ).toBeInTheDocument();
@@ -220,5 +265,96 @@ describe('RaffleContent', () => {
     expect(
       screen.queryByRole('button', { name: 'Promocionar y medir' }),
     ).not.toBeInTheDocument();
+  });
+
+  it('shows the selected-number flow with premium breakdown and disabled unavailable numbers', async () => {
+    const user = userEvent.setup();
+    mockQueries();
+    mockUseAuthStore.mockReturnValue({
+      isAuthenticated: true,
+      hasHydrated: true,
+      user: {
+        id: 'buyer-1',
+        email: 'buyer@example.com',
+        nombre: 'Buyer',
+        apellido: 'User',
+        role: 'USER',
+      },
+      login: vi.fn(),
+      logout: vi.fn(),
+      setUser: vi.fn(),
+    });
+
+    render(<RaffleContent id="raffle-1" />);
+
+    await user.click(screen.getByRole('tab', { name: 'Elegir números' }));
+
+    expect(
+      screen.getByText('Elegí tus números favoritos'),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '#1' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: '#2' })).toBeEnabled();
+    expect(
+      screen.getByRole('button', { name: /Comprar números elegidos/i }),
+    ).toBeDisabled();
+
+    await user.click(screen.getByRole('button', { name: '#2' }));
+    await user.click(screen.getByRole('button', { name: '#3' }));
+
+    expect(screen.getByText('2 números seleccionados')).toBeInTheDocument();
+    expect(screen.getByText('Subtotal base')).toBeInTheDocument();
+    expect(screen.getByText('Premium por elegir números')).toBeInTheDocument();
+    expect(screen.getByText('$5000.00')).toBeInTheDocument();
+    expect(screen.getByText('$250.00')).toBeInTheDocument();
+    expect(screen.getByText('$5250.00')).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /Comprar números elegidos/i }),
+    ).toBeEnabled();
+  });
+
+  it('hides the countdown and shows the winning number once the raffle is drawn', () => {
+    mockUseQuery.mockReset();
+    mockUseQuery.mockImplementation((query, options) => {
+      if ((options as { skip?: boolean } | undefined)?.skip) {
+        return createQueryResult(undefined as never);
+      }
+
+      switch (getOperationName(query)) {
+        case 'GetRaffle':
+          return createQueryResult({
+            raffle: {
+              ...raffleData.raffle,
+              estado: 'SORTEADA',
+              winnerId: 'winner-1',
+              winningTicketNumber: 17,
+            },
+          });
+        case 'GetPriceHistory':
+          return createQueryResult({ priceHistory: [] });
+        case 'MySocialPromotionPosts':
+          return createQueryResult({ mySocialPromotionPosts: [] });
+        case 'IsFavorite':
+          return createQueryResult({ isFavorite: false });
+        case 'TicketNumberAvailability':
+          return createQueryResult(availabilityData);
+        default:
+          return createQueryResult(undefined as never);
+      }
+    });
+    mockUseAuthStore.mockReturnValue({
+      isAuthenticated: false,
+      hasHydrated: true,
+      user: null,
+      login: vi.fn(),
+      logout: vi.fn(),
+      setUser: vi.fn(),
+    });
+
+    render(<RaffleContent id="raffle-1" />);
+
+    expect(screen.queryByTestId('countdown')).not.toBeInTheDocument();
+    expect(screen.getByText('Número ganador')).toBeInTheDocument();
+    expect(screen.getByText('#17')).toBeInTheDocument();
+    expect(screen.queryByText('Comprar Tickets')).not.toBeInTheDocument();
   });
 });

@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { RafflesService } from './raffles.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { ConfigService } from '@nestjs/config';
 import { NotificationsService } from '../notifications/notifications.service';
 import { ActivityService } from '../activity/activity.service';
 import { ReputationService } from '../users/reputation.service';
@@ -24,6 +25,7 @@ describe('RafflesService', () => {
     raffle: {
       create: jest.fn(),
       findUnique: jest.fn(),
+      findFirst: jest.fn(),
       findMany: jest.fn(),
       update: jest.fn(),
       count: jest.fn(),
@@ -31,6 +33,9 @@ describe('RafflesService', () => {
     ticket: {
       findMany: jest.fn(),
       count: jest.fn(),
+    },
+    transaction: {
+      aggregate: jest.fn(),
     },
     drawResult: {
       create: jest.fn(),
@@ -96,6 +101,15 @@ describe('RafflesService', () => {
     get: jest.fn().mockResolvedValue(null),
     set: jest.fn().mockResolvedValue(undefined),
     del: jest.fn().mockResolvedValue(undefined),
+  };
+
+  const mockConfigService = {
+    get: jest.fn((key: string) => {
+      const config: Record<string, string> = {
+        PLATFORM_FEE_PERCENT: '4',
+      };
+      return config[key];
+    }),
   };
 
   // Test data factories
@@ -164,6 +178,7 @@ describe('RafflesService', () => {
         { provide: ActivityService, useValue: mockActivityService },
         { provide: ReputationService, useValue: mockReputationService },
         { provide: PayoutsService, useValue: mockPayoutsService },
+        { provide: ConfigService, useValue: mockConfigService },
         { provide: EventEmitter2, useValue: mockEventEmitter },
         { provide: CACHE_MANAGER, useValue: mockCacheManager },
       ],
@@ -280,6 +295,39 @@ describe('RafflesService', () => {
     });
   });
 
+  describe('getBuyerStats', () => {
+    it('should use completed ticket-purchase transactions for total spent', async () => {
+      mockPrismaService.ticket.findMany.mockResolvedValue([
+        createTestTicket({
+          raffleId: 'raffle-1',
+          precioPagado: 500,
+          raffle: { estado: 'ACTIVA' },
+        }),
+        createTestTicket({
+          id: 'ticket-2',
+          raffleId: 'raffle-2',
+          precioPagado: 500,
+          raffle: { estado: 'FINALIZADA' },
+        }),
+      ]);
+      mockPrismaService.raffle.count.mockResolvedValue(1);
+      mockPrismaService.favorite.count.mockResolvedValue(3);
+      mockPrismaService.transaction.aggregate.mockResolvedValue({
+        _sum: {
+          cashChargedAmount: 1050,
+        },
+      });
+
+      const result = await service.getBuyerStats('buyer-123');
+
+      expect(result.totalTicketsPurchased).toBe(2);
+      expect(result.totalRafflesWon).toBe(1);
+      expect(result.totalSpent).toBe(1050);
+      expect(result.activeTickets).toBe(1);
+      expect(result.favoritesCount).toBe(3);
+    });
+  });
+
   describe('update', () => {
     it('should reject prohibited content when updating a raffle', async () => {
       jest
@@ -384,6 +432,41 @@ describe('RafflesService', () => {
         expect.objectContaining({
           raffleId: 'raffle-123',
           winnerId: 'buyer-123',
+        }),
+      );
+    });
+
+    it('includes the winning number in seller and winner notifications', async () => {
+      const raffle = createTestRaffle();
+      const paidTickets = [createTestTicket({ numeroTicket: 17 })];
+      const updatedRaffle = {
+        ...raffle,
+        estado: 'SORTEADA',
+        winnerId: 'buyer-123',
+        winner: paidTickets[0].buyer,
+      };
+
+      mockPrismaService.raffle.findUnique.mockResolvedValue(raffle);
+      mockPrismaService.ticket.findMany.mockResolvedValue(paidTickets);
+      mockPrismaService.drawResult.create.mockResolvedValue({ id: 'draw-1' });
+      mockPrismaService.raffle.update.mockResolvedValue(updatedRaffle);
+
+      await service.selectWinner('raffle-123');
+
+      expect(
+        mockNotificationsService.sendWinnerNotification,
+      ).toHaveBeenCalledWith(
+        'buyer@example.com',
+        expect.objectContaining({
+          winningTicketNumber: 17,
+        }),
+      );
+      expect(
+        mockNotificationsService.sendSellerMustContactWinner,
+      ).toHaveBeenCalledWith(
+        'seller@example.com',
+        expect.objectContaining({
+          winningTicketNumber: 17,
         }),
       );
     });
@@ -816,7 +899,12 @@ describe('RafflesService', () => {
 
       const result = await service.findOne('raffle-123');
 
-      expect(result).toEqual(raffle);
+      expect(result).toEqual(
+        expect.objectContaining({
+          ...raffle,
+          winningTicketNumber: null,
+        }),
+      );
       expect(mockPrismaService.raffle.findUnique).toHaveBeenCalledWith({
         where: { id: 'raffle-123' },
         include: expect.objectContaining({
@@ -824,6 +912,7 @@ describe('RafflesService', () => {
           seller: true,
           tickets: true,
           winner: true,
+          drawResult: true,
           dispute: true,
         }),
       });
@@ -835,6 +924,74 @@ describe('RafflesService', () => {
       await expect(service.findOne('non-existent')).rejects.toThrow(
         NotFoundException,
       );
+    });
+  });
+
+  describe('findOnePublic', () => {
+    it('returns the winning ticket number for public raffle detail', async () => {
+      const raffle = createTestRaffle({
+        estado: 'SORTEADA',
+        winnerId: 'buyer-123',
+        drawResult: {
+          id: 'draw-1',
+          raffleId: 'raffle-123',
+          winningTicketId: 'ticket-winning',
+          winnerId: 'buyer-123',
+        },
+      });
+
+      mockPrismaService.raffle.findFirst.mockResolvedValue(raffle);
+      mockPrismaService.ticket.findMany.mockResolvedValue([
+        { id: 'ticket-winning', numeroTicket: 17 },
+      ]);
+
+      const result = await service.findOnePublic('raffle-123');
+
+      expect(result).toEqual(
+        expect.objectContaining({
+          winningTicketNumber: 17,
+        }),
+      );
+      expect(mockPrismaService.raffle.findFirst).toHaveBeenCalledWith({
+        where: {
+          id: 'raffle-123',
+          isHidden: false,
+          isDeleted: false,
+        },
+        include: expect.objectContaining({
+          drawResult: true,
+        }),
+      });
+    });
+  });
+
+  describe('findByUser', () => {
+    it('includes the winning ticket number for seller dashboard raffles', async () => {
+      const raffles = [
+        createTestRaffle({
+          estado: 'SORTEADA',
+          winnerId: 'buyer-123',
+          drawResult: {
+            id: 'draw-1',
+            raffleId: 'raffle-123',
+            winningTicketId: 'ticket-winning',
+            winnerId: 'buyer-123',
+          },
+        }),
+      ];
+
+      mockPrismaService.raffle.findMany.mockResolvedValue(raffles);
+      mockPrismaService.ticket.findMany.mockResolvedValue([
+        { id: 'ticket-winning', numeroTicket: 17 },
+      ]);
+
+      const result = await service.findByUser('user-123');
+
+      expect(result).toEqual([
+        expect.objectContaining({
+          winningTicketNumber: 17,
+        }),
+      ]);
     });
   });
 

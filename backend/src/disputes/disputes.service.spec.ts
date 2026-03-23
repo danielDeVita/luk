@@ -40,6 +40,9 @@ describe('DisputesService', () => {
       findMany: jest.fn(),
       updateMany: jest.fn(),
     },
+    transaction: {
+      findMany: jest.fn(),
+    },
   });
 
   const mockPaymentsService = {
@@ -463,6 +466,92 @@ describe('DisputesService', () => {
           raffleId: 'raffle-1',
           resolution: DisputeStatus.RESUELTA_COMPRADOR,
           buyerAmount: 1000,
+          sellerAmount: 0,
+        }),
+      );
+    });
+
+    it('should use the full charged amount when defaulting a buyer refund', async () => {
+      const resolveInputWithoutAmount = {
+        decision: DisputeStatus.RESUELTA_COMPRADOR,
+        resolucion: 'Se devuelve el total pagado por el comprador.',
+        montoReembolsado: undefined,
+        montoPagadoVendedor: 0,
+        adminNotes: 'Reembolso completo del checkout',
+      };
+
+      const dispute = createTestDispute({
+        estado: DisputeStatus.EN_MEDIACION,
+        raffle: createTestRaffle({
+          tickets: [
+            {
+              id: 'ticket-1',
+              estado: 'PAGADO',
+              mpPaymentId: 'mp-123',
+              buyerId: 'winner-1',
+            },
+            {
+              id: 'ticket-2',
+              estado: 'PAGADO',
+              mpPaymentId: 'mp-123',
+              buyerId: 'winner-1',
+            },
+          ],
+        }),
+      });
+
+      prisma.dispute.findUnique.mockResolvedValue(dispute);
+      prisma.ticket.findMany
+        .mockResolvedValueOnce([
+          {
+            precioPagado: 500,
+            mpPaymentId: 'mp-123',
+          },
+          {
+            precioPagado: 500,
+            mpPaymentId: 'mp-123',
+          },
+        ])
+        .mockResolvedValueOnce([
+          {
+            id: 'ticket-1',
+            mpPaymentId: 'mp-123',
+            precioPagado: 500,
+          },
+          {
+            id: 'ticket-2',
+            mpPaymentId: 'mp-123',
+            precioPagado: 500,
+          },
+        ]);
+      prisma.transaction.findMany.mockResolvedValue([
+        {
+          mpPaymentId: 'mp-123',
+          cashChargedAmount: 1050,
+        },
+      ]);
+      prisma.ticket.updateMany.mockResolvedValue({ count: 2 });
+      prisma.dispute.update.mockResolvedValue({
+        ...dispute,
+        estado: DisputeStatus.RESUELTA_COMPRADOR,
+        montoReembolsado: 1050,
+      });
+      prisma.raffle.update.mockResolvedValue({} as any);
+      prisma.userReputation.upsert.mockResolvedValue({} as any);
+      paymentsService.refundPayment.mockResolvedValue(true);
+
+      const result = await service.resolveDispute(
+        'admin-1',
+        'dispute-1',
+        resolveInputWithoutAmount,
+      );
+
+      expect(result.montoReembolsado).toBe(1050);
+      expect(eventEmitter.emit).toHaveBeenCalledWith(
+        RaffleEvents.DISPUTE_RESOLVED,
+        expect.objectContaining({
+          disputeId: 'dispute-1',
+          buyerAmount: 1050,
           sellerAmount: 0,
         }),
       );

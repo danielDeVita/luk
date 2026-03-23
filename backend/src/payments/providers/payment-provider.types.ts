@@ -1,3 +1,5 @@
+import { TicketPurchaseMode } from '../../common/enums';
+
 /**
  * Shared checkout payload used by both live and mock payment providers.
  */
@@ -14,6 +16,10 @@ export interface CreateCheckoutSessionInput {
   bonusGrantId?: string | null;
   promotionBonusRedemptionId?: string | null;
   promotionToken?: string | null;
+  purchaseMode: TicketPurchaseMode;
+  selectedNumbers?: number[] | null;
+  selectionPremiumPercent: number;
+  selectionPremiumAmount: number;
 }
 
 /**
@@ -57,6 +63,10 @@ export interface MockPaymentSummary {
   grossSubtotal: number;
   discountApplied: number;
   cashChargedAmount: number;
+  purchaseMode: TicketPurchaseMode;
+  selectedNumbers?: number[] | null;
+  selectionPremiumPercent: number;
+  selectionPremiumAmount: number;
   status: string;
   statusDetail: string;
   merchantOrderId: string;

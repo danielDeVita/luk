@@ -3,6 +3,7 @@ import { UseGuards } from '@nestjs/common';
 import { TicketsService } from './tickets.service';
 import { Ticket } from './entities/ticket.entity';
 import { BuyTicketsResult } from './entities/buy-tickets-result.entity';
+import { TicketNumberAvailabilityPage } from './entities/ticket-number-availability.entity';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { User } from '../users/entities/user.entity';
@@ -35,6 +36,47 @@ export class TicketsResolver {
     );
     // Cast Prisma Decimal types to numbers for GraphQL
     return result as unknown as BuyTicketsResult;
+  }
+
+  /**
+   * Reserves the exact requested ticket numbers for the current user and returns checkout information.
+   */
+  @Mutation(() => BuyTicketsResult)
+  @UseGuards(JwtAuthGuard)
+  async buySelectedTickets(
+    @CurrentUser() user: User,
+    @Args('raffleId') raffleId: string,
+    @Args('selectedNumbers', { type: () => [Int] }) selectedNumbers: number[],
+    @Args('bonusGrantId', { nullable: true }) bonusGrantId?: string,
+    @Args('promotionToken', { nullable: true }) promotionToken?: string,
+  ): Promise<BuyTicketsResult> {
+    const result = await this.ticketsService.buySelectedTickets(
+      user.id,
+      raffleId,
+      selectedNumbers,
+      bonusGrantId,
+      promotionToken,
+    );
+    return result as unknown as BuyTicketsResult;
+  }
+
+  /**
+   * Returns paginated ticket-number availability for the raffle purchase picker.
+   */
+  @Query(() => TicketNumberAvailabilityPage)
+  async ticketNumberAvailability(
+    @Args('raffleId') raffleId: string,
+    @Args('page', { type: () => Int }) page: number,
+    @Args('pageSize', { type: () => Int }) pageSize: number,
+    @Args('searchNumber', { type: () => Int, nullable: true })
+    searchNumber?: number,
+  ): Promise<TicketNumberAvailabilityPage> {
+    return this.ticketsService.getTicketNumberAvailability(
+      raffleId,
+      page,
+      pageSize,
+      searchNumber,
+    ) as unknown as TicketNumberAvailabilityPage;
   }
 
   /**

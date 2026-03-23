@@ -6,6 +6,7 @@ import type {
   PreferenceResponse,
 } from 'mercadopago/dist/clients/preference/commonTypes';
 import type { PaymentResponse } from 'mercadopago/dist/clients/payment/commonTypes';
+import { getPlatformFeeRate } from '../../common/config/platform-fee.util';
 import {
   CreateCheckoutSessionInput,
   CreateCheckoutSessionResult,
@@ -65,8 +66,7 @@ export class MercadoPagoProvider {
   async createCheckoutSession(
     data: CreateCheckoutSessionInput,
   ): Promise<CreateCheckoutSessionResult> {
-    const platformFeeRate =
-      (this.configService.get<number>('MP_PLATFORM_FEE_PERCENT') ?? 4) / 100;
+    const platformFeeRate = getPlatformFeeRate(this.configService);
     const platformFee = data.cashChargedAmount * platformFeeRate;
     const frontendUrl = this.normalizeBaseUrl(
       this.configService.get<string>('FRONTEND_URL'),
@@ -112,6 +112,10 @@ export class MercadoPagoProvider {
         discountApplied: data.discountApplied,
         mpChargeAmount: data.cashChargedAmount,
         promotionToken: data.promotionToken ?? null,
+        purchaseMode: data.purchaseMode,
+        selectedNumbers: data.selectedNumbers ?? null,
+        selectionPremiumPercent: data.selectionPremiumPercent,
+        selectionPremiumAmount: data.selectionPremiumAmount,
       }),
       marketplace_fee: platformFee,
       notification_url: `${backendUrl}/mp/webhook`,

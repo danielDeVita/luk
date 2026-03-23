@@ -232,13 +232,54 @@ export class DisputesService {
         buyerId: dispute.reporterId,
         estado: 'PAGADO',
       },
-      select: { precioPagado: true },
+      select: { precioPagado: true, mpPaymentId: true },
     });
 
-    const buyerPaidTotal = buyerTickets.reduce(
-      (sum, t) => sum + Number(t.precioPagado),
-      0,
+    const groupedBuyerPayments = new Map<string, { baseAmount: number }>();
+    let buyerPaidTotal = 0;
+
+    for (const ticket of buyerTickets) {
+      if (!ticket.mpPaymentId) {
+        buyerPaidTotal += Number(ticket.precioPagado);
+        continue;
+      }
+
+      const existing = groupedBuyerPayments.get(ticket.mpPaymentId) ?? {
+        baseAmount: 0,
+      };
+      existing.baseAmount += Number(ticket.precioPagado);
+      groupedBuyerPayments.set(ticket.mpPaymentId, existing);
+    }
+
+    const buyerPaymentIds = Array.from(groupedBuyerPayments.keys());
+    const buyerPaymentTransactions =
+      buyerPaymentIds.length > 0
+        ? await this.prisma.transaction.findMany({
+            where: {
+              mpPaymentId: { in: buyerPaymentIds },
+              tipo: 'COMPRA_TICKET',
+              estado: 'COMPLETADO',
+              isDeleted: false,
+            },
+            select: {
+              mpPaymentId: true,
+              cashChargedAmount: true,
+            },
+          })
+        : [];
+    const buyerChargedAmountByPaymentId = new Map(
+      (buyerPaymentTransactions ?? [])
+        .filter((transaction) => transaction.mpPaymentId)
+        .map((transaction) => [
+          transaction.mpPaymentId as string,
+          Number(transaction.cashChargedAmount ?? 0),
+        ]),
     );
+
+    for (const [paymentId, group] of groupedBuyerPayments) {
+      buyerPaidTotal +=
+        buyerChargedAmountByPaymentId.get(paymentId) ?? group.baseAmount;
+    }
 
     let refundAmount = 0;
     let sellerAmount = 0;
@@ -452,17 +493,48 @@ export class DisputesService {
 
     const groupedByPayment = new Map<
       string,
-      { totalAmount: number; ticketIds: string[] }
+      { totalAmount: number; baseAmount: number; ticketIds: string[] }
     >();
     for (const ticket of tickets) {
       if (!ticket.mpPaymentId) continue;
       const existing = groupedByPayment.get(ticket.mpPaymentId) ?? {
         totalAmount: 0,
+        baseAmount: 0,
         ticketIds: [],
       };
-      existing.totalAmount += Number(ticket.precioPagado);
+      existing.baseAmount += Number(ticket.precioPagado);
       existing.ticketIds.push(ticket.id);
       groupedByPayment.set(ticket.mpPaymentId, existing);
+    }
+
+    const paymentIds = Array.from(groupedByPayment.keys());
+    const paymentTransactions =
+      paymentIds.length > 0
+        ? await this.prisma.transaction.findMany({
+            where: {
+              mpPaymentId: { in: paymentIds },
+              tipo: 'COMPRA_TICKET',
+              estado: 'COMPLETADO',
+              isDeleted: false,
+            },
+            select: {
+              mpPaymentId: true,
+              cashChargedAmount: true,
+            },
+          })
+        : [];
+    const chargedAmountByPaymentId = new Map(
+      (paymentTransactions ?? [])
+        .filter((transaction) => transaction.mpPaymentId)
+        .map((transaction) => [
+          transaction.mpPaymentId as string,
+          Number(transaction.cashChargedAmount ?? 0),
+        ]),
+    );
+
+    for (const [paymentId, group] of groupedByPayment) {
+      group.totalAmount =
+        chargedAmountByPaymentId.get(paymentId) ?? group.baseAmount;
     }
 
     let remainingCents = Math.round(amount * 100);

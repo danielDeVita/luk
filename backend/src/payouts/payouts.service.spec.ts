@@ -34,6 +34,7 @@ type MockAuditService = {
 type MockPaymentsService = {
   releaseFundsToSeller: jest.Mock;
   canReleaseFunds: jest.Mock;
+  calculateCommissions: jest.Mock;
 };
 
 describe('PayoutsService', () => {
@@ -74,6 +75,12 @@ describe('PayoutsService', () => {
     canReleaseFunds: jest
       .fn()
       .mockResolvedValue({ canRelease: true, reason: 'OK' }),
+    calculateCommissions: jest.fn((amount: number) => ({
+      platformFee: amount * 0.04,
+      mpFee: amount * 0.05,
+      totalFees: amount * 0.09,
+      netAmount: amount * 0.91,
+    })),
   });
 
   beforeEach(async () => {

@@ -10,10 +10,9 @@ import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { MockPaymentStatus, Prisma } from '@prisma/client';
 import type { PaymentResponse } from 'mercadopago/dist/clients/payment/commonTypes';
-import {
-  PLATFORM_FEE_RATE,
-  MP_FEE_ESTIMATE_RATE,
-} from '../common/constants/fees.constants';
+import { MP_FEE_ESTIMATE_RATE } from '../common/constants/fees.constants';
+import { TicketPurchaseMode } from '../common/enums';
+import { getPlatformFeeRate } from '../common/config/platform-fee.util';
 import { NotificationsService } from '../notifications/notifications.service';
 import { ActivityService } from '../activity/activity.service';
 import { ReferralsService } from '../referrals/referrals.service';
@@ -55,6 +54,10 @@ interface ExternalReferenceData {
   discountApplied?: number;
   mpChargeAmount?: number;
   promotionToken?: string | null;
+  purchaseMode?: TicketPurchaseMode;
+  selectedNumbers?: number[] | null;
+  selectionPremiumPercent?: number;
+  selectionPremiumAmount?: number;
 }
 
 /**
@@ -107,13 +110,7 @@ export class PaymentsService {
     if (this.paymentsProvider === 'mock') {
       this.logger.warn('⚠️ Mercado Pago service in MOCK mode');
     }
-    // Allow env override, otherwise use shared constant
-    const envFeePercent = this.configService.get<number>(
-      'MP_PLATFORM_FEE_PERCENT',
-    );
-    this.platformFeeRate = envFeePercent
-      ? envFeePercent / 100
-      : PLATFORM_FEE_RATE;
+    this.platformFeeRate = getPlatformFeeRate(this.configService);
   }
 
   // ==================== Mercado Pago Preference ====================
@@ -134,6 +131,10 @@ export class PaymentsService {
     bonusGrantId?: string | null;
     promotionBonusRedemptionId?: string | null;
     promotionToken?: string | null;
+    purchaseMode?: TicketPurchaseMode;
+    selectedNumbers?: number[] | null;
+    selectionPremiumPercent?: number;
+    selectionPremiumAmount?: number;
   }): Promise<{ initPoint: string; preferenceId: string }> {
     const grossSubtotal =
       data.grossSubtotal ?? data.cantidad * data.precioPorTicket;
@@ -160,6 +161,10 @@ export class PaymentsService {
       bonusGrantId: data.bonusGrantId ?? null,
       promotionBonusRedemptionId: data.promotionBonusRedemptionId ?? null,
       promotionToken: data.promotionToken ?? null,
+      purchaseMode: data.purchaseMode ?? TicketPurchaseMode.RANDOM,
+      selectedNumbers: data.selectedNumbers ?? null,
+      selectionPremiumPercent: data.selectionPremiumPercent ?? 0,
+      selectionPremiumAmount: data.selectionPremiumAmount ?? 0,
     };
 
     return this.paymentsProvider === 'mock'
@@ -659,6 +664,12 @@ export class PaymentsService {
     const reservationId = refData.reservationId;
     const bonusGrantId = refData.bonusGrantId ?? null;
     const promotionToken = refData.promotionToken ?? undefined;
+    const purchaseMode = refData.purchaseMode ?? TicketPurchaseMode.RANDOM;
+    const selectedNumbers = refData.selectedNumbers ?? null;
+    const selectionPremiumPercent = Number(
+      refData.selectionPremiumPercent ?? 0,
+    );
+    const selectionPremiumAmount = Number(refData.selectionPremiumAmount ?? 0);
     const mpPaymentId = String(paymentData.id);
 
     // Update tickets to PAGADO
@@ -717,6 +728,10 @@ export class PaymentsService {
       reservationId: reservationId ?? null,
       bonusGrantId,
       promotionToken: promotionToken ?? null,
+      purchaseMode,
+      selectedNumbers,
+      selectionPremiumPercent,
+      selectionPremiumAmount,
       status: paymentData.status ?? null,
       statusDetail: paymentData.status_detail ?? null,
     };
@@ -1300,12 +1315,16 @@ export class PaymentsService {
         ),
       );
 
-      this.notifyDrawResult(updatedRaffle).catch((err: unknown) => {
-        const message = isErrorWithMessage(err) ? err.message : 'Unknown error';
-        this.logger.error(
-          `Failed to send draw notifications for ${raffleId}: ${message}`,
-        );
-      });
+      this.notifyDrawResult(updatedRaffle, winningTicket.numeroTicket).catch(
+        (err: unknown) => {
+          const message = isErrorWithMessage(err)
+            ? err.message
+            : 'Unknown error';
+          this.logger.error(
+            `Failed to send draw notifications for ${raffleId}: ${message}`,
+          );
+        },
+      );
 
       this.payoutsService.createPayout(raffleId).catch((err: unknown) => {
         const message = isErrorWithMessage(err) ? err.message : 'Unknown error';
@@ -1333,15 +1352,18 @@ export class PaymentsService {
     }
   }
 
-  private async notifyDrawResult(raffle: {
-    id: string;
-    titulo: string;
-    sellerId: string;
-    seller: { id: string; email: string };
-    winnerId: string | null;
-    winner: { id: string; email: string } | null;
-    product: { nombre: string } | null;
-  }): Promise<void> {
+  private async notifyDrawResult(
+    raffle: {
+      id: string;
+      titulo: string;
+      sellerId: string;
+      seller: { id: string; email: string };
+      winnerId: string | null;
+      winner: { id: string; email: string } | null;
+      product: { nombre: string } | null;
+    },
+    winningTicketNumber: number,
+  ): Promise<void> {
     if (!raffle.winner || !raffle.winnerId) {
       return;
     }
@@ -1351,25 +1373,27 @@ export class PaymentsService {
         raffleName: raffle.titulo,
         productName: raffle.product?.nombre || raffle.titulo,
         sellerEmail: raffle.seller.email,
+        winningTicketNumber,
       }),
       this.notificationsService.create(
         raffle.winnerId,
         'WIN',
         '🎉 ¡Has ganado un sorteo!',
-        `¡Felicidades! Ganaste la rifa "${raffle.titulo}". Contacta al vendedor para coordinar la entrega.`,
+        `¡Felicidades! Ganaste la rifa "${raffle.titulo}" con el número #${winningTicketNumber}. Contactá al vendedor para coordinar la entrega.`,
       ),
       this.notificationsService.sendSellerMustContactWinner(
         raffle.seller.email,
         {
           raffleName: raffle.titulo,
           winnerEmail: raffle.winner.email,
+          winningTicketNumber,
         },
       ),
       this.notificationsService.create(
         raffle.seller.id,
         'INFO',
         'Tu rifa tiene ganador',
-        `La rifa "${raffle.titulo}" ha finalizado. Tienes 48hs para contactar al ganador.`,
+        `La rifa "${raffle.titulo}" ha finalizado. El número ganador fue el #${winningTicketNumber}. Tenés 48hs para contactar al ganador.`,
       ),
     ]);
   }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useDeferredValue } from 'react';
 import { useQuery, useMutation } from '@apollo/client/react';
 import { gql } from '@apollo/client/core';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -16,6 +16,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { toast } from 'sonner';
 import { RaffleDetailSkeleton } from '@/components/ui/skeleton';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { IS_FAVORITE } from '@/lib/graphql/queries';
 import { ADD_FAVORITE, REMOVE_FAVORITE } from '@/lib/graphql/mutations';
 import { getOptimizedImageUrl, CLOUDINARY_PRESETS } from '@/lib/cloudinary';
@@ -43,6 +44,7 @@ const GET_RAFFLE = gql`
       estado
       fechaLimiteSorteo
       winnerId
+      winningTicketNumber
       product {
         nombre
         descripcionDetallada
@@ -80,6 +82,62 @@ const BUY_TICKETS = gql`
       mpChargeAmount
       bonusGrantId
       cantidadComprada
+    }
+  }
+`;
+
+const BUY_SELECTED_TICKETS = gql`
+  mutation BuySelectedTickets(
+    $raffleId: String!
+    $selectedNumbers: [Int!]!
+    $bonusGrantId: String
+    $promotionToken: String
+  ) {
+    buySelectedTickets(
+      raffleId: $raffleId
+      selectedNumbers: $selectedNumbers
+      bonusGrantId: $bonusGrantId
+      promotionToken: $promotionToken
+    ) {
+      initPoint
+      preferenceId
+      totalAmount
+      grossSubtotal
+      discountApplied
+      mpChargeAmount
+      bonusGrantId
+      cantidadComprada
+      purchaseMode
+      selectionPremiumPercent
+      selectionPremiumAmount
+    }
+  }
+`;
+
+const TICKET_NUMBER_AVAILABILITY = gql`
+  query TicketNumberAvailability(
+    $raffleId: String!
+    $page: Int!
+    $pageSize: Int!
+    $searchNumber: Int
+  ) {
+    ticketNumberAvailability(
+      raffleId: $raffleId
+      page: $page
+      pageSize: $pageSize
+      searchNumber: $searchNumber
+    ) {
+      items {
+        number
+        isAvailable
+      }
+      totalTickets
+      page
+      pageSize
+      totalPages
+      availableCount
+      maxSelectable
+      premiumPercent
     }
   }
 `;
@@ -131,6 +189,7 @@ interface RaffleData {
   estado: string;
   fechaLimiteSorteo: string;
   winnerId?: string;
+  winningTicketNumber?: number | null;
   product?: {
     nombre: string;
     descripcionDetallada?: string;
@@ -164,11 +223,64 @@ interface BuyTicketsResult {
   };
 }
 
+interface BuySelectedTicketsResult {
+  buySelectedTickets: {
+    initPoint: string;
+    preferenceId: string;
+    totalAmount: number;
+    grossSubtotal: number;
+    discountApplied: number;
+    mpChargeAmount: number;
+    bonusGrantId?: string;
+    cantidadComprada: number;
+    purchaseMode: 'CHOOSE_NUMBERS';
+    selectionPremiumPercent: number;
+    selectionPremiumAmount: number;
+  };
+}
+
+interface TicketNumberAvailabilityItem {
+  number: number;
+  isAvailable: boolean;
+}
+
+interface TicketNumberAvailabilityPageData {
+  items: TicketNumberAvailabilityItem[];
+  totalTickets: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+  availableCount: number;
+  maxSelectable: number;
+  premiumPercent: number;
+}
+
+interface TicketNumberAvailabilityResult {
+  ticketNumberAvailability: TicketNumberAvailabilityPageData;
+}
+
 interface PromotionBonusPreview {
   bonusGrantId: string;
   grossSubtotal: number;
   discountApplied: number;
   mpChargeAmount: number;
+}
+
+function getNonActiveRaffleMessage(raffle: RaffleData): string {
+  switch (raffle.estado) {
+    case 'COMPLETADA':
+      return 'Todos los números se agotaron. El sorteo se está procesando.';
+    case 'SORTEADA':
+      return 'La rifa ya fue sorteada.';
+    case 'EN_ENTREGA':
+      return 'La rifa ya fue sorteada y el premio está en entrega.';
+    case 'FINALIZADA':
+      return 'La rifa finalizó y el premio ya fue entregado.';
+    case 'CANCELADA':
+      return 'Esta rifa fue cancelada.';
+    default:
+      return 'Esta rifa ya no está disponible para comprar.';
+  }
 }
 
 interface PriceHistoryEntry {
@@ -209,13 +321,29 @@ export function RaffleContent({ id }: RaffleContentProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { isAuthenticated, user } = useAuthStore();
+  const [purchaseMode, setPurchaseMode] = useState<'RANDOM' | 'CHOOSE_NUMBERS'>('RANDOM');
   const [quantity, setQuantity] = useState(1);
+  const [selectedNumbers, setSelectedNumbers] = useState<number[]>([]);
+  const [availabilityPage, setAvailabilityPage] = useState(1);
+  const [searchNumberInput, setSearchNumberInput] = useState('');
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [isFavorite, setIsFavorite] = useState(false);
   const [selectedBonusGrantId, setSelectedBonusGrantId] = useState<string | null>(null);
   const [bonusPreview, setBonusPreview] = useState<PromotionBonusPreview | null>(null);
   const confirm = useConfirmDialog();
+  const deferredSearchNumberInput = useDeferredValue(searchNumberInput);
 
+  const clearPromotionBonusSelection = () => {
+    setSelectedBonusGrantId(null);
+    setBonusPreview(null);
+  };
+
+  const resetSelectedNumberPurchaseState = () => {
+    clearPromotionBonusSelection();
+    setSelectedNumbers([]);
+    setAvailabilityPage(1);
+    setSearchNumberInput('');
+  };
 
   const { data, loading, error } = useQuery<RaffleResult>(GET_RAFFLE, {
     variables: { id },
@@ -255,7 +383,107 @@ export function RaffleContent({ id }: RaffleContentProps) {
     }
   }, [favoriteData]);
 
-  const [buyTickets, { data: buyData, loading: buying, error: buyError }] = useMutation<BuyTicketsResult>(BUY_TICKETS);
+  const parsedSearchNumber = useMemo(() => {
+    const trimmedValue = deferredSearchNumberInput.trim();
+    if (!trimmedValue) {
+      return undefined;
+    }
+
+    const parsedValue = Number.parseInt(trimmedValue, 10);
+    return Number.isInteger(parsedValue) && parsedValue > 0
+      ? parsedValue
+      : undefined;
+  }, [deferredSearchNumberInput]);
+
+  const {
+    data: ticketAvailabilityData,
+    refetch: refetchTicketAvailability,
+  } = useQuery<TicketNumberAvailabilityResult>(TICKET_NUMBER_AVAILABILITY, {
+    variables: {
+      raffleId: id,
+      page: availabilityPage,
+      pageSize: 100,
+    },
+    skip: purchaseMode !== 'CHOOSE_NUMBERS' || !data?.raffle,
+  });
+
+  const {
+    data: ticketSearchData,
+    refetch: refetchTicketSearch,
+  } = useQuery<TicketNumberAvailabilityResult>(TICKET_NUMBER_AVAILABILITY, {
+    variables: {
+      raffleId: id,
+      page: 1,
+      pageSize: 100,
+      searchNumber: parsedSearchNumber,
+    },
+    skip:
+      purchaseMode !== 'CHOOSE_NUMBERS' ||
+      !data?.raffle ||
+      parsedSearchNumber === undefined,
+  });
+
+  const handlePurchaseMutationError = (message: string) => {
+    toast.error(message);
+
+    if (!message.includes('ya no están disponibles')) {
+      return;
+    }
+
+    const unavailableNumbers = Array.from(
+      new Set(
+        (message.match(/\d+/g) ?? []).map((value) =>
+          Number.parseInt(value, 10),
+        ),
+      ),
+    );
+
+    if (unavailableNumbers.length === 0) {
+      return;
+    }
+
+    let nextSelectedNumbers: number[] = [];
+    setSelectedNumbers((currentNumbers) => {
+      nextSelectedNumbers = currentNumbers.filter(
+        (number) => !unavailableNumbers.includes(number),
+      );
+      return nextSelectedNumbers;
+    });
+
+    if (nextSelectedNumbers.length === 0) {
+      clearPromotionBonusSelection();
+    }
+
+    if (
+      parsedSearchNumber !== undefined &&
+      unavailableNumbers.includes(parsedSearchNumber)
+    ) {
+      setSearchNumberInput('');
+    }
+
+    void refetchTicketAvailability();
+    if (parsedSearchNumber !== undefined) {
+      void refetchTicketSearch();
+    }
+  };
+
+  const [buyTickets, { data: buyData, loading: buyingRandom }] =
+    useMutation<BuyTicketsResult>(BUY_TICKETS, {
+      onError: (mutationError) => {
+        handlePurchaseMutationError(mutationError.message);
+      },
+    });
+  const [
+    buySelectedTickets,
+    {
+      data: buySelectedData,
+      loading: buyingSelected,
+    },
+  ] = useMutation<BuySelectedTicketsResult>(BUY_SELECTED_TICKETS, {
+    onError: (mutationError) => {
+      handlePurchaseMutationError(mutationError.message);
+    },
+  });
   const [incrementViews] = useMutation(INCREMENT_VIEWS);
 
   // Favorite mutations
@@ -326,20 +554,15 @@ export function RaffleContent({ id }: RaffleContentProps) {
     return getStoredSocialPromotionToken(id);
   }, [id, searchParams]);
 
-  // Handle buy success - redirect to Mercado Pago checkout
-  useEffect(() => {
-    if (buyData?.buyTickets?.initPoint) {
-      // Redirect to Mercado Pago hosted checkout page
-      window.location.href = buyData.buyTickets.initPoint;
-    }
-  }, [buyData]);
+  const checkoutRedirectUrl =
+    buyData?.buyTickets?.initPoint ??
+    buySelectedData?.buySelectedTickets?.initPoint;
 
-  // Handle buy error
   useEffect(() => {
-    if (buyError) {
-      toast.error(buyError.message);
+    if (checkoutRedirectUrl) {
+      window.location.href = checkoutRedirectUrl;
     }
-  }, [buyError]);
+  }, [checkoutRedirectUrl]);
 
   if (loading) {
     return <RaffleDetailSkeleton />;
@@ -363,13 +586,45 @@ export function RaffleContent({ id }: RaffleContentProps) {
   const socialPromotionPosts = socialPromotionData?.mySocialPromotionPosts || [];
   const canPromoteThisRaffle = isSellerOwner && raffle.estado === 'ACTIVA';
   const canBuyThisRaffle = raffle.estado === 'ACTIVA' && !isSellerOwner;
+  const shouldShowCountdown = raffle.estado === 'ACTIVA';
+  const shouldShowWinningNumber =
+    raffle.winningTicketNumber !== null &&
+    raffle.winningTicketNumber !== undefined &&
+    ['SORTEADA', 'EN_ENTREGA', 'FINALIZADA'].includes(raffle.estado);
   const shouldShowOwnRafflePurchaseNotice =
     raffle.estado === 'ACTIVA' && isSellerOwner;
   const images = raffle.product?.imagenes || [];
   const soldTickets = raffle.tickets?.filter((t) => t.estado !== 'REEMBOLSADO').length || 0;
   const progress = (soldTickets / raffle.totalTickets) * 100;
   const grossSubtotal = Number((quantity * raffle.precioPorTicket).toFixed(2));
-  const totalToCharge = bonusPreview?.mpChargeAmount ?? grossSubtotal;
+  const ticketAvailability = ticketAvailabilityData?.ticketNumberAvailability;
+  const searchedTicket = ticketSearchData?.ticketNumberAvailability.items[0];
+  const selectedNumbersSorted = [...selectedNumbers].sort((a, b) => a - b);
+  const selectedModePremiumPercent = ticketAvailability?.premiumPercent ?? 5;
+  const premiumPerSelectedTicket = Number(
+    (
+      raffle.precioPorTicket *
+      (selectedModePremiumPercent / 100)
+    ).toFixed(2),
+  );
+  const selectedModeGrossSubtotal = Number(
+    (selectedNumbers.length * raffle.precioPorTicket).toFixed(2),
+  );
+  const selectedModePremiumAmount = Number(
+    (premiumPerSelectedTicket * selectedNumbers.length).toFixed(2),
+  );
+  const selectedModeChargedBase =
+    bonusPreview?.mpChargeAmount ?? selectedModeGrossSubtotal;
+  const selectedModeTotalToCharge = Number(
+    (selectedModeChargedBase + selectedModePremiumAmount).toFixed(2),
+  );
+  const totalToCharge =
+    purchaseMode === 'CHOOSE_NUMBERS'
+      ? selectedModeTotalToCharge
+      : bonusPreview?.mpChargeAmount ?? grossSubtotal;
+  const maxSelectable =
+    ticketAvailability?.maxSelectable ?? Math.floor(raffle.totalTickets * 0.5);
+  const buying = buyingRandom || buyingSelected;
 
   const handleBuy = () => {
     if (!isAuthenticated) {
@@ -380,6 +635,64 @@ export function RaffleContent({ id }: RaffleContentProps) {
       variables: {
         raffleId: id,
         cantidad: quantity,
+        bonusGrantId: selectedBonusGrantId,
+        promotionToken,
+      },
+    });
+  };
+
+  const handlePurchaseModeChange = (value: string) => {
+    const nextPurchaseMode = value as 'RANDOM' | 'CHOOSE_NUMBERS';
+    if (nextPurchaseMode === purchaseMode) {
+      return;
+    }
+
+    setPurchaseMode(nextPurchaseMode);
+    resetSelectedNumberPurchaseState();
+  };
+
+  const toggleSelectedNumber = (number: number, isAvailable: boolean) => {
+    if (!isAvailable) {
+      return;
+    }
+
+    let shouldClearPromotionBonus = false;
+    setSelectedNumbers((currentNumbers) => {
+      if (currentNumbers.includes(number)) {
+        const nextNumbers = currentNumbers.filter(
+          (currentNumber) => currentNumber !== number,
+        );
+        shouldClearPromotionBonus = nextNumbers.length === 0;
+        return nextNumbers;
+      }
+
+      if (currentNumbers.length >= maxSelectable) {
+        toast.error(`Podés elegir hasta ${maxSelectable} números en esta rifa`);
+        return currentNumbers;
+      }
+
+      return [...currentNumbers, number];
+    });
+
+    if (shouldClearPromotionBonus) {
+      clearPromotionBonusSelection();
+    }
+  };
+
+  const handleBuySelectedNumbers = () => {
+    if (!isAuthenticated) {
+      router.push('/auth/login');
+      return;
+    }
+
+    if (selectedNumbersSorted.length === 0) {
+      return;
+    }
+
+    buySelectedTickets({
+      variables: {
+        raffleId: id,
+        selectedNumbers: selectedNumbersSorted,
         bonusGrantId: selectedBonusGrantId,
         promotionToken,
       },
@@ -488,18 +801,35 @@ export function RaffleContent({ id }: RaffleContentProps) {
             <p className="text-sm text-muted-foreground">{progress.toFixed(0)}% completado</p>
           </div>
 
-          {/* Timer - Real-time countdown */}
-          <div className="p-4 rounded-lg bg-muted/50 border">
-            <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
-              <Clock className="h-4 w-4" />
-              <span>Tiempo restante:</span>
+          {shouldShowCountdown ? (
+            <div className="p-4 rounded-lg bg-muted/50 border">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
+                <Clock className="h-4 w-4" />
+                <span>Tiempo restante:</span>
+              </div>
+              <Countdown
+                targetDate={raffle.fechaLimiteSorteo}
+                variant="detailed"
+                showSeconds={true}
+              />
             </div>
-            <Countdown
-              targetDate={raffle.fechaLimiteSorteo}
-              variant="detailed"
-              showSeconds={true}
-            />
-          </div>
+          ) : (
+            <div className="space-y-3 rounded-lg border bg-muted/50 p-4">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Clock className="h-4 w-4" />
+                <span>Estado de la rifa</span>
+              </div>
+              <p className="font-medium">{getNonActiveRaffleMessage(raffle)}</p>
+              {shouldShowWinningNumber && (
+                <div className="rounded-lg border bg-background p-4">
+                  <p className="text-sm text-muted-foreground">Número ganador</p>
+                  <p className="text-3xl font-bold text-primary">
+                    #{raffle.winningTicketNumber}
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Price History Badge */}
           {priceHistoryData?.priceHistory && priceHistoryData.priceHistory.length > 0 && (
@@ -548,72 +878,320 @@ export function RaffleContent({ id }: RaffleContentProps) {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label>Cantidad</Label>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      className="h-12 w-12 text-xl font-bold"
-                      onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                    >
-                      -
-                    </Button>
-                    <Input
-                      type="number"
-                      min={1}
-                      value={quantity}
-                      onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
-                      className="text-center h-12 text-lg font-semibold"
-                    />
-                    <Button
-                      variant="outline"
-                      className="h-12 w-12 text-xl font-bold"
-                      onClick={() => setQuantity(quantity + 1)}
-                    >
-                      +
-                    </Button>
-                  </div>
-                </div>
+                <Tabs
+                  value={purchaseMode}
+                  onValueChange={handlePurchaseModeChange}
+                  className="space-y-4"
+                >
+                  <TabsList className="grid h-auto w-full grid-cols-2">
+                    <TabsTrigger value="RANDOM">Aleatorio</TabsTrigger>
+                    <TabsTrigger value="CHOOSE_NUMBERS">Elegir números</TabsTrigger>
+                  </TabsList>
 
-                <PromotionBonusSelector
-                  raffleId={id}
-                  quantity={quantity}
-                  sellerId={user?.id !== raffle.seller?.id ? raffle.seller?.id : undefined}
-                  selectedBonusGrantId={selectedBonusGrantId}
-                  onSelectedBonusGrantIdChange={setSelectedBonusGrantId}
-                  onPreviewChange={setBonusPreview}
-                />
-
-                <div className="p-4 bg-muted/50 rounded-lg">
-                  <div className="flex justify-between mb-2">
-                    <span>Subtotal</span>
-                    <span>${grossSubtotal.toFixed(2)}</span>
-                  </div>
-                  {bonusPreview && (
-                    <div className="flex justify-between mb-2 text-green-600">
-                      <span>Bonificación aplicada</span>
-                      <span>-${bonusPreview.discountApplied.toFixed(2)}</span>
+                  <TabsContent value="RANDOM" className="space-y-4">
+                    <div className="space-y-2">
+                      <Label>Cantidad</Label>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          className="h-12 w-12 text-xl font-bold"
+                          onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                        >
+                          -
+                        </Button>
+                        <Input
+                          type="number"
+                          min={1}
+                          value={quantity}
+                          onChange={(e) =>
+                            setQuantity(Math.max(1, parseInt(e.target.value, 10) || 1))
+                          }
+                          className="h-12 text-center text-lg font-semibold"
+                        />
+                        <Button
+                          variant="outline"
+                          className="h-12 w-12 text-xl font-bold"
+                          onClick={() => setQuantity(quantity + 1)}
+                        >
+                          +
+                        </Button>
+                      </div>
                     </div>
-                  )}
-                  <div className="flex justify-between font-bold text-lg">
-                    <span>Total</span>
-                    <span className="text-primary">${totalToCharge.toFixed(2)}</span>
-                  </div>
-                </div>
 
-                <Button className="w-full" size="lg" onClick={handleBuy} disabled={buying}>
-                  {buying ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Procesando...
-                    </>
-                  ) : (
-                    <>
-                      <Ticket className="mr-2 h-4 w-4" />
-                      Comprar {quantity} Ticket{quantity > 1 ? 's' : ''}
-                    </>
-                  )}
-                </Button>
+                    <PromotionBonusSelector
+                      raffleId={id}
+                      quantity={quantity}
+                      sellerId={user?.id !== raffle.seller?.id ? raffle.seller?.id : undefined}
+                      selectedBonusGrantId={selectedBonusGrantId}
+                      onSelectedBonusGrantIdChange={setSelectedBonusGrantId}
+                      onPreviewChange={setBonusPreview}
+                    />
+
+                    <div className="rounded-lg bg-muted/50 p-4">
+                      <div className="mb-2 flex justify-between">
+                        <span>Subtotal</span>
+                        <span>${grossSubtotal.toFixed(2)}</span>
+                      </div>
+                      {bonusPreview && (
+                        <div className="mb-2 flex justify-between text-green-600">
+                          <span>Bonificación aplicada</span>
+                          <span>-${bonusPreview.discountApplied.toFixed(2)}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between text-lg font-bold">
+                        <span>Total</span>
+                        <span className="text-primary">${totalToCharge.toFixed(2)}</span>
+                      </div>
+                    </div>
+
+                    <Button className="w-full" size="lg" onClick={handleBuy} disabled={buying}>
+                      {buying ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Procesando...
+                        </>
+                      ) : (
+                        <>
+                          <Ticket className="mr-2 h-4 w-4" />
+                          Comprar {quantity} Ticket{quantity > 1 ? 's' : ''}
+                        </>
+                      )}
+                    </Button>
+                  </TabsContent>
+
+                  <TabsContent value="CHOOSE_NUMBERS" className="space-y-4">
+                    <div className="space-y-1">
+                      <h3 className="font-semibold">Elegí tus números favoritos</h3>
+                      <p className="text-sm text-muted-foreground">
+                        Pagás un {selectedModePremiumPercent}% extra por ticket para reservar
+                        números específicos.
+                      </p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="ticket-number-search">Buscar número exacto</Label>
+                      <Input
+                        id="ticket-number-search"
+                        type="number"
+                        min={1}
+                        max={raffle.totalTickets}
+                        value={searchNumberInput}
+                        onChange={(e) => setSearchNumberInput(e.target.value)}
+                        placeholder={`Entre 1 y ${raffle.totalTickets}`}
+                      />
+                      {parsedSearchNumber !== undefined && (
+                        <div className="rounded-lg border border-dashed p-3 text-sm">
+                          {searchedTicket ? (
+                            <div className="flex items-center justify-between gap-3">
+                              <div>
+                                <p className="font-medium">Resultado de búsqueda</p>
+                                <p className="text-muted-foreground">
+                                  Número #{searchedTicket.number}
+                                </p>
+                              </div>
+                              <Button
+                                type="button"
+                                variant={
+                                  selectedNumbers.includes(searchedTicket.number)
+                                    ? 'default'
+                                    : 'outline'
+                                }
+                                disabled={!searchedTicket.isAvailable}
+                                onClick={() =>
+                                  toggleSelectedNumber(
+                                    searchedTicket.number,
+                                    searchedTicket.isAvailable,
+                                  )
+                                }
+                              >
+                                {searchedTicket.isAvailable
+                                  ? selectedNumbers.includes(searchedTicket.number)
+                                    ? 'Quitar'
+                                    : 'Agregar'
+                                  : 'Ocupado'}
+                              </Button>
+                            </div>
+                          ) : (
+                            <p className="text-muted-foreground">
+                              Ese número no existe en esta rifa.
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="space-y-3 rounded-lg border p-4">
+                      <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                          <p className="font-medium">Disponibilidad por página</p>
+                          <p className="text-sm text-muted-foreground">
+                            Mostrando 100 números por página. Máximo {maxSelectable} por compra.
+                          </p>
+                        </div>
+                        {ticketAvailability && (
+                          <p className="text-sm text-muted-foreground">
+                            {ticketAvailability.availableCount} disponibles de{' '}
+                            {ticketAvailability.totalTickets}
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="grid grid-cols-4 gap-2 sm:grid-cols-5 md:grid-cols-6">
+                        {ticketAvailability?.items.map((item) => {
+                          const isSelected = selectedNumbers.includes(item.number);
+
+                          return (
+                            <Button
+                              key={item.number}
+                              type="button"
+                              variant={isSelected ? 'default' : 'outline'}
+                              className="h-11"
+                              disabled={!item.isAvailable}
+                              onClick={() =>
+                                toggleSelectedNumber(item.number, item.isAvailable)
+                              }
+                            >
+                              #{item.number}
+                            </Button>
+                          );
+                        })}
+                      </div>
+
+                      <div className="flex items-center justify-between gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          disabled={!ticketAvailability || availabilityPage <= 1}
+                          onClick={() =>
+                            setAvailabilityPage((currentPage) =>
+                              Math.max(1, currentPage - 1),
+                            )
+                          }
+                        >
+                          Anterior
+                        </Button>
+                        <p className="text-sm text-muted-foreground">
+                          Página {ticketAvailability?.page ?? availabilityPage} de{' '}
+                          {ticketAvailability?.totalPages ?? 1}
+                        </p>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          disabled={
+                            !ticketAvailability ||
+                            availabilityPage >= ticketAvailability.totalPages
+                          }
+                          onClick={() =>
+                            setAvailabilityPage((currentPage) => currentPage + 1)
+                          }
+                        >
+                          Siguiente
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div className="space-y-3 rounded-lg bg-muted/50 p-4">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="font-medium">
+                            {selectedNumbers.length} número
+                            {selectedNumbers.length === 1 ? '' : 's'} seleccionado
+                            {selectedNumbers.length === 1 ? '' : 's'}
+                          </p>
+                          <p className="text-sm text-muted-foreground">
+                            Elegí números concretos y reservalos al momento del checkout.
+                          </p>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          disabled={selectedNumbers.length === 0}
+                          onClick={() => {
+                            setSelectedNumbers([]);
+                            clearPromotionBonusSelection();
+                          }}
+                        >
+                          Limpiar
+                        </Button>
+                      </div>
+
+                      {selectedNumbers.length > 0 ? (
+                        <div className="flex flex-wrap gap-2">
+                          {selectedNumbersSorted.map((number) => (
+                            <Button
+                              key={number}
+                              type="button"
+                              variant="secondary"
+                              className="h-9"
+                              onClick={() => toggleSelectedNumber(number, true)}
+                            >
+                              #{number}
+                            </Button>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-sm text-muted-foreground">
+                          Todavía no elegiste ningún número.
+                        </p>
+                      )}
+                    </div>
+
+                    {selectedNumbers.length > 0 && (
+                      <PromotionBonusSelector
+                        raffleId={id}
+                        quantity={selectedNumbers.length}
+                        sellerId={
+                          user?.id !== raffle.seller?.id ? raffle.seller?.id : undefined
+                        }
+                        selectedBonusGrantId={selectedBonusGrantId}
+                        onSelectedBonusGrantIdChange={setSelectedBonusGrantId}
+                        onPreviewChange={setBonusPreview}
+                      />
+                    )}
+
+                    <div className="rounded-lg bg-muted/50 p-4">
+                      <div className="mb-2 flex justify-between">
+                        <span>Subtotal base</span>
+                        <span>${selectedModeGrossSubtotal.toFixed(2)}</span>
+                      </div>
+                      {bonusPreview && (
+                        <div className="mb-2 flex justify-between text-green-600">
+                          <span>Bonificación aplicada</span>
+                          <span>-${bonusPreview.discountApplied.toFixed(2)}</span>
+                        </div>
+                      )}
+                      <div className="mb-2 flex justify-between">
+                        <span>Premium por elegir números</span>
+                        <span>${selectedModePremiumAmount.toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between text-lg font-bold">
+                        <span>Total</span>
+                        <span className="text-primary">
+                          ${selectedModeTotalToCharge.toFixed(2)}
+                        </span>
+                      </div>
+                    </div>
+
+                    <Button
+                      className="w-full"
+                      size="lg"
+                      onClick={handleBuySelectedNumbers}
+                      disabled={buying || selectedNumbers.length === 0}
+                    >
+                      {buying ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Procesando...
+                        </>
+                      ) : (
+                        <>
+                          <Ticket className="mr-2 h-4 w-4" />
+                          Comprar números elegidos
+                        </>
+                      )}
+                    </Button>
+                  </TabsContent>
+                </Tabs>
 
                 <ComplianceNotice
                   title="Antes de comprar tickets"

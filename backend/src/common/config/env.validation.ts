@@ -74,9 +74,13 @@ export class EnvironmentVariables {
   MP_ACCESS_TOKEN: string = '';
 
   @IsNumber()
+  @Min(0)
+  PLATFORM_FEE_PERCENT!: number;
+
+  @IsNumber()
   @IsOptional()
   @Min(0)
-  MP_PLATFORM_FEE_PERCENT: number = 4;
+  SELECTED_NUMBER_PREMIUM_PERCENT: number = 5;
 
   @IsBoolean()
   @IsOptional()

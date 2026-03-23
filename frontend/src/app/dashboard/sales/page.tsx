@@ -41,7 +41,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useEffect, useState, useMemo, Suspense } from 'react';
+import { useEffect, useState, useMemo, useRef, Suspense } from 'react';
 import { toast } from 'sonner';
 import {
   XAxis,
@@ -74,6 +74,7 @@ const MY_RAFFLES = gql`
       fechaLimiteSorteo
       createdAt
       viewCount
+      winningTicketNumber
       winner {
         id
         nombre
@@ -228,6 +229,7 @@ interface RaffleData {
   fechaLimiteSorteo: string;
   createdAt: string;
   viewCount: number;
+  winningTicketNumber?: number | null;
   winner?: { id: string; nombre: string; apellido: string };
   product?: { imagenes?: string[] };
   tickets?: { id: string; estado: string }[];
@@ -294,6 +296,22 @@ interface SocialPromotionPost {
 
 const MONTH_NAMES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 
+function getChartLabelDensity(chartWidth: number | null): 'full' | 'compact' | 'sparse' {
+  if (chartWidth === null) {
+    return 'compact';
+  }
+
+  if (chartWidth < 640) {
+    return 'sparse';
+  }
+
+  if (chartWidth < 980) {
+    return 'compact';
+  }
+
+  return 'full';
+}
+
 function SalesDashboardContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -301,6 +319,10 @@ function SalesDashboardContent() {
   const [selectedRaffle, setSelectedRaffle] = useState<string | null>(null);
   const [trackingNumber, setTrackingNumber] = useState('');
   const [isShipDialogOpen, setIsShipDialogOpen] = useState(false);
+  const chartContainerRef = useRef<HTMLDivElement | null>(null);
+  const [chartContainerWidth, setChartContainerWidth] = useState<number | null>(
+    null,
+  );
 
   // Bulk actions state
   const [selectedRaffleIds, setSelectedRaffleIds] = useState<string[]>([]);
@@ -534,16 +556,39 @@ function SalesDashboardContent() {
     }
   }, [hasHydrated, isAuthenticated, router]);
 
+  useEffect(() => {
+    const chartContainer = chartContainerRef.current;
+    if (!chartContainer || typeof ResizeObserver === 'undefined') {
+      return;
+    }
+
+    const observer = new ResizeObserver(([entry]) => {
+      setChartContainerWidth(entry.contentRect.width);
+    });
+
+    observer.observe(chartContainer);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, []);
+
 
   // Get data from queries - wrapped in useMemo to prevent dependency issues
   const raffles = useMemo(() => data?.myRafflesAsSeller || [], [data?.myRafflesAsSeller]);
   const stats = statsData?.sellerDashboardStats;
+  const chartLabelDensity = useMemo(
+    () => getChartLabelDensity(chartContainerWidth),
+    [chartContainerWidth],
+  );
 
   // Chart data (useMemo before any returns)
   const chartData = useMemo(() => {
     if (!stats?.monthlyRevenue) return [];
     return stats.monthlyRevenue.map((m) => ({
       name: `${MONTH_NAMES[m.month - 1]} ${m.year}`,
+      monthLabel: MONTH_NAMES[m.month - 1],
+      shortLabel: `${MONTH_NAMES[m.month - 1]} ${String(m.year).slice(-2)}`,
       revenue: m.revenue,
       tickets: m.ticketsSold,
     }));
@@ -670,6 +715,7 @@ function SalesDashboardContent() {
       'Estado Entrega',
       'Número Seguimiento',
       'Ganador',
+      'Número Ganador',
       'Fecha Creación',
       'Fecha Límite',
     ];
@@ -678,6 +724,10 @@ function SalesDashboardContent() {
       const soldTickets = r.tickets?.filter((t) => t.estado === 'PAGADO').length || 0;
       const revenue = soldTickets * Number(r.precioPorTicket);
       const winnerName = r.winner ? `${r.winner.nombre} ${r.winner.apellido}` : '-';
+      const winningTicketNumber =
+        r.winningTicketNumber !== null && r.winningTicketNumber !== undefined
+          ? `#${r.winningTicketNumber}`
+          : '-';
       const conversion = r.viewCount > 0 ? ((soldTickets / r.viewCount) * 100).toFixed(1) + '%' : '-';
 
       return [
@@ -692,6 +742,7 @@ function SalesDashboardContent() {
         r.deliveryStatus,
         r.trackingNumber || '-',
         winnerName,
+        winningTicketNumber,
         new Date(r.createdAt).toLocaleDateString(),
         new Date(r.fechaLimiteSorteo).toLocaleDateString(),
       ].join(',');
@@ -811,81 +862,105 @@ function SalesDashboardContent() {
       )}
 
       {/* Stats Cards */}
-      <div className="grid md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
-        <Card>
+      <div className="mb-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
+        <Card className="overflow-hidden">
           <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-full bg-green-500/10">
+            <div className="flex min-w-0 items-start gap-3">
+              <div className="shrink-0 rounded-full bg-green-500/10 p-2">
                 <DollarSign className="h-5 w-5 text-green-500" />
               </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Ingresos Totales</p>
-                <p className="text-xl font-bold">${stats?.totalRevenue.toFixed(2) || '0.00'}</p>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs leading-tight text-muted-foreground">
+                  Ingresos Totales
+                </p>
+                <p className="break-words text-2xl font-bold leading-tight tracking-tight">
+                  ${stats?.totalRevenue.toFixed(2) || '0.00'}
+                </p>
               </div>
             </div>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="overflow-hidden">
           <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-full bg-blue-500/10">
+            <div className="flex min-w-0 items-start gap-3">
+              <div className="shrink-0 rounded-full bg-blue-500/10 p-2">
                 <Ticket className="h-5 w-5 text-blue-500" />
               </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Tickets Vendidos</p>
-                <p className="text-xl font-bold">{stats?.totalTicketsSold || 0}</p>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs leading-tight text-muted-foreground">
+                  Tickets Vendidos
+                </p>
+                <p className="break-words text-2xl font-bold leading-tight tracking-tight">
+                  {stats?.totalTicketsSold || 0}
+                </p>
               </div>
             </div>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="overflow-hidden">
           <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-full bg-purple-500/10">
+            <div className="flex min-w-0 items-start gap-3">
+              <div className="shrink-0 rounded-full bg-purple-500/10 p-2">
                 <BarChart3 className="h-5 w-5 text-purple-500" />
               </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Rifas Activas</p>
-                <p className="text-xl font-bold">{stats?.activeRaffles || 0}</p>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs leading-tight text-muted-foreground">
+                  Rifas Activas
+                </p>
+                <p className="break-words text-2xl font-bold leading-tight tracking-tight">
+                  {stats?.activeRaffles || 0}
+                </p>
               </div>
             </div>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="overflow-hidden">
           <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-full bg-orange-500/10">
+            <div className="flex min-w-0 items-start gap-3">
+              <div className="shrink-0 rounded-full bg-orange-500/10 p-2">
                 <Users className="h-5 w-5 text-orange-500" />
               </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Rifas Completadas</p>
-                <p className="text-xl font-bold">{stats?.completedRaffles || 0}</p>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs leading-tight text-muted-foreground">
+                  Rifas Completadas
+                </p>
+                <p className="break-words text-2xl font-bold leading-tight tracking-tight">
+                  {stats?.completedRaffles || 0}
+                </p>
               </div>
             </div>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="overflow-hidden">
           <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-full bg-cyan-500/10">
+            <div className="flex min-w-0 items-start gap-3">
+              <div className="shrink-0 rounded-full bg-cyan-500/10 p-2">
                 <Eye className="h-5 w-5 text-cyan-500" />
               </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Vistas Totales</p>
-                <p className="text-xl font-bold">{stats?.totalViews || 0}</p>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs leading-tight text-muted-foreground">
+                  Vistas Totales
+                </p>
+                <p className="break-words text-2xl font-bold leading-tight tracking-tight">
+                  {stats?.totalViews || 0}
+                </p>
               </div>
             </div>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="overflow-hidden">
           <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-full bg-pink-500/10">
+            <div className="flex min-w-0 items-start gap-3">
+              <div className="shrink-0 rounded-full bg-pink-500/10 p-2">
                 <TrendingUp className="h-5 w-5 text-pink-500" />
               </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Tasa Conversión</p>
-                <p className="text-xl font-bold">{stats?.conversionRate.toFixed(1) || 0}%</p>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs leading-tight text-muted-foreground">
+                  Tasa Conversión
+                </p>
+                <p className="break-words text-2xl font-bold leading-tight tracking-tight">
+                  {stats?.conversionRate.toFixed(1) || 0}%
+                </p>
               </div>
             </div>
           </CardContent>
@@ -903,17 +978,37 @@ function SalesDashboardContent() {
             <CardDescription>Evolución de tus ingresos en los últimos 12 meses</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="h-[300px]">
+            <div ref={chartContainerRef} className="h-[340px]">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={chartData}>
+                <BarChart
+                  data={chartData}
+                  margin={{ top: 8, right: 8, left: 8, bottom: 12 }}
+                >
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                  <XAxis dataKey="name" className="text-xs" tick={{ fill: 'currentColor' }} />
+                  <XAxis
+                    dataKey={
+                      chartLabelDensity === 'full' ? 'shortLabel' : 'monthLabel'
+                    }
+                    className="text-xs"
+                    tick={{
+                      fill: 'currentColor',
+                      fontSize: chartLabelDensity === 'sparse' ? 11 : 12,
+                    }}
+                    interval={chartLabelDensity === 'sparse' ? 1 : 0}
+                    minTickGap={0}
+                    tickMargin={10}
+                    height={56}
+                  />
                   <YAxis className="text-xs" tick={{ fill: 'currentColor' }} />
                   <Tooltip
                     contentStyle={{
                       backgroundColor: 'hsl(var(--background))',
                       border: '1px solid hsl(var(--border))',
                       borderRadius: '8px',
+                    }}
+                    labelFormatter={(_, payload) => {
+                      const entry = payload?.[0]?.payload as { name?: string } | undefined;
+                      return entry?.name || '';
                     }}
                     formatter={(value, name) => [
                       name === 'revenue' ? `$${Number(value).toFixed(2)}` : value,
@@ -1054,6 +1149,12 @@ function SalesDashboardContent() {
                             Ganador: {raffle.winner.nombre} {raffle.winner.apellido}
                           </span>
                         )}
+                        {raffle.winningTicketNumber !== null &&
+                          raffle.winningTicketNumber !== undefined && (
+                            <span className="font-medium text-primary">
+                              Número ganador: #{raffle.winningTicketNumber}
+                            </span>
+                          )}
                         <span>
                           {soldTickets}/{raffle.totalTickets} vendidos
                         </span>

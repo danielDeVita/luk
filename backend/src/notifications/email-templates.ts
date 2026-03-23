@@ -239,7 +239,12 @@ export const getRaffleCompletedNotificationContent = (
 };
 
 export const getWinnerNotificationContent = (
-  data: { raffleName: string; productName: string; sellerEmail: string },
+  data: {
+    raffleName: string;
+    productName: string;
+    sellerEmail: string;
+    winningTicketNumber: number;
+  },
   configService: ConfigService,
 ) => {
   const content = `
@@ -252,6 +257,7 @@ export const getWinnerNotificationContent = (
     </p>
     <div style="background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 12px; padding: 24px; margin: 24px 0;">
       <p style="margin: 0 0 12px 0; color: #4B5563;"><strong>Producto:</strong> ${data.productName}</p>
+      <p style="margin: 0 0 12px 0; color: #4B5563;"><strong>Número ganador:</strong> #${data.winningTicketNumber}</p>
       <p style="margin: 0; color: #4B5563;"><strong>Email del vendedor:</strong> <a href="mailto:${data.sellerEmail}" style="color: #0F766E; text-decoration: none; font-weight: 600;">${data.sellerEmail}</a></p>
     </div>
     <p style="color: #4B5563; font-size: 15px; line-height: 1.6;">
@@ -413,7 +419,11 @@ export const getRaffleCancelledNotificationContent = (
 };
 
 export const getSellerMustContactWinnerContent = (
-  data: { raffleName: string; winnerEmail: string },
+  data: {
+    raffleName: string;
+    winnerEmail: string;
+    winningTicketNumber: number;
+  },
   configService: ConfigService,
 ) => {
   const content = `
@@ -422,6 +432,8 @@ export const getSellerMustContactWinnerContent = (
       Tu rifa "<strong>${data.raffleName}</strong>" tiene un ganador.
     </p>
     <div style="background: #F0FDFA; border: 1px solid #99F6E4; border-radius: 12px; padding: 24px; margin: 24px 0;">
+      <p style="color: #0F766E; font-size: 14px; margin: 0 0 12px 0;"><strong>Número ganador:</strong></p>
+      <p style="color: #1E293B; font-size: 18px; font-weight: 700; margin: 0 0 16px 0;">#${data.winningTicketNumber}</p>
       <p style="color: #0F766E; font-size: 14px; margin: 0 0 12px 0;"><strong>Email del ganador:</strong></p>
       <p style="color: #1E293B; font-size: 18px; font-weight: 700; margin: 0;">${data.winnerEmail}</p>
     </div>

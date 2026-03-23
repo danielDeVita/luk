@@ -133,6 +133,9 @@ type BuyTicketsResult {
   initPoint: String!
   mpChargeAmount: Float!
   preferenceId: String!
+  purchaseMode: TicketPurchaseMode!
+  selectionPremiumAmount: Float!
+  selectionPremiumPercent: Float!
   tickets: [Ticket!]!
   ticketsRestantesQuePuedeComprar: Int!
   totalAmount: Float!
@@ -381,6 +384,7 @@ type Mutation {
 
   """Resolve multiple disputes at once"""
   bulkResolveDisputes(adminNotes: String, decision: String!, disputeIds: [String!]!, resolucion: String!): BulkResolveResult!
+  buySelectedTickets(bonusGrantId: String, promotionToken: String, raffleId: String!, selectedNumbers: [Int!]!): BuyTicketsResult!
   buyTickets(bonusGrantId: String, cantidad: Int!, promotionToken: String, raffleId: String!): BuyTicketsResult!
   cancelRaffle(id: String!): Raffle!
   changePassword(input: ChangePasswordInput!): User!
@@ -683,6 +687,7 @@ type Query {
   shippingAddress(id: String!): ShippingAddress!
   socialPromotionReviewQueue: [SocialPromotionPost!]!
   ticket(id: String!): Ticket!
+  ticketNumberAvailability(page: Int!, pageSize: Int!, raffleId: String!, searchNumber: Int): TicketNumberAvailabilityPage!
 }
 
 type Raffle {
@@ -714,6 +719,7 @@ type Raffle {
   viewCount: Int!
   winner: User
   winnerId: String
+  winningTicketNumber: Int
 }
 
 type RaffleAnswer {
@@ -983,6 +989,27 @@ type TicketDebugInfo {
   id: String!
   numeroTicket: Int!
   precioPagado: Float!
+}
+
+type TicketNumberAvailabilityItem {
+  isAvailable: Boolean!
+  number: Int!
+}
+
+type TicketNumberAvailabilityPage {
+  availableCount: Int!
+  items: [TicketNumberAvailabilityItem!]!
+  maxSelectable: Int!
+  page: Int!
+  pageSize: Int!
+  premiumPercent: Int!
+  totalPages: Int!
+  totalTickets: Int!
+}
+
+enum TicketPurchaseMode {
+  CHOOSE_NUMBERS
+  RANDOM
 }
 
 enum TicketStatus {

@@ -46,6 +46,11 @@ export enum RaffleSort {
   CREATED_DESC = 'CREATED_DESC',
 }
 
+export enum TicketPurchaseMode {
+  RANDOM = 'RANDOM',
+  CHOOSE_NUMBERS = 'CHOOSE_NUMBERS',
+}
+
 registerEnumType(UserRole, { name: 'UserRole' });
 registerEnumType(RaffleStatus, { name: 'RaffleStatus' });
 registerEnumType(DeliveryStatus, { name: 'DeliveryStatus' });
@@ -63,3 +68,4 @@ registerEnumType(ActivityType, { name: 'ActivityType' });
 registerEnumType(RaffleSort, { name: 'RaffleSort' });
 registerEnumType(DocumentType, { name: 'DocumentType' });
 registerEnumType(KycStatus, { name: 'KycStatus' });
+registerEnumType(TicketPurchaseMode, { name: 'TicketPurchaseMode' });
