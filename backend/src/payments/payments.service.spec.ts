@@ -8,6 +8,7 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { ReferralsService } from '../referrals/referrals.service';
 import { PayoutsService } from '../payouts/payouts.service';
 import { SocialPromotionsService } from '../social-promotions/social-promotions.service';
+import { EncryptionService } from '../common/services/encryption.service';
 import { MercadoPagoProvider } from './providers/mercado-pago.provider';
 import { MockPaymentProvider } from './providers/mock-payment.provider';
 import type { PaymentResponse } from 'mercadopago/dist/clients/payment/commonTypes';
@@ -45,6 +46,9 @@ describe('PaymentsService', () => {
     raffle: {
       findUnique: jest.fn(),
       update: jest.fn(),
+    },
+    shippingAddress: {
+      findFirst: jest.fn(),
     },
     user: {
       findUnique: jest.fn(),
@@ -95,6 +99,10 @@ describe('PaymentsService', () => {
     recordPurchaseAttribution: jest.fn().mockResolvedValue(undefined),
   };
 
+  const mockEncryptionService = {
+    decryptUserPII: jest.fn((value) => value),
+  };
+
   const mockMercadoPagoProvider = {
     createCheckoutSession: jest.fn(),
     getPaymentStatus: jest.fn(),
@@ -121,6 +129,10 @@ describe('PaymentsService', () => {
     global.fetch = jest.fn();
     mockPrismaService.mockPayment.findMany.mockResolvedValue([]);
     mockPrismaService.ticket.deleteMany.mockResolvedValue({ count: 0 });
+    mockPrismaService.shippingAddress.findFirst.mockResolvedValue(null);
+    mockPrismaService.user.findUnique.mockResolvedValue(null);
+    mockPrismaService.transaction.findFirst.mockResolvedValue(null);
+    mockEncryptionService.decryptUserPII.mockImplementation((value) => value);
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -130,6 +142,7 @@ describe('PaymentsService', () => {
         { provide: NotificationsService, useValue: mockNotificationsService },
         { provide: ActivityService, useValue: mockActivityService },
         { provide: EventEmitter2, useValue: mockEventEmitter },
+        { provide: EncryptionService, useValue: mockEncryptionService },
         { provide: ReferralsService, useValue: mockReferralsService },
         { provide: PayoutsService, useValue: mockPayoutsService },
         {
@@ -540,6 +553,7 @@ describe('PaymentsService', () => {
           { provide: NotificationsService, useValue: mockNotificationsService },
           { provide: ActivityService, useValue: mockActivityService },
           { provide: EventEmitter2, useValue: mockEventEmitter },
+          { provide: EncryptionService, useValue: mockEncryptionService },
           { provide: ReferralsService, useValue: mockReferralsService },
           { provide: PayoutsService, useValue: mockPayoutsService },
           {
@@ -618,6 +632,7 @@ describe('PaymentsService', () => {
           { provide: NotificationsService, useValue: mockNotificationsService },
           { provide: ActivityService, useValue: mockActivityService },
           { provide: EventEmitter2, useValue: mockEventEmitter },
+          { provide: EncryptionService, useValue: mockEncryptionService },
           { provide: ReferralsService, useValue: mockReferralsService },
           { provide: PayoutsService, useValue: mockPayoutsService },
           {
@@ -689,6 +704,7 @@ describe('PaymentsService', () => {
           { provide: NotificationsService, useValue: mockNotificationsService },
           { provide: ActivityService, useValue: mockActivityService },
           { provide: EventEmitter2, useValue: mockEventEmitter },
+          { provide: EncryptionService, useValue: mockEncryptionService },
           { provide: ReferralsService, useValue: mockReferralsService },
           { provide: PayoutsService, useValue: mockPayoutsService },
           {
@@ -760,6 +776,141 @@ describe('PaymentsService', () => {
     });
   });
 
+  describe('createPreference', () => {
+    it('builds a Mercado Pago buyer profile with shipping, identification, and purchase history', async () => {
+      mockPrismaService.user.findUnique.mockResolvedValue({
+        id: 'buyer-1',
+        email: 'buyer@test.com',
+        nombre: 'Buyer',
+        apellido: 'User',
+        createdAt: new Date('2026-03-01T12:00:00.000Z'),
+        googleId: 'google-123',
+        documentType: 'DNI',
+        documentNumber: 'encrypted-dni',
+        phone: 'encrypted-phone',
+      });
+      mockEncryptionService.decryptUserPII.mockReturnValue({
+        id: 'buyer-1',
+        email: 'buyer@test.com',
+        nombre: 'Buyer',
+        apellido: 'User',
+        createdAt: new Date('2026-03-01T12:00:00.000Z'),
+        googleId: 'google-123',
+        documentType: 'DNI',
+        documentNumber: '12345678',
+        phone: '11 2345-6789',
+      });
+      mockPrismaService.shippingAddress.findFirst.mockResolvedValue({
+        street: 'Av Santa Fe',
+        number: '1234',
+        postalCode: '1425',
+        phone: '+54 11 9999-1111',
+      });
+      mockPrismaService.transaction.findFirst.mockResolvedValue({
+        createdAt: new Date('2026-03-10T15:30:00.000Z'),
+      });
+      mockMercadoPagoProvider.createCheckoutSession.mockResolvedValue({
+        initPoint: 'https://mp.test/checkout',
+        preferenceId: 'pref-1',
+      });
+
+      await service.createPreference({
+        raffleId: 'raffle-1',
+        cantidad: 2,
+        buyerId: 'buyer-1',
+        precioPorTicket: 1500,
+        tituloRifa: 'Rifa QA',
+        reservationId: 'reservation-1',
+      });
+
+      expect(
+        mockMercadoPagoProvider.createCheckoutSession,
+      ).toHaveBeenCalledWith(
+        expect.objectContaining({
+          buyerProfile: {
+            email: 'buyer@test.com',
+            firstName: 'Buyer',
+            lastName: 'User',
+            identificationType: 'DNI',
+            identificationNumber: '12345678',
+            phone: {
+              number: '541199991111',
+            },
+            registrationDate: '2026-03-01T12:00:00.000Z',
+            authenticationType: 'Gmail',
+            isFirstPurchaseOnline: false,
+            lastPurchase: '2026-03-10T15:30:00.000Z',
+            address: {
+              zipCode: '1425',
+              streetName: 'Av Santa Fe',
+              streetNumber: '1234',
+            },
+          },
+        }),
+      );
+    });
+
+    it('uses minimal buyer profile data when optional fields are missing', async () => {
+      mockPrismaService.user.findUnique.mockResolvedValue({
+        id: 'buyer-2',
+        email: 'buyer2@test.com',
+        nombre: 'Buyer',
+        apellido: 'No Docs',
+        createdAt: new Date('2026-03-02T12:00:00.000Z'),
+        googleId: null,
+        documentType: null,
+        documentNumber: null,
+        phone: null,
+      });
+      mockEncryptionService.decryptUserPII.mockReturnValue({
+        id: 'buyer-2',
+        email: 'buyer2@test.com',
+        nombre: 'Buyer',
+        apellido: 'No Docs',
+        createdAt: new Date('2026-03-02T12:00:00.000Z'),
+        googleId: null,
+        documentType: null,
+        documentNumber: null,
+        phone: null,
+      });
+      mockPrismaService.shippingAddress.findFirst.mockResolvedValue(null);
+      mockPrismaService.transaction.findFirst.mockResolvedValue(null);
+      mockMercadoPagoProvider.createCheckoutSession.mockResolvedValue({
+        initPoint: 'https://mp.test/checkout',
+        preferenceId: 'pref-2',
+      });
+
+      await service.createPreference({
+        raffleId: 'raffle-1',
+        cantidad: 1,
+        buyerId: 'buyer-2',
+        precioPorTicket: 500,
+        tituloRifa: 'Rifa QA',
+        reservationId: 'reservation-2',
+      });
+
+      expect(
+        mockMercadoPagoProvider.createCheckoutSession,
+      ).toHaveBeenCalledWith(
+        expect.objectContaining({
+          buyerProfile: {
+            email: 'buyer2@test.com',
+            firstName: 'Buyer',
+            lastName: 'No Docs',
+            identificationType: null,
+            identificationNumber: null,
+            phone: undefined,
+            registrationDate: '2026-03-02T12:00:00.000Z',
+            authenticationType: 'Web Nativa',
+            isFirstPurchaseOnline: true,
+            lastPurchase: null,
+            address: undefined,
+          },
+        }),
+      );
+    });
+  });
+
   describe('isEventProcessed', () => {
     it('should return true if event exists', async () => {
       mockPrismaService.mpEvent.findUnique.mockResolvedValue({ id: 'ev-1' });
@@ -810,6 +961,7 @@ describe('PaymentsService', () => {
           { provide: NotificationsService, useValue: mockNotificationsService },
           { provide: ActivityService, useValue: mockActivityService },
           { provide: EventEmitter2, useValue: mockEventEmitter },
+          { provide: EncryptionService, useValue: mockEncryptionService },
           { provide: ReferralsService, useValue: mockReferralsService },
           { provide: PayoutsService, useValue: mockPayoutsService },
           {

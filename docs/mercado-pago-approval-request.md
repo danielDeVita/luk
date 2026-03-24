@@ -25,6 +25,12 @@ Medidas visibles implementadas:
 - Terminos y politica de privacidad accesibles desde todo el sitio.
 - Bloqueo de publicaciones vinculadas a apuestas, casinos, fichas, saldo o creditos.
 
+Medidas tecnicas implementadas en checkout:
+- Enviamos el checkout por `checkout/preferences` con categoria de industria `lottery`.
+- Enriquecemos el payload con datos del comprador cuando estan disponibles: email, nombre, apellido, identificacion, telefono y direccion operativa.
+- Enviamos tambien senales de contexto para evaluacion de riesgo, como fecha de registro, tipo de autenticacion, si es la primera compra online y fecha de ultima compra completada.
+- Mantenemos referencia externa, URLs de retorno y webhook para trazabilidad e idempotencia del flujo.
+
 Solicitamos confirmacion escrita sobre:
 1. Si la operatoria descripta puede ser aprobada para procesamiento de pagos.
 2. Que requisitos documentales, legales o tecnicos adicionales debemos cumplir.

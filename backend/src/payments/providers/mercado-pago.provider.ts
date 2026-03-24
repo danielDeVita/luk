@@ -2,12 +2,15 @@ import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { MercadoPagoConfig, Payment, Preference } from 'mercadopago';
 import type {
+  Payer,
   PreferenceRequest,
   PreferenceResponse,
 } from 'mercadopago/dist/clients/preference/commonTypes';
 import type { PaymentResponse } from 'mercadopago/dist/clients/payment/commonTypes';
 import { getPlatformFeeRate } from '../../common/config/platform-fee.util';
+import { TicketPurchaseMode } from '../../common/enums';
 import {
+  CheckoutBuyerProfile,
   CreateCheckoutSessionInput,
   CreateCheckoutSessionResult,
   PaymentStatusResult,
@@ -18,6 +21,7 @@ interface ExtendedPreferenceRequest extends PreferenceRequest {
 }
 
 const DEFAULT_MONEY_RELEASE_DAYS = 30;
+const LOTTERY_CATEGORY_ID = 'lottery';
 
 /**
  * Wraps direct Mercado Pago API calls behind a small provider interface used by the payments service.
@@ -85,12 +89,15 @@ export class MercadoPagoProvider {
       !/localhost|127\.0\.0\.1/i.test(successUrl);
 
     const preference = new Preference(this.getClient());
+    const payer = this.buildPayer(data.buyerProfile);
 
     const preferenceBody: ExtendedPreferenceRequest = {
       items: [
         {
           id: data.raffleId,
           title: `${data.cantidad} Ticket(s) - ${data.tituloRifa}`,
+          description: this.buildItemDescription(data),
+          category_id: LOTTERY_CATEGORY_ID,
           quantity: 1,
           unit_price: data.cashChargedAmount,
           currency_id: 'ARS',
@@ -120,6 +127,7 @@ export class MercadoPagoProvider {
       marketplace_fee: platformFee,
       notification_url: `${backendUrl}/mp/webhook`,
       money_release_days: DEFAULT_MONEY_RELEASE_DAYS,
+      ...(payer ? { payer } : {}),
     };
 
     try {
@@ -225,5 +233,63 @@ export class MercadoPagoProvider {
       }
       throw new Error(errorMessage);
     }
+  }
+
+  private buildItemDescription(data: CreateCheckoutSessionInput): string {
+    if (
+      data.purchaseMode === TicketPurchaseMode.CHOOSE_NUMBERS &&
+      data.selectedNumbers &&
+      data.selectedNumbers.length > 0
+    ) {
+      return `Compra de ${data.cantidad} ticket(s) elegidos (${data.selectedNumbers.join(', ')}) para la rifa "${data.tituloRifa}"`;
+    }
+
+    return `Compra de ${data.cantidad} ticket(s) para la rifa "${data.tituloRifa}"`;
+  }
+
+  private buildPayer(
+    buyerProfile?: CheckoutBuyerProfile | null,
+  ): Payer | undefined {
+    if (!buyerProfile) {
+      return undefined;
+    }
+
+    const payer: Payer = {
+      email: buyerProfile.email,
+      name: buyerProfile.firstName ?? undefined,
+      surname: buyerProfile.lastName ?? undefined,
+      authentication_type: buyerProfile.authenticationType ?? undefined,
+      registration_date: buyerProfile.registrationDate ?? undefined,
+      is_first_purchase_online: buyerProfile.isFirstPurchaseOnline,
+      last_purchase: buyerProfile.lastPurchase ?? undefined,
+    };
+
+    if (buyerProfile.identificationType && buyerProfile.identificationNumber) {
+      payer.identification = {
+        type: buyerProfile.identificationType,
+        number: buyerProfile.identificationNumber,
+      };
+    }
+
+    if (buyerProfile.phone?.number || buyerProfile.phone?.areaCode) {
+      payer.phone = {
+        area_code: buyerProfile.phone.areaCode,
+        number: buyerProfile.phone.number,
+      };
+    }
+
+    if (
+      buyerProfile.address?.zipCode ||
+      buyerProfile.address?.streetName ||
+      buyerProfile.address?.streetNumber
+    ) {
+      payer.address = {
+        zip_code: buyerProfile.address.zipCode,
+        street_name: buyerProfile.address.streetName,
+        street_number: buyerProfile.address.streetNumber,
+      };
+    }
+
+    return payer;
   }
 }

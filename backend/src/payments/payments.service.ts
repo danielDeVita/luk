@@ -13,6 +13,7 @@ import type { PaymentResponse } from 'mercadopago/dist/clients/payment/commonTyp
 import { MP_FEE_ESTIMATE_RATE } from '../common/constants/fees.constants';
 import { TicketPurchaseMode } from '../common/enums';
 import { getPlatformFeeRate } from '../common/config/platform-fee.util';
+import { EncryptionService } from '../common/services/encryption.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { ActivityService } from '../activity/activity.service';
 import { ReferralsService } from '../referrals/referrals.service';
@@ -27,6 +28,9 @@ import {
 import { MercadoPagoProvider } from './providers/mercado-pago.provider';
 import { MockPaymentProvider } from './providers/mock-payment.provider';
 import type {
+  CheckoutBuyerAddress,
+  CheckoutBuyerPhone,
+  CheckoutBuyerProfile,
   CreateCheckoutSessionInput,
   MockPaymentAction,
   MockPaymentActionResult,
@@ -76,6 +80,7 @@ export class PaymentsService {
     private notificationsService: NotificationsService,
     private activityService: ActivityService,
     private eventEmitter: EventEmitter2,
+    private readonly encryptionService: EncryptionService,
     @Inject(forwardRef(() => ReferralsService))
     private referralsService: ReferralsService,
     @Inject(forwardRef(() => PayoutsService))
@@ -140,6 +145,10 @@ export class PaymentsService {
       data.grossSubtotal ?? data.cantidad * data.precioPorTicket;
     const cashChargedAmount = data.mpChargeAmount ?? grossSubtotal;
     const discountApplied = data.discountApplied ?? 0;
+    const buyerProfile =
+      this.paymentsProvider === 'mercadopago'
+        ? await this.buildMercadoPagoBuyerProfile(data.buyerId)
+        : null;
 
     if (this.paymentsProvider === 'mock') {
       await this.expireSupersededInitiatedMockPayments(
@@ -165,11 +174,115 @@ export class PaymentsService {
       selectedNumbers: data.selectedNumbers ?? null,
       selectionPremiumPercent: data.selectionPremiumPercent ?? 0,
       selectionPremiumAmount: data.selectionPremiumAmount ?? 0,
+      buyerProfile,
     };
 
     return this.paymentsProvider === 'mock'
       ? this.mockPaymentProvider.createCheckoutSession(sessionInput)
       : this.mercadoPagoProvider.createCheckoutSession(sessionInput);
+  }
+
+  private async buildMercadoPagoBuyerProfile(
+    buyerId: string,
+  ): Promise<CheckoutBuyerProfile> {
+    const [buyer, defaultShippingAddress, lastCompletedPurchase] =
+      await Promise.all([
+        this.prisma.user.findUnique({
+          where: { id: buyerId },
+          select: {
+            id: true,
+            email: true,
+            nombre: true,
+            apellido: true,
+            createdAt: true,
+            googleId: true,
+            documentType: true,
+            documentNumber: true,
+            phone: true,
+          },
+        }),
+        this.prisma.shippingAddress.findFirst({
+          where: { userId: buyerId },
+          orderBy: [{ isDefault: 'desc' }, { createdAt: 'desc' }],
+          select: {
+            street: true,
+            number: true,
+            postalCode: true,
+            phone: true,
+          },
+        }),
+        this.prisma.transaction.findFirst({
+          where: {
+            userId: buyerId,
+            tipo: 'COMPRA_TICKET',
+            estado: 'COMPLETADO',
+            isDeleted: false,
+          },
+          orderBy: { createdAt: 'desc' },
+          select: { createdAt: true },
+        }),
+      ]);
+
+    if (!buyer) {
+      throw new BadRequestException('Comprador no encontrado');
+    }
+
+    const decryptedBuyer = this.encryptionService.decryptUserPII(buyer);
+    const phone = this.buildMercadoPagoPhone(
+      defaultShippingAddress?.phone ?? decryptedBuyer.phone,
+    );
+    const address = this.buildMercadoPagoAddress(defaultShippingAddress);
+
+    return {
+      email: buyer.email,
+      firstName: buyer.nombre,
+      lastName: buyer.apellido,
+      identificationType: decryptedBuyer.documentType ?? null,
+      identificationNumber: decryptedBuyer.documentNumber ?? null,
+      phone,
+      registrationDate: buyer.createdAt.toISOString(),
+      authenticationType: buyer.googleId ? 'Gmail' : 'Web Nativa',
+      isFirstPurchaseOnline: !lastCompletedPurchase,
+      lastPurchase: lastCompletedPurchase?.createdAt.toISOString() ?? null,
+      address,
+    };
+  }
+
+  private buildMercadoPagoPhone(
+    rawPhone?: string | null,
+  ): CheckoutBuyerPhone | undefined {
+    if (!rawPhone) {
+      return undefined;
+    }
+
+    const normalizedPhone = rawPhone.replace(/\D/g, '');
+    if (!normalizedPhone) {
+      return undefined;
+    }
+
+    return {
+      number: normalizedPhone,
+    };
+  }
+
+  private buildMercadoPagoAddress(
+    address?: {
+      street: string;
+      number: string;
+      postalCode: string;
+    } | null,
+  ): CheckoutBuyerAddress | undefined {
+    if (!address) {
+      return undefined;
+    }
+
+    const normalizedStreetNumber = address.number.replace(/\D/g, '');
+
+    return {
+      zipCode: address.postalCode || undefined,
+      streetName: address.street || undefined,
+      streetNumber: normalizedStreetNumber || undefined,
+    };
   }
 
   /**

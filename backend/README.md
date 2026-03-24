@@ -215,6 +215,23 @@ docker compose -f docker-compose.dev.yml logs -f social-worker
 
 ## Mercado Pago Integration
 
+### Checkout Preference Enrichment
+The Checkout Pro preference sent to Mercado Pago includes additional buyer and industry context to improve approval quality for raffle-style purchases:
+
+- `payer` data when available:
+  - email, first name, last name;
+  - identification type and number;
+  - phone;
+  - shipping address reference;
+  - registration date;
+  - authentication type (`Gmail` vs native web login);
+  - first-purchase flag and last completed ticket purchase date.
+- enriched item metadata:
+  - `category_id: "lottery"`;
+  - a checkout description that distinguishes random purchases from chosen-number purchases.
+
+The checkout still goes to Mercado Pago as a single bundle item so the charged amount remains exactly aligned with the final LUK calculation, including discounts and chosen-number premium when applicable.
+
 ### Webhook Processing
 1. Receives webhook at `POST /mp/webhook`
 2. Parses payload (supports `type`, `topic`, `action` formats)

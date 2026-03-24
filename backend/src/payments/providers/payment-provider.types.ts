@@ -1,5 +1,30 @@
 import { TicketPurchaseMode } from '../../common/enums';
 
+export interface CheckoutBuyerPhone {
+  areaCode?: string;
+  number?: string;
+}
+
+export interface CheckoutBuyerAddress {
+  zipCode?: string;
+  streetName?: string;
+  streetNumber?: string;
+}
+
+export interface CheckoutBuyerProfile {
+  email: string;
+  firstName?: string | null;
+  lastName?: string | null;
+  identificationType?: string | null;
+  identificationNumber?: string | null;
+  phone?: CheckoutBuyerPhone | null;
+  registrationDate?: string | null;
+  authenticationType?: string | null;
+  isFirstPurchaseOnline?: boolean;
+  lastPurchase?: string | null;
+  address?: CheckoutBuyerAddress | null;
+}
+
 /**
  * Shared checkout payload used by both live and mock payment providers.
  */
@@ -20,6 +45,7 @@ export interface CreateCheckoutSessionInput {
   selectedNumbers?: number[] | null;
   selectionPremiumPercent: number;
   selectionPremiumAmount: number;
+  buyerProfile?: CheckoutBuyerProfile | null;
 }
 
 /**
