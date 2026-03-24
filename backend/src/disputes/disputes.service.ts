@@ -52,8 +52,14 @@ export class DisputesService {
       throw new BadRequestException('Ya existe una disputa para esta rifa');
     }
 
-    if (raffle.estado !== 'SORTEADA') {
-      throw new BadRequestException('Solo se pueden disputar rifas sorteadas');
+    const canOpenDispute =
+      raffle.estado === 'SORTEADA' ||
+      (raffle.estado === 'EN_ENTREGA' && raffle.deliveryStatus === 'SHIPPED');
+
+    if (!canOpenDispute) {
+      throw new BadRequestException(
+        'Solo se pueden disputar rifas sorteadas o en entrega',
+      );
     }
 
     await this.prisma.raffle.update({

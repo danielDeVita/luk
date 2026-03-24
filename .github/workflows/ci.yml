@@ -68,6 +68,7 @@ jobs:
           DATABASE_URL: postgresql://raffle_user:raffle_password@localhost:5432/raffle_db
           JWT_SECRET: test-jwt-secret-for-ci-pipeline
           ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+          PLATFORM_FEE_PERCENT: '4'
           CLOUDINARY_CLOUD_NAME: ci-cloudinary
           CLOUDINARY_API_KEY: ci-cloudinary-key
           CLOUDINARY_API_SECRET: ci-cloudinary-secret
@@ -197,6 +198,7 @@ jobs:
           DATABASE_URL: postgresql://raffle_user:raffle_password@localhost:5432/raffle_db
           JWT_SECRET: test-jwt-secret-for-ci-pipeline
           ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+          PLATFORM_FEE_PERCENT: '4'
           CLOUDINARY_CLOUD_NAME: ci-cloudinary
           CLOUDINARY_API_KEY: ci-cloudinary-key
           CLOUDINARY_API_SECRET: ci-cloudinary-secret

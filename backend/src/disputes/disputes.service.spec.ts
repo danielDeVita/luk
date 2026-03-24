@@ -258,7 +258,7 @@ describe('DisputesService', () => {
       ).rejects.toThrow('Ya existe una disputa para esta rifa');
     });
 
-    it('should throw BadRequestException if raffle is not SORTEADA', async () => {
+    it('should throw BadRequestException if raffle is not disputable', async () => {
       const raffle = createTestRaffle({
         estado: RaffleStatus.ACTIVA,
         dispute: null,
@@ -270,7 +270,37 @@ describe('DisputesService', () => {
       ).rejects.toThrow(BadRequestException);
       await expect(
         service.openDispute('winner-1', openDisputeInput),
-      ).rejects.toThrow('Solo se pueden disputar rifas sorteadas');
+      ).rejects.toThrow('Solo se pueden disputar rifas sorteadas o en entrega');
+    });
+
+    it('should allow dispute when raffle is EN_ENTREGA and shipment is pending buyer confirmation', async () => {
+      const raffle = createTestRaffle({
+        estado: RaffleStatus.EN_ENTREGA,
+        deliveryStatus: 'SHIPPED',
+        dispute: null,
+      });
+      const dispute = createTestDispute({
+        raffle: {
+          ...raffle,
+          deliveryStatus: 'DISPUTED',
+        },
+      });
+
+      prisma.raffle.findUnique.mockResolvedValue(raffle);
+      prisma.raffle.update.mockResolvedValue({
+        ...raffle,
+        deliveryStatus: 'DISPUTED',
+      });
+      prisma.dispute.create.mockResolvedValue(dispute);
+      prisma.userReputation.upsert.mockResolvedValue({} as any);
+
+      const result = await service.openDispute('winner-1', openDisputeInput);
+
+      expect(prisma.raffle.update).toHaveBeenCalledWith({
+        where: { id: 'raffle-1' },
+        data: { deliveryStatus: 'DISPUTED' },
+      });
+      expect(result).toBe(dispute);
     });
 
     it('should freeze payout by updating delivery status to DISPUTED', async () => {

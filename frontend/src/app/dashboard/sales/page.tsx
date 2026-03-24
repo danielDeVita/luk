@@ -315,7 +315,7 @@ function getChartLabelDensity(chartWidth: number | null): 'full' | 'compact' | '
 function SalesDashboardContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { isAuthenticated, hasHydrated } = useAuthStore();
+  const { isAuthenticated, hasHydrated, token } = useAuthStore();
   const [selectedRaffle, setSelectedRaffle] = useState<string | null>(null);
   const [trackingNumber, setTrackingNumber] = useState('');
   const [isShipDialogOpen, setIsShipDialogOpen] = useState(false);
@@ -348,19 +348,39 @@ function SalesDashboardContent() {
   const [editDescription, setEditDescription] = useState('');
   const [editImages, setEditImages] = useState<string[]>([]);
 
-  const shouldSkipQueries = !isAuthenticated || !hasHydrated;
+  const shouldSkipQueries = !isAuthenticated || !hasHydrated || !token;
 
-  const { data, loading, error, refetch } = useQuery<{ myRafflesAsSeller: RaffleData[] }>(MY_RAFFLES, {
+  const {
+    data,
+    loading: rafflesLoading,
+    error,
+    refetch,
+  } = useQuery<{ myRafflesAsSeller: RaffleData[] }>(MY_RAFFLES, {
     skip: shouldSkipQueries,
+    notifyOnNetworkStatusChange: true,
   });
 
-  const { data: statsData } = useQuery<{ sellerDashboardStats: SellerDashboardStats }>(
+  const {
+    data: statsData,
+    loading: statsLoading,
+    error: statsError,
+    refetch: refetchStats,
+  } = useQuery<{ sellerDashboardStats: SellerDashboardStats }>(
     SELLER_DASHBOARD_STATS,
-    { skip: shouldSkipQueries }
+    {
+      skip: shouldSkipQueries,
+      notifyOnNetworkStatusChange: true,
+    }
   );
 
-  const { data: onboardingData, loading: onboardingLoading } = useQuery<OnboardingData>(GET_ONBOARDING_STATUS, {
+  const {
+    data: onboardingData,
+    loading: onboardingLoading,
+    error: onboardingError,
+    refetch: refetchOnboarding,
+  } = useQuery<OnboardingData>(GET_ONBOARDING_STATUS, {
     skip: shouldSkipQueries,
+    notifyOnNetworkStatusChange: true,
   });
   const { data: socialPromotionData, refetch: refetchSocialPromotions } = useQuery<{
     mySocialPromotionPosts: SocialPromotionPost[];
@@ -555,6 +575,35 @@ function SalesDashboardContent() {
       router.push('/auth/login');
     }
   }, [hasHydrated, isAuthenticated, router]);
+
+  useEffect(() => {
+    if (shouldSkipQueries || rafflesLoading || data) {
+      return;
+    }
+
+    void refetch();
+  }, [shouldSkipQueries, rafflesLoading, data, refetch]);
+
+  useEffect(() => {
+    if (shouldSkipQueries || statsLoading || statsData) {
+      return;
+    }
+
+    void refetchStats();
+  }, [shouldSkipQueries, statsLoading, statsData, refetchStats]);
+
+  useEffect(() => {
+    if (shouldSkipQueries || onboardingLoading || onboardingData) {
+      return;
+    }
+
+    void refetchOnboarding();
+  }, [
+    shouldSkipQueries,
+    onboardingLoading,
+    onboardingData,
+    refetchOnboarding,
+  ]);
 
   useEffect(() => {
     const chartContainer = chartContainerRef.current;
@@ -764,10 +813,29 @@ function SalesDashboardContent() {
 
   if (!hasHydrated || !isAuthenticated) return null;
 
-  if (error) {
+  const dashboardError = error || statsError || onboardingError;
+
+  if (dashboardError) {
     return (
       <div className="container mx-auto px-4 py-8">
-        <div className="text-center py-20 text-destructive">Error al cargar tus rifas: {error.message}</div>
+        <div className="text-center py-20 text-destructive">
+          Error al cargar tu panel: {dashboardError.message}
+        </div>
+      </div>
+    );
+  }
+
+  const isInitialDashboardLoading =
+    !shouldSkipQueries &&
+    (!data || !statsData || !onboardingData) &&
+    (rafflesLoading || statsLoading || onboardingLoading);
+
+  if (isInitialDashboardLoading) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <div className="flex items-center justify-center py-20">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
       </div>
     );
   }
@@ -1049,7 +1117,7 @@ function SalesDashboardContent() {
       )}
 
       {/* Raffles List */}
-      {loading ? (
+      {rafflesLoading ? (
         <div className="flex items-center justify-center py-20">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
