@@ -108,6 +108,11 @@ const sentryWebpackPluginOptions = {
 
   // Automatically tree-shake Sentry logger statements to reduce bundle size
   automaticVercelMonitors: true,
+
+  // v1 keeps runtime capture only; source map upload stays for a later phase.
+  sourcemaps: {
+    disable: true,
+  },
 };
 
 // Only wrap with Sentry if the DSN is configured

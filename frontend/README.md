@@ -74,9 +74,15 @@ NEXT_PUBLIC_BACKEND_URL="http://localhost:3001"
 NEXT_PUBLIC_MP_PUBLIC_KEY="TEST-..."
 NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME="..."
 NEXT_PUBLIC_GA_MEASUREMENT_ID="G-XXXXXXXXXX"
+NEXT_PUBLIC_SENTRY_DSN=""
+NEXT_PUBLIC_SENTRY_RELEASE=""
+SENTRY_DSN=""
+SENTRY_RELEASE=""
 ```
 
 If the backend runs with `PAYMENTS_PROVIDER="mock"`, purchases redirect to the local mock checkout page instead of Mercado Pago. This is useful for QA of ticket confirmation, refunds, and promotion bonus reversals without a real PSP.
+
+Keep the Sentry DSNs empty in local development if you do not want browser/server events sent from your machine.
 
 ## Project Structure
 

@@ -128,6 +128,8 @@ BACKEND_URL="http://localhost:3001"
 FRONTEND_URL="http://localhost:3000"
 PAYMENTS_PROVIDER="mercadopago"   # or "mock" for local QA
 ALLOW_MOCK_PAYMENTS="false"
+SENTRY_DSN=""                     # Optional, leave empty in local
+SENTRY_RELEASE=""                 # Git SHA or deploy release id
 
 # Social promotions
 SOCIAL_PROMOTION_ENABLED="true"
@@ -533,6 +535,8 @@ const preference = await this.mercadopago.preferences.create({
 | `CLOUDINARY_*` | Cloudinary credentials |
 | `FRONTEND_URL` | Frontend URL for redirects |
 | `BACKEND_URL` | Backend URL for webhooks |
+| `SENTRY_DSN` | Backend/worker Sentry DSN (optional) |
+| `SENTRY_RELEASE` | Backend/worker release identifier (optional, recommended in prod/staging) |
 | `ENCRYPTION_KEY` | **64 hex chars** - Encrypts PII: KYC data (DNI, CUIT, addresses, phone) + MP tokens using AES-256-GCM. Generate with: `openssl rand -hex 32` |
 
 ## Troubleshooting
