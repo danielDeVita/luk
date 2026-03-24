@@ -1,6 +1,33 @@
 import type { NextConfig } from "next";
 import { withSentryConfig } from "@sentry/nextjs";
 
+function getAllowedConnectOrigins(): string[] {
+  const allowedOrigins = new Set<string>(["'self'"]);
+
+  const addOrigin = (value?: string) => {
+    if (!value) return;
+
+    try {
+      const url = new URL(value);
+      allowedOrigins.add(url.origin);
+    } catch {
+      // Ignore invalid URLs so a bad env var does not break the build.
+    }
+  };
+
+  addOrigin(process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001');
+  addOrigin(
+    process.env.NEXT_PUBLIC_GRAPHQL_URL ||
+      process.env.NEXT_PUBLIC_BACKEND_URL ||
+      'http://localhost:3001/graphql',
+  );
+  addOrigin(
+    process.env.NEXT_PUBLIC_GRAPHQL_WS_URL || 'ws://localhost:3001/graphql',
+  );
+
+  return Array.from(allowedOrigins);
+}
+
 const nextConfig: NextConfig = {
   output: 'standalone',
   reactCompiler: true,
@@ -29,8 +56,7 @@ const nextConfig: NextConfig = {
       return [];
     }
 
-    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
-    const backendDomain = new URL(backendUrl).hostname;
+    const connectOrigins = getAllowedConnectOrigins();
 
     const cspDirectives = [
       "default-src 'self'",
@@ -38,7 +64,7 @@ const nextConfig: NextConfig = {
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: blob: https://res.cloudinary.com https://*.cloudinary.com",
       "font-src 'self' data:",
-      `connect-src 'self' https://${backendDomain} wss://${backendDomain} https://api.cloudinary.com https://api.mercadopago.com https://*.mercadopago.com wss://*.mercadopago.com https://*.sentry.io https://*.ingest.sentry.io`,
+      `connect-src ${connectOrigins.join(' ')} https://api.cloudinary.com https://api.mercadopago.com https://*.mercadopago.com wss://*.mercadopago.com https://*.sentry.io https://*.ingest.sentry.io`,
       "frame-ancestors 'none'",
       "form-action 'self'",
       "base-uri 'self'",
