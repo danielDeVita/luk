@@ -5,6 +5,12 @@ import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/auth';
 import AdminPage from '../page';
 
+vi.mock('@apollo/client/react', () => ({
+  useQuery: vi.fn(),
+  useMutation: vi.fn(),
+  useLazyQuery: vi.fn(),
+}));
+
 vi.mock('next/navigation', () => ({
   useRouter: vi.fn(),
 }));
