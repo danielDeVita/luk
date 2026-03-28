@@ -2,7 +2,7 @@
 
 GraphQL API built with NestJS, Prisma, and PostgreSQL.
 
-> **Project guide**: See [AGENTS.md](../AGENTS.md) for shared project context and [COMMANDS.md](../COMMANDS.md) for root-level workflows.
+> **Project guide**: See [AGENTS.md](../AGENTS.md) for shared project context, [COMMANDS.md](../COMMANDS.md) for root-level workflows, and [docs/domain-flows.md](../docs/domain-flows.md) for business lifecycle flows.
 
 ## Quick Start (Docker - Recommended)
 
