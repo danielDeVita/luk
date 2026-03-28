@@ -16,7 +16,6 @@ import { getPlatformFeeRate } from '../common/config/platform-fee.util';
 import { EncryptionService } from '../common/services/encryption.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { ActivityService } from '../activity/activity.service';
-import { ReferralsService } from '../referrals/referrals.service';
 import { PayoutsService } from '../payouts/payouts.service';
 import { SocialPromotionsService } from '../social-promotions/social-promotions.service';
 import {
@@ -81,8 +80,6 @@ export class PaymentsService {
     private activityService: ActivityService,
     private eventEmitter: EventEmitter2,
     private readonly encryptionService: EncryptionService,
-    @Inject(forwardRef(() => ReferralsService))
-    private referralsService: ReferralsService,
     @Inject(forwardRef(() => PayoutsService))
     private payoutsService: PayoutsService,
     @Inject(forwardRef(() => SocialPromotionsService))
@@ -997,20 +994,6 @@ export class PaymentsService {
             mpPaymentId,
           ),
         );
-
-        // Process referral reward if this is the user's first purchase
-        this.referralsService
-          .processFirstPurchaseReward(
-            buyerId,
-            cashChargedAmount,
-            tickets[0]?.id,
-          )
-          .catch((err: unknown) => {
-            const errorMsg = isErrorWithMessage(err)
-              ? err.message
-              : 'Unknown error';
-            this.logger.error(`Failed to process referral reward: ${errorMsg}`);
-          });
       }
     } catch (notifError: unknown) {
       // Don't fail payment processing if notifications fail

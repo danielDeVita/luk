@@ -49,8 +49,6 @@ describe('UsersRepository', () => {
       kycVerifiedAt: null,
       kycRejectedReason: null,
       phone: null,
-      referralCode: null,
-      referredById: null,
       deletedAt: null,
       lastLoginAt: null,
       ...overrides,

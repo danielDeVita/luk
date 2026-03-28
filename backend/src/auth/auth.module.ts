@@ -1,4 +1,4 @@
-import { Module, forwardRef } from '@nestjs/common';
+import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { ConfigService } from '@nestjs/config';
@@ -11,7 +11,6 @@ import { GqlAuthGuard } from './guards/gql-auth.guard';
 import { LoginThrottlerService, LoginThrottlerGuard } from '@/common/guards';
 import { PrismaModule } from '../prisma/prisma.module';
 import { NotificationsModule } from '../notifications/notifications.module';
-import { ReferralsModule } from '../referrals/referrals.module';
 import { UsersModule } from '../users/users.module';
 import { SocialPromotionsModule } from '../social-promotions/social-promotions.module';
 
@@ -20,7 +19,6 @@ import { SocialPromotionsModule } from '../social-promotions/social-promotions.m
     PrismaModule,
     NotificationsModule,
     UsersModule,
-    forwardRef(() => ReferralsModule),
     SocialPromotionsModule,
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.registerAsync({

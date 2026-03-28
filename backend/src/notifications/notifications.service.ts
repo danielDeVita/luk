@@ -34,7 +34,6 @@ import {
   getRaffleCancelledNotificationContent,
   getRaffleCompletedNotificationContent,
   getRaffleParticipantNotificationContent,
-  getReferralRewardNotificationContent,
   getRefundDueToDisputeNotificationContent,
   getRefundNotificationContent,
   getSellerMustContactWinnerContent,
@@ -44,7 +43,6 @@ import {
   getStripeConnectSuccessNotificationContent,
   getTicketPurchaseConfirmationContent,
   getWelcomeEmailContent,
-  getWelcomeWithReferralBonusEmailContent,
   getWinnerNotificationContent,
 } from './email-templates';
 
@@ -518,35 +516,6 @@ export class NotificationsService {
     return this.sendEmail({
       to: email,
       subject: `📉 ¡Precio reducido! ${data.raffleName} ahora $${data.newPrice}`,
-      html,
-    });
-  }
-
-  // ==================== Referral Notifications ====================
-
-  async sendReferralRewardNotification(
-    email: string,
-    data: { refereeName: string; amount: number; totalBalance: number },
-  ) {
-    const html = getReferralRewardNotificationContent(data, this.configService);
-    return this.sendEmail({
-      to: email,
-      subject: `💰 ¡Ganaste $${data.amount.toFixed(2)} por referido!`,
-      html,
-    });
-  }
-
-  async sendWelcomeWithReferralBonusEmail(
-    email: string,
-    data: { userName: string; referrerName: string },
-  ) {
-    const html = getWelcomeWithReferralBonusEmailContent(
-      data,
-      this.configService,
-    );
-    return this.sendEmail({
-      to: email,
-      subject: '¡Bienvenido! Fuiste invitado por un amigo',
       html,
     });
   }

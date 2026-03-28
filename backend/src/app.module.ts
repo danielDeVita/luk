@@ -38,7 +38,6 @@ import { MessagingModule } from './messaging/messaging.module';
 import { PayoutsModule } from './payouts/payouts.module';
 import { ActivityModule } from './activity/activity.module';
 import { HealthModule } from './health/health.module';
-import { ReferralsModule } from './referrals/referrals.module';
 import { QuestionsModule } from './questions/questions.module';
 import { SocialPromotionsModule } from './social-promotions/social-promotions.module';
 import { JwtAuthGuard } from './auth/guards/jwt-auth/jwt-auth.guard';
@@ -213,7 +212,6 @@ function getBooleanFlag(
     PayoutsModule,
     ActivityModule,
     HealthModule,
-    ReferralsModule,
     QuestionsModule,
     SocialPromotionsModule,
   ],

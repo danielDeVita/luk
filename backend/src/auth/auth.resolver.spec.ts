@@ -138,7 +138,6 @@ describe('AuthResolver', () => {
         userId,
         code,
         undefined,
-        undefined,
       );
       // In test environment (no SECURE_COOKIES and not production+CI), cookies use lax/insecure
       expect(res.cookie).toHaveBeenCalledWith(
@@ -163,10 +162,10 @@ describe('AuthResolver', () => {
       );
     });
 
-    it('should apply referral code when provided', async () => {
+    it('should pass promotion token when provided', async () => {
       const userId = 'user-1';
       const code = '123456';
-      const referralCode = 'REFER123';
+      const promotionToken = 'promo-123';
       const res = mockResponse();
       const context = { req: {}, res };
 
@@ -176,13 +175,12 @@ describe('AuthResolver', () => {
         refreshToken: 'refresh',
       });
 
-      await resolver.verifyEmail(userId, code, context, referralCode);
+      await resolver.verifyEmail(userId, code, context, promotionToken);
 
       expect(authService.verifyEmail).toHaveBeenCalledWith(
         userId,
         code,
-        referralCode,
-        undefined,
+        promotionToken,
       );
     });
   });

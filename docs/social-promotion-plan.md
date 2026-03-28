@@ -492,7 +492,7 @@ Debe exponer GraphQL y seguir el mismo patrón del backend actual:
   - `cashChargedAmount`
 - agregar a `Payout` un campo para reflejar subsidio promocional de plataforma.
 
-No reutilizar `ReferralCredit` ni `referralBalance`.
+No reutilizar saldos o créditos de otros programas; la promoción social debe tener su propio ciclo de bonus.
 
 ## Validación y monitoreo
 
@@ -616,7 +616,7 @@ Backend:
 
 Frontend:
 
-- `NEXT_PUBLIC_MP_PUBLIC_KEY`
+- no se requiere una clave pública adicional de Mercado Pago en el frontend para la integración actual.
 
 ### Para qué sirve cada una
 
@@ -624,7 +624,6 @@ Frontend:
 - `MP_CLIENT_ID`: OAuth/Connect de sellers.
 - `MP_CLIENT_SECRET`: OAuth/Connect de sellers.
 - `MP_WEBHOOK_SECRET`: validar firma de notificaciones.
-- `NEXT_PUBLIC_MP_PUBLIC_KEY`: inicialización del frontend cuando corresponda.
 
 ### Cómo obtenerlas
 
@@ -677,13 +676,11 @@ Backend:
 
 - `SOCIAL_PROMOTION_ENABLED=true`
 - `SOCIAL_PROMOTION_ALLOWED_NETWORKS=facebook,instagram,x,threads`
-- `SOCIAL_PROMOTION_SUBMISSION_WINDOW_HOURS=24`
 - `SOCIAL_PROMOTION_CHECK_CRON=0 */6 * * *`
 - `SOCIAL_PROMOTION_FETCH_TIMEOUT_MS=30000`
 - `SOCIAL_PROMOTION_MIN_MP_CHARGE=1`
 - `SOCIAL_PROMOTION_TOKEN_TTL_HOURS=24`
 - `SOCIAL_PROMOTION_DEFAULT_BONUS_TIER_JSON=...`
-- `SOCIAL_PROMOTION_MAX_USER_MONTHLY_SUBSIDY=...`
 
 Opcionales para una fase posterior:
 

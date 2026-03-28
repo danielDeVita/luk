@@ -6,7 +6,6 @@ import { MpConnectController } from './mp-connect.controller';
 import { MpConnectService } from './mp-connect.service';
 import { PrismaModule } from '../prisma/prisma.module';
 import { NotificationsModule } from '../notifications/notifications.module';
-import { ReferralsModule } from '../referrals/referrals.module';
 import { AuthModule } from '../auth/auth.module';
 import { PayoutsModule } from '../payouts/payouts.module';
 import { SocialPromotionsModule } from '../social-promotions/social-promotions.module';
@@ -17,7 +16,6 @@ import { MockPaymentProvider } from './providers/mock-payment.provider';
   imports: [
     PrismaModule,
     NotificationsModule,
-    forwardRef(() => ReferralsModule),
     forwardRef(() => PayoutsModule),
     forwardRef(() => SocialPromotionsModule),
     AuthModule, // For JwtService in MP Connect

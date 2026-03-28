@@ -13,7 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, Check, AlertTriangle, Gift, Mail, RefreshCw } from 'lucide-react';
+import { Loader2, Check, AlertTriangle, Mail, RefreshCw } from 'lucide-react';
 import { PasswordInput } from '@/components/ui/password-input';
 import { toast } from 'sonner';
 import {
@@ -22,8 +22,8 @@ import {
 } from '@/lib/social-promotions';
 
 const REGISTER_MUTATION = gql`
-  mutation Register($email: String!, $password: String!, $nombre: String!, $apellido: String!, $fechaNacimiento: String!, $acceptTerms: Boolean!, $referralCode: String) {
-    register(input: { email: $email, password: $password, nombre: $nombre, apellido: $apellido, fechaNacimiento: $fechaNacimiento, acceptTerms: $acceptTerms, referralCode: $referralCode }) {
+  mutation Register($email: String!, $password: String!, $nombre: String!, $apellido: String!, $fechaNacimiento: String!, $acceptTerms: Boolean!) {
+    register(input: { email: $email, password: $password, nombre: $nombre, apellido: $apellido, fechaNacimiento: $fechaNacimiento, acceptTerms: $acceptTerms }) {
       user {
         id
         email
@@ -36,8 +36,8 @@ const REGISTER_MUTATION = gql`
 `;
 
 const VERIFY_EMAIL_MUTATION = gql`
-  mutation VerifyEmail($userId: String!, $code: String!, $referralCode: String, $promotionToken: String) {
-    verifyEmail(userId: $userId, code: $code, referralCode: $referralCode, promotionToken: $promotionToken) {
+  mutation VerifyEmail($userId: String!, $code: String!, $promotionToken: String) {
+    verifyEmail(userId: $userId, code: $code, promotionToken: $promotionToken) {
       token
       refreshToken
       user {
@@ -89,7 +89,6 @@ const registerSchema = z.object({
   acceptTerms: z.boolean().refine((val) => val === true, {
     message: 'Debés aceptar los términos y condiciones',
   }),
-  referralCode: z.string().max(20).optional(),
 }).refine((data) => data.password === data.confirmPassword, {
   message: 'Las contraseñas no coinciden',
   path: ['confirmPassword'],
@@ -127,7 +126,6 @@ interface VerifyEmailResult {
 function RegisterPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const refCode = searchParams.get('ref');
   const promoCode = searchParams.get('promo');
   const setAuth = useAuthStore((state) => state.setAuth);
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
@@ -138,7 +136,6 @@ function RegisterPageContent() {
   const [pendingUserId, setPendingUserId] = useState<string | null>(null);
   const [pendingEmail, setPendingEmail] = useState<string | null>(null);
   const [verificationCode, setVerificationCode] = useState('');
-  const [storedReferralCode, setStoredReferralCode] = useState<string | null>(null);
   const promotionToken = useMemo(() => {
     if (promoCode) {
       return promoCode;
@@ -168,7 +165,6 @@ function RegisterPageContent() {
     resolver: zodResolver(registerSchema),
     defaultValues: {
       acceptTerms: false,
-      referralCode: refCode || '',
     },
   });
 
@@ -182,15 +178,14 @@ function RegisterPageContent() {
 
   const onRegisterSubmit = async (formData: RegisterForm) => {
     setErrorMsg(null);
-    const { confirmPassword: _, referralCode, ...registerData } = formData;
+    const { confirmPassword: _, ...registerData } = formData;
 
     try {
-      const result = await registerMutation({ variables: { ...registerData, referralCode } });
+      const result = await registerMutation({ variables: registerData });
 
       if (result.data?.register.requiresVerification) {
         setPendingUserId(result.data.register.user.id);
         setPendingEmail(result.data.register.user.email);
-        setStoredReferralCode(referralCode || null);
         setStep('verify');
         toast.success('Te enviamos un código de verificación a tu email');
       }
@@ -209,7 +204,6 @@ function RegisterPageContent() {
         variables: {
           userId: pendingUserId,
           code: verificationCode,
-          referralCode: storedReferralCode,
           promotionToken,
         },
       });
@@ -475,25 +469,6 @@ function RegisterPageContent() {
             {errors.acceptTerms && (
               <p className="text-sm text-destructive">{errors.acceptTerms.message}</p>
             )}
-
-            {/* Referral Code */}
-            <div className="space-y-2">
-              <Label htmlFor="referralCode" className="flex items-center gap-2">
-                <Gift className="h-4 w-4 text-primary" />
-                Codigo de referido (opcional)
-              </Label>
-              <Input
-                id="referralCode"
-                placeholder="ABCD1234"
-                {...register('referralCode')}
-                className="uppercase"
-              />
-              {refCode && (
-                <p className="text-xs text-green-600">
-                  Fuiste invitado por un amigo
-                </p>
-              )}
-            </div>
 
             <Button type="submit" className="w-full" disabled={registering || isSubmitting}>
               {registering ? (

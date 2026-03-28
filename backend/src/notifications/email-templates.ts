@@ -744,64 +744,6 @@ export const getPriceDropAlertContent = (
   });
 };
 
-export const getReferralRewardNotificationContent = (
-  data: { refereeName: string; amount: number; totalBalance: number },
-  configService: ConfigService,
-) => {
-  const frontendUrl = getFrontendUrl(configService);
-  const content = `
-    <div style="background: linear-gradient(135deg, #F59E0B, #D97706); border-radius: 12px; padding: 32px; text-align: center; margin-bottom: 24px;">
-      <h2 style="color: white; font-family: 'Fraunces', serif; font-size: 24px; font-weight: 800; margin: 0;">💰 ¡GANASTE CRÉDITO!</h2>
-    </div>
-    <p style="color: #4B5563; font-size: 15px; line-height: 1.6; margin: 0 0 20px 0;">
-      ¡Buenas noticias! Tu referido <strong>${data.refereeName}</strong> hizo su primera compra y ganaste una recompensa.
-    </p>
-    <div style="background: #FFFBEB; border: 1px solid #FEF3C7; border-radius: 12px; padding: 24px; text-align: center; margin: 24px 0;">
-      <p style="color: #D97706; font-size: 42px; font-weight: 800; margin: 0;">+$${data.amount.toFixed(2)}</p>
-      <p style="color: #92400E; font-size: 14px; margin: 8px 0 0 0; font-weight: 600;">Balance total: $${data.totalBalance.toFixed(2)}</p>
-    </div>
-    <p style="color: #4B5563; font-size: 15px; line-height: 1.6;">
-      Seguí invitando amigos para seguir sumando crédito en la plataforma.
-    </p>
-  `;
-  return wrapEmailTemplate(content, configService, {
-    showButton: true,
-    buttonText: 'Ver mis referidos',
-    buttonUrl: `${frontendUrl}/dashboard/referrals`,
-  });
-};
-
-export const getWelcomeWithReferralBonusEmailContent = (
-  data: { userName: string; referrerName: string },
-  configService: ConfigService,
-) => {
-  const frontendUrl = getFrontendUrl(configService);
-  const content = `
-    <h2 style="color: #1F2937; font-family: 'Fraunces', serif; font-size: 24px; font-weight: 700; margin: 0 0 16px 0;">¡Bienvenido, ${data.userName}! 🎉</h2>
-    <p style="color: #4B5563; font-size: 15px; line-height: 1.6; margin: 0 0 20px 0;">
-      Tu cuenta ha sido creada exitosamente.
-    </p>
-    <div style="background: #F0FDFA; border: 1px solid #99F6E4; border-radius: 12px; padding: 20px; margin: 24px 0;">
-      <p style="color: #0F766E; font-size: 15px; margin: 0;">
-        🎁 Fuiste invitado por <strong>${data.referrerName}</strong>
-      </p>
-    </div>
-    <div style="background: #F0FDFA; border: 1px solid #99F6E4; border-radius: 12px; padding: 20px; margin: 24px 0;">
-      <p style="color: #0F766E; font-size: 14px; font-weight: 600; margin: 0 0 12px 0;">Ahora podés:</p>
-      <ul style="color: #0F766E; font-size: 14px; margin: 0; padding-left: 20px; line-height: 1.8;">
-        <li>Participar en rifas y ganar premios</li>
-        <li>Crear tus propias rifas</li>
-        <li>Invitar amigos y ganar crédito</li>
-      </ul>
-    </div>
-  `;
-  return wrapEmailTemplate(content, configService, {
-    showButton: true,
-    buttonText: BRAND_EXPLORE_CTA_LABEL,
-    buttonUrl: frontendUrl,
-  });
-};
-
 // ==================== KYC Notifications ====================
 
 export const getAdminNewKycSubmissionContent = (

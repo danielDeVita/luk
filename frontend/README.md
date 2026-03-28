@@ -57,7 +57,6 @@ npm run dev
 | `/dashboard/tickets` | Buyer dashboard (stats, recommendations, favorites ending soon, tickets) | User |
 | `/dashboard/sales` | Seller dashboard (revenue chart, analytics, bulk actions, CSV export) | User |
 | `/dashboard/favorites` | Saved raffles wishlist (with price drop alerts) | User |
-| `/dashboard/referrals` | Referral program dashboard | User |
 | `/dashboard/settings` | Profile (Avatar), Payments (MP Connect), Security | User |
 | `/seller/[id]` | Public seller profile | Public |
 | `/admin` | Admin panel (stats, raffles, reports, user management) | Admin |
@@ -71,8 +70,7 @@ The frontend reads from `.env.local` (symlink to root `.env`):
 NEXT_PUBLIC_GRAPHQL_URL="http://localhost:3001/graphql"
 NEXT_PUBLIC_GRAPHQL_WS_URL="ws://localhost:3001/graphql"
 NEXT_PUBLIC_BACKEND_URL="http://localhost:3001"
-NEXT_PUBLIC_MP_PUBLIC_KEY="TEST-..."
-NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME="..."
+NEXT_PUBLIC_SITE_URL="http://localhost:3000"
 NEXT_PUBLIC_GA_MEASUREMENT_ID="G-XXXXXXXXXX"
 NEXT_PUBLIC_SENTRY_DSN=""
 NEXT_PUBLIC_SENTRY_RELEASE=""
@@ -234,17 +232,6 @@ Enhanced buyer panel at `/dashboard/tickets`:
 - **Personalized Recommendations** - Based on purchase history and favorites
 - **Favorites Ending Soon** - Alert for favorited raffles ending within 48 hours
 - **Advanced Filtering** - Filter by ticket status, raffle status, date range, wins only
-
-### Referral Program
-Referral dashboard at `/dashboard/referrals`:
-- **Referral Code** - Unique code with copy button
-- **Share Buttons** - WhatsApp, Twitter, copy link
-- **Invited Users List** - Shows status and earnings per referral
-- **Earnings Summary** - Total earned, available balance, pending credits
-- Referrer earns 5% of referee's first ticket purchase
-
-Registration accepts `?ref=CODE` query parameter to pre-fill referral code.
-
 
 ### Profile Avatar
 Users can upload, update, and remove their profile avatar via `/dashboard/settings`.

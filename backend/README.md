@@ -73,7 +73,6 @@ MP_ACCESS_TOKEN=""
 | `admin/` | Admin panel, user management, bulk dispute resolution, stats |
 | `categories/` | Raffle categories management |
 | `reports/` | Raffle reporting/flagging system |
-| `referrals/` | Referral program (codes, rewards, stats) |
 | `social-promotions/` | Verifiable seller promotion flow, parsers, scoring, promotion bonus lifecycle |
 | `tasks/` | Scheduled jobs (cron) |
 | `health/` | Health check endpoints |
@@ -93,25 +92,6 @@ The social promotion feature is implemented in v1 with:
 
 No official Meta/X APIs are used in v1. Metrics come from public content plus Luk attribution events.
 
-### Module Dependencies (Circular)
-
-These modules have circular dependencies requiring `forwardRef`:
-
-```
-AuthModule ↔ ReferralsModule     (registration applies referral codes)
-PaymentsModule ↔ ReferralsModule (purchases trigger referral rewards)
-```
-
-**Pattern:**
-```typescript
-// In module
-imports: [forwardRef(() => ReferralsModule)]
-
-// In service
-@Inject(forwardRef(() => ReferralsService))
-private referralsService: ReferralsService;
-```
-
 ## Environment
 
 The backend reads from `../.env` (root). `backend/.env` is a symlink to that file. Key variables:
@@ -121,7 +101,6 @@ DATABASE_URL="postgresql://..."
 JWT_SECRET="..."
 PLATFORM_FEE_PERCENT="4"
 MP_ACCESS_TOKEN="TEST-..."
-MP_PUBLIC_KEY="TEST-..."
 MP_CLIENT_ID="..."           # For MP Connect OAuth
 MP_CLIENT_SECRET="..."       # For MP Connect OAuth
 BACKEND_URL="http://localhost:3001"
@@ -282,21 +261,6 @@ query { recommendedRaffles(limit: 6) { id titulo precioPorTicket product { image
 query { favoritesEndingSoon(hoursThreshold: 48) { id titulo fechaLimiteSorteo } }
 ```
 
-### Referral Program Queries/Mutations
-```graphql
-# Get referral stats (code, total referred, earnings, balance)
-query { myReferralStats { referralCode totalReferred totalEarned pendingCredits availableBalance } }
-
-# Get list of referred users with purchase status
-query { myReferredUsers { id nombre apellido createdAt hasPurchased earnedFromUser } }
-
-# Generate referral code for current user
-mutation { generateReferralCode }
-
-# Get referral credit history
-query { myReferralCredits { id amount type status createdAt processedAt } }
-```
-
 ### Price Alerts
 ```graphql
 # Seller updates raffle price (triggers notifications if price dropped)
@@ -309,7 +273,7 @@ mutation { updateRafflePrice(raffleId: "...", newPrice: 100.00) { id precioPorTi
 mutation { register(input: {...}) { user { id } requiresVerification message } }
 
 # Verify email with 6-digit code
-mutation { verifyEmail(userId: "...", code: "123456", referralCode: "ABC") { token user { id emailVerified } } }
+mutation { verifyEmail(userId: "...", code: "123456") { token user { id emailVerified } } }
 
 # Resend verification code (rate limited to 3 per hour)
 mutation { resendVerificationCode(userId: "...") }
@@ -473,8 +437,6 @@ mutation { bulkResolveDisputes(disputeIds: ["..."], resolution: RESUELTA_COMPRAD
 | ActivityService | `src/activity/activity.service.ts` | Audit logging for all actions |
 | AdminService | `src/admin/admin.service.ts` | Admin-only operations |
 | DisputesService | `src/disputes/disputes.service.ts` | Buyer protection workflow |
-| ReferralsService | `src/referrals/referrals.service.ts` | Referral codes, rewards, stats |
-
 ## Database Schema
 
 The Prisma schema is at `prisma/schema.prisma`. Key models:
@@ -491,7 +453,6 @@ The Prisma schema is at `prisma/schema.prisma`. Key models:
 | ActivityLog | Audit trail |
 | Category | Raffle categories |
 | MpEvent | Webhook idempotency |
-| ReferralCredit | Referral rewards tracking |
 | RaffleQuestion | Questions asked by users on raffles |
 | RaffleAnswer | Seller answers to questions |
 | EmailVerificationCode | 6-digit codes for email verification (15 min expiry) |
@@ -545,7 +506,6 @@ const preference = await this.mercadopago.preferences.create({
 | `JWT_SECRET` | Secret for JWT tokens (min 32 chars) |
 | `PLATFORM_FEE_PERCENT` | Luk platform fee percentage applied to ticket sales |
 | `MP_ACCESS_TOKEN` | Mercado Pago access token |
-| `MP_PUBLIC_KEY` | Mercado Pago public key |
 | `MP_CLIENT_ID` | MP OAuth Client ID (for MP Connect) |
 | `MP_CLIENT_SECRET` | MP OAuth Client Secret |
 | `BREVO_API_KEY` | Brevo email API key (must be REST API key `xkeysib-...`, not SMTP key) |

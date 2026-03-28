@@ -6,7 +6,6 @@ import { ConfigService } from '@nestjs/config';
 import { NotificationsService } from '../notifications/notifications.service';
 import { ActivityService } from '../activity/activity.service';
 import { LoginThrottlerService } from '@/common/guards';
-import { ReferralsService } from '../referrals/referrals.service';
 import { ConflictException, UnauthorizedException } from '@nestjs/common';
 import { UserRole } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
@@ -60,7 +59,6 @@ describe('AuthService', () => {
   const mockNotificationsService = {
     sendEmailVerificationCode: jest.fn().mockResolvedValue(true),
     sendWelcomeEmail: jest.fn().mockResolvedValue(true),
-    sendWelcomeWithReferralBonusEmail: jest.fn().mockResolvedValue(true),
     create: jest.fn().mockResolvedValue({ id: 'notif-1' }),
   };
 
@@ -77,10 +75,6 @@ describe('AuthService', () => {
       .fn()
       .mockReturnValue({ remainingAttempts: 4, blocked: false }),
     clearAttempts: jest.fn(),
-  };
-
-  const mockReferralsService = {
-    applyReferralCode: jest.fn().mockResolvedValue(true),
   };
 
   const mockSocialPromotionsService = {
@@ -119,7 +113,6 @@ describe('AuthService', () => {
         { provide: NotificationsService, useValue: mockNotificationsService },
         { provide: ActivityService, useValue: mockActivityService },
         { provide: LoginThrottlerService, useValue: mockLoginThrottler },
-        { provide: ReferralsService, useValue: mockReferralsService },
         {
           provide: SocialPromotionsService,
           useValue: mockSocialPromotionsService,
@@ -230,8 +223,8 @@ describe('AuthService', () => {
       );
     });
 
-    it('should handle referral code in registration', async () => {
-      const inputWithReferral = { ...validInput, referralCode: 'REF123' };
+    it('should ignore optional promotion token in registration input flow', async () => {
+      const inputWithPromotion = { ...validInput, promotionToken: 'promo-123' };
       mockPrismaService.user.findUnique.mockResolvedValue(null);
       mockPrismaService.user.create.mockResolvedValue(createTestUser());
       mockPrismaService.emailVerificationCode.create.mockResolvedValue({
@@ -240,10 +233,9 @@ describe('AuthService', () => {
         expiresAt: new Date(),
       });
 
-      const result = await service.register(inputWithReferral);
+      const result = await service.register(inputWithPromotion);
 
       expect(result.requiresVerification).toBe(true);
-      // Referral code is applied after verification, not during registration
     });
   });
 
@@ -337,32 +329,6 @@ describe('AuthService', () => {
       );
     });
 
-    it('should apply referral code on verification', async () => {
-      const referralCode = 'REF123';
-      const user = createTestUser();
-      mockPrismaService.user.findUnique
-        .mockResolvedValueOnce(user)
-        .mockResolvedValueOnce({ nombre: 'Referrer' });
-      mockPrismaService.emailVerificationCode.findFirst.mockResolvedValue({
-        id: 'code-1',
-        userId,
-        code,
-        isUsed: false,
-        expiresAt: new Date(Date.now() + 10 * 60 * 1000),
-      });
-      mockPrismaService.$transaction.mockResolvedValue([{}, {}]);
-      mockPrismaService.refreshToken.create.mockResolvedValue({
-        token: 'refresh-token',
-      });
-
-      await service.verifyEmail(userId, code, referralCode);
-
-      expect(mockReferralsService.applyReferralCode).toHaveBeenCalledWith(
-        userId,
-        referralCode,
-      );
-    });
-
     it('should record promotion attribution when a promotion token is provided', async () => {
       const user = createTestUser();
       mockPrismaService.user.findUnique.mockResolvedValue(user);
@@ -378,7 +344,7 @@ describe('AuthService', () => {
         token: 'refresh-token',
       });
 
-      await service.verifyEmail(userId, code, undefined, 'promo-123');
+      await service.verifyEmail(userId, code, 'promo-123');
 
       expect(
         mockSocialPromotionsService.recordRegistrationAttribution,

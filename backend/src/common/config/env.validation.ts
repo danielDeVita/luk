@@ -193,11 +193,6 @@ export class EnvironmentVariables {
   @IsOptional()
   SOCIAL_PROMOTION_ALLOWED_NETWORKS: string = 'facebook,instagram,x,threads';
 
-  @IsNumber()
-  @IsOptional()
-  @Min(1)
-  SOCIAL_PROMOTION_SUBMISSION_WINDOW_HOURS: number = 24;
-
   @IsString()
   @IsOptional()
   SOCIAL_PROMOTION_CHECK_CRON: string = '0 */6 * * *';
@@ -220,11 +215,6 @@ export class EnvironmentVariables {
   @IsString()
   @IsOptional()
   SOCIAL_PROMOTION_DEFAULT_BONUS_TIER_JSON: string = '';
-
-  @IsNumber()
-  @IsOptional()
-  @Min(0)
-  SOCIAL_PROMOTION_MAX_USER_MONTHLY_SUBSIDY: number = 0;
 
   @IsBoolean()
   @IsOptional()

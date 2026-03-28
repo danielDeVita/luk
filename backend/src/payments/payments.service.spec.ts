@@ -5,7 +5,6 @@ import { ConfigService } from '@nestjs/config';
 import { NotificationsService } from '../notifications/notifications.service';
 import { ActivityService } from '../activity/activity.service';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { ReferralsService } from '../referrals/referrals.service';
 import { PayoutsService } from '../payouts/payouts.service';
 import { SocialPromotionsService } from '../social-promotions/social-promotions.service';
 import { EncryptionService } from '../common/services/encryption.service';
@@ -82,10 +81,6 @@ describe('PaymentsService', () => {
     emit: jest.fn(),
   };
 
-  const mockReferralsService = {
-    processFirstPurchaseReward: jest.fn().mockResolvedValue(true),
-  };
-
   const mockPayoutsService = {
     createPayout: jest.fn().mockResolvedValue({ id: 'payout-1' }),
   };
@@ -143,7 +138,6 @@ describe('PaymentsService', () => {
         { provide: ActivityService, useValue: mockActivityService },
         { provide: EventEmitter2, useValue: mockEventEmitter },
         { provide: EncryptionService, useValue: mockEncryptionService },
-        { provide: ReferralsService, useValue: mockReferralsService },
         { provide: PayoutsService, useValue: mockPayoutsService },
         {
           provide: SocialPromotionsService,
@@ -554,7 +548,6 @@ describe('PaymentsService', () => {
           { provide: ActivityService, useValue: mockActivityService },
           { provide: EventEmitter2, useValue: mockEventEmitter },
           { provide: EncryptionService, useValue: mockEncryptionService },
-          { provide: ReferralsService, useValue: mockReferralsService },
           { provide: PayoutsService, useValue: mockPayoutsService },
           {
             provide: SocialPromotionsService,
@@ -633,7 +626,6 @@ describe('PaymentsService', () => {
           { provide: ActivityService, useValue: mockActivityService },
           { provide: EventEmitter2, useValue: mockEventEmitter },
           { provide: EncryptionService, useValue: mockEncryptionService },
-          { provide: ReferralsService, useValue: mockReferralsService },
           { provide: PayoutsService, useValue: mockPayoutsService },
           {
             provide: SocialPromotionsService,
@@ -705,7 +697,6 @@ describe('PaymentsService', () => {
           { provide: ActivityService, useValue: mockActivityService },
           { provide: EventEmitter2, useValue: mockEventEmitter },
           { provide: EncryptionService, useValue: mockEncryptionService },
-          { provide: ReferralsService, useValue: mockReferralsService },
           { provide: PayoutsService, useValue: mockPayoutsService },
           {
             provide: SocialPromotionsService,
@@ -962,7 +953,6 @@ describe('PaymentsService', () => {
           { provide: ActivityService, useValue: mockActivityService },
           { provide: EventEmitter2, useValue: mockEventEmitter },
           { provide: EncryptionService, useValue: mockEncryptionService },
-          { provide: ReferralsService, useValue: mockReferralsService },
           { provide: PayoutsService, useValue: mockPayoutsService },
           {
             provide: SocialPromotionsService,

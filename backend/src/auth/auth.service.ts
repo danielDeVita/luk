@@ -3,8 +3,6 @@ import {
   UnauthorizedException,
   ConflictException,
   Logger,
-  Inject,
-  forwardRef,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
@@ -16,7 +14,6 @@ import { UserRole } from '@prisma/client';
 import { NotificationsService } from '../notifications/notifications.service';
 import { ActivityService } from '../activity/activity.service';
 import { LoginThrottlerService } from '@/common/guards';
-import { ReferralsService } from '../referrals/referrals.service';
 import { SocialPromotionsService } from '../social-promotions/social-promotions.service';
 
 // Token expiration times
@@ -35,8 +32,6 @@ export class AuthService {
     private notifications: NotificationsService,
     private activityService: ActivityService,
     private loginThrottler: LoginThrottlerService,
-    @Inject(forwardRef(() => ReferralsService))
-    private referralsService: ReferralsService,
     private socialPromotionsService: SocialPromotionsService,
   ) {}
 
@@ -91,14 +86,6 @@ export class AuthService {
       },
     });
 
-    // Store referral code for later (after verification)
-    if (input.referralCode) {
-      // We'll apply it after email verification
-      this.logger.log(
-        `Referral code ${input.referralCode} pending for user ${user.id}`,
-      );
-    }
-
     // Generate and send verification code
     const verificationCode = this.generateVerificationCode();
     await this.createEmailVerificationCode(user.id, verificationCode);
@@ -131,12 +118,7 @@ export class AuthService {
     };
   }
 
-  async verifyEmail(
-    userId: string,
-    code: string,
-    referralCode?: string,
-    promotionToken?: string,
-  ) {
+  async verifyEmail(userId: string, code: string, promotionToken?: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
     });
@@ -193,27 +175,8 @@ export class AuthService {
       }),
     ]);
 
-    // Apply referral code if provided
-    let referrerName: string | undefined;
-    if (referralCode) {
-      try {
-        const referrer = await this.prisma.user.findUnique({
-          where: { referralCode: referralCode.toUpperCase() },
-          select: { nombre: true },
-        });
-        if (referrer) {
-          await this.referralsService.applyReferralCode(userId, referralCode);
-          referrerName = referrer.nombre;
-        }
-      } catch (err) {
-        this.logger.warn(
-          `Failed to apply referral code: ${err instanceof Error ? err.message : 'Unknown error'}`,
-        );
-      }
-    }
-
     // Send welcome notifications
-    this.sendWelcomeNotifications(user, referrerName).catch((err: unknown) => {
+    this.sendWelcomeNotifications(user).catch((err: unknown) => {
       const message = err instanceof Error ? err.message : 'Unknown error';
       this.logger.error(`Failed to send welcome notifications: ${message}`);
     });
@@ -308,22 +271,18 @@ export class AuthService {
     });
   }
 
-  private async sendWelcomeNotifications(
-    user: { id: string; email: string; nombre: string },
-    referrerName?: string,
-  ) {
+  private async sendWelcomeNotifications(user: {
+    id: string;
+    email: string;
+    nombre: string;
+  }) {
     const userName = user.nombre || user.email.split('@')[0];
 
-    const emailPromise = referrerName
-      ? this.notifications.sendWelcomeWithReferralBonusEmail(user.email, {
-          userName,
-          referrerName,
-        })
-      : this.notifications.sendWelcomeEmail(user.email, { userName });
+    const emailPromise = this.notifications.sendWelcomeEmail(user.email, {
+      userName,
+    });
 
-    const welcomeMessage = referrerName
-      ? `¡Hola ${userName}! Fuiste invitado por ${referrerName}. ¡Explora las rifas disponibles!`
-      : `¡Hola ${userName}! Tu cuenta ha sido creada exitosamente. ¡Explora las rifas disponibles!`;
+    const welcomeMessage = `¡Hola ${userName}! Tu cuenta ha sido creada exitosamente. ¡Explora las rifas disponibles!`;
 
     await Promise.all([
       emailPromise,

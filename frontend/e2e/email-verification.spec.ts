@@ -95,25 +95,4 @@ test.describe('Email Verification', () => {
     test.skip(true, 'Requires time manipulation in test environment');
   });
 
-  test('should apply referral code from URL after verification', async ({
-    page,
-  }) => {
-    // Register with referral code in URL
-    await page.goto('/auth/register?ref=TESTREF123');
-
-    await page.getByLabel(/nombre/i).fill('Test');
-    await page.getByLabel(/apellido/i).fill('User');
-    await page
-      .getByLabel(/email/i)
-      .fill(`test-ref-${Date.now()}@example.com`);
-    await page.getByLabel('Contraseña', { exact: true }).fill('Password123!');
-    await page.getByLabel('Confirmar Contraseña').fill('Password123!');
-    await page
-      .locator('button[type="submit"]')
-      .getByText(/crear cuenta/i)
-      .click();
-
-    // Should preserve referral code through verification flow
-    await expect(page).toHaveURL(/ref=TESTREF123/);
-  });
 });

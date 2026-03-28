@@ -125,18 +125,6 @@ enum PayoutStatus {
   FAILED
 }
 
-enum ReferralCreditType {
-  SIGNUP_BONUS
-  FIRST_PURCHASE_BONUS
-}
-
-enum ReferralCreditStatus {
-  PENDING
-  CREDITED
-  USED
-  EXPIRED
-}
-
 enum SocialPromotionNetwork {
   FACEBOOK
   INSTAGRAM
@@ -261,15 +249,7 @@ model User {
   // Seller's default "from" address for shipping labels
   defaultSenderAddressId String?            @map("default_sender_address_id")
 
-  // Referral Program
-  referralCode      String?              @unique @map("referral_code")
-  referredById      String?              @map("referred_by_id")
-  referralBalance   Decimal              @default(0) @map("referral_balance") @db.Decimal(10, 2)
-
   // Relations
-  referredBy        User?                @relation("UserReferrals", fields: [referredById], references: [id])
-  referredUsers     User[]               @relation("UserReferrals")
-  referralCredits   ReferralCredit[]
   rafflesCreated    Raffle[]      @relation("SellerRaffles")
   rafflesWon        Raffle[]      @relation("WinnerRaffles")
   ticketsPurchased  Ticket[]
@@ -810,25 +790,6 @@ model RefreshToken {
   @@index([userId])
   @@index([expiresAt])
   @@map("refresh_tokens")
-}
-
-model ReferralCredit {
-  id           String               @id @default(cuid())
-  userId       String               @map("user_id")
-  refereeId    String               @map("referee_id")
-  amount       Decimal              @db.Decimal(10, 2)
-  type         ReferralCreditType
-  status       ReferralCreditStatus @default(PENDING)
-  description  String?
-  ticketId     String?              @map("ticket_id")
-  createdAt    DateTime             @default(now()) @map("created_at")
-  processedAt  DateTime?            @map("processed_at")
-
-  user         User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId, status])
-  @@index([refereeId])
-  @@map("referral_credits")
 }
 
 model SocialPromotionDraft {

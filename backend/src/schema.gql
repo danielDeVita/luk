@@ -371,8 +371,6 @@ type Mutation {
   adminDisqualifySocialPromotionPost(postId: String!, reason: String!): SocialPromotionPost!
   adminRetrySocialPromotionPost(postId: String!): SocialPromotionPost!
   answerQuestion(input: AnswerQuestionInput!): RaffleAnswer!
-  applyReferralCode(code: String!): Boolean!
-
   """Approve a KYC submission"""
   approveKyc(userId: String!): KycApprovalResult!
   askQuestion(input: AskQuestionInput!): RaffleQuestion!
@@ -398,7 +396,6 @@ type Mutation {
   deleteQuestion(questionId: String!): Boolean!
   deleteShippingAddress(id: String!): Boolean!
   extendRaffleDeadline(newDeadline: String!, raffleId: String!): Raffle!
-  generateReferralCode: String!
   incrementRaffleViews(raffleId: String!): Boolean!
   login(input: LoginInput!): AuthPayload!
   markAllNotificationsRead: Boolean!
@@ -438,7 +435,7 @@ type Mutation {
   updateRaffle(id: String!, input: UpdateRaffleInput!): Raffle!
   updateRafflePrice(newPrice: Float!, raffleId: String!): Raffle!
   updateShippingAddress(id: String!, input: UpdateShippingAddressInput!): ShippingAddress!
-  verifyEmail(code: String!, promotionToken: String, referralCode: String, userId: String!): AuthPayload!
+  verifyEmail(code: String!, promotionToken: String, userId: String!): AuthPayload!
 }
 
 type Notification {
@@ -656,10 +653,6 @@ type Query {
   myPayouts: [Payout!]!
   myPromotionBonusGrants(status: PromotionBonusGrantStatus): [PromotionBonusGrant!]!
   myRafflesAsSeller: [Raffle!]!
-  myReferralCode: String
-  myReferralCredits: [ReferralCredit!]!
-  myReferralStats: ReferralStats!
-  myReferredUsers: [ReferredUser!]!
   myShippingAddresses: [ShippingAddress!]!
   mySocialPromotionPosts(raffleId: String): [SocialPromotionPost!]!
   myTickets: [Ticket!]!
@@ -774,48 +767,6 @@ enum RaffleStatus {
   SORTEADA
 }
 
-type ReferralCredit {
-  amount: Float!
-  createdAt: DateTime!
-  description: String
-  id: ID!
-  processedAt: DateTime
-  refereeId: String!
-  status: ReferralCreditStatus!
-  ticketId: String
-  type: ReferralCreditType!
-  userId: String!
-}
-
-enum ReferralCreditStatus {
-  CREDITED
-  EXPIRED
-  PENDING
-  USED
-}
-
-enum ReferralCreditType {
-  FIRST_PURCHASE_BONUS
-  SIGNUP_BONUS
-}
-
-type ReferralStats {
-  availableBalance: Float!
-  pendingCredits: Float!
-  referralCode: String
-  totalEarned: Float!
-  totalReferred: Float!
-}
-
-type ReferredUser {
-  apellido: String!
-  createdAt: DateTime!
-  earnedFromUser: Float!
-  hasPurchased: Boolean!
-  id: ID!
-  nombre: String!
-}
-
 input RegisterInput {
   acceptTerms: Boolean!
   apellido: String!
@@ -824,7 +775,6 @@ input RegisterInput {
   nombre: String!
   password: String!
   promotionToken: String
-  referralCode: String
 }
 
 type RegisterPayload {
