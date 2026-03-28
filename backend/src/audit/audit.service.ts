@@ -175,4 +175,48 @@ export class AuditService {
       details,
     });
   }
+
+  async logReportReviewed(
+    adminId: string,
+    reportId: string,
+    details: Record<string, unknown>,
+  ) {
+    return this.log({
+      adminId,
+      action: AuditAction.REPORT_REVIEWED,
+      targetType: 'Report',
+      targetId: reportId,
+      details,
+    });
+  }
+
+  async logSocialPromotionRetried(
+    adminId: string,
+    postId: string,
+    details?: Record<string, unknown>,
+  ) {
+    return this.log({
+      adminId,
+      action: AuditAction.SOCIAL_PROMOTION_RETRIED,
+      targetType: 'SocialPromotionPost',
+      targetId: postId,
+      details,
+    });
+  }
+
+  async logSocialPromotionDisqualified(
+    adminId: string,
+    postId: string,
+    reason: string,
+    details?: Record<string, unknown>,
+  ) {
+    return this.log({
+      adminId,
+      action: AuditAction.SOCIAL_PROMOTION_DISQUALIFIED,
+      targetType: 'SocialPromotionPost',
+      targetId: postId,
+      reason,
+      details,
+    });
+  }
 }

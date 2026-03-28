@@ -5,6 +5,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { PaymentsService } from '../payments/payments.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PayoutsService } from '../payouts/payouts.service';
+import { captureException } from '../sentry';
 
 function isFalseEnvFlag(value: boolean | string | undefined): boolean {
   return (
@@ -91,6 +92,18 @@ export class RaffleTasksService {
         'Error processing expired raffles:',
         error instanceof Error ? error.stack : error,
       );
+      captureException(
+        error instanceof Error
+          ? error
+          : new Error('Error processing expired raffles'),
+        {
+          tags: {
+            service: 'luk-backend',
+            domain: 'raffles',
+            stage: 'cron',
+          },
+        },
+      );
     }
   }
 
@@ -121,6 +134,18 @@ export class RaffleTasksService {
       this.logger.error(
         'Error in reminders/releases:',
         error instanceof Error ? error.stack : error,
+      );
+      captureException(
+        error instanceof Error
+          ? error
+          : new Error('Error in raffle reminders/releases'),
+        {
+          tags: {
+            service: 'luk-backend',
+            domain: 'raffles',
+            stage: 'cron',
+          },
+        },
       );
     }
   }
@@ -187,6 +212,22 @@ export class RaffleTasksService {
           error instanceof Error ? error.message : 'Unknown error';
         failedRefundIds.push(ticket.id);
         this.logger.error(`Failed to refund ticket ${ticket.id}:`, message);
+        captureException(
+          error instanceof Error ? error : new Error('Ticket refund failed'),
+          {
+            user: ticket.buyerId ? { id: ticket.buyerId } : undefined,
+            tags: {
+              service: 'luk-backend',
+              domain: 'raffles',
+              stage: 'refund',
+            },
+            extra: {
+              raffleId,
+              ticketId: ticket.id,
+              paymentId: ticket.mpPaymentId,
+            },
+          },
+        );
       }
     }
 

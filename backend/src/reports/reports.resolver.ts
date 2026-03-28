@@ -6,10 +6,14 @@ import { RolesGuard } from '../auth/guards/roles/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { UserRole, User } from '@prisma/client';
+import { AuditService } from '../audit/audit.service';
 
 @Resolver()
 export class ReportsResolver {
-  constructor(private reportsService: ReportsService) {}
+  constructor(
+    private reportsService: ReportsService,
+    private auditService: AuditService,
+  ) {}
 
   @Mutation(() => Boolean)
   @UseGuards(JwtAuthGuard)
@@ -40,11 +44,32 @@ export class ReportsResolver {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
   async reviewReport(
+    @CurrentUser() admin: User,
     @Args('reportId') reportId: string,
     @Args('adminNotes') adminNotes: string,
     @Args('action') action: 'DISMISS' | 'HIDE_RAFFLE' | 'BAN_SELLER',
   ) {
-    await this.reportsService.reviewReport(reportId, adminNotes, action);
+    const result = await this.reportsService.reviewReport(
+      reportId,
+      adminNotes,
+      action,
+    );
+
+    await this.auditService.logReportReviewed(admin.id, reportId, {
+      reportAction: action,
+      adminNotes,
+      raffleId: result.raffleId,
+      sellerId: result.sellerId,
+    });
+
+    if (action === 'HIDE_RAFFLE') {
+      await this.auditService.logRaffleHidden(
+        admin.id,
+        result.raffleId,
+        adminNotes,
+      );
+    }
+
     return true;
   }
 
@@ -52,10 +77,12 @@ export class ReportsResolver {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
   async unhideRaffle(
+    @CurrentUser() admin: User,
     @Args('raffleId') raffleId: string,
     @Args('adminNotes') adminNotes: string,
   ) {
     await this.reportsService.unhideRaffle(raffleId, adminNotes);
+    await this.auditService.logRaffleUnhidden(admin.id, raffleId, adminNotes);
     return true;
   }
 }

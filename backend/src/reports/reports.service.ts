@@ -124,6 +124,8 @@ export class ReportsService {
       throw new NotFoundException('Reporte no encontrado');
     }
 
+    let raffleHidden = false;
+
     // Update report as reviewed
     await this.prisma.report.update({
       where: { id: reportId },
@@ -143,6 +145,7 @@ export class ReportsService {
           hiddenReason: `Hidden by admin: ${adminNotes}`,
         },
       });
+      raffleHidden = true;
     } else if (action === 'BAN_SELLER') {
       await this.prisma.user.update({
         where: { id: report.raffle.sellerId },
@@ -153,11 +156,19 @@ export class ReportsService {
         where: { sellerId: report.raffle.sellerId },
         data: { isHidden: true, hiddenReason: 'Seller banned' },
       });
+      raffleHidden = true;
     }
 
     this.logger.log(`Report ${reportId} reviewed with action: ${action}`);
 
-    return { success: true, action };
+    return {
+      success: true,
+      action,
+      reportId,
+      raffleId: report.raffleId,
+      sellerId: report.raffle.sellerId,
+      raffleHidden,
+    };
   }
 
   /**

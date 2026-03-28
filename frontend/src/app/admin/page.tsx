@@ -317,7 +317,7 @@ function formatCompact(n: number | undefined | null, prefix = ''): string {
 
 export default function AdminPage() {
   const router = useRouter();
-  const { isAuthenticated, user } = useAuthStore();
+  const { isAuthenticated, user, hasHydrated } = useAuthStore();
   const [activeTab, setActiveTab] = useState('raffles');
 
   // User management state
@@ -349,15 +349,15 @@ export default function AdminPage() {
   const [reports, setReports] = useState<Report[]>([]);
 
   const { data: statsData, loading: statsLoading, error: statsError, refetch: refetchStats } = useQuery<{ adminStats: AdminStats }>(GET_ADMIN_STATS, {
-    skip: !isAuthenticated || user?.role !== 'ADMIN',
+    skip: !hasHydrated || !isAuthenticated || user?.role !== 'ADMIN',
   });
 
   const { data: rafflesData, loading: rafflesLoading, refetch: refetchRaffles } = useQuery<{ raffles: Raffle[] }>(GET_RAFFLES, {
-    skip: !isAuthenticated || user?.role !== 'ADMIN',
+    skip: !hasHydrated || !isAuthenticated || user?.role !== 'ADMIN',
   });
 
   const { data: reportsData, loading: reportsLoading, refetch: refetchReports } = useQuery<{ getReports: string }>(GET_REPORTS, {
-    skip: !isAuthenticated || user?.role !== 'ADMIN',
+    skip: !hasHydrated || !isAuthenticated || user?.role !== 'ADMIN',
     variables: { reviewed: false },
   });
 
@@ -376,7 +376,7 @@ export default function AdminPage() {
   }, [reportsData]);
 
   const { data: usersData, loading: usersLoading, refetch: refetchUsers } = useQuery<AdminUsersData>(GET_ADMIN_USERS, {
-    skip: !isAuthenticated || user?.role !== 'ADMIN',
+    skip: !hasHydrated || !isAuthenticated || user?.role !== 'ADMIN',
     fetchPolicy: 'cache-and-network',
     variables: {
       role: userRoleFilter === 'ALL' ? undefined : userRoleFilter,
@@ -387,7 +387,7 @@ export default function AdminPage() {
   });
 
   const { data: kycData, loading: kycLoading, refetch: refetchKyc } = useQuery<KycPendingData>(GET_PENDING_KYC, {
-    skip: !isAuthenticated || user?.role !== 'ADMIN',
+    skip: !hasHydrated || !isAuthenticated || user?.role !== 'ADMIN',
     variables: { limit: 50 },
   });
 
@@ -452,12 +452,21 @@ export default function AdminPage() {
   });
 
   useEffect(() => {
+    if (!hasHydrated) {
+      return;
+    }
+
     if (!isAuthenticated) {
       router.push('/auth/login');
-    } else if (user?.role !== 'ADMIN') {
+      return;
+    }
+
+    if (user?.role !== 'ADMIN') {
       router.push('/');
     }
-  }, [isAuthenticated, user, router]);
+  }, [hasHydrated, isAuthenticated, user, router]);
+
+  const isAuthorized = hasHydrated && isAuthenticated && user?.role === 'ADMIN';
 
   const handleHideRaffle = async (raffleId: string, reportId?: string) => {
     const reason = prompt('Razón para ocultar esta rifa:');
@@ -542,8 +551,12 @@ export default function AdminPage() {
     rejectKyc({ variables: { userId: selectedKyc.userId, reason: rejectReason } });
   };
 
-  if (!isAuthenticated || user?.role !== 'ADMIN') {
-    return null;
+  if (!hasHydrated || !isAuthorized) {
+    return (
+      <div className="flex h-[50vh] items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
   }
 
   const loading = statsLoading || rafflesLoading || reportsLoading;

@@ -303,7 +303,9 @@ describe('ReportsService', () => {
         },
       });
       expect(prisma.raffle.update).not.toHaveBeenCalled();
-      expect(result).toEqual({ success: true, action: 'DISMISS' });
+      expect(result).toEqual(
+        expect.objectContaining({ success: true, action: 'DISMISS' }),
+      );
     });
 
     it('should hide raffle when action is HIDE_RAFFLE', async () => {
@@ -332,7 +334,9 @@ describe('ReportsService', () => {
           hiddenReason: 'Hidden by admin: Contains inappropriate content',
         },
       });
-      expect(result).toEqual({ success: true, action: 'HIDE_RAFFLE' });
+      expect(result).toEqual(
+        expect.objectContaining({ success: true, action: 'HIDE_RAFFLE' }),
+      );
     });
 
     it('should ban seller and hide all their raffles when action is BAN_SELLER', async () => {
@@ -363,7 +367,9 @@ describe('ReportsService', () => {
         where: { sellerId: 'seller-1' },
         data: { isHidden: true, hiddenReason: 'Seller banned' },
       });
-      expect(result).toEqual({ success: true, action: 'BAN_SELLER' });
+      expect(result).toEqual(
+        expect.objectContaining({ success: true, action: 'BAN_SELLER' }),
+      );
     });
   });
 

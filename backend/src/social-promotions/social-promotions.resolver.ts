@@ -133,9 +133,10 @@ export class SocialPromotionsResolver {
   @UseGuards(GqlAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
   async adminRetrySocialPromotionPost(
+    @CurrentUser() admin: User,
     @Args('postId') postId: string,
   ): Promise<SocialPromotionPost> {
-    return this.socialPromotionsService.retryTechnicalReview(postId);
+    return this.socialPromotionsService.retryTechnicalReview(postId, admin.id);
   }
 
   /**
@@ -145,9 +146,14 @@ export class SocialPromotionsResolver {
   @UseGuards(GqlAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
   async adminDisqualifySocialPromotionPost(
+    @CurrentUser() admin: User,
     @Args('postId') postId: string,
     @Args('reason') reason: string,
   ): Promise<SocialPromotionPost> {
-    return this.socialPromotionsService.adminDisqualifyPost(postId, reason);
+    return this.socialPromotionsService.adminDisqualifyPost(
+      postId,
+      reason,
+      admin.id,
+    );
   }
 }

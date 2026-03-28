@@ -4,6 +4,7 @@ import { PayoutsService } from './payouts.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { AuditService } from '../audit/audit.service';
+import { ActivityService } from '../activity/activity.service';
 import { PaymentsService } from '../payments/payments.service';
 import { PayoutStatus, Prisma } from '@prisma/client';
 
@@ -37,12 +38,17 @@ type MockPaymentsService = {
   calculateCommissions: jest.Mock;
 };
 
+type MockActivityService = {
+  logPayoutReleased: jest.Mock;
+};
+
 describe('PayoutsService', () => {
   let service: PayoutsService;
   let prisma: MockPrismaService;
   let notifications: MockNotificationsService;
   let audit: MockAuditService;
   let paymentsService: MockPaymentsService;
+  let activity: MockActivityService;
 
   const mockPrismaService = (): MockPrismaService => ({
     raffle: {
@@ -83,6 +89,10 @@ describe('PayoutsService', () => {
     })),
   });
 
+  const mockActivityService = (): MockActivityService => ({
+    logPayoutReleased: jest.fn(),
+  });
+
   beforeEach(async () => {
     jest.clearAllMocks();
 
@@ -92,6 +102,7 @@ describe('PayoutsService', () => {
         { provide: PrismaService, useValue: mockPrismaService() },
         { provide: NotificationsService, useValue: mockNotificationsService() },
         { provide: AuditService, useValue: mockAuditService() },
+        { provide: ActivityService, useValue: mockActivityService() },
         {
           provide: PaymentsService,
           useValue: mockPaymentsService(),
@@ -105,6 +116,7 @@ describe('PayoutsService', () => {
       NotificationsService,
     ) as unknown as MockNotificationsService;
     audit = module.get(AuditService) as unknown as MockAuditService;
+    activity = module.get(ActivityService) as unknown as MockActivityService;
     paymentsService = module.get(
       PaymentsService,
     ) as unknown as MockPaymentsService;
@@ -433,6 +445,11 @@ describe('PayoutsService', () => {
 
       expect(paymentsService.releaseFundsToSeller).toHaveBeenCalledWith(
         'raffle-1',
+      );
+      expect(activity.logPayoutReleased).toHaveBeenCalledWith(
+        'seller-1',
+        'payout-1',
+        9100,
       );
     });
 

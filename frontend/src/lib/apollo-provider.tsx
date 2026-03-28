@@ -9,6 +9,7 @@ import { getMainDefinition } from '@apollo/client/utilities';
 import { createClient, Client } from 'graphql-ws';
 import { useAuthStore } from '@/store/auth';
 import { ReactNode, useMemo, createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { reportApolloOperationalErrors } from './apollo-error-reporting';
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
 
@@ -254,12 +255,21 @@ function createApolloClient(
     // 4. We're in a browser environment
     const storedRefreshToken = useAuthStore.getState().refreshToken;
     const isOnAuthPage = typeof window !== 'undefined' && window.location.pathname.includes('/auth');
+    const currentUser = useAuthStore.getState().user;
 
     // Don't intercept errors on auth pages - let them propagate to show error messages
-    if (isOnAuthPage) {
+    if (isOnAuthPage && isAuthError) {
       console.log('[Auth] On auth page, letting error propagate:', graphQLErrors?.[0]?.message || networkError?.message);
       return; // Let error propagate normally
     }
+
+    reportApolloOperationalErrors({
+      graphQLErrors,
+      networkError,
+      operationName: operation.operationName,
+      route: typeof window !== 'undefined' ? window.location.pathname : undefined,
+      user: currentUser,
+    });
 
     if (isAuthError && storedRefreshToken && typeof window !== 'undefined') {
       // Return an Observable that handles the token refresh

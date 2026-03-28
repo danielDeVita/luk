@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ReportsResolver } from './reports.resolver';
 import { ReportsService } from './reports.service';
 import { User } from '@prisma/client';
+import { AuditService } from '../audit/audit.service';
 
 type MockReportsService = {
   createReport: jest.Mock;
@@ -10,15 +11,28 @@ type MockReportsService = {
   unhideRaffle: jest.Mock;
 };
 
+type MockAuditService = {
+  logReportReviewed: jest.Mock;
+  logRaffleHidden: jest.Mock;
+  logRaffleUnhidden: jest.Mock;
+};
+
 describe('ReportsResolver', () => {
   let resolver: ReportsResolver;
   let service: MockReportsService;
+  let audit: MockAuditService;
 
   const mockReportsService = (): MockReportsService => ({
     createReport: jest.fn(),
     getReports: jest.fn(),
     reviewReport: jest.fn(),
     unhideRaffle: jest.fn(),
+  });
+
+  const mockAuditService = (): MockAuditService => ({
+    logReportReviewed: jest.fn(),
+    logRaffleHidden: jest.fn(),
+    logRaffleUnhidden: jest.fn(),
   });
 
   beforeEach(async () => {
@@ -28,11 +42,13 @@ describe('ReportsResolver', () => {
       providers: [
         ReportsResolver,
         { provide: ReportsService, useValue: mockReportsService() },
+        { provide: AuditService, useValue: mockAuditService() },
       ],
     }).compile();
 
     resolver = module.get<ReportsResolver>(ReportsResolver);
     service = module.get(ReportsService) as unknown as MockReportsService;
+    audit = module.get(AuditService) as unknown as MockAuditService;
   });
 
   describe('reportRaffle', () => {
@@ -148,9 +164,14 @@ describe('ReportsResolver', () => {
 
   describe('reviewReport', () => {
     it('should dismiss a report', async () => {
-      service.reviewReport.mockResolvedValue(undefined);
+      const admin = { id: 'admin-1' } as User;
+      service.reviewReport.mockResolvedValue({
+        raffleId: 'raffle-1',
+        sellerId: 'seller-1',
+      });
 
       const result = await resolver.reviewReport(
+        admin,
         'report-1',
         'Revisado - no hay problema',
         'DISMISS',
@@ -160,14 +181,29 @@ describe('ReportsResolver', () => {
         'report-1',
         'Revisado - no hay problema',
         'DISMISS',
+      );
+      expect(audit.logReportReviewed).toHaveBeenCalledWith(
+        'admin-1',
+        'report-1',
+        {
+          reportAction: 'DISMISS',
+          adminNotes: 'Revisado - no hay problema',
+          raffleId: 'raffle-1',
+          sellerId: 'seller-1',
+        },
       );
       expect(result).toBe(true);
     });
 
     it('should hide raffle based on report', async () => {
-      service.reviewReport.mockResolvedValue(undefined);
+      const admin = { id: 'admin-1' } as User;
+      service.reviewReport.mockResolvedValue({
+        raffleId: 'raffle-2',
+        sellerId: 'seller-2',
+      });
 
       const result = await resolver.reviewReport(
+        admin,
         'report-2',
         'Contenido violó términos de servicio',
         'HIDE_RAFFLE',
@@ -178,13 +214,23 @@ describe('ReportsResolver', () => {
         'Contenido violó términos de servicio',
         'HIDE_RAFFLE',
       );
+      expect(audit.logRaffleHidden).toHaveBeenCalledWith(
+        'admin-1',
+        'raffle-2',
+        'Contenido violó términos de servicio',
+      );
       expect(result).toBe(true);
     });
 
     it('should ban seller based on report', async () => {
-      service.reviewReport.mockResolvedValue(undefined);
+      const admin = { id: 'admin-1' } as User;
+      service.reviewReport.mockResolvedValue({
+        raffleId: 'raffle-3',
+        sellerId: 'seller-3',
+      });
 
       const result = await resolver.reviewReport(
+        admin,
         'report-3',
         'Vendedor fraudulento - múltiples reportes',
         'BAN_SELLER',
@@ -201,14 +247,21 @@ describe('ReportsResolver', () => {
 
   describe('unhideRaffle', () => {
     it('should unhide a previously hidden raffle', async () => {
+      const admin = { id: 'admin-1' } as User;
       service.unhideRaffle.mockResolvedValue(undefined);
 
       const result = await resolver.unhideRaffle(
+        admin,
         'raffle-1',
         'Apelación aprobada - vendedor proporcionó evidencia',
       );
 
       expect(service.unhideRaffle).toHaveBeenCalledWith(
+        'raffle-1',
+        'Apelación aprobada - vendedor proporcionó evidencia',
+      );
+      expect(audit.logRaffleUnhidden).toHaveBeenCalledWith(
+        'admin-1',
         'raffle-1',
         'Apelación aprobada - vendedor proporcionó evidencia',
       );

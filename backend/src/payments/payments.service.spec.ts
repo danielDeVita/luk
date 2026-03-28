@@ -75,6 +75,8 @@ describe('PaymentsService', () => {
 
   const mockActivityService = {
     logTicketsPurchased: jest.fn().mockResolvedValue({ id: 'activity-1' }),
+    logPaymentReceived: jest.fn().mockResolvedValue({ id: 'activity-2' }),
+    logRaffleCompleted: jest.fn().mockResolvedValue({ id: 'activity-3' }),
   };
 
   const mockEventEmitter = {
@@ -365,6 +367,10 @@ describe('PaymentsService', () => {
         where: { id: 'raffle-123' },
         data: { estado: 'COMPLETADA' },
       });
+      expect(mockActivityService.logRaffleCompleted).toHaveBeenCalledWith(
+        'seller-1',
+        'raffle-123',
+      );
     });
   });
 

@@ -24,6 +24,7 @@ import {
   RaffleCompletedEvent,
   RaffleDrawnEvent,
 } from '../common/events';
+import { captureException } from '../sentry';
 import { MercadoPagoProvider } from './providers/mercado-pago.provider';
 import { MockPaymentProvider } from './providers/mock-payment.provider';
 import type {
@@ -747,6 +748,9 @@ export class PaymentsService {
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
       this.logger.error(`Failed to sync payment ${paymentId}: ${message}`);
+      this.capturePaymentsException(error, 'webhook', {
+        paymentId,
+      });
       throw error;
     }
   }
@@ -765,8 +769,12 @@ export class PaymentsService {
     let refData: ExternalReferenceData;
     try {
       refData = JSON.parse(externalRef) as ExternalReferenceData;
-    } catch {
+    } catch (error) {
       this.logger.error(`Failed to parse external_reference: ${externalRef}`);
+      this.capturePaymentsException(error, 'webhook', {
+        externalReference: externalRef,
+        paymentId: String(paymentData.id),
+      });
       return;
     }
 
@@ -983,6 +991,14 @@ export class PaymentsService {
           mpPaymentId,
         );
 
+        if (raffle.seller) {
+          await this.activityService.logPaymentReceived(
+            raffle.seller.id,
+            raffleId,
+            cashChargedAmount,
+          );
+        }
+
         // Emit tickets purchased event for cross-cutting concerns
         this.eventEmitter.emit(
           RaffleEvents.TICKETS_PURCHASED,
@@ -1001,6 +1017,11 @@ export class PaymentsService {
         ? notifError.message
         : 'Unknown error';
       this.logger.error(`Failed to send purchase notifications: ${errorMsg}`);
+      this.capturePaymentsException(notifError, 'email', {
+        raffleId,
+        buyerId,
+        paymentId: mpPaymentId,
+      });
     }
 
     // Check raffle completion
@@ -1137,6 +1158,10 @@ export class PaymentsService {
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
       this.logger.error(`Refund failed for ${mpPaymentId}: ${message}`);
+      this.capturePaymentsException(error, 'refund', {
+        paymentId: mpPaymentId,
+        refundAmount: amount,
+      });
       return false;
     }
   }
@@ -1164,6 +1189,10 @@ export class PaymentsService {
       this.logger.warn(
         `Failed to release social promotion redemption for non-approved payment ${paymentData.id}: ${message}`,
       );
+      this.capturePaymentsException(error, 'webhook', {
+        paymentId: String(paymentData.id),
+        externalReference: externalRef,
+      });
     }
   }
 
@@ -1227,6 +1256,10 @@ export class PaymentsService {
         this.logger.error(
           `Exception releasing payment ${ticket.mpPaymentId}: ${message}`,
         );
+        this.capturePaymentsException(error, 'payout', {
+          raffleId,
+          paymentId: ticket.mpPaymentId,
+        });
       }
     }
 
@@ -1419,6 +1452,9 @@ export class PaymentsService {
           this.logger.error(
             `Failed to send draw notifications for ${raffleId}: ${message}`,
           );
+          this.capturePaymentsException(err, 'email', {
+            raffleId,
+          });
         },
       );
 
@@ -1427,6 +1463,9 @@ export class PaymentsService {
         this.logger.error(
           `Failed to create payout for raffle ${raffleId}: ${message}`,
         );
+        this.capturePaymentsException(err, 'payout', {
+          raffleId,
+        });
       });
 
       return true;
@@ -1515,6 +1554,10 @@ export class PaymentsService {
           where: { id: raffleId },
           data: { estado: 'COMPLETADA' },
         });
+        await this.activityService.logRaffleCompleted(
+          raffle.sellerId,
+          raffleId,
+        );
 
         // Calculate total amount from tickets
         const totalAmount = paidTickets.reduce(
@@ -1536,5 +1579,23 @@ export class PaymentsService {
 
       await this.drawRaffleIfEligible(raffleId);
     }
+  }
+
+  private capturePaymentsException(
+    error: unknown,
+    stage: 'webhook' | 'email' | 'refund' | 'payout',
+    extra: Record<string, unknown>,
+  ) {
+    const normalizedError =
+      error instanceof Error ? error : new Error('Unknown payments error');
+
+    captureException(normalizedError, {
+      tags: {
+        service: 'luk-backend',
+        domain: 'payments',
+        stage,
+      },
+      extra,
+    });
   }
 }

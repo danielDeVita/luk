@@ -3,6 +3,7 @@ import { Cron } from '@nestjs/schedule';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { DisputesService } from '../disputes/disputes.service';
+import { captureException } from '../sentry';
 
 function isFalseEnvFlag(value: boolean | string | undefined): boolean {
   return (
@@ -46,6 +47,18 @@ export class DisputeTasksService {
       this.logger.error(
         'Error processing disputes:',
         error instanceof Error ? error.stack : error,
+      );
+      captureException(
+        error instanceof Error
+          ? error
+          : new Error('Error processing dispute escalations'),
+        {
+          tags: {
+            service: 'luk-backend',
+            domain: 'disputes',
+            stage: 'cron',
+          },
+        },
       );
     }
   }
@@ -147,6 +160,23 @@ export class DisputeTasksService {
           error instanceof Error ? error.message : 'Unknown error';
         this.logger.error(
           `Failed to auto-resolve dispute ${dispute.id}: ${message}`,
+        );
+        captureException(
+          error instanceof Error
+            ? error
+            : new Error('Failed to auto-resolve dispute'),
+          {
+            user: { id: dispute.reporterId, email: dispute.reporter.email },
+            tags: {
+              service: 'luk-backend',
+              domain: 'disputes',
+              stage: 'cron',
+            },
+            extra: {
+              disputeId: dispute.id,
+              raffleId: dispute.raffleId,
+            },
+          },
         );
       }
     }

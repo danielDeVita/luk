@@ -12,12 +12,17 @@ import { SocialPromotionParserService } from './parsers/social-promotion-parser.
 import { SocialPromotionPageLoaderService } from './social-promotion-page-loader.service';
 import { SocialPromotionsService } from './social-promotions.service';
 import { SocialPromotionNetwork } from './entities/social-promotion.entity';
+import { ActivityService } from '../activity/activity.service';
+import { AuditService } from '../audit/audit.service';
+import * as sentry from '../sentry';
 
 describe('SocialPromotionsService', () => {
   let service: SocialPromotionsService;
   let prisma: any;
   let parser: any;
   let pageLoader: any;
+  let activity: any;
+  let audit: any;
 
   const mockPrisma = () => ({
     raffle: {
@@ -88,6 +93,21 @@ describe('SocialPromotionsService', () => {
     loadPublicPage: jest.fn(),
   };
 
+  const mockActivityService = {
+    logSocialPromotionDraftCreated: jest.fn().mockResolvedValue(undefined),
+    logSocialPromotionPostSubmitted: jest.fn().mockResolvedValue(undefined),
+    logSocialPromotionPostDisqualified: jest.fn().mockResolvedValue(undefined),
+    logSocialPromotionSettled: jest.fn().mockResolvedValue(undefined),
+    logSocialPromotionGrantIssued: jest.fn().mockResolvedValue(undefined),
+    logSocialPromotionBonusUsed: jest.fn().mockResolvedValue(undefined),
+    logSocialPromotionBonusReversed: jest.fn().mockResolvedValue(undefined),
+  };
+
+  const mockAuditService = {
+    logSocialPromotionRetried: jest.fn().mockResolvedValue(undefined),
+    logSocialPromotionDisqualified: jest.fn().mockResolvedValue(undefined),
+  };
+
   beforeEach(async () => {
     jest.clearAllMocks();
 
@@ -98,6 +118,8 @@ describe('SocialPromotionsService', () => {
         { provide: ConfigService, useValue: mockConfigService },
         { provide: SocialPromotionParserService, useValue: mockParser },
         { provide: SocialPromotionPageLoaderService, useValue: mockPageLoader },
+        { provide: ActivityService, useValue: mockActivityService },
+        { provide: AuditService, useValue: mockAuditService },
       ],
     }).compile();
 
@@ -105,6 +127,8 @@ describe('SocialPromotionsService', () => {
     prisma = module.get(PrismaService);
     parser = module.get(SocialPromotionParserService);
     pageLoader = module.get(SocialPromotionPageLoaderService);
+    activity = module.get(ActivityService);
+    audit = module.get(AuditService);
   });
 
   describe('startSocialPromotionDraft', () => {
@@ -136,6 +160,14 @@ describe('SocialPromotionsService', () => {
 
       expect(result.id).toBe('draft-1');
       expect(prisma.socialPromotionDraft.create).toHaveBeenCalled();
+      expect(activity.logSocialPromotionDraftCreated).toHaveBeenCalledWith(
+        'seller-1',
+        'draft-1',
+        expect.objectContaining({
+          raffleId: 'raffle-1',
+          network: SocialPromotionNetwork.FACEBOOK,
+        }),
+      );
     });
 
     it('rejects when raffle does not belong to seller', async () => {
@@ -201,6 +233,15 @@ describe('SocialPromotionsService', () => {
       );
 
       expect(result.status).toBe(SocialPromotionStatus.PENDING_VALIDATION);
+      expect(activity.logSocialPromotionPostSubmitted).toHaveBeenCalledWith(
+        'seller-1',
+        'post-1',
+        expect.objectContaining({
+          raffleId: 'raffle-1',
+          draftId: 'draft-1',
+          network: SocialPromotionNetwork.X,
+        }),
+      );
     });
 
     it('throws when the URL network does not match the draft network', async () => {
@@ -548,6 +589,27 @@ describe('SocialPromotionsService', () => {
     });
   });
 
+  describe('error reporting', () => {
+    it('captures unexpected validation loop errors to Sentry', async () => {
+      const captureExceptionSpy = jest
+        .spyOn(sentry, 'captureException')
+        .mockImplementation(() => undefined);
+
+      prisma.socialPromotionPost.findMany.mockResolvedValue([
+        { id: 'post-1', raffleId: 'raffle-1', sellerId: 'seller-1' },
+      ]);
+
+      jest
+        .spyOn(service, 'validateSocialPromotionPost')
+        .mockRejectedValue(new Error('validation exploded'));
+
+      await expect(service.processDueSocialPromotionPosts()).resolves.toBe(0);
+
+      expect(captureExceptionSpy).toHaveBeenCalled();
+      captureExceptionSpy.mockRestore();
+    });
+  });
+
   describe('trackPromotionClickByToken', () => {
     it('redirects to the raffle page and records the click', async () => {
       prisma.socialPromotionDraft.findUnique.mockResolvedValue({
@@ -578,6 +640,51 @@ describe('SocialPromotionsService', () => {
       await service.recordRegistrationAttribution('user-1', 'token-123');
 
       expect(prisma.socialPromotionAttributionEvent.create).toHaveBeenCalled();
+    });
+  });
+
+  describe('admin moderation', () => {
+    it('logs audit metadata when retrying a technical-review post', async () => {
+      prisma.socialPromotionPost.findUnique.mockResolvedValue({
+        id: 'post-1',
+        raffleId: 'raffle-1',
+        sellerId: 'seller-1',
+        status: SocialPromotionStatus.TECHNICAL_REVIEW,
+        network: SocialPromotionNetwork.X,
+      });
+      prisma.socialPromotionPost.update.mockResolvedValue({
+        id: 'post-1',
+        draftId: 'draft-1',
+        raffleId: 'raffle-1',
+        sellerId: 'seller-1',
+        network: SocialPromotionNetwork.X,
+        submittedPermalink: 'https://x.com/test/status/1',
+        canonicalPermalink: null,
+        canonicalPostId: null,
+        status: SocialPromotionStatus.PENDING_VALIDATION,
+        publishedAt: null,
+        submittedAt: new Date(),
+        validatedAt: null,
+        lastCheckedAt: null,
+        nextCheckAt: new Date(),
+        disqualifiedAt: null,
+        disqualificationReason: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        snapshots: [],
+        settlement: null,
+      });
+
+      await service.retryTechnicalReview('post-1', 'admin-1');
+
+      expect(audit.logSocialPromotionRetried).toHaveBeenCalledWith(
+        'admin-1',
+        'post-1',
+        expect.objectContaining({
+          raffleId: 'raffle-1',
+          previousStatus: SocialPromotionStatus.TECHNICAL_REVIEW,
+        }),
+      );
     });
   });
 });

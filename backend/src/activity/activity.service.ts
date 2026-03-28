@@ -284,6 +284,174 @@ export class ActivityService {
     });
   }
 
+  async logMpConnectConnected(
+    userId: string,
+    mpUserId: string,
+    metadata?: Record<string, unknown>,
+  ) {
+    return this.log({
+      userId,
+      action: ActivityType.MP_CONNECT_CONNECTED,
+      targetType: 'MpConnectAccount',
+      targetId: mpUserId,
+      metadata: {
+        mpUserId,
+        ...(metadata ?? {}),
+      },
+    });
+  }
+
+  async logMpConnectDisconnected(
+    userId: string,
+    metadata?: Record<string, unknown>,
+  ) {
+    return this.log({
+      userId,
+      action: ActivityType.MP_CONNECT_DISCONNECTED,
+      targetType: 'MpConnectAccount',
+      targetId: userId,
+      metadata,
+    });
+  }
+
+  // ==================== Social Promotion Events ====================
+
+  async logSocialPromotionDraftCreated(
+    sellerId: string,
+    draftId: string,
+    metadata: {
+      raffleId: string;
+      network: string;
+    },
+  ) {
+    return this.log({
+      userId: sellerId,
+      action: ActivityType.SOCIAL_PROMOTION_DRAFT_CREATED,
+      targetType: 'SocialPromotionDraft',
+      targetId: draftId,
+      metadata,
+    });
+  }
+
+  async logSocialPromotionPostSubmitted(
+    sellerId: string,
+    postId: string,
+    metadata: {
+      raffleId: string;
+      draftId: string;
+      network: string;
+      canonicalPermalink?: string | null;
+    },
+  ) {
+    return this.log({
+      userId: sellerId,
+      action: ActivityType.SOCIAL_PROMOTION_POST_SUBMITTED,
+      targetType: 'SocialPromotionPost',
+      targetId: postId,
+      metadata,
+    });
+  }
+
+  async logSocialPromotionPostDisqualified(
+    sellerId: string,
+    postId: string,
+    metadata: {
+      raffleId: string;
+      network: string;
+      reason: string;
+      disqualifiedBy?: 'system' | 'admin';
+    },
+  ) {
+    return this.log({
+      userId: sellerId,
+      action: ActivityType.SOCIAL_PROMOTION_POST_DISQUALIFIED,
+      targetType: 'SocialPromotionPost',
+      targetId: postId,
+      metadata,
+    });
+  }
+
+  async logSocialPromotionSettled(
+    sellerId: string,
+    postId: string,
+    metadata: {
+      raffleId: string;
+      settlementId: string;
+      score: number;
+      tier?: string;
+      network?: string;
+    },
+  ) {
+    return this.log({
+      userId: sellerId,
+      action: ActivityType.SOCIAL_PROMOTION_SETTLED,
+      targetType: 'SocialPromotionPost',
+      targetId: postId,
+      metadata,
+    });
+  }
+
+  async logSocialPromotionGrantIssued(
+    sellerId: string,
+    grantId: string,
+    metadata: {
+      postId: string;
+      raffleId: string;
+      settlementId: string;
+      score: number;
+      tier: string;
+      discountPercent: number;
+      maxDiscountAmount: number;
+      network?: string;
+    },
+  ) {
+    return this.log({
+      userId: sellerId,
+      action: ActivityType.SOCIAL_PROMOTION_GRANT_ISSUED,
+      targetType: 'PromotionBonusGrant',
+      targetId: grantId,
+      metadata,
+    });
+  }
+
+  async logSocialPromotionBonusUsed(
+    buyerId: string,
+    redemptionId: string,
+    metadata: {
+      raffleId: string;
+      grantId: string;
+      discountApplied: number;
+      cashChargedAmount: number;
+    },
+  ) {
+    return this.log({
+      userId: buyerId,
+      action: ActivityType.SOCIAL_PROMOTION_BONUS_USED,
+      targetType: 'PromotionBonusRedemption',
+      targetId: redemptionId,
+      metadata,
+    });
+  }
+
+  async logSocialPromotionBonusReversed(
+    buyerId: string,
+    redemptionId: string,
+    metadata: {
+      raffleId: string;
+      grantId: string;
+      refundAmount: number;
+      discountApplied: number;
+    },
+  ) {
+    return this.log({
+      userId: buyerId,
+      action: ActivityType.SOCIAL_PROMOTION_BONUS_REVERSED,
+      targetType: 'PromotionBonusRedemption',
+      targetId: redemptionId,
+      metadata,
+    });
+  }
+
   // ==================== Profile Events ====================
 
   async logProfileUpdated(userId: string, fields: string[]) {

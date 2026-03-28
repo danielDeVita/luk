@@ -10,8 +10,10 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { AuditService } from '../audit/audit.service';
+import { ActivityService } from '../activity/activity.service';
 import { PaymentsService } from '../payments/payments.service';
 import { PayoutStatus, UserRole } from '@prisma/client';
+import { captureException } from '../sentry';
 
 /**
  * Creates, schedules, and processes seller payouts once raffle delivery and release rules are satisfied.
@@ -25,6 +27,7 @@ export class PayoutsService {
     private prisma: PrismaService,
     private notifications: NotificationsService,
     private audit: AuditService,
+    private activity: ActivityService,
     @Inject(forwardRef(() => PaymentsService))
     private paymentsService: PaymentsService,
   ) {}
@@ -306,6 +309,11 @@ export class PayoutsService {
         'Pago completado',
         `Tu pago de $${payout.netAmount} por "${payout.raffle.titulo}" ha sido procesado`,
       );
+      await this.activity.logPayoutReleased(
+        payout.raffle.seller.id,
+        payoutId,
+        Number(payout.netAmount),
+      );
 
       this.logger.log(`Payout ${payoutId} completed successfully`);
     } catch (error) {
@@ -328,6 +336,27 @@ export class PayoutsService {
       );
 
       this.logger.error(`Payout ${payoutId} failed: ${message}`);
+      captureException(
+        error instanceof Error ? error : new Error('Payout processing failed'),
+        {
+          user: {
+            id: payout.raffle.seller.id,
+            email: payout.raffle.seller.email,
+          },
+          tags: {
+            service: 'luk-backend',
+            domain: 'payments',
+            stage: 'payout',
+            payoutId,
+            raffleId: payout.raffleId,
+          },
+          extra: {
+            payoutId,
+            raffleId: payout.raffleId,
+            sellerId: payout.raffle.seller.id,
+          },
+        },
+      );
       throw error;
     }
   }

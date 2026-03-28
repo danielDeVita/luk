@@ -330,4 +330,89 @@ describe('AuditService', () => {
       expect(result).toEqual(mockAuditLog);
     });
   });
+
+  describe('logReportReviewed', () => {
+    it('should log report review with details', async () => {
+      const mockAuditLog = { id: 'audit-1' };
+      prisma.auditLog.create.mockResolvedValue(mockAuditLog);
+
+      const details = {
+        reportAction: 'HIDE_RAFFLE',
+        adminNotes: 'Ocultar por moderación',
+        raffleId: 'raffle-1',
+      };
+
+      const result = await service.logReportReviewed(
+        'admin-1',
+        'report-1',
+        details,
+      );
+
+      expect(prisma.auditLog.create).toHaveBeenCalledWith({
+        data: {
+          adminId: 'admin-1',
+          action: AuditAction.REPORT_REVIEWED,
+          targetType: 'Report',
+          targetId: 'report-1',
+          details,
+          reason: undefined,
+        },
+      });
+      expect(result).toEqual(mockAuditLog);
+    });
+  });
+
+  describe('social promotion admin actions', () => {
+    it('should log social promotion retry', async () => {
+      const mockAuditLog = { id: 'audit-1' };
+      prisma.auditLog.create.mockResolvedValue(mockAuditLog);
+
+      const details = {
+        raffleId: 'raffle-1',
+        previousStatus: 'TECHNICAL_REVIEW',
+      };
+      const result = await service.logSocialPromotionRetried(
+        'admin-1',
+        'post-1',
+        details,
+      );
+
+      expect(prisma.auditLog.create).toHaveBeenCalledWith({
+        data: {
+          adminId: 'admin-1',
+          action: AuditAction.SOCIAL_PROMOTION_RETRIED,
+          targetType: 'SocialPromotionPost',
+          targetId: 'post-1',
+          details,
+          reason: undefined,
+        },
+      });
+      expect(result).toEqual(mockAuditLog);
+    });
+
+    it('should log social promotion disqualification', async () => {
+      const mockAuditLog = { id: 'audit-1' };
+      prisma.auditLog.create.mockResolvedValue(mockAuditLog);
+
+      const details = { raffleId: 'raffle-1', previousStatus: 'ACTIVE' };
+      const result = await service.logSocialPromotionDisqualified(
+        'admin-1',
+        'post-1',
+        'Token no válido',
+        details,
+      );
+
+      expect(prisma.auditLog.create).toHaveBeenCalledWith({
+        data: {
+          adminId: 'admin-1',
+          action: AuditAction.SOCIAL_PROMOTION_DISQUALIFIED,
+          targetType: 'SocialPromotionPost',
+          targetId: 'post-1',
+          reason: 'Token no válido',
+          details,
+        },
+      });
+      expect(result).toEqual(mockAuditLog);
+    });
+  });
 });

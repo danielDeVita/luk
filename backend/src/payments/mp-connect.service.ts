@@ -8,6 +8,8 @@ import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { EncryptionService } from '../common/services/encryption.service';
 import { randomBytes, createHash } from 'crypto';
+import { ActivityService } from '../activity/activity.service';
+import { captureException } from '../sentry';
 
 interface MpTokenResponse {
   access_token: string;
@@ -41,6 +43,7 @@ export class MpConnectService implements OnModuleDestroy {
     private configService: ConfigService,
     private prisma: PrismaService,
     private encryption: EncryptionService,
+    private activityService: ActivityService,
   ) {
     // Clean up expired verifiers every 5 minutes
     this.cleanupInterval = setInterval(
@@ -163,6 +166,21 @@ export class MpConnectService implements OnModuleDestroy {
         .json()
         .catch(() => ({}))) as MpErrorResponse;
       this.logger.error(`MP token exchange failed: ${JSON.stringify(error)}`);
+      captureException(
+        new Error(error.message || 'Mercado Pago OAuth token exchange failed'),
+        {
+          user: { id: userId },
+          tags: {
+            service: 'luk-backend',
+            domain: 'payments',
+            stage: 'oauth',
+          },
+          extra: {
+            userId,
+            state,
+          },
+        },
+      );
       throw new BadRequestException(
         error.message ||
           'Error al conectar con Mercado Pago. Intenta nuevamente.',
@@ -183,6 +201,10 @@ export class MpConnectService implements OnModuleDestroy {
     });
 
     this.logger.log(`User ${userId} connected MP account ${tokens.user_id}`);
+    await this.activityService.logMpConnectConnected(
+      userId,
+      String(tokens.user_id),
+    );
 
     return {
       userId,
@@ -208,6 +230,17 @@ export class MpConnectService implements OnModuleDestroy {
     const decryptedRefreshToken = this.encryption.decrypt(user.mpRefreshToken);
     if (!decryptedRefreshToken) {
       this.logger.error(`Failed to decrypt refresh token for user ${userId}`);
+      captureException(new Error('Failed to decrypt MP refresh token'), {
+        user: { id: userId },
+        tags: {
+          service: 'luk-backend',
+          domain: 'payments',
+          stage: 'oauth',
+        },
+        extra: {
+          userId,
+        },
+      });
       return false;
     }
 
@@ -232,10 +265,24 @@ export class MpConnectService implements OnModuleDestroy {
 
     if (!response.ok) {
       this.logger.error(`Failed to refresh token for user ${userId}`);
+      captureException(new Error('Mercado Pago token refresh failed'), {
+        user: { id: userId },
+        tags: {
+          service: 'luk-backend',
+          domain: 'payments',
+          stage: 'oauth',
+        },
+        extra: {
+          userId,
+        },
+      });
       // Mark as disconnected if refresh fails
       await this.prisma.user.update({
         where: { id: userId },
         data: { mpConnectStatus: 'NOT_CONNECTED' },
+      });
+      await this.activityService.logMpConnectDisconnected(userId, {
+        reason: 'refresh_failed',
       });
       return false;
     }
@@ -270,6 +317,7 @@ export class MpConnectService implements OnModuleDestroy {
     });
 
     this.logger.log(`User ${userId} disconnected MP account`);
+    await this.activityService.logMpConnectDisconnected(userId);
   }
 
   /**

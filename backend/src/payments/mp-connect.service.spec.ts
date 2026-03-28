@@ -4,6 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { EncryptionService } from '../common/services/encryption.service';
 import { BadRequestException } from '@nestjs/common';
+import { ActivityService } from '../activity/activity.service';
 
 // Mock global fetch
 global.fetch = jest.fn();
@@ -13,6 +14,10 @@ describe('MpConnectService', () => {
   let _configService: jest.Mocked<ConfigService>;
   let _prisma: jest.Mocked<PrismaService>;
   let encryption: jest.Mocked<EncryptionService>;
+  let activity: {
+    logMpConnectConnected: jest.Mock;
+    logMpConnectDisconnected: jest.Mock;
+  };
 
   const mockConfigService = {
     get: jest.fn((key: string) => {
@@ -35,6 +40,11 @@ describe('MpConnectService', () => {
   const mockEncryptionService = {
     encrypt: jest.fn((value: string) => `encrypted_${value}`),
     decrypt: jest.fn((value: string) => value.replace('encrypted_', '')),
+  };
+
+  const mockActivityService = {
+    logMpConnectConnected: jest.fn(),
+    logMpConnectDisconnected: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -64,6 +74,7 @@ describe('MpConnectService', () => {
         { provide: ConfigService, useValue: mockConfigService },
         { provide: PrismaService, useValue: mockPrismaService },
         { provide: EncryptionService, useValue: mockEncryptionService },
+        { provide: ActivityService, useValue: mockActivityService },
       ],
     }).compile();
 
@@ -71,6 +82,9 @@ describe('MpConnectService', () => {
     _configService = module.get(ConfigService);
     _prisma = module.get(PrismaService);
     encryption = module.get(EncryptionService);
+    activity = module.get(
+      ActivityService,
+    ) as unknown as typeof mockActivityService;
   });
 
   describe('generateAuthUrl', () => {
@@ -153,6 +167,10 @@ describe('MpConnectService', () => {
 
       expect(result.userId).toBe('user-123');
       expect(result.mpUserId).toBe('123456789');
+      expect(activity.logMpConnectConnected).toHaveBeenCalledWith(
+        'user-123',
+        '123456789',
+      );
       expect(global.fetch).toHaveBeenCalledWith(
         'https://api.mercadopago.com/oauth/token',
         expect.objectContaining({
@@ -393,6 +411,9 @@ describe('MpConnectService', () => {
           mpConnectStatus: 'NOT_CONNECTED',
         },
       });
+      expect(activity.logMpConnectDisconnected).toHaveBeenCalledWith(
+        'user-123',
+      );
     });
   });
 

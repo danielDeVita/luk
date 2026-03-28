@@ -17,6 +17,7 @@ import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import { PaymentsService } from './payments.service';
 import { Public } from '../auth/decorators/public.decorator';
 import { verifyWebhookSignature } from './utils/webhook-signature.util';
+import { captureException } from '../sentry';
 
 /**
  * Mercado Pago webhook payload structure.
@@ -168,6 +169,22 @@ export class MpController {
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
       this.logger.error(`Error processing MP webhook: ${message}`);
+      captureException(
+        error instanceof Error
+          ? error
+          : new Error('MP webhook processing failed'),
+        {
+          tags: {
+            service: 'luk-backend',
+            domain: 'payments',
+            stage: 'webhook',
+          },
+          extra: {
+            eventId,
+            eventType,
+          },
+        },
+      );
       // Return 200 to prevent MP retries
       return res.status(HttpStatus.OK).json({
         received: true,
@@ -206,6 +223,21 @@ export class MpController {
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
       this.logger.error(`Error getting payment status: ${message}`);
+      captureException(
+        error instanceof Error
+          ? error
+          : new Error('Payment status lookup failed'),
+        {
+          tags: {
+            service: 'luk-backend',
+            domain: 'payments',
+            stage: 'webhook',
+          },
+          extra: {
+            paymentId,
+          },
+        },
+      );
       return res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
         error: message,
       });
@@ -239,6 +271,19 @@ export class MpController {
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
       this.logger.error(`Error syncing payment ${paymentId}: ${message}`);
+      captureException(
+        error instanceof Error ? error : new Error('Payment sync failed'),
+        {
+          tags: {
+            service: 'luk-backend',
+            domain: 'payments',
+            stage: 'webhook',
+          },
+          extra: {
+            paymentId,
+          },
+        },
+      );
       return res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
         error: message,
         status: 'error',

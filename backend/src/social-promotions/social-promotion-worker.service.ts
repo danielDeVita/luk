@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { ConfigService } from '@nestjs/config';
 import { SocialPromotionsService } from './social-promotions.service';
+import { captureException } from '../sentry';
 
 function isDisabledFlag(value: boolean | string | undefined): boolean {
   return (
@@ -35,11 +36,29 @@ export class SocialPromotionWorkerService {
   async processDuePosts() {
     if (!this.enabled) return;
 
-    const processed =
-      await this.socialPromotionsService.processDueSocialPromotionPosts();
-    if (processed > 0) {
-      this.logger.log(
-        `Processed ${processed} social promotion posts due for validation`,
+    try {
+      const processed =
+        await this.socialPromotionsService.processDueSocialPromotionPosts();
+      if (processed > 0) {
+        this.logger.log(
+          `Processed ${processed} social promotion posts due for validation`,
+        );
+      }
+    } catch (error) {
+      this.logger.error(
+        `Social promotion validation worker failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
+      captureException(
+        error instanceof Error
+          ? error
+          : new Error('Social promotion validation worker failed'),
+        {
+          tags: {
+            service: 'social-worker',
+            domain: 'social-promotions',
+            stage: 'validation',
+          },
+        },
       );
     }
   }
@@ -51,10 +70,28 @@ export class SocialPromotionWorkerService {
   async settleClosedPosts() {
     if (!this.enabled) return;
 
-    const settled =
-      await this.socialPromotionsService.settleClosedSocialPromotionPosts();
-    if (settled > 0) {
-      this.logger.log(`Settled ${settled} closed social promotion posts`);
+    try {
+      const settled =
+        await this.socialPromotionsService.settleClosedSocialPromotionPosts();
+      if (settled > 0) {
+        this.logger.log(`Settled ${settled} closed social promotion posts`);
+      }
+    } catch (error) {
+      this.logger.error(
+        `Social promotion settlement worker failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
+      captureException(
+        error instanceof Error
+          ? error
+          : new Error('Social promotion settlement worker failed'),
+        {
+          tags: {
+            service: 'social-worker',
+            domain: 'social-promotions',
+            stage: 'settlement',
+          },
+        },
+      );
     }
   }
 }

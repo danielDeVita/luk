@@ -16,6 +16,7 @@ import {
 import { PaymentsService } from '../payments/payments.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { AuditService } from '../audit/audit.service';
+import { ActivityService } from '../activity/activity.service';
 import {
   RaffleEvents,
   DisputeOpenedEvent,
@@ -31,6 +32,7 @@ export class DisputesService {
     private paymentsService: PaymentsService,
     private notifications: NotificationsService,
     private audit: AuditService,
+    private activity: ActivityService,
     private eventEmitter: EventEmitter2,
   ) {}
 
@@ -124,6 +126,13 @@ export class DisputesService {
       `Dispute opened for raffle ${input.raffleId} by user ${userId}`,
     );
 
+    await this.activity.logDisputeOpened(
+      userId,
+      dispute.id,
+      input.raffleId,
+      input.tipo,
+    );
+
     return dispute;
   }
 
@@ -190,6 +199,8 @@ export class DisputesService {
       updatedDispute.reporter.email,
       { raffleName: updatedDispute.raffle.titulo },
     );
+
+    await this.activity.logDisputeResponded(userId, disputeId);
 
     return updatedDispute;
   }
@@ -335,6 +346,7 @@ export class DisputesService {
         refundAmount,
         dispute.raffle.titulo,
         dispute.reporter.email,
+        adminId,
       );
     }
 
@@ -475,6 +487,7 @@ export class DisputesService {
     amount: number,
     raffleName: string,
     buyerEmail: string,
+    adminId?: string,
   ) {
     const tickets = await this.prisma.ticket.findMany({
       where: {
@@ -524,6 +537,7 @@ export class DisputesService {
               isDeleted: false,
             },
             select: {
+              id: true,
               mpPaymentId: true,
               cashChargedAmount: true,
             },
@@ -569,6 +583,25 @@ export class DisputesService {
         fullyRefundedTicketIds.push(...group.ticketIds);
       }
 
+      if (adminId) {
+        const matchingTransaction = paymentTransactions.find(
+          (transaction) => transaction.mpPaymentId === mpPaymentId,
+        );
+        if (matchingTransaction) {
+          await this.audit.logRefundIssued(
+            adminId,
+            matchingTransaction.id,
+            'Resolución de disputa',
+            {
+              raffleId,
+              buyerId,
+              refundAmount,
+              mpPaymentId,
+            },
+          );
+        }
+      }
+
       remainingCents -= refundCents;
     }
 
@@ -586,6 +619,14 @@ export class DisputesService {
         },
         data: { estado: 'REEMBOLSADO' },
       });
+
+      await this.activity.logTicketsRefunded(
+        buyerId,
+        raffleId,
+        fullyRefundedTicketIds.length,
+        amount,
+        'Resolución de disputa',
+      );
     }
 
     await this.notifications.sendRefundDueToDisputeNotification(buyerEmail, {

@@ -68,4 +68,36 @@ describe('SocialPromotionsResolver', () => {
       'https://x.com/test/status/1',
     );
   });
+
+  it('passes the admin id when retrying a social promotion post', async () => {
+    service.retryTechnicalReview.mockResolvedValue({ id: 'post-1' } as any);
+
+    const result = await resolver.adminRetrySocialPromotionPost(
+      { id: 'admin-1' } as any,
+      'post-1',
+    );
+
+    expect(result.id).toBe('post-1');
+    expect(service.retryTechnicalReview).toHaveBeenCalledWith(
+      'post-1',
+      'admin-1',
+    );
+  });
+
+  it('passes the admin id when force-disqualifying a social promotion post', async () => {
+    service.adminDisqualifyPost.mockResolvedValue({ id: 'post-1' } as any);
+
+    const result = await resolver.adminDisqualifySocialPromotionPost(
+      { id: 'admin-1' } as any,
+      'post-1',
+      'Token faltante',
+    );
+
+    expect(result.id).toBe('post-1');
+    expect(service.adminDisqualifyPost).toHaveBeenCalledWith(
+      'post-1',
+      'Token faltante',
+      'admin-1',
+    );
+  });
 });

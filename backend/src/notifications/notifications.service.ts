@@ -45,6 +45,7 @@ import {
   getWelcomeEmailContent,
   getWinnerNotificationContent,
 } from './email-templates';
+import { captureException } from '../sentry';
 
 interface EmailOptions {
   to: string;
@@ -177,6 +178,20 @@ export class NotificationsService {
         const message =
           error instanceof Error ? error.message : 'Unknown error';
         this.logger.error(`Email error: ${message}`);
+        captureException(
+          error instanceof Error ? error : new Error('Email delivery failed'),
+          {
+            tags: {
+              service: 'luk-backend',
+              domain: 'notifications',
+              stage: 'email',
+            },
+            extra: {
+              to: options.to,
+              subject: options.subject,
+            },
+          },
+        );
         return false;
       }
     } else {

@@ -16,7 +16,10 @@ import {
   TransactionType,
 } from '@prisma/client';
 import { randomBytes } from 'crypto';
+import { ActivityService } from '../activity/activity.service';
+import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { captureException } from '../sentry';
 import {
   PromotionBonusGrant,
   PromotionBonusGrantStatus as PromotionBonusGrantStatusGql,
@@ -90,6 +93,8 @@ export class SocialPromotionsService {
     private readonly configService: ConfigService,
     private readonly parser: SocialPromotionParserService,
     private readonly pageLoader: SocialPromotionPageLoaderService,
+    private readonly activityService: ActivityService,
+    private readonly auditService: AuditService,
   ) {
     this.tokenTtlHours = this.configService.get<number>(
       'SOCIAL_PROMOTION_TOKEN_TTL_HOURS',
@@ -164,6 +169,15 @@ export class SocialPromotionsService {
       },
     });
 
+    await this.activityService.logSocialPromotionDraftCreated(
+      sellerId,
+      draft.id,
+      {
+        raffleId,
+        network,
+      },
+    );
+
     return draft as unknown as SocialPromotionDraft;
   }
 
@@ -231,6 +245,17 @@ export class SocialPromotionsService {
         settlement: true,
       },
     });
+
+    await this.activityService.logSocialPromotionPostSubmitted(
+      sellerId,
+      post.id,
+      {
+        raffleId: draft.raffleId,
+        draftId: draft.id,
+        network: String(draft.network),
+        canonicalPermalink,
+      },
+    );
 
     return this.mapSocialPromotionPost(post);
   }
@@ -403,6 +428,17 @@ export class SocialPromotionsService {
         },
       }),
     ]);
+
+    await this.activityService.logSocialPromotionBonusUsed(
+      redemption.buyerId,
+      redemption.id,
+      {
+        raffleId: redemption.raffleId,
+        grantId: redemption.promotionBonusGrantId,
+        discountApplied: Number(redemption.discountApplied),
+        cashChargedAmount: Number(redemption.mpChargeAmount),
+      },
+    );
   }
 
   /**
@@ -505,6 +541,17 @@ export class SocialPromotionsService {
           },
         }),
       ]);
+
+      await this.activityService.logSocialPromotionBonusReversed(
+        redemption.buyerId,
+        redemption.id,
+        {
+          raffleId: redemption.raffleId,
+          grantId: redemption.promotionBonusGrantId,
+          refundAmount: normalizedRefundAmount ?? mpChargeAmount,
+          discountApplied: Number(redemption.discountApplied),
+        },
+      );
     }
   }
 
@@ -542,6 +589,11 @@ export class SocialPromotionsService {
         this.logger.error(
           `Unhandled validation failure for promotion post ${post.id}: ${message}`,
         );
+        this.captureSocialPromotionException(error, {
+          stage: 'validation',
+          service: 'luk-backend',
+          postId: post.id,
+        });
       }
     }
 
@@ -588,6 +640,13 @@ export class SocialPromotionsService {
         this.logger.error(
           `Unhandled settlement failure for promotion post ${post.id}: ${message}`,
         );
+        this.captureSocialPromotionException(error, {
+          stage: 'settlement',
+          service: 'luk-backend',
+          postId: post.id,
+          raffleId: post.raffleId,
+          userId: post.sellerId,
+        });
       }
     }
 
@@ -701,11 +760,33 @@ export class SocialPromotionsService {
             }),
           ]),
       );
+
+      if (nextStatus === SocialPromotionStatus.DISQUALIFIED) {
+        await this.activityService.logSocialPromotionPostDisqualified(
+          post.sellerId,
+          post.id,
+          {
+            raffleId: post.raffleId,
+            network: String(post.network),
+            reason:
+              disqualificationReason ?? 'La publicación no pudo validarse',
+            disqualifiedBy: 'system',
+          },
+        );
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
       this.logger.warn(
         `Failed to validate promotion post ${post.id}: ${message}`,
       );
+      this.captureSocialPromotionException(error, {
+        stage: 'validation',
+        service: 'luk-backend',
+        postId: post.id,
+        raffleId: post.raffleId,
+        userId: post.sellerId,
+        network: String(post.network),
+      });
 
       await this.withPrismaReconnect(
         `persist technical review for promotion post ${post.id}`,
@@ -811,8 +892,15 @@ export class SocialPromotionsService {
     const tier = this.defaultBonusTiers.find(
       (candidate) => totalScore >= candidate.minScore,
     );
+    let createdGrant:
+      | {
+          id: string;
+          discountPercent: Prisma.Decimal;
+          maxDiscountAmount: Prisma.Decimal;
+        }
+      | undefined;
     if (tier) {
-      await this.withPrismaReconnect(
+      createdGrant = await this.withPrismaReconnect(
         `create bonus grant for promotion post ${post.id}`,
         () =>
           this.prisma.promotionBonusGrant.create({
@@ -838,6 +926,37 @@ export class SocialPromotionsService {
           },
         }),
     );
+
+    await this.activityService.logSocialPromotionSettled(
+      post.sellerId,
+      post.id,
+      {
+        raffleId: post.raffleId,
+        settlementId: settlement.id,
+        score: totalScore,
+        tier: tier
+          ? `${tier.discountPercent}%/${tier.maxDiscountAmount}`
+          : undefined,
+        network: String(post.network),
+      },
+    );
+
+    if (createdGrant) {
+      await this.activityService.logSocialPromotionGrantIssued(
+        post.sellerId,
+        createdGrant.id,
+        {
+          postId: post.id,
+          raffleId: post.raffleId,
+          settlementId: settlement.id,
+          score: totalScore,
+          tier: `${tier?.discountPercent}%/${tier?.maxDiscountAmount}`,
+          discountPercent: Number(createdGrant.discountPercent),
+          maxDiscountAmount: Number(createdGrant.maxDiscountAmount),
+          network: String(post.network),
+        },
+      );
+    }
   }
 
   /**
@@ -945,7 +1064,21 @@ export class SocialPromotionsService {
   /**
    * Moves a technical-review post back to pending validation.
    */
-  async retryTechnicalReview(postId: string): Promise<SocialPromotionPost> {
+  async retryTechnicalReview(
+    postId: string,
+    adminId?: string,
+  ): Promise<SocialPromotionPost> {
+    const previous = await this.prisma.socialPromotionPost.findUnique({
+      where: { id: postId },
+      select: {
+        id: true,
+        raffleId: true,
+        sellerId: true,
+        status: true,
+        network: true,
+      },
+    });
+
     const updated = await this.prisma.socialPromotionPost.update({
       where: { id: postId },
       data: {
@@ -958,6 +1091,15 @@ export class SocialPromotionsService {
       },
     });
 
+    if (adminId && previous) {
+      await this.auditService.logSocialPromotionRetried(adminId, postId, {
+        raffleId: previous.raffleId,
+        sellerId: previous.sellerId,
+        network: String(previous.network),
+        previousStatus: previous.status,
+      });
+    }
+
     return this.mapSocialPromotionPost(updated);
   }
 
@@ -967,7 +1109,19 @@ export class SocialPromotionsService {
   async adminDisqualifyPost(
     postId: string,
     reason: string,
+    adminId?: string,
   ): Promise<SocialPromotionPost> {
+    const previous = await this.prisma.socialPromotionPost.findUnique({
+      where: { id: postId },
+      select: {
+        id: true,
+        raffleId: true,
+        sellerId: true,
+        status: true,
+        network: true,
+      },
+    });
+
     const updated = await this.prisma.socialPromotionPost.update({
       where: { id: postId },
       data: {
@@ -981,6 +1135,33 @@ export class SocialPromotionsService {
         settlement: true,
       },
     });
+
+    if (previous) {
+      await this.activityService.logSocialPromotionPostDisqualified(
+        previous.sellerId,
+        postId,
+        {
+          raffleId: previous.raffleId,
+          network: String(previous.network),
+          reason,
+          disqualifiedBy: 'admin',
+        },
+      );
+    }
+
+    if (adminId && previous) {
+      await this.auditService.logSocialPromotionDisqualified(
+        adminId,
+        postId,
+        reason,
+        {
+          raffleId: previous.raffleId,
+          sellerId: previous.sellerId,
+          network: String(previous.network),
+          previousStatus: previous.status,
+        },
+      );
+    }
 
     return this.mapSocialPromotionPost(updated);
   }
@@ -1143,6 +1324,10 @@ export class SocialPromotionsService {
       this.logger.warn(
         `Browser retry failed for promotion post ${params.permalink}: ${message}`,
       );
+      this.captureSocialPromotionException(error, {
+        stage: 'validation',
+        service: 'luk-backend',
+      });
     }
 
     return initialAttempt;
@@ -1263,6 +1448,40 @@ export class SocialPromotionsService {
       message.includes("can't reach database server") ||
       message.includes('connection pool timeout')
     );
+  }
+
+  private captureSocialPromotionException(
+    error: unknown,
+    context: {
+      stage: 'validation' | 'settlement';
+      service: 'luk-backend' | 'social-worker';
+      postId?: string;
+      raffleId?: string;
+      userId?: string;
+      network?: string;
+    },
+  ): void {
+    const normalizedError =
+      error instanceof Error
+        ? error
+        : new Error('Unknown social promotion error');
+
+    captureException(normalizedError, {
+      user: context.userId ? { id: context.userId } : undefined,
+      tags: {
+        service: context.service,
+        domain: 'social-promotions',
+        stage: context.stage,
+        ...(context.postId ? { postId: context.postId } : {}),
+        ...(context.raffleId ? { raffleId: context.raffleId } : {}),
+        ...(context.network ? { network: context.network } : {}),
+      },
+      extra: {
+        postId: context.postId,
+        raffleId: context.raffleId,
+        network: context.network,
+      },
+    });
   }
 
   private mapSocialPromotionPost(post: {

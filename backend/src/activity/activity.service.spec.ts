@@ -230,6 +230,76 @@ describe('ActivityService', () => {
     });
   });
 
+  describe('Social promotion events', () => {
+    it('should log social promotion draft creation', async () => {
+      prisma.activityLog.create.mockResolvedValue({ id: 'activity-1' });
+
+      await service.logSocialPromotionDraftCreated('seller-1', 'draft-1', {
+        raffleId: 'raffle-1',
+        network: 'X',
+      });
+
+      expect(prisma.activityLog.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          userId: 'seller-1',
+          action: ActivityType.SOCIAL_PROMOTION_DRAFT_CREATED,
+          targetType: 'SocialPromotionDraft',
+          targetId: 'draft-1',
+          metadata: {
+            raffleId: 'raffle-1',
+            network: 'X',
+          },
+        }),
+      });
+    });
+
+    it('should log promotion bonus reversal', async () => {
+      prisma.activityLog.create.mockResolvedValue({ id: 'activity-1' });
+
+      await service.logSocialPromotionBonusReversed('buyer-1', 'redeem-1', {
+        raffleId: 'raffle-1',
+        grantId: 'grant-1',
+        refundAmount: 500,
+        discountApplied: 250,
+      });
+
+      expect(prisma.activityLog.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          userId: 'buyer-1',
+          action: ActivityType.SOCIAL_PROMOTION_BONUS_REVERSED,
+          targetType: 'PromotionBonusRedemption',
+          targetId: 'redeem-1',
+          metadata: {
+            raffleId: 'raffle-1',
+            grantId: 'grant-1',
+            refundAmount: 500,
+            discountApplied: 250,
+          },
+        }),
+      });
+    });
+  });
+
+  describe('MP Connect events', () => {
+    it('should log Mercado Pago account connection', async () => {
+      prisma.activityLog.create.mockResolvedValue({ id: 'activity-1' });
+
+      await service.logMpConnectConnected('seller-1', 'mp-user-1');
+
+      expect(prisma.activityLog.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          userId: 'seller-1',
+          action: ActivityType.MP_CONNECT_CONNECTED,
+          targetType: 'MpConnectAccount',
+          targetId: 'mp-user-1',
+          metadata: {
+            mpUserId: 'mp-user-1',
+          },
+        }),
+      });
+    });
+  });
+
   describe('Delivery events', () => {
     it('should log delivery shipped with tracking', async () => {
       prisma.activityLog.create.mockResolvedValue({ id: 'activity-1' });

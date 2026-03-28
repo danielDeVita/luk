@@ -3,6 +3,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { SocialPromotionsService } from '../social-promotions/social-promotions.service';
+import { captureException } from '../sentry';
 
 function isFalseEnvFlag(value: boolean | string | undefined): boolean {
   return (
@@ -44,6 +45,16 @@ export class CleanupTasksService {
       this.logger.error(
         'Error in daily cleanup:',
         error instanceof Error ? error.stack : error,
+      );
+      captureException(
+        error instanceof Error ? error : new Error('Error in daily cleanup'),
+        {
+          tags: {
+            service: 'luk-backend',
+            domain: 'raffles',
+            stage: 'cron',
+          },
+        },
       );
     }
   }

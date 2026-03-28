@@ -88,6 +88,8 @@ enum AuditAction {
   RAFFLE_UNHIDDEN
   REFUND_ISSUED
   REPORT_REVIEWED
+  SOCIAL_PROMOTION_DISQUALIFIED
+  SOCIAL_PROMOTION_RETRIED
   USER_BANNED
   USER_UNBANNED
 }
@@ -371,6 +373,7 @@ type Mutation {
   adminDisqualifySocialPromotionPost(postId: String!, reason: String!): SocialPromotionPost!
   adminRetrySocialPromotionPost(postId: String!): SocialPromotionPost!
   answerQuestion(input: AnswerQuestionInput!): RaffleAnswer!
+
   """Approve a KYC submission"""
   approveKyc(userId: String!): KycApprovalResult!
   askQuestion(input: AskQuestionInput!): RaffleQuestion!
