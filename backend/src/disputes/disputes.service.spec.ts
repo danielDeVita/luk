@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { PaymentsService } from '../payments/payments.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { AuditService } from '../audit/audit.service';
+import { ActivityService } from '../activity/activity.service';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import {
   NotFoundException,
@@ -41,7 +42,7 @@ describe('DisputesService', () => {
       updateMany: jest.fn(),
     },
     transaction: {
-      findMany: jest.fn(),
+      findMany: jest.fn().mockResolvedValue([]),
     },
   });
 
@@ -60,6 +61,13 @@ describe('DisputesService', () => {
 
   const mockAuditService = {
     logDisputeResolved: jest.fn().mockResolvedValue({ id: 'audit-1' }),
+    logRefundIssued: jest.fn().mockResolvedValue({ id: 'audit-2' }),
+  };
+
+  const mockActivityService = {
+    logDisputeOpened: jest.fn().mockResolvedValue({ id: 'activity-1' }),
+    logDisputeResponded: jest.fn().mockResolvedValue({ id: 'activity-2' }),
+    logTicketsRefunded: jest.fn().mockResolvedValue({ id: 'activity-3' }),
   };
 
   const mockEventEmitter = {
@@ -128,6 +136,7 @@ describe('DisputesService', () => {
         { provide: PaymentsService, useValue: mockPaymentsService },
         { provide: NotificationsService, useValue: mockNotificationsService },
         { provide: AuditService, useValue: mockAuditService },
+        { provide: ActivityService, useValue: mockActivityService },
         { provide: EventEmitter2, useValue: mockEventEmitter },
       ],
     }).compile();
@@ -457,6 +466,13 @@ describe('DisputesService', () => {
           },
         ]);
       prisma.ticket.updateMany.mockResolvedValue({ count: 1 });
+      prisma.transaction.findMany.mockResolvedValue([
+        {
+          id: 'txn-1',
+          mpPaymentId: 'mp-123',
+          cashChargedAmount: 1000,
+        },
+      ]);
       prisma.dispute.update.mockResolvedValue({
         ...dispute,
         estado: DisputeStatus.RESUELTA_COMPRADOR,
@@ -556,6 +572,7 @@ describe('DisputesService', () => {
         ]);
       prisma.transaction.findMany.mockResolvedValue([
         {
+          id: 'txn-1',
           mpPaymentId: 'mp-123',
           cashChargedAmount: 1050,
         },
@@ -675,6 +692,13 @@ describe('DisputesService', () => {
           },
         ]);
       prisma.ticket.updateMany.mockResolvedValue({ count: 0 });
+      prisma.transaction.findMany.mockResolvedValue([
+        {
+          id: 'txn-1',
+          mpPaymentId: 'mp-123',
+          cashChargedAmount: 1000,
+        },
+      ]);
       prisma.dispute.update.mockResolvedValue({
         ...dispute,
         estado: DisputeStatus.RESUELTA_PARCIAL,

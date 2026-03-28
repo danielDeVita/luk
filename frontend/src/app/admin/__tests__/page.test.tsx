@@ -41,11 +41,8 @@ describe('AdminPage', () => {
       forward: vi.fn(),
     });
 
-    mockUseQuery.mockImplementation((_query, options) => ({
-      data:
-        options?.variables && 'reviewed' in options.variables
-          ? { getReports: '[]' }
-          : undefined,
+    mockUseQuery.mockImplementation(() => ({
+      data: undefined,
       loading: false,
       error: undefined,
       refetch: vi.fn(),

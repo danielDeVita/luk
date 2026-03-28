@@ -6,24 +6,26 @@ import {
   shouldReportNetworkError,
 } from '../apollo-error-reporting';
 
+const sentryScopeMocks = vi.hoisted(() => ({
+  setTag: vi.fn(),
+  setExtra: vi.fn(),
+  setUser: vi.fn(),
+}));
+
 vi.mock('@sentry/nextjs', () => ({
-  withScope: vi.fn(),
+  withScope: vi.fn((callback?: (scope: unknown) => void) => {
+    callback?.({
+      setTag: sentryScopeMocks.setTag,
+      setExtra: sentryScopeMocks.setExtra,
+      setUser: sentryScopeMocks.setUser,
+    });
+  }),
   captureException: vi.fn(),
 }));
 
 describe('apollo error reporting', () => {
-  const setTag = vi.fn();
-  const setExtra = vi.fn();
-  const setUser = vi.fn();
-
   beforeEach(() => {
-    vi.mocked(Sentry.withScope).mockImplementation((callback) => {
-      callback({
-        setTag,
-        setExtra,
-        setUser,
-      });
-    });
+    vi.clearAllMocks();
   });
 
   afterEach(() => {
@@ -44,10 +46,10 @@ describe('apollo error reporting', () => {
     });
 
     expect(Sentry.captureException).toHaveBeenCalledTimes(1);
-    expect(setTag).toHaveBeenCalledWith('graphqlCode', 'INTERNAL_SERVER_ERROR');
-    expect(setExtra).toHaveBeenCalledWith('operationName', 'GetSalesDashboard');
-    expect(setExtra).toHaveBeenCalledWith('route', '/dashboard/sales');
-    expect(setUser).toHaveBeenCalledWith({
+    expect(sentryScopeMocks.setTag).toHaveBeenCalledWith('graphqlCode', 'INTERNAL_SERVER_ERROR');
+    expect(sentryScopeMocks.setExtra).toHaveBeenCalledWith('operationName', 'GetSalesDashboard');
+    expect(sentryScopeMocks.setExtra).toHaveBeenCalledWith('route', '/dashboard/sales');
+    expect(sentryScopeMocks.setUser).toHaveBeenCalledWith({
       id: 'user-1',
       email: 'qa@test.com',
     });
@@ -65,7 +67,7 @@ describe('apollo error reporting', () => {
     });
 
     expect(Sentry.captureException).toHaveBeenCalledWith(networkError);
-    expect(setTag).toHaveBeenCalledWith('statusCode', '503');
+    expect(sentryScopeMocks.setTag).toHaveBeenCalledWith('statusCode', '503');
   });
 
   it('does not report expected user-facing GraphQL or auth errors', () => {
