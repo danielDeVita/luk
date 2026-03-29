@@ -158,6 +158,9 @@ describe('SocialPromotionAnalytics', () => {
     expect(screen.getByText(/tickets\/reg:\s*2\.00/i)).toBeInTheDocument();
     expect(screen.getByText('Sin settlement todavía')).toBeInTheDocument();
     expect(screen.getByText('Sin grant')).toBeInTheDocument();
-    expect(screen.getAllByText('—').length).toBeGreaterThanOrEqual(3);
+    expect(screen.getByText('Views: —')).toBeInTheDocument();
+    expect(screen.getByText('Likes: —')).toBeInTheDocument();
+    expect(screen.getByText('Comentarios: —')).toBeInTheDocument();
+    expect(screen.getByText('Shares: —')).toBeInTheDocument();
   });
 });
