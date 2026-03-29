@@ -55,7 +55,7 @@ const SOCIAL_PROMOTION_ANALYTICS = gql`
   }
 `;
 
-type SocialPromotionNetwork = 'FACEBOOK' | 'INSTAGRAM' | 'X' | 'THREADS';
+type SocialPromotionNetwork = 'FACEBOOK' | 'INSTAGRAM' | 'X';
 type SocialPromotionStatus =
   | 'PENDING_VALIDATION'
   | 'ACTIVE'
@@ -106,7 +106,6 @@ const NETWORK_LABELS: Record<SocialPromotionNetwork, string> = {
   FACEBOOK: 'Facebook',
   INSTAGRAM: 'Instagram',
   X: 'X',
-  THREADS: 'Threads',
 };
 
 const STATUS_LABELS: Record<SocialPromotionStatus, string> = {

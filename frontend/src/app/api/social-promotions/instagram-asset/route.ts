@@ -10,7 +10,6 @@ const NETWORK_CTA_LABELS: Record<string, string> = {
   FACEBOOK: 'Compartila en Facebook',
   INSTAGRAM: 'Publicala en Instagram',
   X: 'Compartila en X',
-  THREADS: 'Compartila en Threads',
 };
 
 function formatPrice(price: number) {

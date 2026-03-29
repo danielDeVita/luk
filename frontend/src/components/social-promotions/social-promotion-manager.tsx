@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import Image from 'next/image';
 import { useMutation } from '@apollo/client/react';
 import { gql } from '@apollo/client/core';
 import { toast } from 'sonner';
@@ -66,14 +67,12 @@ const NETWORK_LABELS: Record<string, string> = {
   FACEBOOK: 'Facebook',
   INSTAGRAM: 'Instagram',
   X: 'X',
-  THREADS: 'Threads',
 };
 
 const NETWORK_PERMALINK_PLACEHOLDERS: Record<string, string> = {
   FACEBOOK: 'https://www.facebook.com/share/p/...',
   INSTAGRAM: 'https://www.instagram.com/p/...',
   X: 'https://x.com/tu-usuario/status/...',
-  THREADS: 'https://www.threads.net/@tu-usuario/post/...',
 };
 
 const INSTAGRAM_ASSET_DIMENSIONS = {
@@ -434,11 +433,15 @@ export function SocialPromotionManager({
                             aria-pressed={isSelected}
                             aria-label={`Usar foto ${index + 1}`}
                           >
-                            <img
-                              src={getOptimizedImageUrl(image, CLOUDINARY_PRESETS.galleryFull)}
-                              alt={`Foto ${index + 1} del producto`}
-                              className="h-40 w-full object-cover"
-                            />
+                            <div className="relative h-40 w-full">
+                              <Image
+                                src={getOptimizedImageUrl(image, CLOUDINARY_PRESETS.galleryFull)}
+                                alt={`Foto ${index + 1} del producto`}
+                                fill
+                                className="object-cover"
+                                sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
+                              />
+                            </div>
                             <div className="flex items-center justify-between px-3 py-2 text-sm">
                               <span>Foto {index + 1}</span>
                               {isSelected ? (
@@ -499,10 +502,13 @@ export function SocialPromotionManager({
                         </div>
                         <div className="flex max-h-[46vh] min-h-[280px] items-center justify-center overflow-hidden rounded-xl border bg-muted/20 p-3">
                           {promotionAssetUrl ? (
-                            <img
+                            <Image
                               src={promotionAssetUrl}
                               alt="Preview de pieza promocional"
+                              width={INSTAGRAM_ASSET_DIMENSIONS.width}
+                              height={INSTAGRAM_ASSET_DIMENSIONS.height}
                               className="mx-auto h-auto max-h-[calc(46vh-1.5rem)] w-auto max-w-full rounded-lg object-contain shadow-sm"
+                              sizes="(min-width: 1024px) 50vw, 100vw"
                             />
                           ) : (
                             <div className="flex min-h-[320px] items-center justify-center text-sm text-muted-foreground">
@@ -561,11 +567,15 @@ export function SocialPromotionManager({
                         </p>
                         <p className="mt-2 text-sm font-medium">{activeNetworkLabel}</p>
                         {selectedImageUrl ? (
-                          <img
-                            src={getOptimizedImageUrl(selectedImageUrl, CLOUDINARY_PRESETS.detail)}
-                            alt="Foto elegida para la promoción"
-                            className="mt-3 h-40 w-full rounded-lg object-cover"
-                          />
+                          <div className="relative mt-3 h-40 w-full overflow-hidden rounded-lg">
+                            <Image
+                              src={getOptimizedImageUrl(selectedImageUrl, CLOUDINARY_PRESETS.detail)}
+                              alt="Foto elegida para la promoción"
+                              fill
+                              className="object-cover"
+                              sizes="300px"
+                            />
+                          </div>
                         ) : (
                           <p className="mt-2 text-sm text-muted-foreground">
                             No hay foto disponible para generar la pieza.

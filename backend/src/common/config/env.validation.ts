@@ -191,7 +191,7 @@ export class EnvironmentVariables {
 
   @IsString()
   @IsOptional()
-  SOCIAL_PROMOTION_ALLOWED_NETWORKS: string = 'facebook,instagram,x,threads';
+  SOCIAL_PROMOTION_ALLOWED_NETWORKS: string = 'facebook,instagram,x';
 
   @IsString()
   @IsOptional()

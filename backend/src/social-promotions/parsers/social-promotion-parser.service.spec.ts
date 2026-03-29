@@ -3,7 +3,6 @@ import {
   FACEBOOK_PUBLIC_POST_HTML,
   INSTAGRAM_PUBLIC_POST_HTML,
   PRIVATE_POST_HTML,
-  THREADS_PUBLIC_POST_HTML,
   X_PUBLIC_POST_HTML,
 } from '../__fixtures__/public-post-html.fixture';
 import { SocialPromotionNetwork } from '../entities/social-promotion.entity';
@@ -25,9 +24,6 @@ describe('SocialPromotionParserService', () => {
     expect(service.detectNetworkFromUrl('https://x.com/test/status/1')).toBe(
       SocialPromotionNetwork.X,
     );
-    expect(
-      service.detectNetworkFromUrl('https://www.threads.net/@test/post/C123'),
-    ).toBe(SocialPromotionNetwork.THREADS);
   });
 
   it('canonicalizes URLs by removing query params and hashes', () => {
@@ -81,20 +77,6 @@ describe('SocialPromotionParserService', () => {
     expect(result.metrics.commentsCount).toBe(31);
     expect(result.metrics.repostsOrSharesCount).toBe(18);
     expect(result.metrics.viewsCount).toBe(12400);
-  });
-
-  it('parses Threads public HTML', () => {
-    const result = service.parsePublicContent({
-      network: SocialPromotionNetwork.THREADS,
-      rawUrl: 'https://threads.net/@test/post/C123',
-      html: THREADS_PUBLIC_POST_HTML,
-      promotionToken: 'token-123',
-      trackingUrl: 'https://luk.app/promo/token-123',
-    });
-
-    expect(result.metrics.likesCount).toBe(67);
-    expect(result.metrics.commentsCount).toBe(10);
-    expect(result.metrics.repostsOrSharesCount).toBe(4);
   });
 
   it('marks inaccessible content accordingly', () => {

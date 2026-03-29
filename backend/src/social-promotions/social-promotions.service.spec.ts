@@ -527,8 +527,8 @@ describe('SocialPromotionsService', () => {
         id: 'post-1',
         raffleId: 'raffle-1',
         sellerId: 'seller-1',
-        network: SocialPromotionNetwork.THREADS,
-        submittedPermalink: 'https://www.threads.net/@seller/post/abc123',
+        network: SocialPromotionNetwork.X,
+        submittedPermalink: 'https://x.com/seller/status/abc123',
         validatedAt: null,
         draft: {
           promotionToken: 'token-123',
@@ -539,24 +539,24 @@ describe('SocialPromotionsService', () => {
       pageLoader.loadPublicPage
         .mockResolvedValueOnce({
           html: '<html></html>',
-          finalUrl: 'https://www.threads.net/@seller/post/abc123',
+          finalUrl: 'https://x.com/seller/status/abc123',
           loader: 'fetch',
         })
         .mockResolvedValueOnce({
           html: '<html><body>27 likes 6 replies 3 reposts 420 views token-123</body></html>',
-          finalUrl: 'https://www.threads.net/@seller/post/abc123',
+          finalUrl: 'https://x.com/seller/status/abc123',
           loader: 'playwright',
         });
       parser.parsePublicContent
         .mockReturnValueOnce({
-          canonicalPermalink: 'https://www.threads.net/@seller/post/abc123/',
+          canonicalPermalink: 'https://x.com/seller/status/abc123/',
           canonicalPostId: 'abc123',
           isAccessible: true,
           tokenPresent: true,
           metrics: {},
         })
         .mockReturnValueOnce({
-          canonicalPermalink: 'https://www.threads.net/@seller/post/abc123/',
+          canonicalPermalink: 'https://x.com/seller/status/abc123/',
           canonicalPostId: 'abc123',
           isAccessible: true,
           tokenPresent: true,
@@ -573,12 +573,12 @@ describe('SocialPromotionsService', () => {
 
       expect(pageLoader.loadPublicPage).toHaveBeenNthCalledWith(
         1,
-        'https://www.threads.net/@seller/post/abc123',
+        'https://x.com/seller/status/abc123',
         { preferBrowser: undefined },
       );
       expect(pageLoader.loadPublicPage).toHaveBeenNthCalledWith(
         2,
-        'https://www.threads.net/@seller/post/abc123',
+        'https://x.com/seller/status/abc123',
         { preferBrowser: true },
       );
       expect(prisma.socialPromotionMetricSnapshot.create).toHaveBeenCalledWith(

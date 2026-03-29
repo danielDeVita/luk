@@ -36,7 +36,6 @@ export class SocialPromotionParserService {
 
     if (host.includes('facebook.com')) return SocialPromotionNetwork.FACEBOOK;
     if (host.includes('instagram.com')) return SocialPromotionNetwork.INSTAGRAM;
-    if (host.includes('threads.net')) return SocialPromotionNetwork.THREADS;
     if (
       host === 'x.com' ||
       host.endsWith('.x.com') ||
@@ -144,8 +143,6 @@ export class SocialPromotionParserService {
         return url.pathname.split('/').filter(Boolean).pop();
       case SocialPromotionNetwork.X:
         return url.pathname.split('/').filter(Boolean).pop();
-      case SocialPromotionNetwork.THREADS:
-        return url.pathname.split('/').filter(Boolean).pop();
       default:
         return undefined;
     }
@@ -204,25 +201,6 @@ export class SocialPromotionParserService {
           repostsOrSharesCount: this.extractMetric(html, [
             /(?:reposts?|retweets?|quotes?|republicaciones|compartidos?)\s*:\s*(\d[\d.,KkMm]*)/i,
             /(\d[\d.,KkMm]*)\s+(?:reposts?|retweets?|quotes?|republicaciones|compartidos?)/i,
-          ]),
-          viewsCount: this.extractMetric(html, [
-            /(?:visualizaciones|vistas?|views?)\s*:\s*(\d[\d.,KkMm]*)/i,
-            /(\d[\d.,KkMm]*)\s+(?:visualizaciones|vistas?|views?)/i,
-          ]),
-        };
-      case SocialPromotionNetwork.THREADS:
-        return {
-          likesCount: this.extractMetric(html, [
-            /(?:me gusta|likes?)\s*:\s*(\d[\d.,KkMm]*)/i,
-            /(\d[\d.,KkMm]*)\s+(?:me gusta|likes?)/i,
-          ]),
-          commentsCount: this.extractMetric(html, [
-            /(?:comentarios?|comments?|repl(?:y|ies)|respuestas?)\s*:\s*(\d[\d.,KkMm]*)/i,
-            /(\d[\d.,KkMm]*)\s+(?:comentarios?|comments?|repl(?:y|ies)|respuestas?)/i,
-          ]),
-          repostsOrSharesCount: this.extractMetric(html, [
-            /(?:reposts?|requotes?|republicaciones|compartidos?)\s*:\s*(\d[\d.,KkMm]*)/i,
-            /(\d[\d.,KkMm]*)\s+(?:reposts?|requotes?|republicaciones|compartidos?)/i,
           ]),
           viewsCount: this.extractMetric(html, [
             /(?:visualizaciones|vistas?|views?)\s*:\s*(\d[\d.,KkMm]*)/i,

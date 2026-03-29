@@ -25,7 +25,7 @@ npm run docker:infra:up
 # Backend
 cd backend && npm install
 cd backend && npx prisma db push
-cd backend && npm run db:seed:manual-qa    # Optional but recommended
+cd backend && npm run db:seed              # Canonical QA/dev dataset
 cd backend && npm run start:dev
 ```
 
@@ -84,7 +84,7 @@ MP_ACCESS_TOKEN=""
 The social promotion feature is implemented in v1 with:
 
 - seller-created promotion drafts;
-- manual permalink submission for `Facebook`, `Instagram`, `X` and `Threads`;
+- manual permalink submission for `Facebook`, `Instagram` and `X`;
 - public-post validation using `fetch` + Playwright fallback;
 - metrics snapshots stored in PostgreSQL;
 - a separate `social-worker` process for scheduled validation and settlement;
@@ -112,7 +112,7 @@ SENTRY_RELEASE=""                 # Git SHA or deploy release id
 
 # Social promotions
 SOCIAL_PROMOTION_ENABLED="true"
-SOCIAL_PROMOTION_ALLOWED_NETWORKS="facebook,instagram,x,threads"
+SOCIAL_PROMOTION_ALLOWED_NETWORKS="facebook,instagram,x"
 SOCIAL_PROMOTION_CHECK_CRON="0 */6 * * *"
 SOCIAL_PROMOTION_BROWSER_ENABLED="false"   # backend web service
 
@@ -335,8 +335,13 @@ src/
 
 prisma/
 ├── schema.prisma          # Database schema
-└── migrations/            # Database migrations
+└── seed.ts                # Canonical QA/dev seed (E2E + manual QA + social promotion grant)
 ```
+
+Pre-production workflow note:
+
+- local development currently uses `schema.prisma` + `prisma db push`;
+- migration files are intentionally not tracked until production rollout planning starts.
 
 ## Testing
 

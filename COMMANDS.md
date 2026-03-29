@@ -23,7 +23,7 @@ Then run the app on your host machine:
 
 ```bash
 cd backend && npx prisma db push
-cd backend && npm run db:seed:manual-qa   # Optional but recommended
+cd backend && npm run db:seed             # Seed canónico para QA manual y dev
 cd backend && npm run start:dev
 
 cd frontend && npm run dev
@@ -100,14 +100,14 @@ curl http://localhost:3001/health/ready
 
 ```bash
 npm run docker:db:push                # Prisma db push inside backend container
-npm run docker:db:seed:manual-qa      # Manual QA seed inside backend container
+npm run docker:db:seed                # Canonical QA/dev seed inside backend container
 ```
 
 ## Database (Host Dev + Docker Infra)
 
 ```bash
 cd backend && npx prisma db push
-cd backend && npm run db:seed:manual-qa
+cd backend && npm run db:seed
 cd backend && npx prisma studio
 ```
 

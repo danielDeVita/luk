@@ -22,8 +22,6 @@ Hoy permite:
 - `Instagram`
 - `X`
 
-`Threads` sigue soportado a nivel de contratos, UI y parser, pero todavía no fue probado manualmente en este entorno.
-
 ## Arquitectura real
 
 La solución corre en dos procesos:
@@ -143,7 +141,6 @@ El log admin de reversiones muestra:
 ## Limitaciones actuales
 
 - se usan señales públicas, no métricas internas oficiales de las redes;
-- `Threads` aún no fue validado manualmente;
 - `X` y `Facebook` pueden exigir Playwright para conseguir métricas visibles;
 - algunas métricas pueden seguir viniendo como `null` si la red no las expone públicamente;
 - el admin muestra cola de `TECHNICAL_REVIEW` y log de reversiones, pero no un historial completo de todos los posts promocionales.

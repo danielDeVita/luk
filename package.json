@@ -24,7 +24,7 @@
     "docker:dev:build": "docker compose -f docker-compose.dev.yml up --build",
     "docker:dev:down": "docker compose -f docker-compose.dev.yml down",
     "docker:db:push": "docker compose -f docker-compose.dev.yml exec backend npx prisma db push",
-    "docker:db:seed:manual-qa": "docker compose -f docker-compose.dev.yml exec backend npm run db:seed:manual-qa",
+    "docker:db:seed": "docker compose -f docker-compose.dev.yml exec backend npm run db:seed",
     "docker:clean": "docker compose -f docker-compose.dev.yml down -v --rmi local"
   },
   "devDependencies": {

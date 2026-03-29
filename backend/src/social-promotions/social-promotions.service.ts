@@ -1912,13 +1912,12 @@ export class SocialPromotionsService {
   private getAllowedNetworks(): Set<SocialPromotionNetwork> {
     const raw = this.configService.get<string>(
       'SOCIAL_PROMOTION_ALLOWED_NETWORKS',
-      'facebook,instagram,x,threads',
+      'facebook,instagram,x',
     );
     const map: Record<string, SocialPromotionNetwork> = {
       facebook: SocialPromotionNetwork.FACEBOOK,
       instagram: SocialPromotionNetwork.INSTAGRAM,
       x: SocialPromotionNetwork.X,
-      threads: SocialPromotionNetwork.THREADS,
     };
 
     return new Set(

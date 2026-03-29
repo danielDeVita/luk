@@ -105,9 +105,7 @@ export class SocialPromotionPageLoaderService {
       lowered.includes('window.__additional_data_loaded') ||
       lowered.length < 1200;
 
-    return (
-      isLikelyJsShell || /facebook|instagram|threads|x\.com|twitter/i.test(url)
-    );
+    return isLikelyJsShell || /facebook|instagram|x\.com|twitter/i.test(url);
   }
 
   private async loadWithPlaywright(

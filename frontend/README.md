@@ -143,7 +143,7 @@ The seller flow now includes a dedicated `Promocionar y medir` action:
 
 - available to the raffle owner;
 - generates a promotion draft with `trackingUrl` and `promotionToken`;
-- lets the seller submit a public permalink from `Facebook`, `Instagram`, `X` or `Threads`;
+- lets the seller submit a public permalink from `Facebook`, `Instagram` or `X`;
 - shows stored promotion status and visible metrics in `/dashboard/sales`;
 - supports a generated social asset and caption flow, including image selection, for visual networks.
 

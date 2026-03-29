@@ -48,22 +48,6 @@ export const X_PUBLIC_POST_HTML = `
   </html>
 `;
 
-export const THREADS_PUBLIC_POST_HTML = `
-  <html>
-    <head>
-      <meta property="og:url" content="https://www.threads.net/@test/post/C123" />
-    </head>
-    <body>
-      <article>
-        <div>Rifa publicada con token-123</div>
-        <div>67 likes</div>
-        <div>10 replies</div>
-        <div>4 reposts</div>
-      </article>
-    </body>
-  </html>
-`;
-
 export const PRIVATE_POST_HTML = `
   <html>
     <body>

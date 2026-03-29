@@ -11,7 +11,6 @@ export enum SocialPromotionNetwork {
   FACEBOOK = 'FACEBOOK',
   INSTAGRAM = 'INSTAGRAM',
   X = 'X',
-  THREADS = 'THREADS',
 }
 
 export enum SocialPromotionStatus {

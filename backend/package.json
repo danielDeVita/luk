@@ -20,15 +20,11 @@
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "test:integration": "jest --config ./test/jest-e2e.json --testPathPattern=integration",
-    "db:migrate": "npx prisma migrate dev",
+    "db:push": "npx prisma db push",
+    "db:reset": "npx prisma db push --force-reset",
     "db:generate": "npx prisma generate",
     "db:studio": "npx prisma studio",
-    "db:seed": "npx ts-node prisma/seed.ts",
-    "db:seed:manual-qa": "npx ts-node prisma/seed.manual-qa.ts",
-    "db:seed:promotion-bonus-qa": "npx ts-node prisma/seed.promotion-bonus-qa.ts"
-  },
-  "prisma": {
-    "seed": "ts-node prisma/seed.ts"
+    "db:seed": "npx ts-node prisma/seed.ts"
   },
   "dependencies": {
     "@apollo/server": "^5.2.0",

@@ -7,7 +7,6 @@ Este archivo conserva el diseño y alcance funcional de la feature.
 Implementación real a la fecha:
 
 - ya existe soporte operativo en `Facebook`, `Instagram` y `X`;
-- `Threads` sigue contemplado en diseño y contratos, pero no fue validado manualmente aún;
 - el sistema ya persiste snapshots de métricas visibles en base de datos;
 - el procesamiento corre en un `social-worker` separado;
 - los refunds completos de compras bonificadas ya revierten el grant a `AVAILABLE`;
@@ -25,7 +24,7 @@ Este documento define una futura feature para que un vendedor publique manualmen
 - calcular un score promocional;
 - convertir ese score en una `bonificación promocional` aplicable a una compra futura dentro de Luk.
 
-La implementación debe incluir `Facebook`, `Instagram`, `X` y `Threads`.
+La implementación debe incluir `Facebook`, `Instagram` y `X`.
 
 En `Facebook` e `Instagram` personales no se usarán APIs oficiales en v1. La validación y lectura de métricas se hará a partir del `permalink público` y del contenido visible públicamente.
 
@@ -97,14 +96,12 @@ Si el post se borra, se vuelve privado, cambia de URL o elimina el token/link de
 - Facebook
 - Instagram
 - X
-- Threads
 
 ### Formatos elegibles en v1
 
 - Facebook: post público de feed.
 - Instagram: post o reel público.
 - X: post público.
-- Threads: post público.
 
 ## Qué se medirá
 
@@ -232,23 +229,6 @@ Limitaciones importantes:
 
 - algunas métricas pueden variar según UI o cambios del sitio;
 - bookmarks no son públicos.
-
-### Threads
-
-Se puede aspirar a obtener:
-
-- existencia del post;
-- accesibilidad pública;
-- texto visible;
-- likes;
-- replies;
-- reposts/requotes, si están visibles;
-- algunas views, si la interfaz pública las expone.
-
-Limitaciones importantes:
-
-- menor estabilidad histórica de la UI pública;
-- algunas métricas pueden no estar visibles siempre.
 
 ## Separación explícita de métricas
 
@@ -650,7 +630,6 @@ No se requieren API keys oficiales de:
 
 - Meta / Facebook / Instagram
 - X
-- Threads
 
 porque en v1 la validación será por `permalink público` y parsing del contenido visible públicamente.
 
@@ -675,7 +654,7 @@ Referencias oficiales:
 Backend:
 
 - `SOCIAL_PROMOTION_ENABLED=true`
-- `SOCIAL_PROMOTION_ALLOWED_NETWORKS=facebook,instagram,x,threads`
+- `SOCIAL_PROMOTION_ALLOWED_NETWORKS=facebook,instagram,x`
 - `SOCIAL_PROMOTION_CHECK_CRON=0 */6 * * *`
 - `SOCIAL_PROMOTION_FETCH_TIMEOUT_MS=30000`
 - `SOCIAL_PROMOTION_MIN_MP_CHARGE=1`
@@ -714,7 +693,7 @@ Además, se debe revisar el wording actual que prohíbe o desalienta hablar de �
 
 ## Criterios de aceptación
 
-- El vendedor puede registrar un post público válido de Facebook, Instagram, X o Threads.
+- El vendedor puede registrar un post público válido de Facebook, Instagram o X.
 - El sistema puede verificar que siga público durante la rifa.
 - El sistema captura métricas públicas visibles cuando están disponibles.
 - El sistema descalifica un post si deja de cumplir las reglas.
