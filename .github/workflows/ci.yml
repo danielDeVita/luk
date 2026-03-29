@@ -50,6 +50,8 @@ jobs:
 
       - name: Generate Prisma client
         run: npx prisma generate
+        env:
+          DATABASE_URL: postgresql://raffle_user:raffle_password@localhost:5432/raffle_db
 
       - name: Lint
         run: npm run lint
@@ -165,6 +167,8 @@ jobs:
       - name: Generate Prisma client
         working-directory: backend
         run: npx prisma generate
+        env:
+          DATABASE_URL: postgresql://raffle_user:raffle_password@localhost:5432/raffle_db
 
       - name: Sync database schema
         working-directory: backend
