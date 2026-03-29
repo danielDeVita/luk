@@ -38,6 +38,7 @@ import {
   UserCheck,
   History,
 } from 'lucide-react';
+import { SocialPromotionAnalytics } from '@/components/admin/social-promotion-analytics';
 import { SocialPromotionReview } from '@/components/admin/social-promotion-review';
 import { PromotionGrantReversalLog } from '@/components/admin/promotion-grant-reversal-log';
 
@@ -1091,8 +1092,27 @@ export default function AdminPage() {
 
         <TabsContent value="social-promotions">
           <div className="space-y-6">
-            <SocialPromotionReview />
-            <PromotionGrantReversalLog />
+            <section className="space-y-4">
+              <div>
+                <h2 className="text-lg font-semibold">Analytics</h2>
+                <p className="text-sm text-muted-foreground">
+                  Performance visible, conversiones atribuidas y grants emitidos por post promocional.
+                </p>
+              </div>
+              <SocialPromotionAnalytics />
+            </section>
+            <section className="space-y-4">
+              <div>
+                <h2 className="text-lg font-semibold">
+                  Revisión técnica / Reversals
+                </h2>
+                <p className="text-sm text-muted-foreground">
+                  Cola técnica para moderación admin y log de grants revertidos.
+                </p>
+              </div>
+              <SocialPromotionReview />
+              <PromotionGrantReversalLog />
+            </section>
           </div>
         </TabsContent>
       </Tabs>

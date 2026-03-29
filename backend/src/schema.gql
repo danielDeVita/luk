@@ -691,6 +691,7 @@ type Query {
   sellerDashboardStats: SellerDashboardStats!
   sellerProfile(id: String!): PublicSellerProfile!
   shippingAddress(id: String!): ShippingAddress!
+  socialPromotionAnalytics: [SocialPromotionAnalyticsRow!]!
   socialPromotionReviewQueue: [SocialPromotionPost!]!
   ticket(id: String!): Ticket!
   ticketNumberAvailability(page: Int!, pageSize: Int!, raffleId: String!, searchNumber: Int): TicketNumberAvailabilityPage!
@@ -855,6 +856,35 @@ type ShippingAddress {
   street: String!
   updatedAt: DateTime!
   userId: String!
+}
+
+type SocialPromotionAnalyticsRow {
+  canonicalPermalink: String
+  clicksAttributed: Int
+  commentsCount: Int
+  conversionScore: Float
+  engagementScore: Float
+  grantDiscountPercent: Float
+  grantIssued: Boolean!
+  grantMaxDiscountAmount: Float
+  grantStatus: PromotionBonusGrantStatus
+  likesCount: Int
+  network: SocialPromotionNetwork!
+  postId: ID!
+  raffleId: String!
+  raffleTitle: String!
+  registrationsAttributed: Int
+  repostsOrSharesCount: Int
+  sellerEmail: String!
+  sellerId: String!
+  settledAt: DateTime
+  status: SocialPromotionStatus!
+  submittedAt: DateTime!
+  submittedPermalink: String!
+  ticketPurchasesAttributed: Int
+  totalScore: Float
+  validatedAt: DateTime
+  viewsCount: Int
 }
 
 type SocialPromotionDraft {

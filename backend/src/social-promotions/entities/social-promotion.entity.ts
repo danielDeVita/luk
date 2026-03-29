@@ -259,3 +259,84 @@ export class SocialPromotionPost {
   @Field(() => PromotionScoreSettlement, { nullable: true })
   settlement?: PromotionScoreSettlement;
 }
+
+@ObjectType()
+export class SocialPromotionAnalyticsRow {
+  @Field(() => ID)
+  postId!: string;
+
+  @Field()
+  raffleId!: string;
+
+  @Field()
+  raffleTitle!: string;
+
+  @Field()
+  sellerId!: string;
+
+  @Field()
+  sellerEmail!: string;
+
+  @Field(() => SocialPromotionNetwork)
+  network!: SocialPromotionNetwork;
+
+  @Field(() => SocialPromotionStatus)
+  status!: SocialPromotionStatus;
+
+  @Field()
+  submittedPermalink!: string;
+
+  @Field({ nullable: true })
+  canonicalPermalink?: string;
+
+  @Field()
+  submittedAt!: Date;
+
+  @Field(() => Date, { nullable: true })
+  validatedAt?: Date;
+
+  @Field(() => Date, { nullable: true })
+  settledAt?: Date;
+
+  @Field(() => Int, { nullable: true })
+  likesCount?: number;
+
+  @Field(() => Int, { nullable: true })
+  commentsCount?: number;
+
+  @Field(() => Int, { nullable: true })
+  repostsOrSharesCount?: number;
+
+  @Field(() => Int, { nullable: true })
+  viewsCount?: number;
+
+  @Field(() => Int, { nullable: true })
+  clicksAttributed?: number;
+
+  @Field(() => Int, { nullable: true })
+  registrationsAttributed?: number;
+
+  @Field(() => Int, { nullable: true })
+  ticketPurchasesAttributed?: number;
+
+  @Field(() => Float, { nullable: true })
+  engagementScore?: number;
+
+  @Field(() => Float, { nullable: true })
+  conversionScore?: number;
+
+  @Field(() => Float, { nullable: true })
+  totalScore?: number;
+
+  @Field()
+  grantIssued!: boolean;
+
+  @Field(() => PromotionBonusGrantStatus, { nullable: true })
+  grantStatus?: PromotionBonusGrantStatus;
+
+  @Field(() => Float, { nullable: true })
+  grantDiscountPercent?: number;
+
+  @Field(() => Float, { nullable: true })
+  grantMaxDiscountAmount?: number;
+}

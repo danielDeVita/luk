@@ -25,6 +25,7 @@ import {
   PromotionBonusGrant,
   PromotionBonusGrantStatus as PromotionBonusGrantStatusGql,
   PromotionBonusPreview,
+  SocialPromotionAnalyticsRow,
   SocialPromotionDraft,
   SocialPromotionNetwork,
   SocialPromotionPost,
@@ -1108,6 +1109,59 @@ export class SocialPromotionsService {
   }
 
   /**
+   * Returns admin-facing analytics rows built from the latest snapshot and any settlement/grant.
+   */
+  async getSocialPromotionAnalytics(): Promise<SocialPromotionAnalyticsRow[]> {
+    const posts = await this.prisma.socialPromotionPost.findMany({
+      include: {
+        raffle: {
+          select: {
+            id: true,
+            titulo: true,
+          },
+        },
+        seller: {
+          select: {
+            id: true,
+            email: true,
+          },
+        },
+        snapshots: { orderBy: { checkedAt: 'desc' }, take: 1 },
+        settlement: true,
+      },
+      orderBy: { submittedAt: 'desc' },
+    });
+
+    const settlementIds = posts
+      .map((post) => post.settlement?.id)
+      .filter((id): id is string => Boolean(id));
+
+    const grants =
+      settlementIds.length > 0
+        ? await this.prisma.promotionBonusGrant.findMany({
+            where: {
+              sourceSettlementId: {
+                in: settlementIds,
+              },
+            },
+          })
+        : [];
+
+    const grantsBySettlementId = new Map(
+      grants.map((grant) => [grant.sourceSettlementId, grant]),
+    );
+
+    return posts.map((post) =>
+      this.mapSocialPromotionAnalyticsRow(
+        post,
+        post.settlement
+          ? grantsBySettlementId.get(post.settlement.id)
+          : undefined,
+      ),
+    );
+  }
+
+  /**
    * Moves a technical-review post back to pending validation.
    */
   async retryTechnicalReview(
@@ -1702,6 +1756,92 @@ export class SocialPromotionsService {
       maxDiscountAmount: Number(grant.maxDiscountAmount),
       status: grant.status as unknown as PromotionBonusGrantStatusGql,
       usedAt: grant.usedAt ?? undefined,
+    };
+  }
+
+  private mapSocialPromotionAnalyticsRow(
+    post: {
+      id: string;
+      raffleId: string;
+      sellerId: string;
+      network: PrismaSocialPromotionNetwork;
+      status: SocialPromotionStatus;
+      submittedPermalink: string;
+      canonicalPermalink: string | null;
+      submittedAt: Date;
+      validatedAt: Date | null;
+      raffle: {
+        id: string;
+        titulo: string;
+      };
+      seller: {
+        id: string;
+        email: string;
+      };
+      snapshots: Array<{
+        likesCount: number | null;
+        commentsCount: number | null;
+        repostsOrSharesCount: number | null;
+        viewsCount: number | null;
+        clicksAttributed: number;
+        registrationsAttributed: number;
+        ticketPurchasesAttributed: number;
+      }>;
+      settlement?: {
+        id: string;
+        settledAt: Date;
+        engagementScore: Prisma.Decimal;
+        conversionScore: Prisma.Decimal;
+        totalScore: Prisma.Decimal;
+      } | null;
+    },
+    grant?: {
+      discountPercent: Prisma.Decimal;
+      maxDiscountAmount: Prisma.Decimal;
+      status: PromotionBonusGrantStatus;
+    },
+  ): SocialPromotionAnalyticsRow {
+    const latestSnapshot = post.snapshots[0];
+
+    return {
+      postId: post.id,
+      raffleId: post.raffleId,
+      raffleTitle: post.raffle.titulo,
+      sellerId: post.sellerId,
+      sellerEmail: post.seller.email,
+      network: post.network as unknown as SocialPromotionNetwork,
+      status: post.status as unknown as SocialPromotionStatusGql,
+      submittedPermalink: post.submittedPermalink,
+      canonicalPermalink: post.canonicalPermalink ?? undefined,
+      submittedAt: post.submittedAt,
+      validatedAt: post.validatedAt ?? undefined,
+      settledAt: post.settlement?.settledAt ?? undefined,
+      likesCount: latestSnapshot?.likesCount ?? undefined,
+      commentsCount: latestSnapshot?.commentsCount ?? undefined,
+      repostsOrSharesCount: latestSnapshot?.repostsOrSharesCount ?? undefined,
+      viewsCount: latestSnapshot?.viewsCount ?? undefined,
+      clicksAttributed: latestSnapshot?.clicksAttributed ?? undefined,
+      registrationsAttributed:
+        latestSnapshot?.registrationsAttributed ?? undefined,
+      ticketPurchasesAttributed:
+        latestSnapshot?.ticketPurchasesAttributed ?? undefined,
+      engagementScore: post.settlement
+        ? Number(post.settlement.engagementScore)
+        : undefined,
+      conversionScore: post.settlement
+        ? Number(post.settlement.conversionScore)
+        : undefined,
+      totalScore: post.settlement
+        ? Number(post.settlement.totalScore)
+        : undefined,
+      grantIssued: Boolean(grant),
+      grantStatus: grant
+        ? (grant.status as unknown as PromotionBonusGrantStatusGql)
+        : undefined,
+      grantDiscountPercent: grant ? Number(grant.discountPercent) : undefined,
+      grantMaxDiscountAmount: grant
+        ? Number(grant.maxDiscountAmount)
+        : undefined,
     };
   }
 

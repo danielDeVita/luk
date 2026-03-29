@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useQuery, useMutation, useLazyQuery } from '@apollo/client/react';
 import { useRouter } from 'next/navigation';
@@ -21,6 +21,10 @@ vi.mock('@/hooks/use-confirm-dialog', () => ({
 
 vi.mock('@/components/admin/social-promotion-review', () => ({
   SocialPromotionReview: () => <div data-testid="social-promotion-review" />,
+}));
+
+vi.mock('@/components/admin/social-promotion-analytics', () => ({
+  SocialPromotionAnalytics: () => <div data-testid="social-promotion-analytics" />,
 }));
 
 vi.mock('@/components/admin/promotion-grant-reversal-log', () => ({
@@ -158,5 +162,45 @@ describe('AdminPage', () => {
       expect.anything(),
       expect.objectContaining({ skip: false }),
     );
+  });
+
+  it('shows analytics, review, and reversals inside the social promotions tab', async () => {
+    mockUseAuthStore.mockReturnValue({
+      isAuthenticated: true,
+      user: {
+        id: 'admin-1',
+        email: 'admin@test.com',
+        nombre: 'Admin',
+        apellido: 'QA',
+        role: 'ADMIN',
+      },
+      hasHydrated: true,
+      login: vi.fn(),
+      logout: vi.fn(),
+      setUser: vi.fn(),
+      setAuth: vi.fn(),
+      getToken: vi.fn(),
+      getRefreshToken: vi.fn(),
+      setTokens: vi.fn(),
+      updateUser: vi.fn(),
+      setLoading: vi.fn(),
+      setError: vi.fn(),
+      clearError: vi.fn(),
+      setHasHydrated: vi.fn(),
+      isLoading: false,
+      error: null,
+    } as unknown as ReturnType<typeof useAuthStore>);
+
+    render(<AdminPage />);
+
+    fireEvent.click(
+      await screen.findByRole('tab', { name: /promoción social/i }),
+    );
+
+    expect(screen.getByTestId('social-promotion-analytics')).toBeInTheDocument();
+    expect(screen.getByTestId('social-promotion-review')).toBeInTheDocument();
+    expect(
+      screen.getByTestId('promotion-grant-reversal-log'),
+    ).toBeInTheDocument();
   });
 });

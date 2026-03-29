@@ -14,6 +14,7 @@ describe('SocialPromotionsResolver', () => {
     myPromotionBonusGrants: jest.fn(),
     previewPromotionBonus: jest.fn(),
     getTechnicalReviewQueue: jest.fn(),
+    getSocialPromotionAnalytics: jest.fn(),
     retryTechnicalReview: jest.fn(),
     adminDisqualifyPost: jest.fn(),
   } as unknown as jest.Mocked<SocialPromotionsService>;
@@ -82,6 +83,19 @@ describe('SocialPromotionsResolver', () => {
       'post-1',
       'admin-1',
     );
+  });
+
+  it('returns admin analytics rows for social promotions', async () => {
+    service.getSocialPromotionAnalytics.mockResolvedValue([
+      {
+        postId: 'post-1',
+      },
+    ] as any);
+
+    const result = await resolver.socialPromotionAnalytics();
+
+    expect(result).toHaveLength(1);
+    expect(service.getSocialPromotionAnalytics).toHaveBeenCalledTimes(1);
   });
 
   it('passes the admin id when force-disqualifying a social promotion post', async () => {

@@ -835,6 +835,137 @@ describe('SocialPromotionsService', () => {
   });
 
   describe('admin moderation', () => {
+    it('builds admin analytics rows from the latest snapshot, settlement, and grant', async () => {
+      prisma.socialPromotionPost.findMany.mockResolvedValue([
+        {
+          id: 'post-1',
+          raffleId: 'raffle-1',
+          sellerId: 'seller-1',
+          network: SocialPromotionNetwork.INSTAGRAM,
+          status: SocialPromotionStatus.SETTLED,
+          submittedPermalink: 'https://instagram.com/p/post-1',
+          canonicalPermalink: 'https://instagram.com/p/post-1/',
+          submittedAt: new Date('2026-03-10T10:00:00.000Z'),
+          validatedAt: new Date('2026-03-10T11:00:00.000Z'),
+          raffle: {
+            id: 'raffle-1',
+            titulo: 'MacBook Air',
+          },
+          seller: {
+            id: 'seller-1',
+            email: 'seller-1@example.com',
+          },
+          snapshots: [
+            {
+              likesCount: 120,
+              commentsCount: 15,
+              repostsOrSharesCount: 7,
+              viewsCount: 2500,
+              clicksAttributed: 42,
+              registrationsAttributed: 5,
+              ticketPurchasesAttributed: 9,
+            },
+          ],
+          settlement: {
+            id: 'settlement-1',
+            settledAt: new Date('2026-03-11T10:00:00.000Z'),
+            engagementScore: 18.5,
+            conversionScore: 25.5,
+            totalScore: 54,
+          },
+        },
+        {
+          id: 'post-2',
+          raffleId: 'raffle-2',
+          sellerId: 'seller-2',
+          network: SocialPromotionNetwork.X,
+          status: SocialPromotionStatus.ACTIVE,
+          submittedPermalink: 'https://x.com/test/status/2',
+          canonicalPermalink: null,
+          submittedAt: new Date('2026-03-09T10:00:00.000Z'),
+          validatedAt: null,
+          raffle: {
+            id: 'raffle-2',
+            titulo: 'PlayStation 5',
+          },
+          seller: {
+            id: 'seller-2',
+            email: 'seller-2@example.com',
+          },
+          snapshots: [],
+          settlement: null,
+        },
+      ]);
+      prisma.promotionBonusGrant.findMany.mockResolvedValue([
+        {
+          id: 'grant-1',
+          sellerId: 'seller-1',
+          sourceSettlementId: 'settlement-1',
+          discountPercent: 15,
+          maxDiscountAmount: 15000,
+          expiresAt: new Date('2026-04-10T10:00:00.000Z'),
+          status: PromotionBonusGrantStatus.AVAILABLE,
+          createdAt: new Date('2026-03-11T10:00:00.000Z'),
+          usedAt: null,
+        },
+      ]);
+
+      const result = await service.getSocialPromotionAnalytics();
+
+      expect(prisma.socialPromotionPost.findMany).toHaveBeenCalledWith({
+        include: {
+          raffle: {
+            select: {
+              id: true,
+              titulo: true,
+            },
+          },
+          seller: {
+            select: {
+              id: true,
+              email: true,
+            },
+          },
+          snapshots: { orderBy: { checkedAt: 'desc' }, take: 1 },
+          settlement: true,
+        },
+        orderBy: { submittedAt: 'desc' },
+      });
+      expect(prisma.promotionBonusGrant.findMany).toHaveBeenCalledWith({
+        where: {
+          sourceSettlementId: {
+            in: ['settlement-1'],
+          },
+        },
+      });
+      expect(result).toEqual([
+        expect.objectContaining({
+          postId: 'post-1',
+          raffleTitle: 'MacBook Air',
+          sellerEmail: 'seller-1@example.com',
+          clicksAttributed: 42,
+          registrationsAttributed: 5,
+          ticketPurchasesAttributed: 9,
+          conversionScore: 25.5,
+          totalScore: 54,
+          grantIssued: true,
+          grantStatus: PromotionBonusGrantStatus.AVAILABLE,
+          grantDiscountPercent: 15,
+          grantMaxDiscountAmount: 15000,
+        }),
+        expect.objectContaining({
+          postId: 'post-2',
+          raffleTitle: 'PlayStation 5',
+          sellerEmail: 'seller-2@example.com',
+          grantIssued: false,
+          settledAt: undefined,
+          conversionScore: undefined,
+          totalScore: undefined,
+          clicksAttributed: undefined,
+        }),
+      ]);
+    });
+
     it('logs audit metadata when retrying a technical-review post', async () => {
       prisma.socialPromotionPost.findUnique.mockResolvedValue({
         id: 'post-1',

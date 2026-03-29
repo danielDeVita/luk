@@ -13,6 +13,7 @@ import {
   PromotionBonusGrant,
   PromotionBonusGrantStatus,
   PromotionBonusPreview,
+  SocialPromotionAnalyticsRow,
   SocialPromotionDraft,
   SocialPromotionNetwork,
   SocialPromotionPost,
@@ -124,6 +125,16 @@ export class SocialPromotionsResolver {
   @Roles(UserRole.ADMIN)
   async socialPromotionReviewQueue(): Promise<SocialPromotionPost[]> {
     return this.socialPromotionsService.getTechnicalReviewQueue();
+  }
+
+  /**
+   * Returns admin analytics rows for all submitted social promotion posts.
+   */
+  @Query(() => [SocialPromotionAnalyticsRow])
+  @UseGuards(GqlAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  async socialPromotionAnalytics(): Promise<SocialPromotionAnalyticsRow[]> {
+    return this.socialPromotionsService.getSocialPromotionAnalytics();
   }
 
   /**
