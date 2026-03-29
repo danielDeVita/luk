@@ -14,6 +14,7 @@ import { SocialPromotionsService } from './social-promotions.service';
 import { SocialPromotionNetwork } from './entities/social-promotion.entity';
 import { ActivityService } from '../activity/activity.service';
 import { AuditService } from '../audit/audit.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import * as sentry from '../sentry';
 
 describe('SocialPromotionsService', () => {
@@ -23,6 +24,7 @@ describe('SocialPromotionsService', () => {
   let pageLoader: any;
   let activity: any;
   let audit: any;
+  let notifications: any;
 
   const mockPrisma = () => ({
     raffle: {
@@ -108,6 +110,11 @@ describe('SocialPromotionsService', () => {
     logSocialPromotionDisqualified: jest.fn().mockResolvedValue(undefined),
   };
 
+  const mockNotificationsService = {
+    create: jest.fn().mockResolvedValue(undefined),
+    sendPromotionBonusGrantIssuedEmail: jest.fn().mockResolvedValue(true),
+  };
+
   beforeEach(async () => {
     jest.clearAllMocks();
 
@@ -120,6 +127,7 @@ describe('SocialPromotionsService', () => {
         { provide: SocialPromotionPageLoaderService, useValue: mockPageLoader },
         { provide: ActivityService, useValue: mockActivityService },
         { provide: AuditService, useValue: mockAuditService },
+        { provide: NotificationsService, useValue: mockNotificationsService },
       ],
     }).compile();
 
@@ -129,6 +137,7 @@ describe('SocialPromotionsService', () => {
     pageLoader = module.get(SocialPromotionPageLoaderService);
     activity = module.get(ActivityService);
     audit = module.get(AuditService);
+    notifications = module.get(NotificationsService);
   });
 
   describe('startSocialPromotionDraft', () => {
@@ -586,6 +595,188 @@ describe('SocialPromotionsService', () => {
           }),
         }),
       );
+    });
+  });
+
+  describe('settleSocialPromotionPost', () => {
+    it('creates a grant and notifies the seller when a tier matches', async () => {
+      const expiresAt = new Date('2026-04-15T12:00:00.000Z');
+
+      prisma.socialPromotionPost.findUnique.mockResolvedValue({
+        id: 'post-1',
+        raffleId: 'raffle-1',
+        sellerId: 'seller-1',
+        network: SocialPromotionNetwork.X,
+        snapshots: [
+          {
+            checkedAt: new Date(),
+            isAccessible: true,
+            tokenPresent: true,
+            likesCount: 250,
+            commentsCount: 30,
+            repostsOrSharesCount: 10,
+            viewsCount: 3000,
+            clicksAttributed: 12,
+            registrationsAttributed: 2,
+            ticketPurchasesAttributed: 1,
+          },
+        ],
+        settlement: null,
+        raffle: { id: 'raffle-1', titulo: 'iPhone 15 Pro' },
+        seller: {
+          id: 'seller-1',
+          email: 'seller@example.com',
+          nombre: 'Juan',
+          apellido: 'Pérez',
+        },
+      });
+      prisma.promotionScoreSettlement.create.mockResolvedValue({
+        id: 'settlement-1',
+      });
+      prisma.promotionBonusGrant.create.mockResolvedValue({
+        id: 'grant-1',
+        discountPercent: 10,
+        maxDiscountAmount: 10000,
+        expiresAt,
+      });
+
+      await service.settleSocialPromotionPost('post-1');
+
+      expect(prisma.promotionBonusGrant.create).toHaveBeenCalled();
+      expect(activity.logSocialPromotionGrantIssued).toHaveBeenCalledWith(
+        'seller-1',
+        'grant-1',
+        expect.objectContaining({
+          postId: 'post-1',
+          raffleId: 'raffle-1',
+          settlementId: 'settlement-1',
+        }),
+      );
+      expect(notifications.create).toHaveBeenCalledWith(
+        'seller-1',
+        'SOCIAL_PROMOTION_GRANT_ISSUED',
+        'Ganaste una bonificación promocional',
+        expect.stringContaining('10% off hasta $10.000'),
+        '/dashboard/tickets',
+      );
+      expect(
+        notifications.sendPromotionBonusGrantIssuedEmail,
+      ).toHaveBeenCalledWith('seller@example.com', {
+        userName: 'Juan',
+        raffleName: 'iPhone 15 Pro',
+        discountPercent: 10,
+        maxDiscountAmount: 10000,
+        expiresAt,
+      });
+    });
+
+    it('does not notify when no bonus tier matches', async () => {
+      Object.defineProperty(service, 'defaultBonusTiers', {
+        value: [
+          { minScore: 9999, discountPercent: 5, maxDiscountAmount: 5000 },
+        ],
+        configurable: true,
+      });
+
+      prisma.socialPromotionPost.findUnique.mockResolvedValue({
+        id: 'post-1',
+        raffleId: 'raffle-1',
+        sellerId: 'seller-1',
+        network: SocialPromotionNetwork.X,
+        snapshots: [
+          {
+            checkedAt: new Date(),
+            isAccessible: true,
+            tokenPresent: true,
+            likesCount: 1,
+            commentsCount: 0,
+            repostsOrSharesCount: 0,
+            viewsCount: 0,
+            clicksAttributed: 0,
+            registrationsAttributed: 0,
+            ticketPurchasesAttributed: 0,
+          },
+        ],
+        settlement: null,
+        raffle: { id: 'raffle-1', titulo: 'iPhone 15 Pro' },
+        seller: {
+          id: 'seller-1',
+          email: 'seller@example.com',
+          nombre: 'Juan',
+          apellido: 'Pérez',
+        },
+      });
+      prisma.promotionScoreSettlement.create.mockResolvedValue({
+        id: 'settlement-1',
+      });
+
+      await service.settleSocialPromotionPost('post-1');
+
+      expect(prisma.promotionBonusGrant.create).not.toHaveBeenCalled();
+      expect(notifications.create).not.toHaveBeenCalled();
+      expect(
+        notifications.sendPromotionBonusGrantIssuedEmail,
+      ).not.toHaveBeenCalled();
+    });
+
+    it('keeps settlement successful when grant notifications fail', async () => {
+      const captureExceptionSpy = jest
+        .spyOn(sentry, 'captureException')
+        .mockImplementation(() => undefined);
+
+      prisma.socialPromotionPost.findUnique.mockResolvedValue({
+        id: 'post-1',
+        raffleId: 'raffle-1',
+        sellerId: 'seller-1',
+        network: SocialPromotionNetwork.X,
+        snapshots: [
+          {
+            checkedAt: new Date(),
+            isAccessible: true,
+            tokenPresent: true,
+            likesCount: 250,
+            commentsCount: 30,
+            repostsOrSharesCount: 10,
+            viewsCount: 3000,
+            clicksAttributed: 12,
+            registrationsAttributed: 2,
+            ticketPurchasesAttributed: 1,
+          },
+        ],
+        settlement: null,
+        raffle: { id: 'raffle-1', titulo: 'iPhone 15 Pro' },
+        seller: {
+          id: 'seller-1',
+          email: 'seller@example.com',
+          nombre: 'Juan',
+          apellido: 'Pérez',
+        },
+      });
+      prisma.promotionScoreSettlement.create.mockResolvedValue({
+        id: 'settlement-1',
+      });
+      prisma.promotionBonusGrant.create.mockResolvedValue({
+        id: 'grant-1',
+        discountPercent: 10,
+        maxDiscountAmount: 10000,
+        expiresAt: new Date('2026-04-15T12:00:00.000Z'),
+      });
+      notifications.create.mockRejectedValueOnce(
+        new Error('notification write failed'),
+      );
+      notifications.sendPromotionBonusGrantIssuedEmail.mockResolvedValueOnce(
+        false,
+      );
+
+      await expect(service.settleSocialPromotionPost('post-1')).resolves.toBe(
+        undefined,
+      );
+
+      expect(prisma.promotionScoreSettlement.create).toHaveBeenCalled();
+      expect(prisma.promotionBonusGrant.create).toHaveBeenCalled();
+      expect(captureExceptionSpy).toHaveBeenCalledTimes(2);
+
+      captureExceptionSpy.mockRestore();
     });
   });
 

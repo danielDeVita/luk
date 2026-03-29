@@ -13,6 +13,7 @@ Hoy permite:
 - guardar snapshots de métricas visibles;
 - atribuir clicks, registros y compras dentro de Luk;
 - emitir bonificaciones promocionales para compras futuras.
+- notificar activamente por email e in-app cuando se emite una bonificación.
 - revertir grants cuando una compra bonificada recibe un refund completo.
 
 ## Redes con validación real comprobada
@@ -108,6 +109,7 @@ Campos clave:
 - métricas visibles en seller dashboard
 - revalidación manual y automática por worker
 - extracción bilingüe de señales visibles en español e inglés
+- notificación activa al seller cuando gana un grant
 - reversión robusta de grants en refunds completos
 - no reversión de grants en refunds parciales
 - log admin explícito de reversiones de grants

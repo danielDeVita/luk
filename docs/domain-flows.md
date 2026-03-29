@@ -271,6 +271,7 @@ Cuando el post se liquida:
 - se toma el snapshot más reciente;
 - se calcula un `totalScore`;
 - si entra en un tier, se emite un `PromotionBonusGrant`.
+- si se emite el grant, el seller recibe email y notificación in-app.
 
 Fórmula actual:
 

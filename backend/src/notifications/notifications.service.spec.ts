@@ -210,6 +210,49 @@ describe('NotificationsService', () => {
       });
     });
 
+    describe('sendPromotionBonusGrantIssuedEmail', () => {
+      it('should send promotion bonus grant email with CTA and grant details', async () => {
+        const sendEmailSpy = getSendEmailSpy().mockResolvedValue(true);
+
+        const result = await service.sendPromotionBonusGrantIssuedEmail(
+          'seller@example.com',
+          {
+            userName: 'Juan',
+            raffleName: 'iPhone 15 Pro',
+            discountPercent: 10,
+            maxDiscountAmount: 15000,
+            expiresAt: new Date('2026-04-15T12:00:00.000Z'),
+          },
+        );
+
+        expect(result).toBe(true);
+        expect(sendEmailSpy).toHaveBeenCalledWith(
+          expect.objectContaining({
+            to: 'seller@example.com',
+            subject: '🎁 Ganaste una bonificación promocional',
+            html: expect.stringContaining(
+              'publicación promocional para la rifa',
+            ),
+          }),
+        );
+        expect(sendEmailSpy).toHaveBeenCalledWith(
+          expect.objectContaining({
+            html: expect.stringContaining('10% off hasta $15.000'),
+          }),
+        );
+        expect(sendEmailSpy).toHaveBeenCalledWith(
+          expect.objectContaining({
+            html: expect.stringContaining('Ver mis bonificaciones'),
+          }),
+        );
+        expect(sendEmailSpy).toHaveBeenCalledWith(
+          expect.objectContaining({
+            html: expect.stringContaining('/dashboard/tickets'),
+          }),
+        );
+      });
+    });
+
     describe('sendTicketPurchaseConfirmation', () => {
       it('should send ticket purchase confirmation', async () => {
         const result = await service.sendTicketPurchaseConfirmation(

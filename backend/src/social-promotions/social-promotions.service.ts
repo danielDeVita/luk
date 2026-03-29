@@ -18,6 +18,7 @@ import {
 import { randomBytes } from 'crypto';
 import { ActivityService } from '../activity/activity.service';
 import { AuditService } from '../audit/audit.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { captureException } from '../sentry';
 import {
@@ -47,6 +48,21 @@ interface BonusTier {
   minScore: number;
   discountPercent: number;
   maxDiscountAmount: number;
+}
+
+interface PromotionBonusGrantNotificationContext {
+  sellerId: string;
+  sellerEmail: string;
+  sellerName: string;
+  raffleId: string;
+  raffleTitle: string;
+  postId: string;
+  settlementId: string;
+  grantId: string;
+  discountPercent: number;
+  maxDiscountAmount: number;
+  expiresAt: Date;
+  network: string;
 }
 
 interface ValidationAttemptResult {
@@ -95,6 +111,7 @@ export class SocialPromotionsService {
     private readonly pageLoader: SocialPromotionPageLoaderService,
     private readonly activityService: ActivityService,
     private readonly auditService: AuditService,
+    private readonly notificationsService: NotificationsService,
   ) {
     this.tokenTtlHours = this.configService.get<number>(
       'SOCIAL_PROMOTION_TOKEN_TTL_HOURS',
@@ -830,6 +847,19 @@ export class SocialPromotionsService {
           include: {
             snapshots: { orderBy: { checkedAt: 'desc' }, take: 1 },
             settlement: true,
+            raffle: {
+              select: {
+                id: true,
+                titulo: true,
+              },
+            },
+            seller: {
+              select: {
+                id: true,
+                email: true,
+                nombre: true,
+              },
+            },
           },
         }),
     );
@@ -897,6 +927,7 @@ export class SocialPromotionsService {
           id: string;
           discountPercent: Prisma.Decimal;
           maxDiscountAmount: Prisma.Decimal;
+          expiresAt: Date;
         }
       | undefined;
     if (tier) {
@@ -956,6 +987,21 @@ export class SocialPromotionsService {
           network: String(post.network),
         },
       );
+
+      await this.notifyPromotionBonusGrantIssued({
+        sellerId: post.seller.id,
+        sellerEmail: post.seller.email,
+        sellerName: post.seller.nombre || post.seller.email.split('@')[0],
+        raffleId: post.raffle.id,
+        raffleTitle: post.raffle.titulo,
+        postId: post.id,
+        settlementId: settlement.id,
+        grantId: createdGrant.id,
+        discountPercent: Number(createdGrant.discountPercent),
+        maxDiscountAmount: Number(createdGrant.maxDiscountAmount),
+        expiresAt: createdGrant.expiresAt,
+        network: String(post.network),
+      });
     }
   }
 
@@ -1453,12 +1499,15 @@ export class SocialPromotionsService {
   private captureSocialPromotionException(
     error: unknown,
     context: {
-      stage: 'validation' | 'settlement';
+      stage: 'validation' | 'settlement' | 'grant-notification';
       service: 'luk-backend' | 'social-worker';
       postId?: string;
       raffleId?: string;
       userId?: string;
       network?: string;
+      grantId?: string;
+      settlementId?: string;
+      notificationChannel?: 'email' | 'in-app';
     },
   ): void {
     const normalizedError =
@@ -1475,13 +1524,83 @@ export class SocialPromotionsService {
         ...(context.postId ? { postId: context.postId } : {}),
         ...(context.raffleId ? { raffleId: context.raffleId } : {}),
         ...(context.network ? { network: context.network } : {}),
+        ...(context.grantId ? { grantId: context.grantId } : {}),
+        ...(context.notificationChannel
+          ? { notificationChannel: context.notificationChannel }
+          : {}),
       },
       extra: {
         postId: context.postId,
         raffleId: context.raffleId,
         network: context.network,
+        grantId: context.grantId,
+        settlementId: context.settlementId,
+        notificationChannel: context.notificationChannel,
       },
     });
+  }
+
+  private async notifyPromotionBonusGrantIssued(
+    context: PromotionBonusGrantNotificationContext,
+  ): Promise<void> {
+    const inAppMessage = this.buildPromotionBonusGrantMessage({
+      discountPercent: context.discountPercent,
+      maxDiscountAmount: context.maxDiscountAmount,
+      expiresAt: context.expiresAt,
+    });
+
+    const results = await Promise.allSettled([
+      this.notificationsService.create(
+        context.sellerId,
+        'SOCIAL_PROMOTION_GRANT_ISSUED',
+        'Ganaste una bonificación promocional',
+        inAppMessage,
+        '/dashboard/tickets',
+      ),
+      this.notificationsService
+        .sendPromotionBonusGrantIssuedEmail(context.sellerEmail, {
+          userName: context.sellerName,
+          raffleName: context.raffleTitle,
+          discountPercent: context.discountPercent,
+          maxDiscountAmount: context.maxDiscountAmount,
+          expiresAt: context.expiresAt,
+        })
+        .then((sent) => {
+          if (!sent) {
+            throw new Error(
+              'Promotion bonus grant email delivery returned false',
+            );
+          }
+        }),
+    ]);
+
+    const channels: Array<'in-app' | 'email'> = ['in-app', 'email'];
+    for (const [index, result] of results.entries()) {
+      if (result.status !== 'rejected') {
+        continue;
+      }
+
+      const channel = channels[index];
+      const message =
+        result.reason instanceof Error
+          ? result.reason.message
+          : 'Unknown promotion bonus grant notification error';
+
+      this.logger.error(
+        `Failed to send ${channel} notification for promotion bonus grant ${context.grantId}: ${message}`,
+      );
+      this.captureSocialPromotionException(result.reason, {
+        stage: 'grant-notification',
+        service: 'luk-backend',
+        postId: context.postId,
+        raffleId: context.raffleId,
+        userId: context.sellerId,
+        network: context.network,
+        grantId: context.grantId,
+        settlementId: context.settlementId,
+        notificationChannel: channel,
+      });
+    }
   }
 
   private mapSocialPromotionPost(post: {
@@ -1601,6 +1720,31 @@ export class SocialPromotionsService {
     const raw = (value || '').trim();
     const base = raw.length > 0 ? raw : fallback;
     return base.replace(/\/$/, '');
+  }
+
+  private buildPromotionBonusGrantMessage(params: {
+    discountPercent: number;
+    maxDiscountAmount: number;
+    expiresAt: Date;
+  }): string {
+    return `Tenés un ${params.discountPercent}% off hasta $${this.formatAmountEsAr(
+      params.maxDiscountAmount,
+    )} para usar en rifas de otros vendedores. Vence el ${this.formatDateEsAr(
+      params.expiresAt,
+    )}.`;
+  }
+
+  private formatDateEsAr(value: Date): string {
+    return new Intl.DateTimeFormat('es-AR', { dateStyle: 'long' }).format(
+      value,
+    );
+  }
+
+  private formatAmountEsAr(value: number): string {
+    return new Intl.NumberFormat('es-AR', {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 2,
+    }).format(value);
   }
 
   private getBonusTiers(): BonusTier[] {

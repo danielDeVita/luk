@@ -26,6 +26,7 @@ import {
   getKycApprovedContent,
   getKycRejectedContent,
   getNewQuestionNotificationContent,
+  getPromotionBonusGrantIssuedContent,
   getPaymentWillBeReleasedNotificationContent,
   getPriceDropAlertContent,
   getPrizeShippedContent,
@@ -224,6 +225,24 @@ export class NotificationsService {
     return this.sendEmail({
       to: email,
       subject: 'Verificá tu email - Código de confirmación',
+      html,
+    });
+  }
+
+  async sendPromotionBonusGrantIssuedEmail(
+    email: string,
+    data: {
+      userName: string;
+      raffleName: string;
+      discountPercent: number;
+      maxDiscountAmount: number;
+      expiresAt: Date;
+    },
+  ) {
+    const html = getPromotionBonusGrantIssuedContent(data, this.configService);
+    return this.sendEmail({
+      to: email,
+      subject: '🎁 Ganaste una bonificación promocional',
       html,
     });
   }

@@ -28,6 +28,15 @@ const getFrontendUrl = (configService: ConfigService): string => {
   return configService.get<string>('FRONTEND_URL') || 'http://localhost:3000';
 };
 
+const formatDateEsAr = (value: Date): string =>
+  new Intl.DateTimeFormat('es-AR', { dateStyle: 'long' }).format(value);
+
+const formatAmountEsAr = (value: number): string =>
+  new Intl.NumberFormat('es-AR', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  }).format(value);
+
 export const wrapEmailTemplate = (
   content: string,
   configService: ConfigService,
@@ -184,6 +193,44 @@ export const getEmailVerificationCodeContent = (
     </p>
   `;
   return wrapEmailTemplate(content, configService);
+};
+
+export const getPromotionBonusGrantIssuedContent = (
+  data: {
+    userName: string;
+    raffleName: string;
+    discountPercent: number;
+    maxDiscountAmount: number;
+    expiresAt: Date;
+  },
+  configService: ConfigService,
+) => {
+  const frontendUrl = getFrontendUrl(configService);
+  const content = `
+    <h2 style="color: #1F2937; font-family: 'Fraunces', serif; font-size: 24px; font-weight: 700; margin: 0 0 16px 0;">
+      ¡Ganaste una bonificación promocional! 🎁
+    </h2>
+    <p style="color: #4B5563; font-size: 15px; line-height: 1.6; margin: 0 0 20px 0;">
+      Hola ${data.userName}, tu publicación promocional para la rifa "<strong>${data.raffleName}</strong>" calificó para un nuevo beneficio.
+    </p>
+    <div style="background: #F0FDFA; border: 1px solid #99F6E4; border-radius: 12px; padding: 24px; margin: 24px 0;">
+      <p style="color: #0F766E; font-size: 16px; font-weight: 700; margin: 0 0 8px 0;">
+        ${data.discountPercent}% off hasta $${formatAmountEsAr(data.maxDiscountAmount)}
+      </p>
+      <p style="color: #0F766E; font-size: 14px; line-height: 1.6; margin: 0;">
+        Podés usarla comprando tickets en rifas de otros vendedores. Vence el <strong>${formatDateEsAr(data.expiresAt)}</strong>.
+      </p>
+    </div>
+    <p style="color: #4B5563; font-size: 15px; line-height: 1.6; margin: 0;">
+      Ya la podés ver en tu panel de comprador, dentro de tus bonificaciones promocionales disponibles.
+    </p>
+  `;
+
+  return wrapEmailTemplate(content, configService, {
+    showButton: true,
+    buttonText: 'Ver mis bonificaciones',
+    buttonUrl: `${frontendUrl}/dashboard/tickets`,
+  });
 };
 
 export const getTicketPurchaseConfirmationContent = (
