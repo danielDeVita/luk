@@ -29,10 +29,22 @@ vi.mock('next/image', () => ({
   default: ({
     src,
     alt,
+    fill: _fill,
+    priority: _priority,
+    unoptimized: _unoptimized,
+    loader: _loader,
+    blurDataURL: _blurDataURL,
+    placeholder: _placeholder,
     ...props
   }: {
     src?: string | { src?: string };
     alt?: string;
+    fill?: boolean;
+    priority?: boolean;
+    unoptimized?: boolean;
+    loader?: unknown;
+    blurDataURL?: string;
+    placeholder?: string;
   }) =>
     createElement('img', {
       ...props,

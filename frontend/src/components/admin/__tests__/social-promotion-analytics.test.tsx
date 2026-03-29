@@ -153,9 +153,9 @@ describe('SocialPromotionAnalytics', () => {
     expect(screen.getAllByText(/clicks atribuidos/i)).toHaveLength(2);
     expect(screen.getByText('MacBook Air')).toBeInTheDocument();
     expect(screen.getByText('seller-1@example.com')).toBeInTheDocument();
-    expect(screen.getByText('20.0%')).toBeInTheDocument();
-    expect(screen.getByText('40.0%')).toBeInTheDocument();
-    expect(screen.getByText('2.00')).toBeInTheDocument();
+    expect(screen.getByText(/reg\/click:\s*20\.0%/i)).toBeInTheDocument();
+    expect(screen.getByText(/tickets\/click:\s*40\.0%/i)).toBeInTheDocument();
+    expect(screen.getByText(/tickets\/reg:\s*2\.00/i)).toBeInTheDocument();
     expect(screen.getByText('Sin settlement todavía')).toBeInTheDocument();
     expect(screen.getByText('Sin grant')).toBeInTheDocument();
     expect(screen.getAllByText('—').length).toBeGreaterThanOrEqual(3);
