@@ -18,6 +18,13 @@ vi.mock('@/store/auth', () => ({
   useAuthStore: vi.fn(),
 }));
 
+vi.mock('sonner', () => ({
+  toast: {
+    success: vi.fn(),
+    error: vi.fn(),
+  },
+}));
+
 describe('LoginPage', () => {
   const mockUseMutation = vi.mocked(useMutation);
   const mockUseRouter = vi.mocked(useRouter);
@@ -68,31 +75,51 @@ describe('LoginPage', () => {
   });
 
   function setupMutations() {
-    const mutationOptions: Array<Record<string, unknown> | undefined> = [];
+    const mutationOptions = new Map<string, Record<string, unknown> | undefined>();
     const loginMutate = vi.fn();
     const verifyMutate = vi.fn();
     const resendMutate = vi.fn();
 
-    mockUseMutation.mockImplementation((_document, options) => {
-      mutationOptions.push(options as Record<string, unknown> | undefined);
-      const callIndex = mutationOptions.length - 1;
+    mockUseMutation.mockImplementation((document, options) => {
+      const operationName =
+        (
+          document as unknown as {
+            definitions?: ReadonlyArray<{
+              kind?: string;
+              name?: { value?: string };
+            }>;
+          }
+        )?.definitions?.find((definition) => definition.kind === 'OperationDefinition')
+          ?.name?.value ?? 'unknown';
 
-      if (callIndex === 0) {
+      mutationOptions.set(
+        operationName,
+        options as Record<string, unknown> | undefined,
+      );
+
+      if (operationName === 'Login') {
         return [
           loginMutate,
           { data: undefined, loading: false, error: undefined },
         ] as unknown as ReturnType<typeof useMutation>;
       }
 
-      if (callIndex === 1) {
+      if (operationName === 'VerifyEmail') {
         return [
           verifyMutate,
           { data: undefined, loading: false, error: undefined },
         ] as unknown as ReturnType<typeof useMutation>;
       }
 
+      if (operationName === 'ResendVerificationCode') {
+        return [
+          resendMutate,
+          { data: undefined, loading: false, error: undefined },
+        ] as unknown as ReturnType<typeof useMutation>;
+      }
+
       return [
-        resendMutate,
+        vi.fn(),
         { data: undefined, loading: false, error: undefined },
       ] as unknown as ReturnType<typeof useMutation>;
     });
@@ -115,7 +142,7 @@ describe('LoginPage', () => {
     render(<LoginPage />);
 
     loginMutate.mockImplementation(async (variables) => {
-      const onCompleted = mutationOptions[0]?.onCompleted as
+      const onCompleted = mutationOptions.get('Login')?.onCompleted as
         | ((payload: unknown) => void)
         | undefined;
       onCompleted?.({
@@ -155,7 +182,7 @@ describe('LoginPage', () => {
     render(<LoginPage />);
 
     loginMutate.mockImplementation(async () => {
-      const onCompleted = mutationOptions[0]?.onCompleted as
+      const onCompleted = mutationOptions.get('Login')?.onCompleted as
         | ((payload: unknown) => void)
         | undefined;
       onCompleted?.({
@@ -192,7 +219,7 @@ describe('LoginPage', () => {
     render(<LoginPage />);
 
     loginMutate.mockImplementation(async () => {
-      const onCompleted = mutationOptions[0]?.onCompleted as
+      const onCompleted = mutationOptions.get('Login')?.onCompleted as
         | ((payload: unknown) => void)
         | undefined;
       onCompleted?.({
@@ -262,7 +289,7 @@ describe('LoginPage', () => {
     render(<LoginPage />);
 
     loginMutate.mockImplementation(async () => {
-      const onCompleted = mutationOptions[0]?.onCompleted as
+      const onCompleted = mutationOptions.get('Login')?.onCompleted as
         | ((payload: unknown) => void)
         | undefined;
       onCompleted?.({
