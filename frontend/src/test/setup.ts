@@ -1,4 +1,5 @@
 import '@testing-library/jest-dom';
+import { createElement } from 'react';
 import { vi } from 'vitest';
 
 // Mock ResizeObserver
@@ -22,11 +23,22 @@ vi.mock('next/navigation', () => ({
   useSearchParams: () => new URLSearchParams(),
 }));
 
-// Mock Next/Image - return null to avoid React version issues
+// Mock Next/Image as a plain img so tests can assert previews and src values.
 vi.mock('next/image', () => ({
   __esModule: true,
-   
-  default: () => null,
+  default: ({
+    src,
+    alt,
+    ...props
+  }: {
+    src?: string | { src?: string };
+    alt?: string;
+  }) =>
+    createElement('img', {
+      ...props,
+      src: typeof src === 'string' ? src : src?.src ?? '',
+      alt: alt ?? '',
+    }),
 }));
 
 // Mock Zustand stores

@@ -150,7 +150,7 @@ describe('SocialPromotionAnalytics', () => {
     render(<SocialPromotionAnalytics />);
 
     expect(screen.getByText(/analytics de promociones sociales/i)).toBeInTheDocument();
-    expect(screen.getByText(/clicks atribuidos/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/clicks atribuidos/i)).toHaveLength(2);
     expect(screen.getByText('MacBook Air')).toBeInTheDocument();
     expect(screen.getByText('seller-1@example.com')).toBeInTheDocument();
     expect(screen.getByText('20.0%')).toBeInTheDocument();

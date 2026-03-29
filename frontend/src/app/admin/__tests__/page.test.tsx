@@ -1,4 +1,5 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useQuery, useMutation, useLazyQuery } from '@apollo/client/react';
 import { useRouter } from 'next/navigation';
@@ -165,6 +166,8 @@ describe('AdminPage', () => {
   });
 
   it('shows analytics, review, and reversals inside the social promotions tab', async () => {
+    const user = userEvent.setup();
+
     mockUseAuthStore.mockReturnValue({
       isAuthenticated: true,
       user: {
@@ -193,14 +196,16 @@ describe('AdminPage', () => {
 
     render(<AdminPage />);
 
-    fireEvent.click(
+    await user.click(
       await screen.findByRole('tab', { name: /promoción social/i }),
     );
 
-    expect(screen.getByTestId('social-promotion-analytics')).toBeInTheDocument();
-    expect(screen.getByTestId('social-promotion-review')).toBeInTheDocument();
-    expect(
-      screen.getByTestId('promotion-grant-reversal-log'),
-    ).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByTestId('social-promotion-analytics')).toBeInTheDocument();
+      expect(screen.getByTestId('social-promotion-review')).toBeInTheDocument();
+      expect(
+        screen.getByTestId('promotion-grant-reversal-log'),
+      ).toBeInTheDocument();
+    });
   });
 });
