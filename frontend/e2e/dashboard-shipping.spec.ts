@@ -57,20 +57,20 @@ test.describe('Dashboard Shipping Addresses', () => {
   });
 
   test('should list existing shipping addresses', async ({ page }) => {
-    await page.waitForTimeout(2000);
-
     // Check for addresses list or empty state
     const emptyState = page.getByRole('heading', {
       name: /No tenés direcciones guardadas/i,
     });
-    const addressCard = page
-      .locator('[data-slot="card"]')
-      .filter({ hasText: /Depósito principal|Predeterminada|Av\. QA 100/i });
+    const seededAddress = page.getByText(/Depósito principal|Av\. QA 100/i).first();
 
-    const hasEmptyState = await emptyState.isVisible();
-    const hasAddresses = (await addressCard.count()) > 0;
-
-    expect(hasEmptyState || hasAddresses).toBeTruthy();
+    await expect
+      .poll(
+        async () =>
+          (await emptyState.isVisible().catch(() => false)) ||
+          (await seededAddress.isVisible().catch(() => false)),
+        { timeout: 10000 },
+      )
+      .toBeTruthy();
   });
 
   test('should show default address badge', async ({ page }) => {
