@@ -42,7 +42,7 @@ Este documento explica los flujos de negocio más importantes de LUK y cómo se 
    - emite nuevos tokens;
    - registra actividad de login.
 
-Nota: hoy el login no bloquea explícitamente por `emailVerified`. La verificación de email sigue siendo el flujo esperado inmediatamente después del registro, pero no existe un guard server-side adicional en `login` para exigirla.
+El login con email/contraseña bloquea explícitamente a usuarios con `emailVerified = false` y reanuda el paso de verificación de email. Google OAuth se considera una fuente confiable de verificación y marca el email como verificado.
 
 ## 2. Preconditions para crear una rifa
 

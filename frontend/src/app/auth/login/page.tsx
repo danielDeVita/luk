@@ -9,18 +9,29 @@ import { z } from 'zod';
 import { useMutation } from '@apollo/client/react';
 import { gql } from '@apollo/client/core';
 import { useAuthStore } from '@/store/auth';
+import { EmailVerificationStep } from '@/components/auth/email-verification-step';
+import {
+  RESEND_VERIFICATION_CODE_MUTATION,
+  VERIFY_EMAIL_MUTATION,
+  type ResendVerificationCodeResult,
+  type VerifyEmailResult,
+} from '@/components/auth/email-verification-operations';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Loader2, Ticket } from 'lucide-react';
 import { PasswordInput } from '@/components/ui/password-input';
+import { toast } from 'sonner';
+import { getStoredSocialPromotionToken } from '@/lib/social-promotions';
 
 const LOGIN_MUTATION = gql`
   mutation Login($email: String!, $password: String!) {
     login(input: { email: $email, password: $password }) {
       token
       refreshToken
+      requiresVerification
+      message
       user {
         id
         email
@@ -41,8 +52,10 @@ type LoginForm = z.infer<typeof loginSchema>;
 
 interface LoginResult {
   login: {
-    token: string;
+    token?: string;
     refreshToken?: string;
+    requiresVerification: boolean;
+    message?: string;
     user: {
       id: string;
       email: string;
@@ -58,6 +71,11 @@ export default function LoginPage() {
   const setAuth = useAuthStore((state) => state.setAuth);
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [step, setStep] = useState<'login' | 'verify'>('login');
+  const [pendingUserId, setPendingUserId] = useState<string | null>(null);
+  const [pendingEmail, setPendingEmail] = useState<string | null>(null);
+  const [verificationCode, setVerificationCode] = useState('');
+  const [verificationMessage, setVerificationMessage] = useState<string | null>(null);
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -75,10 +93,35 @@ export default function LoginPage() {
 
   const [login, { loading, error }] = useMutation<LoginResult>(LOGIN_MUTATION, {
     onCompleted: (data) => {
-      if (data?.login) {
-        setAuth(data.login.user, data.login.token, data.login.refreshToken);
-        router.push('/');
+      const loginResult = data?.login;
+      if (!loginResult) {
+        return;
       }
+
+      if (loginResult.requiresVerification) {
+        setPendingUserId(loginResult.user.id);
+        setPendingEmail(loginResult.user.email);
+        setVerificationMessage(
+          loginResult.message ??
+            'Tu email todavía no está verificado. Ingresá el código de 6 dígitos o reenviá uno nuevo.',
+        );
+        setVerificationCode('');
+        setErrorMsg(null);
+        setStep('verify');
+        return;
+      }
+
+      if (loginResult.token && loginResult.user) {
+        setAuth(
+          loginResult.user,
+          loginResult.token,
+          loginResult.refreshToken,
+        );
+        router.push('/');
+        return;
+      }
+
+      setErrorMsg('No pudimos iniciar sesión. Intentá nuevamente.');
     },
     onError: (err) => {
       // Ensure errors are captured even if the error link doesn't propagate them
@@ -86,18 +129,89 @@ export default function LoginPage() {
       setErrorMsg(err.message || 'Error al iniciar sesión');
     },
   });
+  const [verifyEmailMutation, { loading: verifying }] =
+    useMutation<VerifyEmailResult>(VERIFY_EMAIL_MUTATION);
+  const [resendCodeMutation, { loading: resending }] =
+    useMutation<ResendVerificationCodeResult>(
+      RESEND_VERIFICATION_CODE_MUTATION,
+    );
 
   // Derive error message from Apollo error
-  const derivedError = error?.message || null;
+  const derivedError = step === 'login' ? error?.message || null : null;
 
   const onSubmit = (formData: LoginForm) => {
     setErrorMsg(null);
     void login({ variables: formData });
   };
 
+  const onVerifySubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!pendingUserId || verificationCode.length !== 6) return;
+
+    setErrorMsg(null);
+
+    try {
+      const result = await verifyEmailMutation({
+        variables: {
+          userId: pendingUserId,
+          code: verificationCode,
+          promotionToken: getStoredSocialPromotionToken(),
+        },
+      });
+
+      if (result.data?.verifyEmail) {
+        setAuth(
+          result.data.verifyEmail.user,
+          result.data.verifyEmail.token,
+          result.data.verifyEmail.refreshToken,
+        );
+        toast.success('¡Email verificado! Ya podés entrar');
+        router.push('/');
+      }
+    } catch (err) {
+      setErrorMsg(err instanceof Error ? err.message : 'Código inválido');
+    }
+  };
+
+  const handleResendCode = async () => {
+    if (!pendingUserId) return;
+
+    try {
+      await resendCodeMutation({ variables: { userId: pendingUserId } });
+      toast.success('Nuevo código enviado a tu email');
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : 'Error al reenviar código',
+      );
+    }
+  };
+
   const handleGoogleLogin = () => {
     window.location.href = `${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001'}/auth/google`;
   };
+
+  if (step === 'verify' && pendingUserId && pendingEmail) {
+    return (
+      <EmailVerificationStep
+        pendingEmail={pendingEmail}
+        verificationCode={verificationCode}
+        onVerificationCodeChange={setVerificationCode}
+        onSubmit={onVerifySubmit}
+        onResend={handleResendCode}
+        onBack={() => {
+          setStep('login');
+          setVerificationCode('');
+          setVerificationMessage(null);
+          setErrorMsg(null);
+        }}
+        verifying={verifying}
+        resending={resending}
+        errorMsg={errorMsg}
+        notice={verificationMessage}
+        backLabel="Volver al login"
+      />
+    );
+  }
 
   return (
     <div className="min-h-[calc(100vh-8rem)] flex items-center justify-center p-4 bg-mesh">

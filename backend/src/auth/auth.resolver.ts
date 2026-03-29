@@ -2,7 +2,7 @@ import { Resolver, Mutation, Args, Query, Context } from '@nestjs/graphql';
 import { UseGuards } from '@nestjs/common';
 import { Response } from 'express';
 import { AuthService } from './auth.service';
-import { AuthPayload, RegisterPayload } from './dto/auth-payload';
+import { AuthPayload, LoginPayload, RegisterPayload } from './dto/auth-payload';
 import { RegisterInput, LoginInput } from './dto/auth.input';
 import { User } from '../users/entities/user.entity';
 import { GqlAuthGuard } from './guards/gql-auth.guard';
@@ -96,18 +96,18 @@ export class AuthResolver {
 
   @Public()
   @UseGuards(LoginThrottlerGuard)
-  @Mutation(() => AuthPayload)
+  @Mutation(() => LoginPayload)
   async login(
     @Args('input') input: LoginInput,
     @Context() context: { req: Record<string, unknown>; res: Response },
-  ): Promise<AuthPayload> {
+  ): Promise<LoginPayload> {
     const ip = this.extractIp(context.req);
     const result = await this.authService.login(input, ip);
 
-    // Set httpOnly cookies for the tokens
-    this.setAuthCookies(context.res, result.token, result.refreshToken);
+    if (result.token && result.refreshToken) {
+      this.setAuthCookies(context.res, result.token, result.refreshToken);
+    }
 
-    // Return user info (tokens are now in cookies, not response body)
     return result;
   }
 

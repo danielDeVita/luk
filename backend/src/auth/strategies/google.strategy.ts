@@ -72,6 +72,15 @@ export class GoogleStrategy
       });
 
       if (user) {
+        if (!user.emailVerified) {
+          user = await this.prisma.user.update({
+            where: { id: user.id },
+            data: {
+              emailVerified: true,
+              emailVerifiedAt: user.emailVerifiedAt ?? new Date(),
+            },
+          });
+        }
         this.logger.log(`User ${email} logged in via Google`);
         return done(null, user);
       }
@@ -88,6 +97,8 @@ export class GoogleStrategy
           data: {
             googleId,
             avatarUrl: photos?.[0]?.value || user.avatarUrl,
+            emailVerified: true,
+            emailVerifiedAt: user.emailVerifiedAt ?? new Date(),
           },
         });
         this.logger.log(`Linked Google account to existing user: ${email}`);
@@ -107,6 +118,8 @@ export class GoogleStrategy
           apellido,
           avatarUrl: photos?.[0]?.value,
           termsAcceptedAt: new Date(),
+          emailVerified: true,
+          emailVerifiedAt: new Date(),
         },
       });
 

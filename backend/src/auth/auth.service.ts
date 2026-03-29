@@ -15,6 +15,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { ActivityService } from '../activity/activity.service';
 import { LoginThrottlerService } from '@/common/guards';
 import { SocialPromotionsService } from '../social-promotions/social-promotions.service';
+import { LoginPayload } from './dto/auth-payload';
 
 // Token expiration times
 const ACCESS_TOKEN_EXPIRY = '15m'; // 15 minutes
@@ -296,7 +297,7 @@ export class AuthService {
     ]);
   }
 
-  async login(input: LoginInput, ip?: string) {
+  async login(input: LoginInput, ip?: string): Promise<LoginPayload> {
     const user = await this.prisma.user.findUnique({
       where: { email: input.email },
     });
@@ -342,9 +343,18 @@ export class AuthService {
       return recordFailedAttempt('Invalid credentials');
     }
 
-    // Successful login - clear failed attempts
+    // Successful password validation - clear failed attempts even if verification is pending
     if (ip) {
       this.loginThrottler.clearAttempts(ip);
+    }
+
+    if (!user.emailVerified) {
+      return {
+        user,
+        requiresVerification: true,
+        message:
+          'Tu email todavía no está verificado. Ingresá el código de 6 dígitos o reenviá uno nuevo.',
+      };
     }
 
     const accessToken = this.generateAccessToken(
@@ -360,7 +370,12 @@ export class AuthService {
       this.logger.error(`Failed to log login activity: ${message}`);
     });
 
-    return { token: accessToken, refreshToken, user };
+    return {
+      token: accessToken,
+      refreshToken,
+      user,
+      requiresVerification: false,
+    };
   }
 
   async validateUser(userId: string) {
@@ -382,7 +397,12 @@ export class AuthService {
     id: string;
     email: string;
     role: UserRole;
+    emailVerified: boolean;
   }): Promise<{ token: string; refreshToken: string }> {
+    if (!user.emailVerified) {
+      throw new UnauthorizedException('Email not verified');
+    }
+
     const token = this.generateAccessToken(user.id, user.email, user.role);
     const refreshToken = await this.createRefreshToken(user.id);
     return { token, refreshToken };
@@ -421,6 +441,10 @@ export class AuthService {
 
     if (!user || user.isDeleted || user.role === UserRole.BANNED) {
       throw new UnauthorizedException('User account is not active');
+    }
+
+    if (!user.emailVerified) {
+      throw new UnauthorizedException('Email not verified');
     }
 
     // Revoke the old refresh token (rotation)

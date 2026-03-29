@@ -217,6 +217,7 @@ describe('AuthResolver', () => {
         user: createTestUser(),
         token: 'access-token',
         refreshToken: 'refresh-token',
+        requiresVerification: false,
       };
 
       authService.login.mockResolvedValue(authPayload);
@@ -226,6 +227,28 @@ describe('AuthResolver', () => {
       expect(result).toEqual(authPayload);
       expect(authService.login).toHaveBeenCalledWith(input, '192.168.1.1');
       expect(res.cookie).toHaveBeenCalledTimes(2);
+    });
+
+    it('should not set cookies when login requires email verification', async () => {
+      const input = { email: 'test@example.com', password: 'password123' };
+      const res = mockResponse();
+      const context = {
+        req: { ip: '192.168.1.1', headers: {} },
+        res,
+      };
+
+      const loginPayload = {
+        user: createTestUser({ emailVerified: false }),
+        requiresVerification: true,
+        message: 'Tu email todavía no está verificado.',
+      };
+
+      authService.login.mockResolvedValue(loginPayload);
+
+      const result = await resolver.login(input, context);
+
+      expect(result).toEqual(loginPayload);
+      expect(res.cookie).not.toHaveBeenCalled();
     });
 
     it('should extract IP from x-forwarded-for header', async () => {
@@ -243,6 +266,7 @@ describe('AuthResolver', () => {
         user: createTestUser(),
         token: 'token',
         refreshToken: 'refresh',
+        requiresVerification: false,
       });
 
       await resolver.login(input, context);
@@ -265,6 +289,7 @@ describe('AuthResolver', () => {
         user: createTestUser(),
         token: 'token',
         refreshToken: 'refresh',
+        requiresVerification: false,
       });
 
       await resolver.login(input, context);
@@ -287,6 +312,7 @@ describe('AuthResolver', () => {
         user: createTestUser(),
         token: 'token',
         refreshToken: 'refresh',
+        requiresVerification: false,
       });
 
       await resolver.login(input, context);
@@ -308,6 +334,7 @@ describe('AuthResolver', () => {
         user: createTestUser(),
         token: 'token',
         refreshToken: 'refresh',
+        requiresVerification: false,
       });
 
       await resolver.login(input, context);

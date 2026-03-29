@@ -438,7 +438,10 @@ describe('AuthService', () => {
     };
 
     it('should login successfully with valid credentials', async () => {
-      const user = createTestUser({ passwordHash: 'hashed-password' });
+      const user = createTestUser({
+        passwordHash: 'hashed-password',
+        emailVerified: true,
+      });
       mockPrismaService.user.findUnique.mockResolvedValue(user);
       mockPrismaService.refreshToken.create.mockResolvedValue({
         token: 'refresh-token',
@@ -449,6 +452,29 @@ describe('AuthService', () => {
       expect(result.token).toBe('mock-jwt-token');
       expect(result.refreshToken).toBeDefined();
       expect(result.user.id).toBe(user.id);
+      expect(result.requiresVerification).toBe(false);
+    });
+
+    it('should require email verification for valid credentials on unverified users', async () => {
+      const user = createTestUser({ passwordHash: 'hashed-password' });
+      mockPrismaService.user.findUnique.mockResolvedValue(user);
+
+      const result = await service.login(loginInput, '192.168.1.1');
+
+      expect(result).toEqual(
+        expect.objectContaining({
+          user,
+          requiresVerification: true,
+          message: expect.stringContaining('todavía no está verificado'),
+        }),
+      );
+      expect(result.token).toBeUndefined();
+      expect(result.refreshToken).toBeUndefined();
+      expect(mockLoginThrottler.clearAttempts).toHaveBeenCalledWith(
+        '192.168.1.1',
+      );
+      expect(mockLoginThrottler.recordFailedAttempt).not.toHaveBeenCalled();
+      expect(mockPrismaService.refreshToken.create).not.toHaveBeenCalled();
     });
 
     it('should throw UnauthorizedException for non-existent user', async () => {
@@ -529,7 +555,7 @@ describe('AuthService', () => {
     });
 
     it('should clear failed attempts on successful login', async () => {
-      const user = createTestUser();
+      const user = createTestUser({ emailVerified: true });
       mockPrismaService.user.findUnique.mockResolvedValue(user);
       mockPrismaService.refreshToken.create.mockResolvedValue({
         token: 'refresh-token',
@@ -543,7 +569,7 @@ describe('AuthService', () => {
     });
 
     it('should log login activity', async () => {
-      const user = createTestUser();
+      const user = createTestUser({ emailVerified: true });
       mockPrismaService.user.findUnique.mockResolvedValue(user);
       mockPrismaService.refreshToken.create.mockResolvedValue({
         token: 'refresh-token',
@@ -596,7 +622,7 @@ describe('AuthService', () => {
 
   describe('generateTokenForUser', () => {
     it('should generate access and refresh tokens', async () => {
-      const user = createTestUser();
+      const user = createTestUser({ emailVerified: true });
       mockPrismaService.refreshToken.create.mockResolvedValue({
         token: 'refresh-token',
       });
@@ -614,13 +640,24 @@ describe('AuthService', () => {
         expect.any(Object),
       );
     });
+
+    it('should reject unverified users when generating tokens directly', async () => {
+      const user = createTestUser({ emailVerified: false });
+
+      await expect(service.generateTokenForUser(user)).rejects.toThrow(
+        UnauthorizedException,
+      );
+      await expect(service.generateTokenForUser(user)).rejects.toThrow(
+        'Email not verified',
+      );
+    });
   });
 
   describe('refreshAccessToken', () => {
     const refreshTokenValue = 'valid-refresh-token';
 
     it('should refresh token successfully with valid refresh token', async () => {
-      const user = createTestUser();
+      const user = createTestUser({ emailVerified: true });
       mockPrismaService.refreshToken.findUnique.mockResolvedValue({
         id: 'token-1',
         token: refreshTokenValue,
@@ -703,7 +740,7 @@ describe('AuthService', () => {
         userId: 'user-123',
         expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
         revokedAt: null,
-        user: createTestUser({ isDeleted: true }),
+        user: createTestUser({ isDeleted: true, emailVerified: true }),
       });
 
       await expect(
@@ -715,7 +752,7 @@ describe('AuthService', () => {
     });
 
     it('should implement token rotation (revoke old token)', async () => {
-      const user = createTestUser();
+      const user = createTestUser({ emailVerified: true });
       mockPrismaService.refreshToken.findUnique.mockResolvedValue({
         id: 'token-1',
         token: refreshTokenValue,
@@ -736,6 +773,25 @@ describe('AuthService', () => {
         where: { id: 'token-1' },
         data: { revokedAt: expect.any(Date) },
       });
+    });
+
+    it('should reject refresh for unverified users', async () => {
+      const user = createTestUser({ emailVerified: false });
+      mockPrismaService.refreshToken.findUnique.mockResolvedValue({
+        id: 'token-1',
+        token: refreshTokenValue,
+        userId: user.id,
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        revokedAt: null,
+        user,
+      });
+
+      await expect(
+        service.refreshAccessToken(refreshTokenValue),
+      ).rejects.toThrow(UnauthorizedException);
+      await expect(
+        service.refreshAccessToken(refreshTokenValue),
+      ).rejects.toThrow('Email not verified');
     });
   });
 

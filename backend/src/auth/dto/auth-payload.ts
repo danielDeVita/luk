@@ -17,6 +17,15 @@ export class AuthPayload {
 }
 
 @ObjectType()
+export class LoginPayload extends AuthPayload {
+  @Field()
+  requiresVerification!: boolean;
+
+  @Field({ nullable: true })
+  message?: string;
+}
+
+@ObjectType()
 export class RegisterPayload {
   @Field(() => User)
   user!: User;

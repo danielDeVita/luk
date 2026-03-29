@@ -9,11 +9,18 @@ import { z } from 'zod';
 import { useMutation } from '@apollo/client/react';
 import { gql } from '@apollo/client/core';
 import { useAuthStore } from '@/store/auth';
+import { EmailVerificationStep } from '@/components/auth/email-verification-step';
+import {
+  RESEND_VERIFICATION_CODE_MUTATION,
+  VERIFY_EMAIL_MUTATION,
+  type ResendVerificationCodeResult,
+  type VerifyEmailResult,
+} from '@/components/auth/email-verification-operations';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, Check, AlertTriangle, Mail, RefreshCw } from 'lucide-react';
+import { Loader2, Check, AlertTriangle } from 'lucide-react';
 import { PasswordInput } from '@/components/ui/password-input';
 import { toast } from 'sonner';
 import {
@@ -32,29 +39,6 @@ const REGISTER_MUTATION = gql`
       requiresVerification
       message
     }
-  }
-`;
-
-const VERIFY_EMAIL_MUTATION = gql`
-  mutation VerifyEmail($userId: String!, $code: String!, $promotionToken: String) {
-    verifyEmail(userId: $userId, code: $code, promotionToken: $promotionToken) {
-      token
-      refreshToken
-      user {
-        id
-        email
-        nombre
-        apellido
-        role
-        emailVerified
-      }
-    }
-  }
-`;
-
-const RESEND_CODE_MUTATION = gql`
-  mutation ResendVerificationCode($userId: String!) {
-    resendVerificationCode(userId: $userId)
   }
 `;
 
@@ -105,21 +89,6 @@ interface RegisterResult {
     };
     requiresVerification: boolean;
     message?: string;
-  };
-}
-
-interface VerifyEmailResult {
-  verifyEmail: {
-    token: string;
-    refreshToken?: string;
-    user: {
-      id: string;
-      email: string;
-      nombre: string;
-      apellido: string;
-      role: 'USER' | 'ADMIN' | 'BANNED';
-      emailVerified: boolean;
-    };
   };
 }
 
@@ -174,7 +143,9 @@ function RegisterPageContent() {
 
   const [registerMutation, { loading: registering }] = useMutation<RegisterResult>(REGISTER_MUTATION);
   const [verifyEmailMutation, { loading: verifying }] = useMutation<VerifyEmailResult>(VERIFY_EMAIL_MUTATION);
-  const [resendCodeMutation, { loading: resending }] = useMutation(RESEND_CODE_MUTATION);
+  const [resendCodeMutation, { loading: resending }] = useMutation<ResendVerificationCodeResult>(
+    RESEND_VERIFICATION_CODE_MUTATION,
+  );
 
   const onRegisterSubmit = async (formData: RegisterForm) => {
     setErrorMsg(null);
@@ -237,98 +208,24 @@ function RegisterPageContent() {
   const passwordsMatch = password.length > 0 && confirmPassword.length > 0 && password === confirmPassword;
 
   // Verification step UI
-  if (step === 'verify') {
+  if (step === 'verify' && pendingUserId && pendingEmail) {
     return (
-      <div className="min-h-[calc(100vh-8rem)] flex items-center justify-center p-4">
-        <Card className="w-full max-w-md">
-          <CardHeader className="text-center">
-            <div className="mx-auto w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center mb-4">
-              <Mail className="h-6 w-6 text-primary" />
-            </div>
-            <CardTitle className="text-2xl">Verificá tu Email</CardTitle>
-            <CardDescription>
-              Enviamos un código de 6 dígitos a <span className="font-medium text-foreground">{pendingEmail}</span>
-            </CardDescription>
-          </CardHeader>
-
-          <CardContent className="space-y-4">
-            {errorMsg && (
-              <div className="p-3 text-sm text-destructive bg-destructive/10 rounded-md">
-                {errorMsg}
-              </div>
-            )}
-
-            <form onSubmit={onVerifySubmit} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="code">Código de verificación</Label>
-                <Input
-                  id="code"
-                  type="text"
-                  inputMode="numeric"
-                  maxLength={6}
-                  placeholder="000000"
-                  value={verificationCode}
-                  onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                  className="text-center text-2xl tracking-[0.5em] font-mono"
-                />
-                <p className="text-xs text-muted-foreground text-center">
-                  El código expira en 15 minutos
-                </p>
-              </div>
-
-              <Button
-                type="submit"
-                className="w-full"
-                disabled={verifying || verificationCode.length !== 6}
-              >
-                {verifying ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Verificando...
-                  </>
-                ) : (
-                  'Verificar Email'
-                )}
-              </Button>
-            </form>
-
-            <div className="text-center">
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={handleResendCode}
-                disabled={resending}
-              >
-                {resending ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Enviando...
-                  </>
-                ) : (
-                  <>
-                    <RefreshCw className="mr-2 h-4 w-4" />
-                    Reenviar código
-                  </>
-                )}
-              </Button>
-            </div>
-          </CardContent>
-
-          <CardFooter className="justify-center">
-            <Button
-              variant="link"
-              onClick={() => {
-                setStep('register');
-                setVerificationCode('');
-                setErrorMsg(null);
-              }}
-            >
-              Volver al registro
-            </Button>
-          </CardFooter>
-        </Card>
-      </div>
+      <EmailVerificationStep
+        pendingEmail={pendingEmail}
+        verificationCode={verificationCode}
+        onVerificationCodeChange={setVerificationCode}
+        onSubmit={onVerifySubmit}
+        onResend={handleResendCode}
+        onBack={() => {
+          setStep('register');
+          setVerificationCode('');
+          setErrorMsg(null);
+        }}
+        verifying={verifying}
+        resending={resending}
+        errorMsg={errorMsg}
+        backLabel="Volver al registro"
+      />
     );
   }
 

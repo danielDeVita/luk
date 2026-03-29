@@ -330,6 +330,16 @@ input LoginInput {
   password: String!
 }
 
+type LoginPayload {
+  message: String
+
+  """Refresh token for cross-subdomain deployments"""
+  refreshToken: String
+  requiresVerification: Boolean!
+  token: String
+  user: User!
+}
+
 type Message {
   content: String!
   conversationId: String!
@@ -400,7 +410,7 @@ type Mutation {
   deleteShippingAddress(id: String!): Boolean!
   extendRaffleDeadline(newDeadline: String!, raffleId: String!): Raffle!
   incrementRaffleViews(raffleId: String!): Boolean!
-  login(input: LoginInput!): AuthPayload!
+  login(input: LoginInput!): LoginPayload!
   markAllNotificationsRead: Boolean!
   markAsShipped(raffleId: String!, trackingNumber: String): Raffle!
   markNotificationRead(id: String!): Notification!
