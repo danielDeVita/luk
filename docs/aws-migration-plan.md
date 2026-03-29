@@ -163,6 +163,46 @@ Ejemplos de secretos:
 
 La idea no es meter secretos en el código ni en la task definition. `ECS` puede inyectarlos como variables de entorno leyendo desde `Parameter Store`.
 
+## Política de secretos y `DATABASE_URL`
+
+`DATABASE_URL` debe tratarse siempre como secreto de infraestructura.
+
+Reglas:
+
+- en `prod` y en `staging` reales no debe vivir en el repo;
+- no debe quedar hardcodeada en imágenes Docker;
+- no debe quedar hardcodeada en task definitions de `ECS`;
+- en AWS debe venir desde `SSM Parameter Store` como `SecureString`, inyectada al runtime.
+
+Lo único aceptable fuera de ese esquema es un valor dummy en `CI`, siempre que:
+
+- apunte a una base efímera del workflow;
+- no represente una base compartida ni persistente;
+- no sea una credencial real de staging ni de producción.
+
+Ese caso de `CI` no cambia la política productiva. Es una excepción técnica limitada al runner temporal.
+
+## Matriz por entorno
+
+### `local/dev`
+
+- puede seguir temporalmente con `prisma db push` mientras no exista una baseline de migraciones;
+- puede usar seeds de QA/dev;
+- no equivale todavía a un flujo listo para producción.
+
+### `CI`
+
+- puede usar una `DATABASE_URL` dummy si apunta a PostgreSQL efímero del job;
+- puede inyectar secrets dummy sólo para validar build, tests y generación de client;
+- no debe usarse como argumento para relajar la política de secretos de entornos reales.
+
+### `prod`
+
+- debe usar migraciones versionadas;
+- debe usar `DATABASE_URL` y secretos externos;
+- no debe usar `db push` como mecanismo de arranque;
+- debe ejecutar migraciones en un paso controlado de release/deploy.
+
 ## Imágenes sin Cloudinary ni CloudFront
 
 La primera fase debe ser simple:
@@ -220,7 +260,12 @@ El impacto esperado es **moderado**, no una reescritura.
 - actualización de variables y dominios
 - callbacks OAuth y webhooks con nuevas URLs
 - despliegue y arranque adaptado a ECS
-- conviene pasar de `prisma db push` a `prisma migrate deploy`
+- endurecer Prisma para producción real:
+  - recrear `prisma/migrations`;
+  - generar una baseline migration inicial desde el schema actual;
+  - usar `prisma migrate dev` para cambios futuros;
+  - usar `prisma migrate deploy` en release/deploy;
+  - `db push` no debe usarse como mecanismo de arranque en `prod`.
 
 ### Cambios que no hacen falta en esta fase
 
@@ -229,6 +274,34 @@ El impacto esperado es **moderado**, no una reescritura.
 - no hace falta hacer backend multi-réplica
 - no hace falta montar `staging` permanente
 - no hace falta sumar `CloudFront`
+
+## Estado actual del repo vs objetivo productivo
+
+Hoy el repo está en un estado transicional.
+
+Realidad actual:
+
+- no existe `backend/prisma/migrations`;
+- el flujo local vigente usa `prisma db push`;
+- el seed actual es canónico para `QA/dev`;
+- eso sirve para desarrollo rápido, pero no equivale todavía a un setup listo para producción real.
+
+Conclusión:
+
+- el repo hoy está preparado para desarrollo, QA manual y validación local;
+- antes de un deploy productivo real todavía falta formalizar la capa de migraciones versionadas y alinear el arranque de servicios con ese modelo.
+
+## Desalineaciones actuales a corregir antes de prod
+
+Antes de un deploy real conviene corregir explícitamente estas diferencias:
+
+- [`backend/Dockerfile`](../backend/Dockerfile) hoy arranca con `prisma db push`;
+- [`backend/Dockerfile.social-worker`](../backend/Dockerfile.social-worker) hoy arranca con `prisma db push`;
+- [`docker-compose.yml`](../docker-compose.yml) ya asume `prisma migrate deploy`.
+
+Esto debe tratarse como deuda conocida de transición, no como bug inmediato del entorno local.
+
+Mientras no exista baseline de migraciones, el repo seguirá mezclando un flujo pre-prod pragmático con artefactos que ya apuntan a producción real.
 
 ## Qué servicios aprovechan mejor free tier o créditos
 
@@ -306,6 +379,8 @@ Y definir:
 - crear `RDS PostgreSQL Single-AZ`
 - apuntar la app a la nueva base
 - dejar logs en `CloudWatch`
+- restaurar Prisma Migrate con baseline antes del primer deploy real
+- ejecutar migraciones con `prisma migrate deploy`, no con `db push`
 
 ### Etapa 3: reemplazar proveedores externos
 

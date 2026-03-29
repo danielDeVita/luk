@@ -29,10 +29,14 @@ test.describe('Dashboard Payouts', () => {
     await page.waitForTimeout(2000);
 
     // Should show "Total Recibido" card
-    await expect(page.getByText(/Total Recibido/i)).toBeVisible();
+    await expect(
+      page.getByRole('heading', { name: /Total Recibido/i }),
+    ).toBeVisible();
 
     // Should show "Pendiente" card
-    await expect(page.getByText(/Pendiente/i)).toBeVisible();
+    await expect(
+      page.getByRole('heading', { name: /^Pendiente$/i }),
+    ).toBeVisible();
 
     // Should show monetary amounts (check for $ symbol)
     const amountElements = page.locator('text=/\\$\\d+\\.\\d{2}/');

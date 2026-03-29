@@ -60,8 +60,12 @@ test.describe('Dashboard Shipping Addresses', () => {
     await page.waitForTimeout(2000);
 
     // Check for addresses list or empty state
-    const emptyState = page.getByText(/No tenés direcciones/i);
-    const addressCard = page.locator('[class*="border"]').filter({ hasText: /Calle/i });
+    const emptyState = page.getByRole('heading', {
+      name: /No tenés direcciones guardadas/i,
+    });
+    const addressCard = page
+      .locator('[data-slot="card"]')
+      .filter({ hasText: /Depósito principal|Predeterminada|Av\. QA 100/i });
 
     const hasEmptyState = await emptyState.isVisible();
     const hasAddresses = (await addressCard.count()) > 0;
