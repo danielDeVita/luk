@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -10,6 +11,27 @@ import {
   BRAND_DESCRIPTION,
   BRAND_TAGLINE,
 } from '@/lib/brand';
+
+export const metadata: Metadata = {
+  title: 'Rifas digitales seguras y transparentes',
+  description:
+    'Participá en rifas digitales con tickets accesibles para premios de alto valor en una experiencia segura y transparente.',
+  alternates: {
+    canonical: '/',
+  },
+  openGraph: {
+    title: `${BRAND_NAME} | ${BRAND_TAGLINE}`,
+    description: BRAND_DESCRIPTION,
+    type: 'website',
+    url: '/',
+    siteName: BRAND_NAME,
+  },
+  twitter: {
+    card: 'summary',
+    title: `${BRAND_NAME} | ${BRAND_TAGLINE}`,
+    description: BRAND_DESCRIPTION,
+  },
+};
 
 export default function HomePage() {
   return (

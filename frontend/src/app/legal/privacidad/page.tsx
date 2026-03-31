@@ -1,14 +1,37 @@
-'use client';
-
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
+import { BRAND_NAME } from '@/lib/brand';
 import {
   LEGAL_CONTACT_EMAIL,
   LEGAL_LAST_UPDATED,
   LEGAL_POSTAL_ADDRESS,
   LEGAL_TERMS_VERSION,
 } from '@/lib/legal';
+
+export const metadata: Metadata = {
+  title: 'Política de privacidad',
+  description:
+    'Consultá cómo LUK recopila, usa, protege y comparte tus datos personales, incluyendo información de KYC, pagos y promoción social.',
+  alternates: {
+    canonical: '/legal/privacidad',
+  },
+  openGraph: {
+    title: `Política de privacidad | ${BRAND_NAME}`,
+    description:
+      'Cómo LUK recopila, usa, protege y comparte datos personales para operar la plataforma de rifas digitales.',
+    type: 'article',
+    url: '/legal/privacidad',
+    siteName: BRAND_NAME,
+  },
+  twitter: {
+    card: 'summary',
+    title: `Política de privacidad | ${BRAND_NAME}`,
+    description:
+      'Cómo LUK recopila, usa, protege y comparte datos personales para operar la plataforma de rifas digitales.',
+  },
+};
 
 export default function PrivacidadPage() {
   return (

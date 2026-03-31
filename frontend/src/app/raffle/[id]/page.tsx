@@ -1,8 +1,9 @@
 import type { Metadata } from 'next';
 import { RaffleContent } from './raffle-content';
 import { BRAND_NAME } from '@/lib/brand';
+import { fetchPublicGraphql } from '@/lib/public-graphql';
+import { buildAbsoluteUrl } from '@/lib/seo';
 
-// GraphQL query for server-side metadata fetching
 const GET_RAFFLE_QUERY = `
   query GetRaffle($id: String!) {
     raffle(id: $id) {
@@ -17,7 +18,9 @@ const GET_RAFFLE_QUERY = `
         categoria
       }
       seller {
+        id
         nombre
+        apellido
       }
     }
   }
@@ -33,70 +36,63 @@ interface RaffleMetadata {
     nombre: string;
     imagenes?: string[];
     categoria?: string;
-  };
+  } | null;
   seller?: {
+    id?: string;
     nombre: string;
-  };
+    apellido?: string;
+  } | null;
 }
 
-interface GraphQLResponse {
-  data?: {
-    raffle: RaffleMetadata | null;
-  };
-  errors?: Array<{ message: string }>;
+interface RaffleQueryData {
+  raffle: RaffleMetadata | null;
 }
 
 async function fetchRaffleForMetadata(id: string): Promise<RaffleMetadata | null> {
-  const graphqlUrl = process.env.NEXT_PUBLIC_GRAPHQL_URL || 'http://localhost:3001/graphql';
+  const data = await fetchPublicGraphql<RaffleQueryData, { id: string }>(
+    GET_RAFFLE_QUERY,
+    { id },
+    { revalidate: 60 },
+  );
 
-  try {
-    const response = await fetch(graphqlUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        query: GET_RAFFLE_QUERY,
-        variables: { id },
-      }),
-      next: { revalidate: 60 }, // Cache for 60 seconds
-    });
-
-    if (!response.ok) {
-      return null;
-    }
-
-    const result: GraphQLResponse = await response.json();
-    return result.data?.raffle || null;
-  } catch {
-    return null;
-  }
+  return data?.raffle ?? null;
 }
 
-/**
- * Generate JSON-LD structured data for SEO (Product schema)
- */
+function isIndexableRaffle(raffle: RaffleMetadata | null): boolean {
+  return raffle?.estado === 'ACTIVA';
+}
+
 function generateJsonLd(raffle: RaffleMetadata, raffleUrl: string) {
   const image = raffle.product?.imagenes?.[0];
-  
+  const sellerName = [raffle.seller?.nombre, raffle.seller?.apellido]
+    .filter(Boolean)
+    .join(' ')
+    .trim();
+
   return {
     '@context': 'https://schema.org',
     '@type': 'Product',
-    name: raffle.titulo,
+    name: raffle.product?.nombre || raffle.titulo,
     description: raffle.descripcion,
-    ...(image && { image: image }),
+    url: raffleUrl,
+    ...(image && { image }),
+    brand: {
+      '@type': 'Organization',
+      name: BRAND_NAME,
+    },
     offers: {
       '@type': 'Offer',
       price: raffle.precioPorTicket,
       priceCurrency: 'ARS',
-      availability: raffle.estado === 'ACTIVA'
-        ? 'https://schema.org/InStock'
-        : 'https://schema.org/OutOfStock',
+      availability:
+        raffle.estado === 'ACTIVA'
+          ? 'https://schema.org/InStock'
+          : 'https://schema.org/OutOfStock',
       url: raffleUrl,
-      ...(raffle.seller && {
+      ...(sellerName && {
         seller: {
           '@type': 'Person',
-          name: raffle.seller.nombre,
+          name: sellerName,
         },
       }),
     },
@@ -116,27 +112,37 @@ export async function generateMetadata({
 
   if (!raffle) {
     return {
-      title: `Rifa no encontrada | ${BRAND_NAME}`,
-      description: 'La rifa que buscas no existe o fue eliminada.',
+      title: 'Rifa no encontrada',
+      description: 'La rifa que buscás no existe o ya no está disponible.',
+      robots: {
+        index: false,
+        follow: false,
+      },
     };
   }
 
-  const title = `${raffle.titulo} - Rifa`;
-  const description = raffle.descripcion.length > 160
-    ? raffle.descripcion.substring(0, 157) + '...'
-    : raffle.descripcion;
+  const title = `${raffle.titulo} | Rifa`;
+  const description =
+    raffle.descripcion.length > 160
+      ? `${raffle.descripcion.substring(0, 157)}...`
+      : raffle.descripcion;
   const image = raffle.product?.imagenes?.[0];
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
-  const raffleUrl = `${siteUrl}/raffle/${id}`;
 
   return {
     title,
     description,
+    alternates: {
+      canonical: `/raffle/${id}`,
+    },
+    robots: {
+      index: isIndexableRaffle(raffle),
+      follow: true,
+    },
     openGraph: {
       title,
       description,
       type: 'website',
-      url: raffleUrl,
+      url: `/raffle/${id}`,
       siteName: BRAND_NAME,
       ...(image && {
         images: [
@@ -165,9 +171,7 @@ export default async function RafflePage({
 }) {
   const { id } = await params;
   const raffle = await fetchRaffleForMetadata(id);
-  
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
-  const raffleUrl = `${siteUrl}/raffle/${id}`;
+  const raffleUrl = buildAbsoluteUrl(`/raffle/${id}`);
   const jsonLd = raffle ? generateJsonLd(raffle, raffleUrl) : null;
 
   return (

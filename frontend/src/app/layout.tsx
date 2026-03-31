@@ -9,9 +9,16 @@ import { GoogleAnalytics } from "@/components/analytics/google-analytics";
 import { ConfirmDialogProvider } from "@/hooks/use-confirm-dialog";
 import { TabTitleController } from '@/components/tab-title-controller';
 import {
+  BRAND_DESCRIPTION,
   BRAND_NAME,
   BRAND_SHORT_DESCRIPTION,
+  BRAND_TAGLINE,
 } from '@/lib/brand';
+import {
+  buildOrganizationJsonLd,
+  buildWebsiteJsonLd,
+  getSiteOrigin,
+} from '@/lib/seo';
 
 const dmSans = DM_Sans({
   subsets: ["latin"],
@@ -25,14 +32,32 @@ const fraunces = Fraunces({
   display: "swap",
 });
 
+const siteOrigin = getSiteOrigin();
+const siteStructuredData = [buildOrganizationJsonLd(), buildWebsiteJsonLd()];
+
 export const metadata: Metadata = {
-  title: BRAND_NAME,
+  metadataBase: siteOrigin,
+  title: {
+    default: `${BRAND_NAME} | ${BRAND_TAGLINE}`,
+    template: `%s | ${BRAND_NAME}`,
+  },
   description: BRAND_SHORT_DESCRIPTION,
+  alternates: {
+    canonical: '/',
+  },
   manifest: "/manifest.webmanifest",
   openGraph: {
-    title: BRAND_NAME,
+    title: `${BRAND_NAME} | ${BRAND_TAGLINE}`,
     description: BRAND_SHORT_DESCRIPTION,
     type: "website",
+    locale: 'es_AR',
+    url: '/',
+    siteName: BRAND_NAME,
+  },
+  twitter: {
+    card: 'summary',
+    title: `${BRAND_NAME} | ${BRAND_TAGLINE}`,
+    description: BRAND_DESCRIPTION,
   },
 };
 
@@ -64,6 +89,13 @@ export default function RootLayout({
             `,
           }}
         />
+        {siteStructuredData.map((entry) => (
+          <script
+            key={entry['@id']}
+            type="application/ld+json"
+            dangerouslySetInnerHTML={{ __html: JSON.stringify(entry) }}
+          />
+        ))}
       </head>
       <body className={`${dmSans.variable} ${fraunces.variable} font-sans antialiased`}>
         <TabTitleController />

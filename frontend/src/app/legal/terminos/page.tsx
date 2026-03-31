@@ -1,8 +1,8 @@
-'use client';
-
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
+import { BRAND_NAME } from '@/lib/brand';
 import {
   LEGAL_CONTACT_EMAIL,
   LEGAL_JURISDICTION_CITY,
@@ -11,6 +11,29 @@ import {
   LEGAL_TERMS_VERSION,
   PLATFORM_COMMISSION_PERCENT,
 } from '@/lib/legal';
+
+export const metadata: Metadata = {
+  title: 'Términos y condiciones',
+  description:
+    'Leé los términos y condiciones de uso de LUK, incluyendo reglas de participación, obligaciones de vendedores y tratamiento de promociones sociales.',
+  alternates: {
+    canonical: '/legal/terminos',
+  },
+  openGraph: {
+    title: `Términos y condiciones | ${BRAND_NAME}`,
+    description:
+      'Condiciones de uso de LUK para registro, compra de tickets, publicación de rifas y programa de promoción social.',
+    type: 'article',
+    url: '/legal/terminos',
+    siteName: BRAND_NAME,
+  },
+  twitter: {
+    card: 'summary',
+    title: `Términos y condiciones | ${BRAND_NAME}`,
+    description:
+      'Condiciones de uso de LUK para registro, compra de tickets, publicación de rifas y programa de promoción social.',
+  },
+};
 
 export default function TerminosPage() {
   return (
