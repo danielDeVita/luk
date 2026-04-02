@@ -37,12 +37,41 @@ Este documento explica los flujos de negocio más importantes de LUK y cómo se 
 1. Busca usuario por email.
 2. Bloquea cuentas borradas, baneadas o creadas sólo con Google.
 3. Valida password.
-4. Si el login es exitoso:
+4. Si las credenciales son válidas, el login puede terminar en tres salidas:
+   - `requiresVerification = true` si el usuario todavía no verificó su email;
+   - `requiresTwoFactor = true` + `twoFactorChallengeToken` si el usuario tiene 2FA activo;
+   - emisión directa de tokens si no hay pasos pendientes.
+5. Cuando no hay bloqueos adicionales:
    - limpia intentos fallidos por IP;
    - emite nuevos tokens;
    - registra actividad de login.
 
 El login con email/contraseña bloquea explícitamente a usuarios con `emailVerified = false` y reanuda el paso de verificación de email. Google OAuth se considera una fuente confiable de verificación y marca el email como verificado.
+
+### Login con email no verificado
+
+1. El backend devuelve `requiresVerification = true`.
+2. El frontend reanuda inline el paso de verificación sin obligar al usuario a volver al registro.
+3. `verifyEmail` sigue siendo el paso que emite `accessToken` y `refreshToken`.
+
+### Login con 2FA
+
+1. Si el usuario ya activó 2FA, el backend devuelve `requiresTwoFactor = true` y `twoFactorChallengeToken`.
+2. El frontend pasa a un paso inline de segundo factor.
+3. `completeTwoFactorLogin` acepta:
+   - código TOTP de la app autenticadora; o
+   - `recoveryCode`.
+4. Recién cuando ese paso se valida se emiten `accessToken` y `refreshToken`.
+
+### Activación y desactivación de 2FA
+
+1. Desde configuración de cuenta, el usuario puede iniciar un setup de 2FA.
+2. El setup devuelve secreto, QR y `setupToken`.
+3. La activación exige confirmar con un código TOTP válido.
+4. Al activarse, se generan recovery codes de un solo uso.
+5. La desactivación exige password actual y además:
+   - un código TOTP válido; o
+   - un recovery code válido.
 
 ## 2. Preconditions para crear una rifa
 
