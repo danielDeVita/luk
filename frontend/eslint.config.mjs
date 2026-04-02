@@ -3,16 +3,6 @@ import nextVitals from "eslint-config-next/core-web-vitals";
 import nextTs from "eslint-config-next/typescript";
 
 const eslintConfig = defineConfig([
-  {
-    settings: {
-      next: {
-        rootDir: "frontend/",
-      },
-    },
-    rules: {
-      '@next/next/no-html-link-for-pages': 'off',
-    },
-  },
   ...nextVitals,
   ...nextTs,
   // Override default ignores of eslint-config-next.
@@ -32,6 +22,16 @@ const eslintConfig = defineConfig([
         caughtErrorsIgnorePattern: '^_',
       }],
       '@typescript-eslint/no-explicit-any': 'error',
+    },
+  },
+  {
+    settings: {
+      next: {
+        rootDir: "frontend/",
+      },
+    },
+    rules: {
+      '@next/next/no-html-link-for-pages': 'off',
     },
   },
 ]);
