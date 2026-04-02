@@ -5,6 +5,17 @@ import { AuthGoogleController } from './auth-google.controller';
 import { AuthService } from './auth.service';
 import { User } from '@prisma/client';
 
+jest.mock('otplib', () => ({
+  generateSecret: jest.fn(() => 'SECRET123'),
+  generateURI: jest.fn(
+    () => 'otpauth://totp/LUK:test@example.com?secret=SECRET123',
+  ),
+  verifySync: jest.fn(({ token }: { token: string }) => ({
+    valid: token === '123456',
+    delta: token === '123456' ? 0 : null,
+  })),
+}));
+
 type MockAuthService = {
   generateTokenForUser: jest.Mock;
   refreshAccessToken: jest.Mock;

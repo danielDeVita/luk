@@ -22,6 +22,8 @@ describe('TicketsResolver', () => {
     apellido: 'User',
     role: UserRole.USER,
     emailVerified: true,
+    twoFactorEnabled: false,
+    twoFactorEnabledAt: null,
     mpConnectStatus: MpConnectStatus.NOT_CONNECTED,
     kycStatus: KycStatus.NOT_SUBMITTED,
     createdAt: new Date(),
