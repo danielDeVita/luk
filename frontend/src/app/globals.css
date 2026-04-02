@@ -488,7 +488,7 @@ body::after {
   left: -8%;
   width: 36rem;
   height: 24rem;
-  background: oklch(from var(--primary) l c h / 0.12);
+  background: oklch(from var(--primary) l c h / 0.18);
 }
 
 .bg-mesh::after {
@@ -496,7 +496,7 @@ body::after {
   bottom: -10%;
   width: 32rem;
   height: 24rem;
-  background: oklch(from var(--accent) l c h / 0.14);
+  background: oklch(from var(--accent) l c h / 0.18);
 }
 
 .badge-status {
@@ -583,10 +583,13 @@ body::after {
   background-clip: padding-box;
 }
 
-.glass {
-  background: oklch(from var(--card) l c h / 0.84);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+@media (prefers-reduced-motion: reduce) {
+  body::before,
+  .bg-mesh::before,
+  .bg-mesh::after {
+    animation: none !important;
+    transform: none !important;
+  }
 }
 
 .divider {

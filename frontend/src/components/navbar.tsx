@@ -119,7 +119,7 @@ export function Navbar() {
   return (
     <header className="sticky top-0 z-50 w-full px-4 pt-4">
       <div className="container mx-auto">
-        <div className="glass rounded-[2rem] border border-border/80 px-3 shadow-panel supports-[backdrop-filter]:bg-background/72 sm:px-4">
+        <div className="overflow-hidden rounded-[2rem] border border-border/60 bg-card/18 px-3 shadow-panel backdrop-blur-sm sm:px-4">
           <div className="flex min-h-[4.5rem] items-center justify-between gap-3 py-2">
         {/* Logo */}
         <Link href="/" className="group flex min-w-0 items-center gap-3">
