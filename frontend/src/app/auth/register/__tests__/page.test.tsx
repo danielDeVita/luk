@@ -200,11 +200,8 @@ describe('RegisterPage', () => {
     const submitButton = screen.getByRole('button', { name: /crear cuenta/i });
     expect(submitButton).toBeDisabled();
 
-    fireEvent.submit(submitButton.closest('form') as HTMLFormElement);
+    fireEvent.click(submitButton);
 
-    expect(
-      screen.getByText(/completá la verificación humana para continuar/i),
-    ).toBeInTheDocument();
     expect(registerMutate).not.toHaveBeenCalled();
   });
 

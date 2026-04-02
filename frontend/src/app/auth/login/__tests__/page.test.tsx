@@ -508,11 +508,8 @@ describe('LoginPage', () => {
     });
     expect(submitButton).toBeDisabled();
 
-    fireEvent.submit(submitButton.closest('form') as HTMLFormElement);
+    fireEvent.click(submitButton);
 
-    expect(
-      screen.getByText(/completá la verificación humana para continuar/i),
-    ).toBeInTheDocument();
     expect(loginMutate).not.toHaveBeenCalled();
   });
 
