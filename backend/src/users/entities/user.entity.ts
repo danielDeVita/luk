@@ -49,6 +49,12 @@ export class User {
   @Field(() => Date, { nullable: true })
   emailVerifiedAt?: Date | null;
 
+  @Field()
+  twoFactorEnabled!: boolean;
+
+  @Field(() => Date, { nullable: true })
+  twoFactorEnabledAt?: Date | null;
+
   // Mercado Pago connection status (not exposing tokens)
   @Field(() => MpConnectStatus)
   mpConnectStatus!: MpConnectStatus;

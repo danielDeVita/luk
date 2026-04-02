@@ -211,6 +211,12 @@ model User {
   emailVerified       Boolean       @default(false) @map("email_verified")
   emailVerifiedAt     DateTime?     @map("email_verified_at")
 
+  // Two-factor authentication
+  twoFactorEnabled            Boolean   @default(false) @map("two_factor_enabled")
+  twoFactorEnabledAt          DateTime? @map("two_factor_enabled_at")
+  twoFactorSecretEncrypted    String?   @map("two_factor_secret_encrypted")
+  twoFactorRecoveryCodeHashes Json?     @map("two_factor_recovery_code_hashes")
+
   // Mercado Pago (for sellers)
   mpUserId             String?              @unique @map("mp_user_id")
   mpAccessToken        String?              @map("mp_access_token")

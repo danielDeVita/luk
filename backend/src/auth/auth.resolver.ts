@@ -2,7 +2,13 @@ import { Resolver, Mutation, Args, Query, Context } from '@nestjs/graphql';
 import { UseGuards } from '@nestjs/common';
 import { Response } from 'express';
 import { AuthService } from './auth.service';
-import { AuthPayload, LoginPayload, RegisterPayload } from './dto/auth-payload';
+import {
+  AuthPayload,
+  LoginPayload,
+  RegisterPayload,
+  TwoFactorSetupPayload,
+  EnableTwoFactorPayload,
+} from './dto/auth-payload';
 import { RegisterInput, LoginInput } from './dto/auth.input';
 import { User } from '../users/entities/user.entity';
 import { GqlAuthGuard } from './guards/gql-auth.guard';
@@ -109,6 +115,65 @@ export class AuthResolver {
     }
 
     return result;
+  }
+
+  @UseGuards(GqlAuthGuard)
+  @Mutation(() => TwoFactorSetupPayload)
+  async beginTwoFactorSetup(
+    @CurrentUser() user: User,
+    @Args('currentPassword') currentPassword: string,
+  ): Promise<TwoFactorSetupPayload> {
+    return this.authService.beginTwoFactorSetup(user.id, currentPassword);
+  }
+
+  @UseGuards(GqlAuthGuard)
+  @Mutation(() => EnableTwoFactorPayload)
+  async enableTwoFactor(
+    @CurrentUser() user: User,
+    @Args('setupToken') setupToken: string,
+    @Args('code') code: string,
+  ): Promise<EnableTwoFactorPayload> {
+    return this.authService.enableTwoFactor(user.id, setupToken, code);
+  }
+
+  @Public()
+  @UseGuards(LoginThrottlerGuard)
+  @Mutation(() => AuthPayload)
+  async completeTwoFactorLogin(
+    @Args('challengeToken') challengeToken: string,
+    @Context() context: { req: Record<string, unknown>; res: Response },
+    @Args('code', { type: () => String, nullable: true }) code?: string,
+    @Args('recoveryCode', { type: () => String, nullable: true })
+    recoveryCode?: string,
+  ): Promise<AuthPayload> {
+    const ip = this.extractIp(context.req);
+    const result = await this.authService.completeTwoFactorLogin(
+      challengeToken,
+      code,
+      recoveryCode,
+      ip,
+    );
+
+    this.setAuthCookies(context.res, result.token, result.refreshToken);
+
+    return result;
+  }
+
+  @UseGuards(GqlAuthGuard)
+  @Mutation(() => Boolean)
+  async disableTwoFactor(
+    @CurrentUser() user: User,
+    @Args('currentPassword') currentPassword: string,
+    @Args('code', { type: () => String, nullable: true }) code?: string,
+    @Args('recoveryCode', { type: () => String, nullable: true })
+    recoveryCode?: string,
+  ): Promise<boolean> {
+    return this.authService.disableTwoFactor(
+      user.id,
+      currentPassword,
+      code,
+      recoveryCode,
+    );
   }
 
   private extractIp(req: Record<string, unknown>): string {

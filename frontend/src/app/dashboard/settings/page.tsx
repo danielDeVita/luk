@@ -21,6 +21,7 @@ import { toast } from 'sonner';
 import { useConfirmDialog } from '@/hooks/use-confirm-dialog';
 import Image from 'next/image';
 import { getOptimizedImageUrl, CLOUDINARY_PRESETS } from '@/lib/cloudinary';
+import { TwoFactorSettingsCard } from '@/components/auth/two-factor-settings-card';
 
 // Types
 interface MpStatusData {
@@ -43,6 +44,8 @@ interface MpStatusData {
     termsAcceptedAt?: string;
     termsVersion?: string;
     kycRejectedReason?: string;
+    twoFactorEnabled: boolean;
+    twoFactorEnabledAt?: string | null;
   };
 }
 
@@ -82,6 +85,8 @@ const GET_USER_DATA = gql`
       termsAcceptedAt
       termsVersion
       kycRejectedReason
+      twoFactorEnabled
+      twoFactorEnabledAt
     }
   }
 `;
@@ -922,44 +927,52 @@ function SettingsContent() {
         </TabsContent>
 
         <TabsContent value="security">
-          <Card>
-            <CardHeader>
-              <CardTitle>Cambiar Contraseña</CardTitle>
-              <CardDescription>
-                Asegurate de usar una contraseña segura.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={handlePassSubmit(onPassSubmit)} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="oldPassword">Contraseña Actual</Label>
-                  <PasswordInput
-                    id="oldPassword"
-                    {...registerPass('oldPassword')}
-                  />
-                  {passErrors.oldPassword && (
-                    <p className="text-xs text-destructive">{passErrors.oldPassword.message}</p>
-                  )}
-                </div>
+          <div className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Cambiar Contraseña</CardTitle>
+                <CardDescription>
+                  Asegurate de usar una contraseña segura.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <form onSubmit={handlePassSubmit(onPassSubmit)} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="oldPassword">Contraseña Actual</Label>
+                    <PasswordInput
+                      id="oldPassword"
+                      {...registerPass('oldPassword')}
+                    />
+                    {passErrors.oldPassword && (
+                      <p className="text-xs text-destructive">{passErrors.oldPassword.message}</p>
+                    )}
+                  </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="newPassword">Nueva Contraseña</Label>
-                  <PasswordInput
-                    id="newPassword"
-                    {...registerPass('newPassword')}
-                  />
-                  {passErrors.newPassword && (
-                    <p className="text-xs text-destructive">{passErrors.newPassword.message}</p>
-                  )}
-                </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="newPassword">Nueva Contraseña</Label>
+                    <PasswordInput
+                      id="newPassword"
+                      {...registerPass('newPassword')}
+                    />
+                    {passErrors.newPassword && (
+                      <p className="text-xs text-destructive">{passErrors.newPassword.message}</p>
+                    )}
+                  </div>
 
-                <Button type="submit" disabled={isPassSubmitting}>
-                  {isPassSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Actualizar Contraseña
-                </Button>
-              </form>
-            </CardContent>
-          </Card>
+                  <Button type="submit" disabled={isPassSubmitting}>
+                    {isPassSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Actualizar Contraseña
+                  </Button>
+                </form>
+              </CardContent>
+            </Card>
+
+            <TwoFactorSettingsCard
+              twoFactorEnabled={userData?.me?.twoFactorEnabled ?? false}
+              twoFactorEnabledAt={userData?.me?.twoFactorEnabledAt}
+              onStatusChanged={refetchUserData}
+            />
+          </div>
         </TabsContent>
       </Tabs>
     </div>

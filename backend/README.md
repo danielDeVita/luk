@@ -107,6 +107,8 @@ BACKEND_URL="http://localhost:3001"
 FRONTEND_URL="http://localhost:3000"
 PAYMENTS_PROVIDER="mercadopago"   # or "mock" for local QA
 ALLOW_MOCK_PAYMENTS="false"
+TURNSTILE_ENABLED="false"
+TURNSTILE_SECRET_KEY=""           # Backend-only secret key
 SENTRY_DSN=""                     # Optional, leave empty in local
 SENTRY_RELEASE=""                 # Git SHA or deploy release id
 
@@ -121,6 +123,8 @@ GOOGLE_CLIENT_ID="xxx.apps.googleusercontent.com"
 GOOGLE_CLIENT_SECRET="GOCSPX-xxx"
 GOOGLE_CALLBACK_URL="http://localhost:3001/auth/google/callback"
 ```
+
+If Cloudflare Turnstile is enabled for auth, production should set both backend vars above and the matching frontend vars `NEXT_PUBLIC_TURNSTILE_ENABLED` + `NEXT_PUBLIC_TURNSTILE_SITE_KEY`. The site key is public; `TURNSTILE_SECRET_KEY` must stay backend-only.
 
 ### Mock payments for local QA
 
@@ -517,6 +521,8 @@ const preference = await this.mercadopago.preferences.create({
 | `CLOUDINARY_*` | Cloudinary credentials |
 | `FRONTEND_URL` | Frontend URL for redirects |
 | `BACKEND_URL` | Backend URL for webhooks |
+| `TURNSTILE_ENABLED` | Enables Cloudflare Turnstile validation for email/password login and register |
+| `TURNSTILE_SECRET_KEY` | Cloudflare Turnstile secret key (backend only) |
 | `SENTRY_DSN` | Backend/worker Sentry DSN (optional) |
 | `SENTRY_RELEASE` | Backend/worker release identifier (optional, recommended in prod/staging) |
 | `ENCRYPTION_KEY` | **64 hex chars** - Encrypts PII: KYC data (DNI, CUIT, addresses, phone) + MP tokens using AES-256-GCM. Generate with: `openssl rand -hex 32` |

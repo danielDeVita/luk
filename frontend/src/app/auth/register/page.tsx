@@ -22,15 +22,17 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Loader2, Check, AlertTriangle } from 'lucide-react';
 import { PasswordInput } from '@/components/ui/password-input';
+import { TurnstileField } from '@/components/auth/turnstile-field';
 import { toast } from 'sonner';
 import {
   getStoredSocialPromotionToken,
   persistSocialPromotionToken,
 } from '@/lib/social-promotions';
+import { getPublicBackendUrl, isTurnstileEnabled } from '@/lib/public-env';
 
 const REGISTER_MUTATION = gql`
-  mutation Register($email: String!, $password: String!, $nombre: String!, $apellido: String!, $fechaNacimiento: String!, $acceptTerms: Boolean!) {
-    register(input: { email: $email, password: $password, nombre: $nombre, apellido: $apellido, fechaNacimiento: $fechaNacimiento, acceptTerms: $acceptTerms }) {
+  mutation Register($email: String!, $password: String!, $nombre: String!, $apellido: String!, $fechaNacimiento: String!, $acceptTerms: Boolean!, $captchaToken: String) {
+    register(input: { email: $email, password: $password, nombre: $nombre, apellido: $apellido, fechaNacimiento: $fechaNacimiento, acceptTerms: $acceptTerms, captchaToken: $captchaToken }) {
       user {
         id
         email
@@ -96,9 +98,12 @@ function RegisterPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const promoCode = searchParams.get('promo');
+  const captchaEnabled = isTurnstileEnabled();
   const setAuth = useAuthStore((state) => state.setAuth);
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [captchaResetSignal, setCaptchaResetSignal] = useState(0);
 
   // Two-step flow state
   const [step, setStep] = useState<'register' | 'verify'>('register');
@@ -148,11 +153,21 @@ function RegisterPageContent() {
   );
 
   const onRegisterSubmit = async (formData: RegisterForm) => {
+    if (captchaEnabled && !captchaToken) {
+      setErrorMsg('Completá la verificación humana para continuar.');
+      return;
+    }
+
     setErrorMsg(null);
     const { confirmPassword: _, ...registerData } = formData;
 
     try {
-      const result = await registerMutation({ variables: registerData });
+      const result = await registerMutation({
+        variables: {
+          ...registerData,
+          captchaToken,
+        },
+      });
 
       if (result.data?.register.requiresVerification) {
         setPendingUserId(result.data.register.user.id);
@@ -162,6 +177,8 @@ function RegisterPageContent() {
       }
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : 'Error al registrarse');
+      setCaptchaToken(null);
+      setCaptchaResetSignal((currentValue) => currentValue + 1);
     }
   };
 
@@ -367,7 +384,17 @@ function RegisterPageContent() {
               <p className="text-sm text-destructive">{errors.acceptTerms.message}</p>
             )}
 
-            <Button type="submit" className="w-full" disabled={registering || isSubmitting}>
+            <TurnstileField
+              enabled={captchaEnabled}
+              onTokenChange={setCaptchaToken}
+              resetSignal={captchaResetSignal}
+            />
+
+            <Button
+              type="submit"
+              className="w-full"
+              disabled={registering || isSubmitting || (captchaEnabled && !captchaToken)}
+            >
               {registering ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -393,7 +420,7 @@ function RegisterPageContent() {
             variant="outline"
             className="w-full"
             onClick={() => {
-              window.location.href = `${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001'}/auth/google`;
+              window.location.href = `${getPublicBackendUrl()}/auth/google`;
             }}
           >
             <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24">

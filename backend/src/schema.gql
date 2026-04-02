@@ -271,6 +271,11 @@ enum DocumentType {
   PASSPORT
 }
 
+type EnableTwoFactorPayload {
+  recoveryCodes: [String!]!
+  user: User!
+}
+
 type Favorite {
   createdAt: DateTime!
   id: ID!
@@ -326,6 +331,7 @@ type KycSubmissionList {
 }
 
 input LoginInput {
+  captchaToken: String
   email: String!
   password: String!
 }
@@ -335,8 +341,10 @@ type LoginPayload {
 
   """Refresh token for cross-subdomain deployments"""
   refreshToken: String
+  requiresTwoFactor: Boolean!
   requiresVerification: Boolean!
   token: String
+  twoFactorChallengeToken: String
   user: User!
 }
 
@@ -390,6 +398,7 @@ type Mutation {
 
   """Ban a user"""
   banUser(reason: String!, userId: String!): User!
+  beginTwoFactorSetup(currentPassword: String!): TwoFactorSetupPayload!
   bulkCancelRaffles(raffleIds: [String!]!): BulkActionResult!
   bulkExtendRaffles(newDeadline: String!, raffleIds: [String!]!): BulkActionResult!
 
@@ -400,6 +409,7 @@ type Mutation {
   cancelRaffle(id: String!): Raffle!
   changePassword(input: ChangePasswordInput!): User!
   closeConversation(conversationId: String!): Boolean!
+  completeTwoFactorLogin(challengeToken: String!, code: String, recoveryCode: String): AuthPayload!
   confirmDelivery(raffleId: String!): Raffle!
   createCategory(input: CreateCategoryInput!): Category!
   createRaffle(input: CreateRaffleInput!): Raffle!
@@ -408,6 +418,8 @@ type Mutation {
   deleteCategory(id: String!): Boolean!
   deleteQuestion(questionId: String!): Boolean!
   deleteShippingAddress(id: String!): Boolean!
+  disableTwoFactor(code: String, currentPassword: String!, recoveryCode: String): Boolean!
+  enableTwoFactor(code: String!, setupToken: String!): EnableTwoFactorPayload!
   extendRaffleDeadline(newDeadline: String!, raffleId: String!): Raffle!
   incrementRaffleViews(raffleId: String!): Boolean!
   login(input: LoginInput!): LoginPayload!
@@ -784,6 +796,7 @@ enum RaffleStatus {
 input RegisterInput {
   acceptTerms: Boolean!
   apellido: String!
+  captchaToken: String
   email: String!
   fechaNacimiento: String!
   nombre: String!
@@ -1010,6 +1023,13 @@ enum TicketStatus {
   RESERVADO
 }
 
+type TwoFactorSetupPayload {
+  manualEntryKey: String!
+  otpauthUrl: String!
+  qrCodeDataUrl: String!
+  setupToken: String!
+}
+
 input UpdateAvatarInput {
   avatarUrl: String!
 }
@@ -1102,6 +1122,8 @@ type User {
   streetNumber: String
   termsAcceptedAt: DateTime
   termsVersion: String
+  twoFactorEnabled: Boolean!
+  twoFactorEnabledAt: DateTime
   updatedAt: DateTime!
 }
 

@@ -3,19 +3,21 @@ import {
   UnauthorizedException,
   ConflictException,
   Logger,
+  BadRequestException,
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { RegisterInput, LoginInput } from './dto/auth.input';
-import { UserRole } from '@prisma/client';
+import { Prisma, User as PrismaUser, UserRole } from '@prisma/client';
 import { NotificationsService } from '../notifications/notifications.service';
 import { ActivityService } from '../activity/activity.service';
 import { LoginThrottlerService } from '@/common/guards';
 import { SocialPromotionsService } from '../social-promotions/social-promotions.service';
 import { LoginPayload } from './dto/auth-payload';
+import { TurnstileService } from './turnstile.service';
+import { TwoFactorService } from './two-factor.service';
 
 // Token expiration times
 const ACCESS_TOKEN_EXPIRY = '15m'; // 15 minutes
@@ -29,14 +31,17 @@ export class AuthService {
   constructor(
     private prisma: PrismaService,
     private jwtService: JwtService,
-    private configService: ConfigService,
     private notifications: NotificationsService,
     private activityService: ActivityService,
     private loginThrottler: LoginThrottlerService,
     private socialPromotionsService: SocialPromotionsService,
+    private turnstileService: TurnstileService,
+    private twoFactorService: TwoFactorService,
   ) {}
 
   async register(input: RegisterInput) {
+    await this.turnstileService.assertHuman(input.captchaToken);
+
     const existingUser = await this.prisma.user.findUnique({
       where: { email: input.email },
     });
@@ -298,40 +303,29 @@ export class AuthService {
   }
 
   async login(input: LoginInput, ip?: string): Promise<LoginPayload> {
+    await this.turnstileService.assertHuman(input.captchaToken, ip);
+
     const user = await this.prisma.user.findUnique({
       where: { email: input.email },
     });
 
-    // Helper to record failed attempt and throw
-    const recordFailedAttempt = (message: string): never => {
-      if (ip) {
-        const result = this.loginThrottler.recordFailedAttempt(ip);
-        if (result.blocked) {
-          throw new UnauthorizedException(
-            'Demasiados intentos fallidos. Su IP ha sido bloqueada temporalmente.',
-          );
-        }
-      }
-      throw new UnauthorizedException(message);
-    };
-
     if (!user) {
-      return recordFailedAttempt('Invalid credentials');
+      return this.recordFailedAttempt(ip, 'Invalid credentials');
     }
 
     // Check if user is deleted
     if (user.isDeleted) {
-      return recordFailedAttempt('Account has been deleted');
+      return this.recordFailedAttempt(ip, 'Account has been deleted');
     }
 
     // Check if user is banned
     if (user.role === UserRole.BANNED) {
-      return recordFailedAttempt('Account has been banned');
+      return this.recordFailedAttempt(ip, 'Account has been banned');
     }
 
     // OAuth users don't have passwords
     if (!user.passwordHash) {
-      return recordFailedAttempt('Please login with Google');
+      return this.recordFailedAttempt(ip, 'Please login with Google');
     }
 
     const isPasswordValid = await bcrypt.compare(
@@ -340,7 +334,7 @@ export class AuthService {
     );
 
     if (!isPasswordValid) {
-      return recordFailedAttempt('Invalid credentials');
+      return this.recordFailedAttempt(ip, 'Invalid credentials');
     }
 
     // Successful password validation - clear failed attempts even if verification is pending
@@ -352,8 +346,22 @@ export class AuthService {
       return {
         user,
         requiresVerification: true,
+        requiresTwoFactor: false,
         message:
           'Tu email todavía no está verificado. Ingresá el código de 6 dígitos o reenviá uno nuevo.',
+      };
+    }
+
+    if (user.twoFactorEnabled) {
+      return {
+        user,
+        requiresVerification: false,
+        requiresTwoFactor: true,
+        twoFactorChallengeToken: this.twoFactorService.createChallengeToken(
+          user.id,
+        ),
+        message:
+          'Ingresá el código de tu app autenticadora o un código de recuperación para continuar.',
       };
     }
 
@@ -375,7 +383,220 @@ export class AuthService {
       refreshToken,
       user,
       requiresVerification: false,
+      requiresTwoFactor: false,
     };
+  }
+
+  async beginTwoFactorSetup(userId: string, currentPassword: string) {
+    const user = await this.getActivePasswordUserOrThrow(userId);
+
+    if (user.twoFactorEnabled) {
+      throw new ConflictException(
+        'La autenticación en dos pasos ya está activada en esta cuenta.',
+      );
+    }
+
+    await this.assertCurrentPassword(user, currentPassword);
+    return this.twoFactorService.createSetup(user);
+  }
+
+  async enableTwoFactor(userId: string, setupToken: string, code: string) {
+    const user = await this.getActivePasswordUserOrThrow(userId);
+
+    if (user.twoFactorEnabled) {
+      throw new ConflictException(
+        'La autenticación en dos pasos ya está activada en esta cuenta.',
+      );
+    }
+
+    const setup = this.twoFactorService.validateSetupToken(setupToken);
+    if (setup.userId !== userId) {
+      throw new UnauthorizedException(
+        'El desafío de autenticación expiró. Intentá nuevamente.',
+      );
+    }
+
+    if (!this.twoFactorService.verifyTotp(code, setup.secret)) {
+      throw new UnauthorizedException(
+        'El código de autenticación es inválido.',
+      );
+    }
+
+    const recoveryCodes = this.twoFactorService.generateRecoveryCodes();
+    const recoveryCodeHashes =
+      this.twoFactorService.hashRecoveryCodes(recoveryCodes);
+
+    const updatedUser = await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        twoFactorEnabled: true,
+        twoFactorEnabledAt: new Date(),
+        twoFactorSecretEncrypted: this.twoFactorService.encryptSecret(
+          setup.secret,
+        ),
+        twoFactorRecoveryCodeHashes:
+          recoveryCodeHashes as Prisma.InputJsonValue,
+      },
+    });
+
+    return {
+      user: updatedUser,
+      recoveryCodes,
+    };
+  }
+
+  async completeTwoFactorLogin(
+    challengeToken: string,
+    code: string | undefined,
+    recoveryCode: string | undefined,
+    ip?: string,
+  ) {
+    this.assertExactlyOneSecondFactor(code, recoveryCode);
+
+    const challenge =
+      this.twoFactorService.validateChallengeToken(challengeToken);
+    const user = await this.getActiveUserOrThrow(challenge.userId);
+
+    if (!user.emailVerified) {
+      throw new UnauthorizedException('Email not verified');
+    }
+
+    if (!user.twoFactorEnabled) {
+      return this.recordFailedAttempt(
+        ip,
+        'La autenticación en dos pasos no está activa en esta cuenta.',
+      );
+    }
+
+    const secret = this.twoFactorService.decryptSecret(
+      user.twoFactorSecretEncrypted,
+    );
+
+    if (!secret) {
+      return this.recordFailedAttempt(
+        ip,
+        'No pudimos validar el segundo factor. Intentá nuevamente.',
+      );
+    }
+
+    if (code) {
+      const isValidCode = this.twoFactorService.verifyTotp(code, secret);
+      if (!isValidCode) {
+        return this.recordFailedAttempt(
+          ip,
+          'El código de autenticación es inválido.',
+        );
+      }
+    } else if (recoveryCode) {
+      const existingHashes = this.parseRecoveryCodeHashes(
+        user.twoFactorRecoveryCodeHashes,
+      );
+      const result = this.twoFactorService.consumeRecoveryCode(
+        recoveryCode,
+        existingHashes,
+      );
+
+      if (!result.matched) {
+        return this.recordFailedAttempt(
+          ip,
+          'El código de recuperación es inválido.',
+        );
+      }
+
+      await this.prisma.user.update({
+        where: { id: user.id },
+        data: {
+          twoFactorRecoveryCodeHashes:
+            result.remainingHashes as Prisma.InputJsonValue,
+        },
+      });
+    }
+
+    if (ip) {
+      this.loginThrottler.clearAttempts(ip);
+    }
+
+    const accessToken = this.generateAccessToken(
+      user.id,
+      user.email,
+      user.role,
+    );
+    const refreshToken = await this.createRefreshToken(user.id, undefined, ip);
+
+    this.activityService.logUserLoggedIn(user.id).catch((err: unknown) => {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      this.logger.error(`Failed to log login activity: ${message}`);
+    });
+
+    return {
+      token: accessToken,
+      refreshToken,
+      user,
+    };
+  }
+
+  async disableTwoFactor(
+    userId: string,
+    currentPassword: string,
+    code?: string,
+    recoveryCode?: string,
+  ): Promise<boolean> {
+    this.assertExactlyOneSecondFactor(code, recoveryCode);
+
+    const user = await this.getActivePasswordUserOrThrow(userId);
+
+    if (!user.twoFactorEnabled) {
+      throw new ConflictException(
+        'La autenticación en dos pasos no está activa en esta cuenta.',
+      );
+    }
+
+    await this.assertCurrentPassword(user, currentPassword);
+
+    const secret = this.twoFactorService.decryptSecret(
+      user.twoFactorSecretEncrypted,
+    );
+
+    if (!secret) {
+      throw new UnauthorizedException(
+        'No pudimos validar el segundo factor. Intentá nuevamente.',
+      );
+    }
+
+    if (code) {
+      const isValidCode = this.twoFactorService.verifyTotp(code, secret);
+      if (!isValidCode) {
+        throw new UnauthorizedException(
+          'El código de autenticación es inválido.',
+        );
+      }
+    } else if (recoveryCode) {
+      const existingHashes = this.parseRecoveryCodeHashes(
+        user.twoFactorRecoveryCodeHashes,
+      );
+      const result = this.twoFactorService.consumeRecoveryCode(
+        recoveryCode,
+        existingHashes,
+      );
+
+      if (!result.matched) {
+        throw new UnauthorizedException(
+          'El código de recuperación es inválido.',
+        );
+      }
+    }
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        twoFactorEnabled: false,
+        twoFactorEnabledAt: null,
+        twoFactorSecretEncrypted: null,
+        twoFactorRecoveryCodeHashes: Prisma.JsonNull,
+      },
+    });
+
+    return true;
   }
 
   async validateUser(userId: string) {
@@ -540,5 +761,85 @@ export class AuthService {
       },
       { expiresIn: ACCESS_TOKEN_EXPIRY },
     );
+  }
+
+  private async getActiveUserOrThrow(userId: string): Promise<PrismaUser> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user || user.isDeleted || user.role === UserRole.BANNED) {
+      throw new UnauthorizedException('User account is not active');
+    }
+
+    return user;
+  }
+
+  private async getActivePasswordUserOrThrow(
+    userId: string,
+  ): Promise<PrismaUser> {
+    const user = await this.getActiveUserOrThrow(userId);
+
+    if (!user.passwordHash) {
+      throw new BadRequestException(
+        'Tu cuenta usa Google y no tiene contraseña configurada. La autenticación en dos pasos v1 solo funciona con inicio de sesión por contraseña.',
+      );
+    }
+
+    return user;
+  }
+
+  private async assertCurrentPassword(
+    user: PrismaUser,
+    currentPassword: string,
+  ): Promise<void> {
+    if (!user.passwordHash) {
+      throw new BadRequestException(
+        'Tu cuenta no tiene una contraseña configurada.',
+      );
+    }
+
+    const isPasswordValid = await bcrypt.compare(
+      currentPassword,
+      user.passwordHash,
+    );
+    if (!isPasswordValid) {
+      throw new UnauthorizedException('La contraseña actual es incorrecta.');
+    }
+  }
+
+  private assertExactlyOneSecondFactor(
+    code?: string,
+    recoveryCode?: string,
+  ): void {
+    const hasCode = Boolean(code?.trim());
+    const hasRecoveryCode = Boolean(recoveryCode?.trim());
+
+    if ((hasCode && hasRecoveryCode) || (!hasCode && !hasRecoveryCode)) {
+      throw new BadRequestException(
+        'Debés enviar un código TOTP o un código de recuperación, pero no ambos.',
+      );
+    }
+  }
+
+  private parseRecoveryCodeHashes(value: Prisma.JsonValue | null): string[] {
+    if (!Array.isArray(value)) {
+      return [];
+    }
+
+    return value.filter((entry): entry is string => typeof entry === 'string');
+  }
+
+  private recordFailedAttempt(ip: string | undefined, message: string): never {
+    if (ip) {
+      const result = this.loginThrottler.recordFailedAttempt(ip);
+      if (result.blocked) {
+        throw new UnauthorizedException(
+          'Demasiados intentos fallidos. Su IP ha sido bloqueada temporalmente.',
+        );
+      }
+    }
+
+    throw new UnauthorizedException(message);
   }
 }

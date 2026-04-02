@@ -2,7 +2,6 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { AuthService } from './auth.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { JwtService } from '@nestjs/jwt';
-import { ConfigService } from '@nestjs/config';
 import { NotificationsService } from '../notifications/notifications.service';
 import { ActivityService } from '../activity/activity.service';
 import { LoginThrottlerService } from '@/common/guards';
@@ -10,8 +9,20 @@ import { ConflictException, UnauthorizedException } from '@nestjs/common';
 import { UserRole } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { SocialPromotionsService } from '../social-promotions/social-promotions.service';
+import { TurnstileService } from './turnstile.service';
+import { TwoFactorService } from './two-factor.service';
 
 jest.mock('bcrypt');
+jest.mock('otplib', () => ({
+  generateSecret: jest.fn(() => 'SECRET123'),
+  generateURI: jest.fn(
+    () => 'otpauth://totp/LUK:test@example.com?secret=SECRET123',
+  ),
+  verifySync: jest.fn(({ token }: { token: string }) => ({
+    valid: token === '123456',
+    delta: token === '123456' ? 0 : null,
+  })),
+}));
 
 describe('AuthService', () => {
   let service: AuthService;
@@ -19,6 +30,8 @@ describe('AuthService', () => {
   let _jwtService: jest.Mocked<JwtService>;
   let _loginThrottler: jest.Mocked<LoginThrottlerService>;
   let _notificationsService: jest.Mocked<NotificationsService>;
+  let _turnstileService: jest.Mocked<TurnstileService>;
+  let _twoFactorService: jest.Mocked<TwoFactorService>;
 
   const mockPrismaService = {
     user: {
@@ -47,15 +60,6 @@ describe('AuthService', () => {
     sign: jest.fn().mockReturnValue('mock-jwt-token'),
   };
 
-  const mockConfigService = {
-    get: jest.fn((key: string) => {
-      const config: Record<string, string> = {
-        JWT_SECRET: 'test-secret',
-      };
-      return config[key];
-    }),
-  };
-
   const mockNotificationsService = {
     sendEmailVerificationCode: jest.fn().mockResolvedValue(true),
     sendWelcomeEmail: jest.fn().mockResolvedValue(true),
@@ -81,6 +85,23 @@ describe('AuthService', () => {
     recordRegistrationAttribution: jest.fn().mockResolvedValue(undefined),
   };
 
+  const mockTurnstileService = {
+    assertHuman: jest.fn().mockResolvedValue(undefined),
+  };
+
+  const mockTwoFactorService = {
+    createSetup: jest.fn(),
+    validateSetupToken: jest.fn(),
+    createChallengeToken: jest.fn(),
+    validateChallengeToken: jest.fn(),
+    encryptSecret: jest.fn(),
+    decryptSecret: jest.fn(),
+    verifyTotp: jest.fn(),
+    generateRecoveryCodes: jest.fn(),
+    hashRecoveryCodes: jest.fn(),
+    consumeRecoveryCode: jest.fn(),
+  };
+
   // Test user factory
   const createTestUser = (overrides = {}) => ({
     id: 'user-123',
@@ -91,6 +112,10 @@ describe('AuthService', () => {
     fechaNacimiento: new Date('1990-01-01'),
     role: UserRole.USER,
     emailVerified: false,
+    twoFactorEnabled: false,
+    twoFactorEnabledAt: null,
+    twoFactorSecretEncrypted: null,
+    twoFactorRecoveryCodeHashes: null,
     isDeleted: false,
     createdAt: new Date(),
     updatedAt: new Date(),
@@ -109,7 +134,6 @@ describe('AuthService', () => {
         AuthService,
         { provide: PrismaService, useValue: mockPrismaService },
         { provide: JwtService, useValue: mockJwtService },
-        { provide: ConfigService, useValue: mockConfigService },
         { provide: NotificationsService, useValue: mockNotificationsService },
         { provide: ActivityService, useValue: mockActivityService },
         { provide: LoginThrottlerService, useValue: mockLoginThrottler },
@@ -117,6 +141,8 @@ describe('AuthService', () => {
           provide: SocialPromotionsService,
           useValue: mockSocialPromotionsService,
         },
+        { provide: TurnstileService, useValue: mockTurnstileService },
+        { provide: TwoFactorService, useValue: mockTwoFactorService },
       ],
     }).compile();
 
@@ -125,6 +151,8 @@ describe('AuthService', () => {
     _jwtService = module.get(JwtService);
     _loginThrottler = module.get(LoginThrottlerService);
     _notificationsService = module.get(NotificationsService);
+    _turnstileService = module.get(TurnstileService);
+    _twoFactorService = module.get(TwoFactorService);
   });
 
   describe('register', () => {
@@ -135,6 +163,7 @@ describe('AuthService', () => {
       apellido: 'User',
       fechaNacimiento: '1990-01-01',
       acceptTerms: true,
+      captchaToken: 'captcha-token',
     };
 
     it('should register a new user successfully', async () => {
@@ -152,6 +181,9 @@ describe('AuthService', () => {
       expect(result.user).toBeDefined();
       expect(result.requiresVerification).toBe(true);
       expect(result.message).toContain('Verificá tu email');
+      expect(_turnstileService.assertHuman).toHaveBeenCalledWith(
+        'captcha-token',
+      );
       expect(mockPrismaService.user.create).toHaveBeenCalled();
       expect(
         mockNotificationsService.sendEmailVerificationCode,
@@ -200,6 +232,19 @@ describe('AuthService', () => {
       await expect(service.register(inputUnderage)).rejects.toThrow(
         'mayor de 18 años',
       );
+    });
+
+    it('should reject registration when captcha validation fails', async () => {
+      mockTurnstileService.assertHuman.mockRejectedValueOnce(
+        new UnauthorizedException(
+          'No pudimos validar que sos humano. Intentá nuevamente.',
+        ),
+      );
+
+      await expect(service.register(validInput)).rejects.toThrow(
+        UnauthorizedException,
+      );
+      expect(mockPrismaService.user.findUnique).not.toHaveBeenCalled();
     });
 
     it('should hash the password before storing', async () => {
@@ -435,6 +480,7 @@ describe('AuthService', () => {
     const loginInput = {
       email: 'test@example.com',
       password: 'Password123!',
+      captchaToken: 'captcha-token',
     };
 
     it('should login successfully with valid credentials', async () => {
@@ -453,6 +499,11 @@ describe('AuthService', () => {
       expect(result.refreshToken).toBeDefined();
       expect(result.user.id).toBe(user.id);
       expect(result.requiresVerification).toBe(false);
+      expect(result.requiresTwoFactor).toBe(false);
+      expect(_turnstileService.assertHuman).toHaveBeenCalledWith(
+        'captcha-token',
+        undefined,
+      );
     });
 
     it('should require email verification for valid credentials on unverified users', async () => {
@@ -465,6 +516,7 @@ describe('AuthService', () => {
         expect.objectContaining({
           user,
           requiresVerification: true,
+          requiresTwoFactor: false,
           message: expect.stringContaining('todavía no está verificado'),
         }),
       );
@@ -554,6 +606,19 @@ describe('AuthService', () => {
       );
     });
 
+    it('should reject login when captcha validation fails', async () => {
+      mockTurnstileService.assertHuman.mockRejectedValueOnce(
+        new UnauthorizedException(
+          'No pudimos validar que sos humano. Intentá nuevamente.',
+        ),
+      );
+
+      await expect(service.login(loginInput, '192.168.1.1')).rejects.toThrow(
+        UnauthorizedException,
+      );
+      expect(mockPrismaService.user.findUnique).not.toHaveBeenCalled();
+    });
+
     it('should clear failed attempts on successful login', async () => {
       const user = createTestUser({ emailVerified: true });
       mockPrismaService.user.findUnique.mockResolvedValue(user);
@@ -578,6 +643,216 @@ describe('AuthService', () => {
       await service.login(loginInput);
 
       expect(mockActivityService.logUserLoggedIn).toHaveBeenCalledWith(user.id);
+    });
+
+    it('should require two-factor login when the user has 2FA enabled', async () => {
+      const user = createTestUser({
+        emailVerified: true,
+        twoFactorEnabled: true,
+      });
+      mockPrismaService.user.findUnique.mockResolvedValue(user);
+      mockTwoFactorService.createChallengeToken.mockReturnValue(
+        'challenge-token',
+      );
+
+      const result = await service.login(loginInput, '192.168.1.1');
+
+      expect(result).toEqual(
+        expect.objectContaining({
+          user,
+          requiresVerification: false,
+          requiresTwoFactor: true,
+          twoFactorChallengeToken: 'challenge-token',
+        }),
+      );
+      expect(mockPrismaService.refreshToken.create).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('beginTwoFactorSetup', () => {
+    it('should create a 2FA setup payload for password users', async () => {
+      const user = createTestUser({
+        emailVerified: true,
+        passwordHash: 'hashed-password',
+      });
+      mockPrismaService.user.findUnique.mockResolvedValue(user);
+      mockTwoFactorService.createSetup.mockResolvedValue({
+        setupToken: 'setup-token',
+        manualEntryKey: 'ABC123',
+        otpauthUrl: 'otpauth://totp/LUK:test@example.com',
+        qrCodeDataUrl: 'data:image/png;base64,qr',
+      });
+
+      const result = await service.beginTwoFactorSetup(user.id, 'Password123!');
+
+      expect(result.setupToken).toBe('setup-token');
+      expect(mockTwoFactorService.createSetup).toHaveBeenCalledWith(user);
+    });
+
+    it('should reject Google-only users without password', async () => {
+      mockPrismaService.user.findUnique.mockResolvedValue(
+        createTestUser({ passwordHash: null, emailVerified: true }),
+      );
+
+      await expect(
+        service.beginTwoFactorSetup('user-123', 'irrelevant'),
+      ).rejects.toThrow('Tu cuenta usa Google');
+    });
+  });
+
+  describe('enableTwoFactor', () => {
+    it('should enable two-factor and return recovery codes', async () => {
+      const user = createTestUser({ emailVerified: true });
+      const updatedUser = createTestUser({
+        emailVerified: true,
+        twoFactorEnabled: true,
+        twoFactorEnabledAt: new Date(),
+      });
+      mockPrismaService.user.findUnique.mockResolvedValue(user);
+      mockTwoFactorService.validateSetupToken.mockReturnValue({
+        userId: user.id,
+        email: user.email,
+        secret: 'SECRET123',
+      });
+      mockTwoFactorService.verifyTotp.mockReturnValue(true);
+      mockTwoFactorService.generateRecoveryCodes.mockReturnValue([
+        'ABCD-1234',
+        'EFGH-5678',
+      ]);
+      mockTwoFactorService.hashRecoveryCodes.mockReturnValue([
+        'hash-1',
+        'hash-2',
+      ]);
+      mockTwoFactorService.encryptSecret.mockReturnValue('encrypted-secret');
+      mockPrismaService.user.update.mockResolvedValue(updatedUser);
+
+      const result = await service.enableTwoFactor(
+        user.id,
+        'setup-token',
+        '123456',
+      );
+
+      expect(result.recoveryCodes).toEqual(['ABCD-1234', 'EFGH-5678']);
+      expect(mockPrismaService.user.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            twoFactorEnabled: true,
+            twoFactorSecretEncrypted: 'encrypted-secret',
+          }),
+        }),
+      );
+    });
+
+    it('should reject invalid TOTP codes during activation', async () => {
+      mockPrismaService.user.findUnique.mockResolvedValue(
+        createTestUser({ emailVerified: true }),
+      );
+      mockTwoFactorService.validateSetupToken.mockReturnValue({
+        userId: 'user-123',
+        email: 'test@example.com',
+        secret: 'SECRET123',
+      });
+      mockTwoFactorService.verifyTotp.mockReturnValue(false);
+
+      await expect(
+        service.enableTwoFactor('user-123', 'setup-token', '123456'),
+      ).rejects.toThrow('código de autenticación es inválido');
+    });
+  });
+
+  describe('completeTwoFactorLogin', () => {
+    it('should complete login with a valid TOTP code', async () => {
+      const user = createTestUser({
+        emailVerified: true,
+        twoFactorEnabled: true,
+        twoFactorSecretEncrypted: 'encrypted-secret',
+      });
+      mockTwoFactorService.validateChallengeToken.mockReturnValue({
+        userId: user.id,
+      });
+      mockPrismaService.user.findUnique.mockResolvedValue(user);
+      mockTwoFactorService.decryptSecret.mockReturnValue('SECRET123');
+      mockTwoFactorService.verifyTotp.mockReturnValue(true);
+      mockPrismaService.refreshToken.create.mockResolvedValue({
+        token: 'refresh-token',
+      });
+
+      const result = await service.completeTwoFactorLogin(
+        'challenge-token',
+        '123456',
+        undefined,
+        '192.168.1.1',
+      );
+
+      expect(result.token).toBe('mock-jwt-token');
+      expect(mockLoginThrottler.clearAttempts).toHaveBeenCalledWith(
+        '192.168.1.1',
+      );
+    });
+
+    it('should consume a recovery code only once', async () => {
+      const user = createTestUser({
+        emailVerified: true,
+        twoFactorEnabled: true,
+        twoFactorSecretEncrypted: 'encrypted-secret',
+        twoFactorRecoveryCodeHashes: ['hash-1', 'hash-2'],
+      });
+      mockTwoFactorService.validateChallengeToken.mockReturnValue({
+        userId: user.id,
+      });
+      mockPrismaService.user.findUnique.mockResolvedValue(user);
+      mockTwoFactorService.decryptSecret.mockReturnValue('SECRET123');
+      mockTwoFactorService.consumeRecoveryCode.mockReturnValue({
+        matched: true,
+        remainingHashes: ['hash-2'],
+      });
+      mockPrismaService.user.update.mockResolvedValue(user);
+      mockPrismaService.refreshToken.create.mockResolvedValue({
+        token: 'refresh-token',
+      });
+
+      await service.completeTwoFactorLogin(
+        'challenge-token',
+        undefined,
+        'ABCD-1234',
+        '192.168.1.1',
+      );
+
+      expect(mockPrismaService.user.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            twoFactorRecoveryCodeHashes: ['hash-2'],
+          }),
+        }),
+      );
+    });
+  });
+
+  describe('disableTwoFactor', () => {
+    it('should disable two-factor with current password and TOTP code', async () => {
+      mockPrismaService.user.findUnique.mockResolvedValue(
+        createTestUser({
+          emailVerified: true,
+          twoFactorEnabled: true,
+          twoFactorSecretEncrypted: 'encrypted-secret',
+        }),
+      );
+      mockTwoFactorService.decryptSecret.mockReturnValue('SECRET123');
+      mockTwoFactorService.verifyTotp.mockReturnValue(true);
+      mockPrismaService.user.update.mockResolvedValue(createTestUser());
+
+      await expect(
+        service.disableTwoFactor('user-123', 'Password123!', '123456'),
+      ).resolves.toBe(true);
+
+      expect(mockPrismaService.user.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            twoFactorEnabled: false,
+            twoFactorSecretEncrypted: null,
+          }),
+        }),
+      );
     });
   });
 

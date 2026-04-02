@@ -25,4 +25,25 @@ describe('env.validation', () => {
 
     expect(() => validate(invalidConfig)).toThrow('PLATFORM_FEE_PERCENT');
   });
+
+  it('treats "false" boolean env values as false', () => {
+    const result = validate({
+      ...baseConfig,
+      TURNSTILE_ENABLED: 'false',
+      ENABLE_CRON_JOBS: 'false',
+    });
+
+    expect(result.TURNSTILE_ENABLED).toBe(false);
+    expect(result.ENABLE_CRON_JOBS).toBe(false);
+  });
+
+  it('requires TURNSTILE_SECRET_KEY only when TURNSTILE_ENABLED is true', () => {
+    expect(() =>
+      validate({
+        ...baseConfig,
+        TURNSTILE_ENABLED: 'true',
+        TURNSTILE_SECRET_KEY: '',
+      }),
+    ).toThrow('TURNSTILE_SECRET_KEY');
+  });
 });

@@ -51,6 +51,12 @@ export class RegisterInput {
   @Field({ nullable: true })
   @IsOptional()
   @IsString()
+  @MaxLength(2048)
+  captchaToken?: string;
+
+  @Field({ nullable: true })
+  @IsOptional()
+  @IsString()
   @MaxLength(64)
   promotionToken?: string;
 }
@@ -65,4 +71,10 @@ export class LoginInput {
   @IsNotEmpty({ message: 'La contraseña es requerida' })
   @IsString()
   password!: string;
+
+  @Field({ nullable: true })
+  @IsOptional()
+  @IsString()
+  @MaxLength(2048)
+  captchaToken?: string;
 }

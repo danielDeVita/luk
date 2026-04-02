@@ -10,6 +10,7 @@ import { useMutation } from '@apollo/client/react';
 import { gql } from '@apollo/client/core';
 import { useAuthStore } from '@/store/auth';
 import { EmailVerificationStep } from '@/components/auth/email-verification-step';
+import { TwoFactorLoginStep } from '@/components/auth/two-factor-login-step';
 import {
   RESEND_VERIFICATION_CODE_MUTATION,
   VERIFY_EMAIL_MUTATION,
@@ -22,16 +23,36 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Loader2, Ticket } from 'lucide-react';
 import { PasswordInput } from '@/components/ui/password-input';
+import { TurnstileField } from '@/components/auth/turnstile-field';
 import { toast } from 'sonner';
 import { getStoredSocialPromotionToken } from '@/lib/social-promotions';
+import { getPublicBackendUrl, isTurnstileEnabled } from '@/lib/public-env';
 
 const LOGIN_MUTATION = gql`
-  mutation Login($email: String!, $password: String!) {
-    login(input: { email: $email, password: $password }) {
+  mutation Login($email: String!, $password: String!, $captchaToken: String) {
+    login(input: { email: $email, password: $password, captchaToken: $captchaToken }) {
       token
       refreshToken
       requiresVerification
+      requiresTwoFactor
+      twoFactorChallengeToken
       message
+      user {
+        id
+        email
+        nombre
+        apellido
+        role
+      }
+    }
+  }
+`;
+
+const COMPLETE_TWO_FACTOR_LOGIN_MUTATION = gql`
+  mutation CompleteTwoFactorLogin($challengeToken: String!, $code: String, $recoveryCode: String) {
+    completeTwoFactorLogin(challengeToken: $challengeToken, code: $code, recoveryCode: $recoveryCode) {
+      token
+      refreshToken
       user {
         id
         email
@@ -55,7 +76,23 @@ interface LoginResult {
     token?: string;
     refreshToken?: string;
     requiresVerification: boolean;
+    requiresTwoFactor: boolean;
+    twoFactorChallengeToken?: string;
     message?: string;
+    user: {
+      id: string;
+      email: string;
+      nombre: string;
+      apellido: string;
+      role: 'USER' | 'ADMIN' | 'BANNED';
+    };
+  };
+}
+
+interface CompleteTwoFactorLoginResult {
+  completeTwoFactorLogin: {
+    token: string;
+    refreshToken?: string;
     user: {
       id: string;
       email: string;
@@ -70,12 +107,20 @@ export default function LoginPage() {
   const router = useRouter();
   const setAuth = useAuthStore((state) => state.setAuth);
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const captchaEnabled = isTurnstileEnabled();
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [step, setStep] = useState<'login' | 'verify'>('login');
+  const [step, setStep] = useState<'login' | 'verify' | 'twoFactor'>('login');
   const [pendingUserId, setPendingUserId] = useState<string | null>(null);
   const [pendingEmail, setPendingEmail] = useState<string | null>(null);
   const [verificationCode, setVerificationCode] = useState('');
   const [verificationMessage, setVerificationMessage] = useState<string | null>(null);
+  const [twoFactorChallengeToken, setTwoFactorChallengeToken] = useState<string | null>(null);
+  const [twoFactorMode, setTwoFactorMode] = useState<'code' | 'recovery'>('code');
+  const [twoFactorCode, setTwoFactorCode] = useState('');
+  const [twoFactorRecoveryCode, setTwoFactorRecoveryCode] = useState('');
+  const [twoFactorMessage, setTwoFactorMessage] = useState<string | null>(null);
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [captchaResetSignal, setCaptchaResetSignal] = useState(0);
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -111,6 +156,21 @@ export default function LoginPage() {
         return;
       }
 
+      if (loginResult.requiresTwoFactor && loginResult.twoFactorChallengeToken) {
+        setPendingEmail(loginResult.user.email);
+        setTwoFactorChallengeToken(loginResult.twoFactorChallengeToken);
+        setTwoFactorMessage(
+          loginResult.message ??
+            'Ingresá el código de tu app autenticadora o un recovery code para continuar.',
+        );
+        setTwoFactorCode('');
+        setTwoFactorRecoveryCode('');
+        setTwoFactorMode('code');
+        setErrorMsg(null);
+        setStep('twoFactor');
+        return;
+      }
+
       if (loginResult.token && loginResult.user) {
         setAuth(
           loginResult.user,
@@ -127,8 +187,14 @@ export default function LoginPage() {
       // Ensure errors are captured even if the error link doesn't propagate them
       console.warn('[Login Error]', err.message);
       setErrorMsg(err.message || 'Error al iniciar sesión');
+      setCaptchaToken(null);
+      setCaptchaResetSignal((currentValue) => currentValue + 1);
     },
   });
+  const [completeTwoFactorLoginMutation, { loading: completingTwoFactor }] =
+    useMutation<CompleteTwoFactorLoginResult>(
+      COMPLETE_TWO_FACTOR_LOGIN_MUTATION,
+    );
   const [verifyEmailMutation, { loading: verifying }] =
     useMutation<VerifyEmailResult>(VERIFY_EMAIL_MUTATION);
   const [resendCodeMutation, { loading: resending }] =
@@ -140,8 +206,18 @@ export default function LoginPage() {
   const derivedError = step === 'login' ? error?.message || null : null;
 
   const onSubmit = (formData: LoginForm) => {
+    if (captchaEnabled && !captchaToken) {
+      setErrorMsg('Completá la verificación humana para continuar.');
+      return;
+    }
+
     setErrorMsg(null);
-    void login({ variables: formData });
+    void login({
+      variables: {
+        ...formData,
+        captchaToken,
+      },
+    });
   };
 
   const onVerifySubmit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -173,6 +249,47 @@ export default function LoginPage() {
     }
   };
 
+  const onTwoFactorSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!twoFactorChallengeToken) return;
+
+    if (twoFactorMode === 'code' && twoFactorCode.length !== 6) {
+      setErrorMsg('Ingresá el código de 6 dígitos de tu app autenticadora.');
+      return;
+    }
+
+    if (twoFactorMode === 'recovery' && !twoFactorRecoveryCode.trim()) {
+      setErrorMsg('Ingresá un recovery code para continuar.');
+      return;
+    }
+
+    setErrorMsg(null);
+
+    try {
+      const result = await completeTwoFactorLoginMutation({
+        variables: {
+          challengeToken: twoFactorChallengeToken,
+          code: twoFactorMode === 'code' ? twoFactorCode : null,
+          recoveryCode:
+            twoFactorMode === 'recovery' ? twoFactorRecoveryCode.trim() : null,
+        },
+      });
+
+      if (result.data?.completeTwoFactorLogin) {
+        setAuth(
+          result.data.completeTwoFactorLogin.user,
+          result.data.completeTwoFactorLogin.token,
+          result.data.completeTwoFactorLogin.refreshToken,
+        );
+        router.push('/');
+      }
+    } catch (err) {
+      setErrorMsg(
+        err instanceof Error ? err.message : 'Código de autenticación inválido',
+      );
+    }
+  };
+
   const handleResendCode = async () => {
     if (!pendingUserId) return;
 
@@ -187,7 +304,7 @@ export default function LoginPage() {
   };
 
   const handleGoogleLogin = () => {
-    window.location.href = `${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001'}/auth/google`;
+    window.location.href = `${getPublicBackendUrl()}/auth/google`;
   };
 
   if (step === 'verify' && pendingUserId && pendingEmail) {
@@ -209,6 +326,35 @@ export default function LoginPage() {
         errorMsg={errorMsg}
         notice={verificationMessage}
         backLabel="Volver al login"
+      />
+    );
+  }
+
+  if (step === 'twoFactor' && pendingEmail && twoFactorChallengeToken) {
+    return (
+      <TwoFactorLoginStep
+        pendingEmail={pendingEmail}
+        mode={twoFactorMode}
+        code={twoFactorCode}
+        recoveryCode={twoFactorRecoveryCode}
+        onModeChange={(mode) => {
+          setTwoFactorMode(mode);
+          setErrorMsg(null);
+        }}
+        onCodeChange={setTwoFactorCode}
+        onRecoveryCodeChange={setTwoFactorRecoveryCode}
+        onSubmit={onTwoFactorSubmit}
+        onBack={() => {
+          setStep('login');
+          setTwoFactorChallengeToken(null);
+          setTwoFactorCode('');
+          setTwoFactorRecoveryCode('');
+          setTwoFactorMessage(null);
+          setErrorMsg(null);
+        }}
+        loading={completingTwoFactor}
+        errorMsg={errorMsg}
+        notice={twoFactorMessage}
       />
     );
   }
@@ -261,7 +407,17 @@ export default function LoginPage() {
               )}
             </div>
 
-            <Button type="submit" className="w-full h-11 btn-press" disabled={loading || isSubmitting}>
+            <TurnstileField
+              enabled={captchaEnabled}
+              onTokenChange={setCaptchaToken}
+              resetSignal={captchaResetSignal}
+            />
+
+            <Button
+              type="submit"
+              className="w-full h-11 btn-press"
+              disabled={loading || isSubmitting || (captchaEnabled && !captchaToken)}
+            >
               {loading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />

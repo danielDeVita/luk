@@ -6,6 +6,17 @@ import { Response } from 'express';
 import { UserRole, MpConnectStatus, KycStatus } from '@prisma/client';
 import { LoginThrottlerGuard } from '@/common/guards';
 
+jest.mock('otplib', () => ({
+  generateSecret: jest.fn(() => 'SECRET123'),
+  generateURI: jest.fn(
+    () => 'otpauth://totp/LUK:test@example.com?secret=SECRET123',
+  ),
+  verifySync: jest.fn(({ token }: { token: string }) => ({
+    valid: token === '123456',
+    delta: token === '123456' ? 0 : null,
+  })),
+}));
+
 describe('AuthResolver', () => {
   let resolver: AuthResolver;
 
@@ -18,6 +29,10 @@ describe('AuthResolver', () => {
     verifyEmail: jest.fn(),
     resendVerificationCode: jest.fn(),
     login: jest.fn(),
+    beginTwoFactorSetup: jest.fn(),
+    enableTwoFactor: jest.fn(),
+    completeTwoFactorLogin: jest.fn(),
+    disableTwoFactor: jest.fn(),
   };
 
   const mockUsersService = {
@@ -36,6 +51,8 @@ describe('AuthResolver', () => {
     apellido: 'User',
     role: UserRole.USER,
     emailVerified: true,
+    twoFactorEnabled: false,
+    twoFactorEnabledAt: null,
     mpConnectStatus: MpConnectStatus.NOT_CONNECTED,
     kycStatus: KycStatus.NOT_SUBMITTED,
     createdAt: new Date(),
@@ -68,11 +85,11 @@ describe('AuthResolver', () => {
       const input = {
         email: 'new@example.com',
         password: 'password123',
-        confirmPassword: 'password123',
         nombre: 'New',
         apellido: 'User',
         fechaNacimiento: '1990-01-01',
         acceptTerms: true,
+        captchaToken: 'captcha-token',
       };
 
       const expected = {
@@ -96,11 +113,11 @@ describe('AuthResolver', () => {
       const input = {
         email: 'new@example.com',
         password: 'password123',
-        confirmPassword: 'password123',
         nombre: 'New',
         apellido: 'User',
         fechaNacimiento: '1990-01-01',
         acceptTerms: true,
+        captchaToken: 'captcha-token',
       };
 
       authService.register.mockResolvedValue({
@@ -206,7 +223,11 @@ describe('AuthResolver', () => {
 
   describe('login', () => {
     it('should login user and set auth cookies', async () => {
-      const input = { email: 'test@example.com', password: 'password123' };
+      const input = {
+        email: 'test@example.com',
+        password: 'password123',
+        captchaToken: 'captcha-token',
+      };
       const res = mockResponse();
       const context = {
         req: { ip: '192.168.1.1', headers: {} },
@@ -218,6 +239,7 @@ describe('AuthResolver', () => {
         token: 'access-token',
         refreshToken: 'refresh-token',
         requiresVerification: false,
+        requiresTwoFactor: false,
       };
 
       authService.login.mockResolvedValue(authPayload);
@@ -240,6 +262,7 @@ describe('AuthResolver', () => {
       const loginPayload = {
         user: createTestUser({ emailVerified: false }),
         requiresVerification: true,
+        requiresTwoFactor: false,
         message: 'Tu email todavía no está verificado.',
       };
 
@@ -267,6 +290,7 @@ describe('AuthResolver', () => {
         token: 'token',
         refreshToken: 'refresh',
         requiresVerification: false,
+        requiresTwoFactor: false,
       });
 
       await resolver.login(input, context);
@@ -290,6 +314,7 @@ describe('AuthResolver', () => {
         token: 'token',
         refreshToken: 'refresh',
         requiresVerification: false,
+        requiresTwoFactor: false,
       });
 
       await resolver.login(input, context);
@@ -313,6 +338,7 @@ describe('AuthResolver', () => {
         token: 'token',
         refreshToken: 'refresh',
         requiresVerification: false,
+        requiresTwoFactor: false,
       });
 
       await resolver.login(input, context);
@@ -335,11 +361,106 @@ describe('AuthResolver', () => {
         token: 'token',
         refreshToken: 'refresh',
         requiresVerification: false,
+        requiresTwoFactor: false,
       });
 
       await resolver.login(input, context);
 
       expect(authService.login).toHaveBeenCalledWith(input, 'unknown');
+    });
+  });
+
+  describe('two-factor mutations', () => {
+    it('should start two-factor setup for the current user', async () => {
+      const user = createTestUser();
+      const expected = {
+        setupToken: 'setup-token',
+        manualEntryKey: 'SECRET123',
+        otpauthUrl: 'otpauth://totp/LUK:test@example.com',
+        qrCodeDataUrl: 'data:image/png;base64,qr',
+      };
+
+      authService.beginTwoFactorSetup.mockResolvedValue(expected);
+
+      const result = await resolver.beginTwoFactorSetup(user, 'Password123!');
+
+      expect(result).toEqual(expected);
+      expect(authService.beginTwoFactorSetup).toHaveBeenCalledWith(
+        user.id,
+        'Password123!',
+      );
+    });
+
+    it('should enable two-factor for the current user', async () => {
+      const user = createTestUser();
+      const expected = {
+        user: createTestUser({ twoFactorEnabled: true }),
+        recoveryCodes: ['ABCD-1234'],
+      };
+
+      authService.enableTwoFactor.mockResolvedValue(expected);
+
+      const result = await resolver.enableTwoFactor(
+        user,
+        'setup-token',
+        '123456',
+      );
+
+      expect(result).toEqual(expected);
+      expect(authService.enableTwoFactor).toHaveBeenCalledWith(
+        user.id,
+        'setup-token',
+        '123456',
+      );
+    });
+
+    it('should complete two-factor login and set auth cookies', async () => {
+      const res = mockResponse();
+      const context = {
+        req: { ip: '192.168.1.1', headers: {} },
+        res,
+      };
+      const expected = {
+        user: createTestUser({ twoFactorEnabled: true }),
+        token: 'access-token',
+        refreshToken: 'refresh-token',
+      };
+
+      authService.completeTwoFactorLogin.mockResolvedValue(expected);
+
+      const result = await resolver.completeTwoFactorLogin(
+        'challenge-token',
+        context,
+        '123456',
+      );
+
+      expect(result).toEqual(expected);
+      expect(authService.completeTwoFactorLogin).toHaveBeenCalledWith(
+        'challenge-token',
+        '123456',
+        undefined,
+        '192.168.1.1',
+      );
+      expect(res.cookie).toHaveBeenCalledTimes(2);
+    });
+
+    it('should disable two-factor for the current user', async () => {
+      const user = createTestUser({ twoFactorEnabled: true });
+      authService.disableTwoFactor.mockResolvedValue(true);
+
+      const result = await resolver.disableTwoFactor(
+        user,
+        'Password123!',
+        '123456',
+      );
+
+      expect(result).toBe(true);
+      expect(authService.disableTwoFactor).toHaveBeenCalledWith(
+        user.id,
+        'Password123!',
+        '123456',
+        undefined,
+      );
     });
   });
 

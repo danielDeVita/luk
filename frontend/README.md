@@ -71,6 +71,8 @@ NEXT_PUBLIC_GRAPHQL_URL="http://localhost:3001/graphql"
 NEXT_PUBLIC_GRAPHQL_WS_URL="ws://localhost:3001/graphql"
 NEXT_PUBLIC_BACKEND_URL="http://localhost:3001"
 NEXT_PUBLIC_SITE_URL="http://localhost:3000"
+NEXT_PUBLIC_TURNSTILE_ENABLED="false"
+NEXT_PUBLIC_TURNSTILE_SITE_KEY=""   # Public site key
 NEXT_PUBLIC_GA_MEASUREMENT_ID="G-XXXXXXXXXX"
 NEXT_PUBLIC_SENTRY_DSN=""
 NEXT_PUBLIC_SENTRY_RELEASE=""
@@ -81,6 +83,10 @@ SENTRY_RELEASE=""
 If the backend runs with `PAYMENTS_PROVIDER="mock"`, purchases redirect to the local mock checkout page instead of Mercado Pago. This is useful for QA of ticket confirmation, refunds, and promotion bonus reversals without a real PSP.
 
 Keep the Sentry DSNs empty in local development if you do not want browser/server events sent from your machine.
+
+Turnstile is optional in local/dev. When `NEXT_PUBLIC_TURNSTILE_ENABLED="true"`, the frontend requires `NEXT_PUBLIC_TURNSTILE_SITE_KEY`. The site key is public and must never be confused with the backend secret key.
+
+Real Turnstile keys require a widget configured with a real or stable hostname in Cloudflare. Until LUK has a real domain or at least a staging hostname, keep Turnstile disabled in normal local development or use Cloudflare test keys only for local QA.
 
 ## Project Structure
 

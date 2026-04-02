@@ -6,6 +6,11 @@ import { toast } from 'sonner';
 import { useAuthStore } from '@/store/auth';
 import LoginPage from '../page';
 
+const { mockGetPublicBackendUrl, mockTurnstileEnabled } = vi.hoisted(() => ({
+  mockGetPublicBackendUrl: vi.fn(() => 'http://localhost:3001'),
+  mockTurnstileEnabled: vi.fn(() => false),
+}));
+
 vi.mock('@apollo/client/react', () => ({
   useMutation: vi.fn(),
 }));
@@ -25,6 +30,36 @@ vi.mock('sonner', () => ({
   },
 }));
 
+vi.mock('@/lib/public-env', () => ({
+  getPublicBackendUrl: mockGetPublicBackendUrl,
+  isTurnstileEnabled: mockTurnstileEnabled,
+}));
+
+vi.mock('@/components/auth/turnstile-field', () => ({
+  TurnstileField: ({
+    enabled,
+    onTokenChange,
+    resetSignal,
+  }: {
+    enabled: boolean;
+    onTokenChange: (token: string | null) => void;
+    resetSignal: number;
+  }) =>
+    enabled ? (
+      <div>
+        <button
+          type="button"
+          onClick={() => {
+            onTokenChange('captcha-token');
+          }}
+        >
+          Resolver captcha
+        </button>
+        <span data-testid="turnstile-reset-signal">{resetSignal}</span>
+      </div>
+    ) : null,
+}));
+
 describe('LoginPage', () => {
   const mockUseMutation = vi.mocked(useMutation);
   const mockUseRouter = vi.mocked(useRouter);
@@ -35,6 +70,8 @@ describe('LoginPage', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockTurnstileEnabled.mockReturnValue(false);
+    mockGetPublicBackendUrl.mockReturnValue('http://localhost:3001');
 
     mockUseRouter.mockReturnValue({
       push: mockPush,
@@ -77,6 +114,7 @@ describe('LoginPage', () => {
   function setupMutations() {
     const mutationOptions = new Map<string, Record<string, unknown> | undefined>();
     const loginMutate = vi.fn();
+    const completeTwoFactorMutate = vi.fn();
     const verifyMutate = vi.fn();
     const resendMutate = vi.fn();
 
@@ -111,6 +149,13 @@ describe('LoginPage', () => {
         ] as unknown as ReturnType<typeof useMutation>;
       }
 
+      if (operationName === 'CompleteTwoFactorLogin') {
+        return [
+          completeTwoFactorMutate,
+          { data: undefined, loading: false, error: undefined },
+        ] as unknown as ReturnType<typeof useMutation>;
+      }
+
       if (operationName === 'ResendVerificationCode') {
         return [
           resendMutate,
@@ -124,7 +169,13 @@ describe('LoginPage', () => {
       ] as unknown as ReturnType<typeof useMutation>;
     });
 
-    return { mutationOptions, loginMutate, verifyMutate, resendMutate };
+    return {
+      mutationOptions,
+      loginMutate,
+      completeTwoFactorMutate,
+      verifyMutate,
+      resendMutate,
+    };
   }
 
   function fillLoginForm() {
@@ -188,6 +239,7 @@ describe('LoginPage', () => {
       onCompleted?.({
         login: {
           requiresVerification: true,
+          requiresTwoFactor: false,
           message:
             'Tu email todavía no está verificado. Ingresá el código de 6 dígitos o reenviá uno nuevo.',
           user: {
@@ -225,6 +277,7 @@ describe('LoginPage', () => {
       onCompleted?.({
         login: {
           requiresVerification: true,
+          requiresTwoFactor: false,
           message: 'Tu email todavía no está verificado.',
           user: {
             id: 'user-1',
@@ -283,6 +336,117 @@ describe('LoginPage', () => {
     });
   });
 
+  it('switches to inline 2FA when login requires a second factor', async () => {
+    const { mutationOptions, loginMutate } = setupMutations();
+
+    render(<LoginPage />);
+
+    loginMutate.mockImplementation(async () => {
+      const onCompleted = mutationOptions.get('Login')?.onCompleted as
+        | ((payload: unknown) => void)
+        | undefined;
+      onCompleted?.({
+        login: {
+          requiresVerification: false,
+          requiresTwoFactor: true,
+          twoFactorChallengeToken: 'challenge-token',
+          message: 'Ingresá el código de tu app autenticadora.',
+          user: {
+            id: 'user-1',
+            email: 'test@example.com',
+            nombre: 'Test',
+            apellido: 'User',
+            role: 'USER',
+          },
+        },
+      });
+
+      return { data: undefined };
+    });
+
+    fillLoginForm();
+    fireEvent.click(screen.getByRole('button', { name: /iniciar sesión/i }));
+
+    expect(
+      await screen.findByRole('heading', {
+        name: /autenticación en dos pasos/i,
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/código de tu app autenticadora/i),
+    ).toBeInTheDocument();
+    expect(mockSetAuth).not.toHaveBeenCalled();
+  });
+
+  it('completes login after a valid TOTP code', async () => {
+    const { mutationOptions, loginMutate, completeTwoFactorMutate } =
+      setupMutations();
+
+    render(<LoginPage />);
+
+    loginMutate.mockImplementation(async () => {
+      const onCompleted = mutationOptions.get('Login')?.onCompleted as
+        | ((payload: unknown) => void)
+        | undefined;
+      onCompleted?.({
+        login: {
+          requiresVerification: false,
+          requiresTwoFactor: true,
+          twoFactorChallengeToken: 'challenge-token',
+          message: 'Ingresá el código de tu app autenticadora.',
+          user: {
+            id: 'user-1',
+            email: 'test@example.com',
+            nombre: 'Test',
+            apellido: 'User',
+            role: 'USER',
+          },
+        },
+      });
+
+      return { data: undefined };
+    });
+
+    completeTwoFactorMutate.mockResolvedValue({
+      data: {
+        completeTwoFactorLogin: {
+          token: '2fa-access-token',
+          refreshToken: '2fa-refresh-token',
+          user: {
+            id: 'user-1',
+            email: 'test@example.com',
+            nombre: 'Test',
+            apellido: 'User',
+            role: 'USER',
+          },
+        },
+      },
+    });
+
+    fillLoginForm();
+    fireEvent.click(screen.getByRole('button', { name: /iniciar sesión/i }));
+
+    const codeInput = await screen.findByLabelText(/código de autenticación/i);
+    fireEvent.change(codeInput, { target: { value: '123456' } });
+    fireEvent.click(screen.getByRole('button', { name: /continuar/i }));
+
+    await waitFor(() => {
+      expect(completeTwoFactorMutate).toHaveBeenCalledWith({
+        variables: {
+          challengeToken: 'challenge-token',
+          code: '123456',
+          recoveryCode: null,
+        },
+      });
+      expect(mockSetAuth).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'user-1' }),
+        '2fa-access-token',
+        '2fa-refresh-token',
+      );
+      expect(mockPush).toHaveBeenCalledWith('/');
+    });
+  });
+
   it('resends the verification code from the login flow', async () => {
     const { mutationOptions, loginMutate, resendMutate } = setupMutations();
 
@@ -295,6 +459,7 @@ describe('LoginPage', () => {
       onCompleted?.({
         login: {
           requiresVerification: true,
+          requiresTwoFactor: false,
           message: 'Tu email todavía no está verificado.',
           user: {
             id: 'user-1',
@@ -326,6 +491,75 @@ describe('LoginPage', () => {
       });
       expect(mockToast.success).toHaveBeenCalledWith(
         'Nuevo código enviado a tu email',
+      );
+    });
+  });
+
+  it('blocks login submit until captcha is completed when turnstile is enabled', async () => {
+    mockTurnstileEnabled.mockReturnValue(true);
+    const { loginMutate } = setupMutations();
+
+    render(<LoginPage />);
+
+    fillLoginForm();
+
+    const submitButton = screen.getByRole('button', {
+      name: /iniciar sesión/i,
+    });
+    expect(submitButton).toBeDisabled();
+
+    fireEvent.submit(submitButton.closest('form') as HTMLFormElement);
+
+    expect(
+      screen.getByText(/completá la verificación humana para continuar/i),
+    ).toBeInTheDocument();
+    expect(loginMutate).not.toHaveBeenCalled();
+  });
+
+  it('sends captcha token when turnstile is enabled', async () => {
+    mockTurnstileEnabled.mockReturnValue(true);
+    const { loginMutate } = setupMutations();
+
+    loginMutate.mockResolvedValue({ data: undefined });
+
+    render(<LoginPage />);
+
+    fillLoginForm();
+    fireEvent.click(screen.getByRole('button', { name: /resolver captcha/i }));
+    fireEvent.click(screen.getByRole('button', { name: /iniciar sesión/i }));
+
+    await waitFor(() => {
+      expect(loginMutate).toHaveBeenCalledWith({
+        variables: {
+          email: 'test@example.com',
+          password: 'Password123!',
+          captchaToken: 'captcha-token',
+        },
+      });
+    });
+  });
+
+  it('resets captcha widget after a login error when turnstile is enabled', async () => {
+    mockTurnstileEnabled.mockReturnValue(true);
+    const { mutationOptions, loginMutate } = setupMutations();
+
+    render(<LoginPage />);
+
+    loginMutate.mockImplementation(async () => {
+      const onError = mutationOptions.get('Login')?.onError as
+        | ((error: Error) => void)
+        | undefined;
+      onError?.(new Error('No pudimos validar que sos humano. Intentá nuevamente.'));
+      return { data: undefined };
+    });
+
+    fillLoginForm();
+    fireEvent.click(screen.getByRole('button', { name: /resolver captcha/i }));
+    fireEvent.click(screen.getByRole('button', { name: /iniciar sesión/i }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('turnstile-reset-signal')).toHaveTextContent(
+        '1',
       );
     });
   });

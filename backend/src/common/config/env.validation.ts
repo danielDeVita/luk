@@ -68,6 +68,15 @@ export class EnvironmentVariables {
   @IsOptional()
   GOOGLE_CALLBACK_URL: string = 'http://localhost:3001/auth/google/callback';
 
+  // Cloudflare Turnstile
+  @IsBoolean()
+  @IsOptional()
+  TURNSTILE_ENABLED: boolean = false;
+
+  @IsString()
+  @IsOptional()
+  TURNSTILE_SECRET_KEY: string = '';
+
   // Mercado Pago
   @IsString()
   @IsOptional()
@@ -221,10 +230,54 @@ export class EnvironmentVariables {
   SOCIAL_PROMOTION_BROWSER_ENABLED: boolean = false;
 }
 
+const BOOLEAN_ENV_KEYS = [
+  'TURNSTILE_ENABLED',
+  'MP_MOCK_MODE',
+  'ALLOW_MOCK_PAYMENTS',
+  'ENABLE_CRON_JOBS',
+  'GRAPHQL_PLAYGROUND',
+  'GRAPHQL_DEBUG',
+  'SOCIAL_PROMOTION_ENABLED',
+  'SOCIAL_PROMOTION_BROWSER_ENABLED',
+] as const;
+
+function normalizeBooleanEnvValues(
+  config: Record<string, unknown>,
+): Record<string, unknown> {
+  const normalizedConfig = { ...config };
+
+  for (const key of BOOLEAN_ENV_KEYS) {
+    const value = normalizedConfig[key];
+
+    if (typeof value !== 'string') {
+      continue;
+    }
+
+    const normalizedValue = value.trim().toLowerCase();
+
+    if (normalizedValue === 'true') {
+      normalizedConfig[key] = true;
+      continue;
+    }
+
+    if (normalizedValue === 'false') {
+      normalizedConfig[key] = false;
+    }
+  }
+
+  return normalizedConfig;
+}
+
 export function validate(config: Record<string, unknown>) {
-  const validatedConfig = plainToInstance(EnvironmentVariables, config, {
-    enableImplicitConversion: true,
-  });
+  const normalizedConfig = normalizeBooleanEnvValues(config);
+
+  const validatedConfig = plainToInstance(
+    EnvironmentVariables,
+    normalizedConfig,
+    {
+      enableImplicitConversion: true,
+    },
+  );
 
   const errors = validateSync(validatedConfig, {
     skipMissingProperties: false,
@@ -240,6 +293,15 @@ export function validate(config: Record<string, unknown>) {
 
     throw new Error(
       `\n\n❌ Missing or invalid environment variables:\n${missingVars}\n\nPlease check your .env file.\n`,
+    );
+  }
+
+  if (
+    validatedConfig.TURNSTILE_ENABLED &&
+    !validatedConfig.TURNSTILE_SECRET_KEY.trim()
+  ) {
+    throw new Error(
+      '\n\n❌ Missing required environment variable: TURNSTILE_SECRET_KEY when TURNSTILE_ENABLED=true.\n\nPlease check your .env file.\n',
     );
   }
 

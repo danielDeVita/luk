@@ -21,6 +21,12 @@ export class LoginPayload extends AuthPayload {
   @Field()
   requiresVerification!: boolean;
 
+  @Field()
+  requiresTwoFactor!: boolean;
+
+  @Field({ nullable: true })
+  twoFactorChallengeToken?: string;
+
   @Field({ nullable: true })
   message?: string;
 }
@@ -35,4 +41,28 @@ export class RegisterPayload {
 
   @Field({ nullable: true })
   message?: string;
+}
+
+@ObjectType()
+export class TwoFactorSetupPayload {
+  @Field()
+  setupToken!: string;
+
+  @Field()
+  manualEntryKey!: string;
+
+  @Field()
+  otpauthUrl!: string;
+
+  @Field()
+  qrCodeDataUrl!: string;
+}
+
+@ObjectType()
+export class EnableTwoFactorPayload {
+  @Field(() => User)
+  user!: User;
+
+  @Field(() => [String])
+  recoveryCodes!: string[];
 }
