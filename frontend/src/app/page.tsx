@@ -38,7 +38,7 @@ export default function HomePage() {
     <div className="flex flex-col">
       <section className="relative overflow-hidden pb-12 pt-8 sm:pt-12">
         <div className="container mx-auto px-4">
-          <div className="bg-mesh overflow-hidden rounded-[2.5rem] border border-border/80 px-6 py-10 shadow-panel sm:px-8 lg:px-10 lg:py-14">
+          <div className="bg-mesh overflow-hidden rounded-[2.5rem] border border-border/80 px-5 py-8 shadow-panel sm:px-8 sm:py-10 lg:px-10 lg:py-14">
             <div className="grid gap-10 lg:grid-cols-[minmax(0,1.15fr)_420px] lg:items-end">
               <div className="space-y-8">
                 <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-4 py-2 animate-fade-up delay-1">

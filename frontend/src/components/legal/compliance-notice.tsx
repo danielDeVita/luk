@@ -24,7 +24,7 @@ export function ComplianceNotice({
       className={cn(
         subtle
           ? 'rounded-xl border border-border/70 bg-muted/30 p-3 text-left shadow-none'
-          : 'rounded-2xl border border-amber-300/70 bg-amber-50/90 p-4 text-left shadow-sm dark:border-amber-800 dark:bg-amber-950/30',
+          : 'rounded-2xl border border-secondary/35 bg-secondary/14 p-4 text-left shadow-sm dark:border-secondary/28 dark:bg-secondary/12',
         className,
       )}
     >
@@ -34,7 +34,7 @@ export function ComplianceNotice({
             'mt-0.5 rounded-full p-2',
             subtle
               ? 'bg-muted text-muted-foreground'
-              : 'bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300',
+              : 'bg-secondary/20 text-secondary-foreground dark:bg-secondary/18 dark:text-secondary',
           )}
         >
           <ShieldAlert className="h-4 w-4" />
@@ -45,7 +45,7 @@ export function ComplianceNotice({
               'text-sm font-semibold',
               subtle
                 ? 'text-foreground/80'
-                : 'text-amber-900 dark:text-amber-100',
+                : 'text-foreground dark:text-foreground',
             )}
           >
             {title}
@@ -55,7 +55,7 @@ export function ComplianceNotice({
               'text-sm leading-relaxed',
               subtle
                 ? 'text-muted-foreground'
-                : 'text-amber-900/90 dark:text-amber-100/90',
+                : 'text-foreground/86 dark:text-foreground/86',
             )}
           >
             La publicacion y participacion en rifas estan sujetas a la legalidad
@@ -67,7 +67,7 @@ export function ComplianceNotice({
               'text-sm leading-relaxed',
               subtle
                 ? 'text-muted-foreground'
-                : 'text-amber-900/90 dark:text-amber-100/90',
+                : 'text-foreground/86 dark:text-foreground/86',
             )}
           >
             {LEGAL_OPERATOR_NAME} actua como intermediario tecnologico y no

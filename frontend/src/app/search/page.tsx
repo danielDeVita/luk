@@ -206,24 +206,19 @@ export default function SearchPage() {
     allRaffles.length > 0 ? allRaffles : data?.rafflesPaginated?.items || [];
 
   return (
-    <div className="pb-14 pt-6">
+    <div className="pb-14 pt-3">
       <div className="container mx-auto px-4">
-        <div className="mb-10 overflow-hidden rounded-[2.25rem] border border-border/80 bg-mesh px-6 py-8 shadow-panel sm:px-8 lg:px-10">
-          <div className="grid gap-8 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:items-end">
-            <div className="space-y-4">
+        <div className="mb-3 overflow-hidden rounded-[2rem] border border-border/80 bg-mesh px-4 py-3 shadow-panel sm:px-5 sm:py-4 lg:px-6">
+          <div className="space-y-2.5">
+            <div className="flex flex-wrap items-center justify-between gap-3">
               <p className="editorial-kicker text-primary">Explorar rifas</p>
-              <h1 className="font-display text-4xl leading-none text-balance sm:text-5xl">
-                Encontrá oportunidades con más contexto y mejor ritmo visual.
-              </h1>
-            </div>
-            <div className="space-y-4">
               {totalCount > 0 && (
                 <p className="text-sm font-medium text-muted-foreground">
                   {displayRaffles.length} de {totalCount} rifas
                 </p>
               )}
-              <SearchFilters onSearch={handleSearch} initialFilters={filters} />
             </div>
+            <SearchFilters onSearch={handleSearch} initialFilters={filters} />
           </div>
         </div>
 
@@ -246,15 +241,12 @@ export default function SearchPage() {
         </div>
       ) : (
         <>
-          <div className="mb-4 flex flex-wrap items-end justify-between gap-4">
+          <div className="mb-3 flex flex-wrap items-end justify-between gap-4">
             <div>
               <p className="editorial-kicker text-muted-foreground">Resultados</p>
-              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                Refiná categoría, precio y orden para ajustar la selección.
-              </p>
             </div>
           </div>
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {displayRaffles.map((raffle: RaffleData) => (
               <RaffleCard key={raffle.id} raffle={raffle} />
             ))}

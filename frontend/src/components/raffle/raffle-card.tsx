@@ -136,8 +136,8 @@ export function RaffleCard({ raffle }: RaffleCardProps) {
   };
 
   return (
-    <Link href={`/raffle/${raffle.id}`}>
-      <div className="group card-hover card-shine overflow-hidden rounded-[1.9rem] border border-border/80 bg-card/94 shadow-panel hover:border-primary/28">
+    <Link href={`/raffle/${raffle.id}`} className="block h-full">
+      <div className="group card-hover card-shine flex h-full flex-col overflow-hidden rounded-[1.9rem] border border-border/80 bg-card/94 shadow-panel hover:border-primary/28">
         {/* Image Section */}
         <div className="relative aspect-[4/3] overflow-hidden bg-muted">
           {imageUrl && imageUrl !== '/placeholder.jpg' ? (
@@ -161,7 +161,7 @@ export function RaffleCard({ raffle }: RaffleCardProps) {
             <button
               onClick={handleFavoriteClick}
               disabled={isToggling}
-              className="absolute left-4 top-4 rounded-full border border-white/20 bg-card/92 p-2.5 backdrop-blur-md transition-all hover:scale-105 hover:bg-card"
+              className="absolute left-3 top-3 rounded-full border border-white/20 bg-card/92 p-2.5 backdrop-blur-md transition-all hover:scale-105 hover:bg-card sm:left-4 sm:top-4"
               title={isFavorite ? 'Quitar de favoritos' : 'Agregar a favoritos'}
             >
               <Heart
@@ -175,7 +175,7 @@ export function RaffleCard({ raffle }: RaffleCardProps) {
           )}
 
           {/* Status badge */}
-          <div className="absolute right-4 top-4 flex flex-col items-end gap-2">
+          <div className="absolute right-3 top-3 flex flex-col items-end gap-2 sm:right-4 sm:top-4">
             <span className={`badge-status ${getEstadoClass(raffle.estado)}`}>
               {formatEstado(raffle.estado)}
             </span>
@@ -193,21 +193,21 @@ export function RaffleCard({ raffle }: RaffleCardProps) {
           </div>
 
           {/* Price tag */}
-          <div className="absolute bottom-4 left-4 right-4 flex items-end justify-between gap-4">
-            <div className="rounded-[1.25rem] border border-white/18 bg-card/92 px-4 py-2.5 backdrop-blur-md shadow-lift">
-              <p className="font-display text-2xl leading-none text-primary">${raffle.precioPorTicket}</p>
+          <div className="absolute bottom-3 left-3 right-3 flex items-end justify-between gap-2 sm:bottom-4 sm:left-4 sm:right-4 sm:gap-4">
+            <div className="rounded-[1.25rem] border border-white/18 bg-card/92 px-3 py-2 backdrop-blur-md shadow-lift sm:px-4 sm:py-2.5">
+              <p className="font-display text-xl leading-none text-primary sm:text-2xl">${raffle.precioPorTicket}</p>
               <p className="mt-1 text-[0.65rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">por ticket</p>
             </div>
             <div className="rounded-full border border-white/18 bg-card/15 px-3 py-1.5 text-right backdrop-blur-md">
               <p className="text-[0.65rem] font-semibold uppercase tracking-[0.18em] text-white/80">valor total</p>
-              <p className="mt-1 text-sm font-semibold text-white">${(raffle.precioPorTicket * raffle.totalTickets).toFixed(0)}</p>
+              <p className="mt-1 text-xs font-semibold text-white sm:text-sm">${(raffle.precioPorTicket * raffle.totalTickets).toFixed(0)}</p>
             </div>
           </div>
         </div>
 
         {/* Content Section */}
-        <div className="space-y-5 p-5">
-          <div className="space-y-2">
+        <div className="flex flex-1 flex-col gap-5 p-4 sm:p-5">
+          <div className="grid min-h-[5.75rem] content-start gap-2">
             <p className="editorial-kicker text-muted-foreground">
               {raffle.product?.condicion ?? 'Producto'}
             </p>
@@ -246,7 +246,7 @@ export function RaffleCard({ raffle }: RaffleCardProps) {
             </div>
           </div>
 
-          <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 border-t border-border/80 pt-4">
+          <div className="mt-auto grid gap-3 border-t border-border/80 pt-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-4">
             <div className="flex items-center gap-2 text-sm">
               <Clock className="h-3.5 w-3.5 text-muted-foreground" />
               <Countdown
@@ -256,7 +256,7 @@ export function RaffleCard({ raffle }: RaffleCardProps) {
                 className="text-xs"
               />
             </div>
-            <div className="text-right">
+            <div className="text-left sm:text-right">
               <p className="text-[0.65rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">vendedor</p>
               <p className="mt-1 text-sm font-semibold text-card-foreground">
                 {raffle.seller?.nombre} {raffle.seller?.apellido}

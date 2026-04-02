@@ -367,7 +367,7 @@ export default function LoginPage() {
             <div className="space-y-6">
               <p className="editorial-kicker text-primary">LUK / Ingreso</p>
               <div className="space-y-4">
-                <h1 className="font-display text-6xl leading-[0.9] text-balance">
+                <h1 className="font-display text-5xl leading-[0.9] text-balance xl:text-6xl">
                   Iniciar sesión
                 </h1>
                 <p className="max-w-lg text-lg leading-relaxed text-muted-foreground">

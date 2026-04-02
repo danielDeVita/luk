@@ -192,14 +192,14 @@ function KycStatusBadge({ status }: { status: string }) {
   switch (status) {
     case 'VERIFIED':
       return (
-        <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+        <Badge className="border-success/35 bg-success/12 text-success">
           <CheckCircle2 className="h-3 w-3 mr-1" />
           Verificado
         </Badge>
       );
     case 'PENDING_REVIEW':
       return (
-        <Badge className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
+        <Badge className="border-secondary/35 bg-secondary/16 text-secondary-foreground dark:text-secondary">
           <Clock className="h-3 w-3 mr-1" />
           En revisión
         </Badge>
@@ -678,11 +678,11 @@ function SettingsContent() {
             </CardHeader>
             <CardContent className="space-y-6">
               {/* Info Alert */}
-              <div className="flex items-start gap-3 p-4 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg">
-                <FileCheck className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
+              <div className="flex items-start gap-3 rounded-[1.35rem] border border-primary/20 bg-primary/8 p-4">
+                <FileCheck className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
                 <div className="text-sm">
-                  <p className="font-medium text-blue-800 dark:text-blue-200 mb-1">¿Por qué pedimos esta información?</p>
-                  <ul className="text-blue-700 dark:text-blue-300 space-y-1 text-xs">
+                  <p className="mb-1 font-medium text-foreground">¿Por qué pedimos esta información?</p>
+                  <ul className="space-y-1 text-xs text-muted-foreground">
                     <li>- Verificación de edad mínima (18 años) - Ley N° 18.226</li>
                     <li>- Prevención de lavado de activos - Ley 25.246 (UIF)</li>
                     <li>- Trazabilidad fiscal - Resolución ARCA 5791/2025</li>
@@ -693,7 +693,7 @@ function SettingsContent() {
 
               {isKycVerified ? (
                 <div className="text-center py-8">
-                  <CheckCircle2 className="h-16 w-16 text-green-500 mx-auto mb-4" />
+                  <CheckCircle2 className="mx-auto mb-4 h-16 w-16 text-success" />
                   <h3 className="text-lg font-semibold mb-2">Identidad Verificada</h3>
                   <p className="text-muted-foreground">
                     Tu identidad ha sido verificada exitosamente. Podés participar en rifas y vender sin restricciones.
@@ -701,7 +701,7 @@ function SettingsContent() {
                 </div>
               ) : isKycPending ? (
                 <div className="text-center py-8">
-                  <Clock className="h-16 w-16 text-yellow-500 mx-auto mb-4" />
+                  <Clock className="mx-auto mb-4 h-16 w-16 text-secondary" />
                   <h3 className="text-lg font-semibold mb-2">Verificación en Proceso</h3>
                   <p className="text-muted-foreground">
                     Estamos revisando tu información. Este proceso puede tomar hasta 24-48 horas.
@@ -873,7 +873,7 @@ function SettingsContent() {
               <div className="flex items-center justify-between p-4 border rounded-lg">
                 <div className="flex items-center gap-3">
                   {isConnected ? (
-                    <CheckCircle2 className="h-8 w-8 text-green-500" />
+                    <CheckCircle2 className="h-8 w-8 text-success" />
                   ) : (
                     <XCircle className="h-8 w-8 text-muted-foreground" />
                   )}

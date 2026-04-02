@@ -119,23 +119,23 @@ export function Navbar() {
   return (
     <header className="sticky top-0 z-50 w-full px-4 pt-4">
       <div className="container mx-auto">
-        <div className="glass rounded-[2rem] border border-border/80 px-4 shadow-panel supports-[backdrop-filter]:bg-background/72">
-          <div className="flex h-[4.5rem] items-center justify-between gap-4 py-2">
+        <div className="glass rounded-[2rem] border border-border/80 px-3 shadow-panel supports-[backdrop-filter]:bg-background/72 sm:px-4">
+          <div className="flex min-h-[4.5rem] items-center justify-between gap-3 py-2">
         {/* Logo */}
-        <Link href="/" className="group flex items-center gap-3.5">
-          <div className="flex h-12 w-12 items-center justify-center rounded-[1.2rem] border border-primary/20 bg-primary text-primary-foreground shadow-lift transition-transform group-hover:-translate-y-0.5">
+        <Link href="/" className="group flex min-w-0 items-center gap-3">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[1.2rem] border border-primary/20 bg-primary text-primary-foreground shadow-lift transition-transform group-hover:-translate-y-0.5 sm:h-12 sm:w-12">
             <Ticket className="h-5 w-5" />
           </div>
-          <div className="space-y-1">
+          <div className="min-w-0 space-y-1">
             <p className="editorial-kicker text-primary">Rifas digitales</p>
-            <span className="block font-display text-2xl leading-none text-foreground">
+            <span className="block truncate font-display text-xl leading-none text-foreground sm:text-2xl">
               {BRAND_NAME}
             </span>
           </div>
         </Link>
 
         {/* Desktop Navigation */}
-        <nav className="hidden md:flex items-center gap-2 rounded-full border border-border/70 bg-card/70 px-2 py-2">
+        <nav className="hidden sm:flex items-center gap-2 rounded-full border border-border/70 bg-card/70 px-2 py-2">
           <NavLink href="/">Inicio</NavLink>
           <NavLink href="/search">Explorar</NavLink>
           {isAuthenticated && (
@@ -146,13 +146,13 @@ export function Navbar() {
         </nav>
 
         {/* Desktop Auth */}
-        <div className="hidden md:flex items-center gap-2">
+        <div className="hidden sm:flex items-center gap-2">
           <ThemeToggle />
           {isAuthenticated ? (
             <div className="flex items-center gap-2">
               <NotificationsBell />
 
-              <Link href="/dashboard/tickets">
+              <Link href="/dashboard/tickets" className="hidden xl:block">
                 <Button variant="ghost" size="sm" className="gap-2">
                   <Ticket className="h-4 w-4" />
                   <span className="hidden lg:inline">Mis tickets</span>
@@ -162,7 +162,7 @@ export function Navbar() {
               {/* User Dropdown */}
               <div
                 ref={dropdownRef}
-                className="relative"
+                className="relative hidden lg:block"
                 onMouseEnter={() => setDropdownOpen(true)}
                 onMouseLeave={() => setDropdownOpen(false)}
                 onKeyDown={handleDropdownKeyDown}
@@ -316,7 +316,7 @@ export function Navbar() {
               </div>
             </div>
           ) : (
-            <div className="flex items-center gap-2">
+            <div className="hidden lg:flex items-center gap-2">
               <Link href="/auth/login">
                 <Button variant="ghost" size="sm">
                   Iniciar sesión
@@ -332,15 +332,17 @@ export function Navbar() {
         </div>
 
         {/* Mobile Menu Button + Notifications */}
-        <div className="flex md:hidden items-center gap-1">
-          <ThemeToggle />
-          {isAuthenticated && <NotificationsBell />}
+        <div className="flex lg:hidden items-center gap-1">
+          <div className="flex items-center gap-1 sm:hidden">
+            <ThemeToggle />
+            {isAuthenticated && <NotificationsBell />}
+          </div>
           <Button
             variant="outline"
             size="icon"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             aria-label="Toggle menu"
-            className="relative"
+            className="relative shrink-0"
           >
             <Menu className={`h-5 w-5 absolute transition-all duration-200 ${mobileMenuOpen ? 'rotate-90 opacity-0' : 'rotate-0 opacity-100'}`} />
             <X className={`h-5 w-5 absolute transition-all duration-200 ${mobileMenuOpen ? 'rotate-0 opacity-100' : '-rotate-90 opacity-0'}`} />
@@ -451,7 +453,7 @@ function NavLink({
   return (
     <Link
       href={href}
-      className="flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-semibold text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+      className="flex items-center gap-1.5 rounded-full px-3 py-2 text-sm font-semibold text-muted-foreground transition-colors hover:bg-accent hover:text-foreground lg:px-4"
     >
       {icon}
       {children}

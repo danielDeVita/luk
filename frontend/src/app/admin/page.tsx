@@ -610,11 +610,11 @@ export default function AdminPage() {
       </div>
 
       {/* Platform Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 mb-8">
+      <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6">
         <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2">
-              <DollarSign className="h-5 w-5 text-green-500" />
+          <CardContent className="flex min-h-[120px] items-center !p-5">
+            <div className="flex min-w-0 items-center gap-3.5">
+              <DollarSign className="h-5 w-5 text-primary" />
               <div>
                 <p className="text-2xl font-bold">{formatCompact(stats?.totalRevenue, '$')}</p>
                 <p className="text-xs text-muted-foreground">Ingresos Totales</p>
@@ -623,23 +623,23 @@ export default function AdminPage() {
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2">
-              <Users className="h-5 w-5 text-blue-500" />
+          <CardContent className="flex min-h-[120px] items-center !p-5">
+            <div className="flex min-w-0 items-center gap-3.5">
+              <Users className="h-5 w-5 text-secondary" />
               <div>
                 <p className="text-2xl font-bold">{stats?.totalUsers || 0}</p>
                 <p className="text-xs text-muted-foreground">Usuarios</p>
                 {stats?.newUsersToday ? (
-                  <p className="text-xs text-green-600">+{stats.newUsersToday} hoy</p>
+                  <p className="text-xs text-success">+{stats.newUsersToday} hoy</p>
                 ) : null}
               </div>
             </div>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2">
-              <Ticket className="h-5 w-5 text-purple-500" />
+          <CardContent className="flex min-h-[120px] items-center !p-5">
+            <div className="flex min-w-0 items-center gap-3.5">
+              <Ticket className="h-5 w-5 text-accent" />
               <div>
                 <p className="text-2xl font-bold">{formatCompact(stats?.totalTicketsSold)}</p>
                 <p className="text-xs text-muted-foreground">Tickets Vendidos</p>
@@ -648,23 +648,23 @@ export default function AdminPage() {
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2">
-              <TrendingUp className="h-5 w-5 text-green-500" />
+          <CardContent className="flex min-h-[120px] items-center !p-5">
+            <div className="flex min-w-0 items-center gap-3.5">
+              <TrendingUp className="h-5 w-5 text-primary" />
               <div>
                 <p className="text-2xl font-bold">{stats?.activeRaffles || 0}</p>
                 <p className="text-xs text-muted-foreground">Rifas Activas</p>
                 {stats?.newRafflesToday ? (
-                  <p className="text-xs text-green-600">+{stats.newRafflesToday} hoy</p>
+                  <p className="text-xs text-success">+{stats.newRafflesToday} hoy</p>
                 ) : null}
               </div>
             </div>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2">
-              <EyeOff className="h-5 w-5 text-orange-500" />
+          <CardContent className="flex min-h-[120px] items-center !p-5">
+            <div className="flex min-w-0 items-center gap-3.5">
+              <EyeOff className="h-5 w-5 text-secondary" />
               <div>
                 <p className="text-2xl font-bold">{hiddenRaffles.length}</p>
                 <p className="text-xs text-muted-foreground">Rifas Ocultas</p>
@@ -673,8 +673,8 @@ export default function AdminPage() {
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2">
+          <CardContent className="flex min-h-[120px] items-center !p-5">
+            <div className="flex min-w-0 items-center gap-3.5">
               <AlertTriangle className="h-5 w-5 text-red-500" />
               <div>
                 <p className="text-2xl font-bold">{stats?.pendingDisputes || 0}</p>
@@ -686,34 +686,34 @@ export default function AdminPage() {
       </div>
 
       {/* Secondary Stats Row */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+      <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-4">
         <Card className="bg-muted/50">
-          <CardContent className="p-3">
-            <div className="flex items-center justify-between">
+          <CardContent className="flex min-h-[84px] items-center !p-4">
+            <div className="flex w-full items-center justify-between gap-3">
               <span className="text-sm text-muted-foreground">Total Rifas</span>
               <span className="font-semibold">{stats?.totalRaffles || 0}</span>
             </div>
           </CardContent>
         </Card>
         <Card className="bg-muted/50">
-          <CardContent className="p-3">
-            <div className="flex items-center justify-between">
+          <CardContent className="flex min-h-[84px] items-center !p-4">
+            <div className="flex w-full items-center justify-between gap-3">
               <span className="text-sm text-muted-foreground">Completadas</span>
               <span className="font-semibold">{stats?.completedRaffles || 0}</span>
             </div>
           </CardContent>
         </Card>
         <Card className="bg-muted/50">
-          <CardContent className="p-3">
-            <div className="flex items-center justify-between">
+          <CardContent className="flex min-h-[84px] items-center !p-4">
+            <div className="flex w-full items-center justify-between gap-3">
               <span className="text-sm text-muted-foreground">Transacciones</span>
               <span className="font-semibold">{formatCompact(stats?.totalTransactions)}</span>
             </div>
           </CardContent>
         </Card>
         <Card className="bg-muted/50">
-          <CardContent className="p-3">
-            <div className="flex items-center justify-between">
+          <CardContent className="flex min-h-[84px] items-center !p-4">
+            <div className="flex w-full items-center justify-between gap-3">
               <span className="text-sm text-muted-foreground">Eventos MP (24h)</span>
               <span className="font-semibold flex items-center gap-1">
                 <Activity className="h-3 w-3" />
@@ -749,7 +749,7 @@ export default function AdminPage() {
                 </div>
               ) : (kycData?.pendingKycSubmissions?.submissions || []).length === 0 ? (
                 <div className="text-center py-8">
-                  <CheckCircle className="h-12 w-12 mx-auto text-green-500 mb-2" />
+                  <CheckCircle className="mx-auto mb-2 h-12 w-12 text-success" />
                   <p className="text-muted-foreground">No hay verificaciones KYC pendientes</p>
                 </div>
               ) : (
@@ -757,7 +757,7 @@ export default function AdminPage() {
                   {(kycData?.pendingKycSubmissions?.submissions || []).map((submission: KycSubmission) => (
                     <div
                       key={submission.userId}
-                      className="p-4 rounded-lg border border-blue-500/30 bg-blue-500/5 flex items-center justify-between"
+                      className="flex flex-col gap-3 rounded-[1.35rem] border border-primary/22 bg-primary/6 p-4 sm:flex-row sm:items-center sm:justify-between"
                     >
                       <div>
                         <h3 className="font-medium">{submission.nombre} {submission.apellido}</h3>
@@ -798,26 +798,26 @@ export default function AdminPage() {
                   raffles.map((raffle) => (
                     <div
                       key={raffle.id}
-                      className={`p-4 rounded-lg border flex items-center justify-between ${
-                        raffle.isHidden ? 'bg-orange-500/10 border-orange-500/30' : ''
+                      className={`rounded-[1.35rem] border p-4 ${
+                        raffle.isHidden ? 'border-secondary/35 bg-secondary/12' : 'border-border/80'
                       }`}
                     >
                       <div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-wrap items-center gap-2">
                           <h3 className="font-medium">{raffle.titulo}</h3>
                           <span
-                            className={`text-xs px-2 py-0.5 rounded-full ${
+                            className={`rounded-full px-2 py-0.5 text-xs ${
                               raffle.estado === 'ACTIVA'
-                                ? 'bg-green-500/20 text-green-700'
+                                ? 'bg-primary/15 text-primary'
                                 : raffle.estado === 'SORTEADA'
-                                ? 'bg-blue-500/20 text-blue-700'
+                                ? 'bg-accent/15 text-accent'
                                 : 'bg-muted text-muted-foreground'
                             }`}
                           >
                             {raffle.estado}
                           </span>
                           {raffle.isHidden && (
-                            <span className="text-xs px-2 py-0.5 rounded-full bg-orange-500/20 text-orange-700">
+                            <span className="rounded-full bg-secondary/20 px-2 py-0.5 text-xs text-secondary-foreground dark:text-secondary">
                               OCULTA
                             </span>
                           )}
@@ -826,10 +826,10 @@ export default function AdminPage() {
                           Por: {raffle.seller.nombre} {raffle.seller.apellido} ({raffle.seller.email})
                         </p>
                         {raffle.hiddenReason && (
-                          <p className="text-xs text-orange-600 mt-1">Razon: {raffle.hiddenReason}</p>
+                          <p className="mt-1 text-xs text-secondary-foreground dark:text-secondary">Razon: {raffle.hiddenReason}</p>
                         )}
                       </div>
-                      <div className="flex gap-2">
+                      <div className="mt-3 flex gap-2 sm:mt-0">
                         {raffle.isHidden && (
                           <Button
                             variant="outline"
@@ -861,16 +861,16 @@ export default function AdminPage() {
               <div className="space-y-4">
                 {reports.length === 0 ? (
                   <div className="text-center py-8">
-                    <CheckCircle className="h-12 w-12 mx-auto text-green-500 mb-2" />
+                    <CheckCircle className="mx-auto mb-2 h-12 w-12 text-success" />
                     <p className="text-muted-foreground">No hay reportes pendientes</p>
                   </div>
                 ) : (
                   reports.map((report) => (
                     <div
                       key={report.id}
-                      className="p-4 rounded-lg border border-red-500/30 bg-red-500/5"
+                      className="rounded-[1.35rem] border border-destructive/30 bg-destructive/6 p-4"
                     >
-                      <div className="flex items-start justify-between">
+                      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                         <div>
                           <p className="font-medium">Rifa: {report.raffle.titulo}</p>
                           <p className="text-sm text-muted-foreground">
@@ -880,7 +880,7 @@ export default function AdminPage() {
                             <span className="font-medium">Razon:</span> {report.reason}
                           </p>
                         </div>
-                        <div className="flex gap-2">
+                        <div className="flex flex-col gap-2 sm:flex-row">
                           <Button
                             variant="destructive"
                             size="sm"
@@ -949,7 +949,7 @@ export default function AdminPage() {
                   />
                 </div>
                 <Select value={userRoleFilter} onValueChange={setUserRoleFilter}>
-                  <SelectTrigger className="w-[150px]">
+                  <SelectTrigger className="w-full md:w-[150px]">
                     <SelectValue placeholder="Rol" />
                   </SelectTrigger>
                   <SelectContent>
@@ -977,15 +977,15 @@ export default function AdminPage() {
                   {/* Mobile: Card layout */}
                   <div className="md:hidden space-y-3">
                     {users.map((u) => (
-                      <div key={u.id} className={`border rounded-lg p-4 space-y-2 ${u.role === 'BANNED' ? 'border-red-500/50 bg-red-500/5' : ''}`}>
+                      <div key={u.id} className={`space-y-2 rounded-[1.35rem] border p-4 ${u.role === 'BANNED' ? 'border-destructive/40 bg-destructive/6' : 'border-border/80'}`}>
                         <div className="flex items-center justify-between">
                           <span className="font-medium text-sm truncate flex-1">{u.email}</span>
                           <span
-                            className={`text-xs px-2 py-0.5 rounded-full ml-2 ${
+                            className={`ml-2 rounded-full px-2 py-0.5 text-xs ${
                               u.role === 'ADMIN'
-                                ? 'bg-purple-500/20 text-purple-700'
+                                ? 'bg-accent/15 text-accent'
                                 : u.role === 'BANNED'
-                                ? 'bg-red-500/20 text-red-700'
+                                ? 'bg-destructive/15 text-destructive'
                                 : 'bg-muted text-muted-foreground'
                             }`}
                           >
@@ -1035,18 +1035,18 @@ export default function AdminPage() {
                       </thead>
                       <tbody>
                         {users.map((u) => (
-                          <tr key={u.id} className={`border-b hover:bg-muted/50 ${u.role === 'BANNED' ? 'bg-red-500/5' : ''}`}>
+                          <tr key={u.id} className={`border-b hover:bg-muted/50 ${u.role === 'BANNED' ? 'bg-destructive/6' : ''}`}>
                             <td className="p-2">{u.email}</td>
                             <td className="p-2">
                               {u.nombre} {u.apellido}
                             </td>
                             <td className="p-2">
                               <span
-                                className={`text-xs px-2 py-0.5 rounded-full ${
+                                className={`rounded-full px-2 py-0.5 text-xs ${
                                   u.role === 'ADMIN'
-                                    ? 'bg-purple-500/20 text-purple-700'
+                                    ? 'bg-accent/15 text-accent'
                                     : u.role === 'BANNED'
-                                    ? 'bg-red-500/20 text-red-700'
+                                    ? 'bg-destructive/15 text-destructive'
                                     : 'bg-muted text-muted-foreground'
                                 }`}
                               >
@@ -1054,7 +1054,7 @@ export default function AdminPage() {
                               </span>
                             </td>
                             <td className="p-2">
-                              <span className={`text-xs ${u.mpConnectStatus === 'CONNECTED' ? 'text-green-600' : 'text-muted-foreground'}`}>
+                              <span className={`text-xs ${u.mpConnectStatus === 'CONNECTED' ? 'text-success' : 'text-muted-foreground'}`}>
                                 {u.mpConnectStatus}
                               </span>
                             </td>
@@ -1071,7 +1071,7 @@ export default function AdminPage() {
                                 </Button>
                                 {u.role === 'BANNED' ? (
                                   <Button size="sm" variant="ghost" onClick={() => handleUnbanUser(u)} disabled={unbanning}>
-                                    <UserCheck className="h-4 w-4 text-green-600" />
+                                    <UserCheck className="h-4 w-4 text-success" />
                                   </Button>
                                 ) : u.role !== 'ADMIN' ? (
                                   <Button size="sm" variant="ghost" onClick={() => handleBanClick(u)}>

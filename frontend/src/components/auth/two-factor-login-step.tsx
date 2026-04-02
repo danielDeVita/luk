@@ -53,7 +53,7 @@ export function TwoFactorLoginStep({
             <div className="space-y-6">
               <p className="editorial-kicker text-primary">LUK / 2FA</p>
               <div className="space-y-4">
-                <h1 className="font-display text-6xl leading-[0.9] text-balance">
+                <h1 className="font-display text-5xl leading-[0.9] text-balance xl:text-6xl">
                   Autenticación en dos pasos
                 </h1>
                 <p className="max-w-lg text-lg leading-relaxed text-muted-foreground">
@@ -89,7 +89,7 @@ export function TwoFactorLoginStep({
             </div>
           ) : null}
 
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             <Button
               type="button"
               variant={isCodeMode ? 'default' : 'outline'}
@@ -122,7 +122,7 @@ export function TwoFactorLoginStep({
                   onChange={(event) => {
                     onCodeChange(event.target.value.replace(/\D/g, '').slice(0, 6));
                   }}
-                  className="text-center font-mono text-2xl tracking-[0.5em]"
+                  className="text-center font-mono text-xl tracking-[0.35em] sm:text-2xl sm:tracking-[0.5em]"
                 />
                 <p className="text-xs text-muted-foreground text-center">
                   Ingresá el código de 6 dígitos de tu app autenticadora.

@@ -31,8 +31,8 @@ export function ThemeToggle() {
 
   if (!hasHydrated) {
     return (
-      <Button variant="ghost" size="icon" className="h-9 w-9">
-        <Sun className="h-4 w-4" />
+      <Button variant="ghost" size="icon" className="h-12 w-12 rounded-full border border-border/80 bg-card/70 shadow-sm">
+        <Sun className="h-6 w-6" />
         <span className="sr-only">Cambiar tema</span>
       </Button>
     );
@@ -41,11 +41,11 @@ export function ThemeToggle() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" className="h-9 w-9">
+        <Button variant="ghost" size="icon" className="h-12 w-12 rounded-full border border-border/80 bg-card/70 shadow-sm">
           {resolvedTheme === 'dark' ? (
-            <Moon className="h-4 w-4" />
+            <Moon className="h-6 w-6" />
           ) : (
-            <Sun className="h-4 w-4" />
+            <Sun className="h-6 w-6" />
           )}
           <span className="sr-only">Cambiar tema</span>
         </Button>

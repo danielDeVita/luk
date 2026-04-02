@@ -62,7 +62,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#d14f2a",
+  themeColor: "#1b7666",
 };
 
 export default function RootLayout({
@@ -109,41 +109,29 @@ export default function RootLayout({
               </main>
               <footer className="px-4 pb-4 pt-10">
                 <div className="container mx-auto">
-                  <div className="rounded-[2rem] border border-border/80 bg-card/90 px-6 py-8 shadow-panel backdrop-blur-xl">
-                    <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-                      <div className="max-w-xl space-y-3">
-                        <p className="editorial-kicker text-primary">LUK / Plataforma</p>
-                        <p className="font-display text-2xl leading-none text-foreground sm:text-3xl">
-                          © {new Date().getFullYear()} {BRAND_NAME}
-                        </p>
-                        <p className="max-w-lg text-sm text-muted-foreground">
-                          La participación en rifas está reservada a mayores de 18 años. El juego compulsivo es perjudicial para la salud.
-                        </p>
-                      </div>
-                      <div className="space-y-4">
-                        <p className="text-sm font-medium text-muted-foreground">
-                          Todos los derechos reservados.
-                        </p>
-                        <nav className="flex flex-wrap gap-3 text-sm">
-                          <a
-                            href="/legal/terminos"
-                            className="inline-flex items-center rounded-full border border-border/80 bg-background/70 px-4 py-2 text-muted-foreground transition-colors hover:text-foreground"
-                          >
-                            Términos y condiciones
-                          </a>
-                          <a
-                            href="/legal/privacidad"
-                            className="inline-flex items-center rounded-full border border-border/80 bg-background/70 px-4 py-2 text-muted-foreground transition-colors hover:text-foreground"
-                          >
-                            Política de privacidad
-                          </a>
-                        </nav>
-                      </div>
+                  <div className="rounded-[2rem] border border-border/80 bg-card/90 px-6 py-7 shadow-panel backdrop-blur-xl sm:px-8">
+                    <div className="max-w-none">
+                      <p className="text-sm leading-relaxed text-muted-foreground sm:text-[15px]">
+                        La participación en rifas está reservada a mayores de 18 años. El juego compulsivo es perjudicial para la salud. Todos los derechos reservados.{' '}
+                        <span className="font-semibold text-foreground">© {new Date().getFullYear()} {BRAND_NAME}.</span>
+                      </p>
                     </div>
-                    <div className="mt-6 h-px bg-border/70" />
-                    <p className="mt-5 text-xs uppercase tracking-[0.24em] text-muted-foreground/80">
-                      Sorteos digitales seguros, pagos protegidos y reglas transparentes.
-                    </p>
+                    <div className="mt-6 border-t border-border/70 pt-5">
+                      <nav className="flex flex-col gap-4 text-sm sm:flex-row sm:flex-wrap sm:justify-center">
+                        <a
+                          href="/legal/terminos"
+                          className="inline-flex min-h-11 items-center justify-center rounded-full border border-border/80 bg-background/70 px-5 py-2.5 text-center text-muted-foreground transition-colors hover:text-foreground"
+                        >
+                          Términos y condiciones
+                        </a>
+                        <a
+                          href="/legal/privacidad"
+                          className="inline-flex min-h-11 items-center justify-center rounded-full border border-border/80 bg-background/70 px-5 py-2.5 text-center text-muted-foreground transition-colors hover:text-foreground"
+                        >
+                          Política de privacidad
+                        </a>
+                      </nav>
+                    </div>
                   </div>
                 </div>
               </footer>

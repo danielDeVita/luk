@@ -367,33 +367,39 @@ export default function ShippingAddressesPage() {
               key={address.id}
               className={address.isDefault ? 'border-primary border-2' : ''}
             >
-              <CardHeader className="flex flex-row items-start justify-between">
-                <div>
-                  <CardTitle className="flex items-center gap-2">
-                    {address.label}
+              <CardHeader className="gap-4">
+                <div className="space-y-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <CardTitle className="text-[1.9rem] leading-[0.95] tracking-[-0.04em]">
+                      {address.label}
+                    </CardTitle>
                     {address.isDefault && (
-                      <span className="text-xs bg-primary text-primary-foreground px-2 py-0.5 rounded">
+                      <span className="inline-flex items-center rounded-full bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground">
                         Predeterminada
                       </span>
                     )}
-                  </CardTitle>
-                  <p className="text-sm text-muted-foreground mt-1">{address.recipientName}</p>
+                  </div>
+                  <p className="text-sm text-muted-foreground">{address.recipientName}</p>
                 </div>
-                <div className="flex gap-1">
+                <div className="flex flex-wrap items-center gap-2">
                   <Button
-                    variant="ghost"
+                    variant="outline"
                     size="icon"
+                    className="h-12 w-12 rounded-full bg-background/70 shadow-sm"
                     onClick={() => handleEdit(address)}
+                    aria-label={`Editar dirección ${address.label}`}
                   >
-                    <Edit2 className="h-4 w-4" />
+                    <Edit2 className="h-6 w-6 stroke-[2.4]" />
                   </Button>
                   <Button
-                    variant="ghost"
+                    variant="outline"
                     size="icon"
+                    className="h-12 w-12 rounded-full bg-background/70 shadow-sm"
                     onClick={() => handleDelete(address.id)}
                     disabled={deleting}
+                    aria-label={`Eliminar dirección ${address.label}`}
                   >
-                    <Trash2 className="h-4 w-4 text-destructive" />
+                    <Trash2 className="h-6 w-6 stroke-[2.4] text-destructive" />
                   </Button>
                 </div>
               </CardHeader>

@@ -241,63 +241,75 @@ export function SocialPromotionAnalytics() {
 
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           <Card className="bg-muted/40">
-            <CardContent className="p-4">
+            <CardContent className="flex min-h-[124px] items-center !p-5">
+              <div>
               <p className="text-xs uppercase tracking-wide text-muted-foreground">
                 Total de posts
               </p>
               <p className="mt-2 text-2xl font-semibold">
                 {formatCount(summary.totalPosts)}
               </p>
+              </div>
             </CardContent>
           </Card>
           <Card className="bg-muted/40">
-            <CardContent className="p-4">
+            <CardContent className="flex min-h-[124px] items-center !p-5">
+              <div>
               <p className="text-xs uppercase tracking-wide text-muted-foreground">
                 Posts liquidados
               </p>
               <p className="mt-2 text-2xl font-semibold">
                 {formatCount(summary.settledPosts)}
               </p>
+              </div>
             </CardContent>
           </Card>
           <Card className="bg-muted/40">
-            <CardContent className="p-4">
+            <CardContent className="flex min-h-[124px] items-center !p-5">
+              <div>
               <p className="text-xs uppercase tracking-wide text-muted-foreground">
                 Posts con grant
               </p>
               <p className="mt-2 text-2xl font-semibold">
                 {formatCount(summary.grantIssuedPosts)}
               </p>
+              </div>
             </CardContent>
           </Card>
           <Card className="bg-muted/40">
-            <CardContent className="p-4">
+            <CardContent className="flex min-h-[124px] items-center !p-5">
+              <div>
               <p className="text-xs uppercase tracking-wide text-muted-foreground">
                 Clicks atribuidos
               </p>
               <p className="mt-2 text-2xl font-semibold">
                 {formatCount(summary.totalClicks)}
               </p>
+              </div>
             </CardContent>
           </Card>
           <Card className="bg-muted/40">
-            <CardContent className="p-4">
+            <CardContent className="flex min-h-[124px] items-center !p-5">
+              <div>
               <p className="text-xs uppercase tracking-wide text-muted-foreground">
                 Registros atribuidos
               </p>
               <p className="mt-2 text-2xl font-semibold">
                 {formatCount(summary.totalRegistrations)}
               </p>
+              </div>
             </CardContent>
           </Card>
           <Card className="bg-muted/40">
-            <CardContent className="p-4">
+            <CardContent className="flex min-h-[124px] items-center !p-5">
+              <div>
               <p className="text-xs uppercase tracking-wide text-muted-foreground">
                 Tickets atribuidos
               </p>
               <p className="mt-2 text-2xl font-semibold">
                 {formatCount(summary.totalTickets)}
               </p>
+              </div>
             </CardContent>
           </Card>
         </div>

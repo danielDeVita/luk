@@ -254,7 +254,7 @@ function RegisterPageContent() {
             <div className="space-y-6">
               <p className="editorial-kicker text-primary">LUK / Registro</p>
               <div className="space-y-4">
-                <h1 className="font-display text-6xl leading-[0.9] text-balance">
+                <h1 className="font-display text-5xl leading-[0.9] text-balance xl:text-6xl">
                   Crear Cuenta
                 </h1>
                 <p className="max-w-lg text-lg leading-relaxed text-muted-foreground">
@@ -283,9 +283,9 @@ function RegisterPageContent() {
             </CardHeader>
 
             <CardContent className="space-y-5">
-              <div className="flex items-start gap-3 rounded-[1.35rem] border border-amber-300/40 bg-amber-100/60 p-4 dark:border-amber-700/40 dark:bg-amber-950/28">
-                <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-700 dark:text-amber-300" />
-                <p className="text-sm leading-relaxed text-amber-950 dark:text-amber-100">
+              <div className="flex items-start gap-3 rounded-[1.35rem] border border-secondary/35 bg-secondary/14 p-4 dark:border-secondary/28 dark:bg-secondary/12">
+                <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-secondary-foreground dark:text-secondary" />
+                <p className="text-sm leading-relaxed text-foreground dark:text-foreground">
                   La participación en rifas está reservada exclusivamente a mayores de 18 años. Al registrarte, declarás bajo juramento ser mayor de edad.
                 </p>
               </div>
@@ -359,7 +359,7 @@ function RegisterPageContent() {
               />
 
               {/* Password strength */}
-              <div className="grid grid-cols-2 gap-2 text-xs">
+              <div className="grid grid-cols-1 gap-2 text-xs sm:grid-cols-2">
                 <PasswordCheck valid={hasMinLength} text="8+ caracteres" />
                 <PasswordCheck valid={hasUppercase} text="Una mayúscula" />
                 <PasswordCheck valid={hasLowercase} text="Una minúscula" />
@@ -375,9 +375,9 @@ function RegisterPageContent() {
                 {...register('confirmPassword')}
               />
               {confirmPassword.length > 0 && (
-                <div className="flex items-center space-x-1 text-xs">
-                  <Check className={`h-3 w-3 ${passwordsMatch ? 'text-green-600' : 'text-destructive opacity-30'}`} />
-                  <span className={passwordsMatch ? 'text-green-600' : 'text-destructive'}>
+                <div className="flex items-center gap-1 text-xs">
+                  <Check className={`h-3 w-3 ${passwordsMatch ? 'text-success' : 'text-destructive opacity-30'}`} />
+                  <span className={passwordsMatch ? 'text-success' : 'text-destructive'}>
                     {passwordsMatch ? 'Las contraseñas coinciden' : 'Las contraseñas no coinciden'}
                   </span>
                 </div>
@@ -479,7 +479,7 @@ function RegisterPageContent() {
 
 function PasswordCheck({ valid, text }: { valid: boolean; text: string }) {
   return (
-    <div className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1.5 ${valid ? 'border-green-400/40 bg-green-500/10 text-green-600 dark:text-green-400' : 'border-border/80 bg-background/60 text-muted-foreground'}`}>
+    <div className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1.5 ${valid ? 'border-success/35 bg-success/10 text-success' : 'border-border/80 bg-background/60 text-muted-foreground'}`}>
       <Check className={`h-3 w-3 ${valid ? 'opacity-100' : 'opacity-30'}`} />
       <span>{text}</span>
     </div>

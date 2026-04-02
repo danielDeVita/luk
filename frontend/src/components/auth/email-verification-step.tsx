@@ -55,7 +55,7 @@ export function EmailVerificationStep({
             <div className="space-y-6">
               <p className="editorial-kicker text-primary">LUK / Verificación</p>
               <div className="space-y-4">
-                <h1 className="font-display text-6xl leading-[0.9] text-balance">{title}</h1>
+                <h1 className="font-display text-5xl leading-[0.9] text-balance xl:text-6xl">{title}</h1>
                 <p className="max-w-lg text-lg leading-relaxed text-muted-foreground">
                   {description ?? (
                     <>
@@ -112,7 +112,7 @@ export function EmailVerificationStep({
                     event.target.value.replace(/\D/g, '').slice(0, 6),
                   );
                 }}
-                className="text-center font-mono text-2xl tracking-[0.5em]"
+                className="text-center font-mono text-xl tracking-[0.35em] sm:text-2xl sm:tracking-[0.5em]"
               />
               <p className="text-xs text-muted-foreground text-center">
                 El código expira en 15 minutos
@@ -142,6 +142,7 @@ export function EmailVerificationStep({
               size="sm"
               onClick={onResend}
               disabled={resending}
+              className="w-full sm:w-auto"
             >
               {resending ? (
                 <>
