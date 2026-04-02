@@ -521,11 +521,14 @@ function SettingsContent() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-3xl">
-      <h1 className="text-3xl font-bold mb-8">Configuración de Cuenta</h1>
+    <div className="container mx-auto max-w-4xl px-4 py-10">
+      <div className="mb-8 overflow-hidden rounded-[2.2rem] border border-border/80 bg-mesh px-6 py-7 shadow-panel sm:px-8">
+        <p className="editorial-kicker text-primary">Dashboard / Configuración</p>
+        <h1 className="mt-4 font-display text-4xl leading-none sm:text-5xl">Configuración de Cuenta</h1>
+      </div>
 
       <Tabs defaultValue="profile" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-2 md:grid-cols-4">
           <TabsTrigger value="profile">
             <User className="h-4 w-4 mr-2" />
             Perfil
@@ -565,7 +568,7 @@ function SettingsContent() {
                       className="w-24 h-24 rounded-full object-cover border-4 border-primary/20"
                     />
                   ) : (
-                    <div className="w-24 h-24 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center border-4 border-primary/20">
+                    <div className="flex h-24 w-24 items-center justify-center rounded-full border-4 border-primary/20 bg-gradient-to-br from-primary to-secondary">
                       <User className="w-12 h-12 text-white" />
                     </div>
                   )}

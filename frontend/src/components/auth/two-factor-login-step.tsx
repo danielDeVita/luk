@@ -46,33 +46,50 @@ export function TwoFactorLoginStep({
   const canSubmit = isCodeMode ? code.length === 6 : recoveryCode.trim().length > 0;
 
   return (
-    <div className="min-h-[calc(100vh-8rem)] flex items-center justify-center p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="text-center">
-          <div className="mx-auto w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center mb-4">
-            <Shield className="h-6 w-6 text-primary" />
+    <div className="min-h-[calc(100vh-8rem)] px-4 py-8">
+      <div className="container mx-auto max-w-5xl">
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,430px)] lg:items-stretch">
+          <div className="bg-mesh hidden overflow-hidden rounded-[2.5rem] border border-border/80 p-8 shadow-panel lg:flex lg:flex-col lg:justify-between">
+            <div className="space-y-6">
+              <p className="editorial-kicker text-primary">LUK / 2FA</p>
+              <div className="space-y-4">
+                <h1 className="font-display text-6xl leading-[0.9] text-balance">
+                  Autenticación en dos pasos
+                </h1>
+                <p className="max-w-lg text-lg leading-relaxed text-muted-foreground">
+                  Completá el segundo factor para entrar con{' '}
+                  <span className="font-semibold text-foreground">{pendingEmail}</span>
+                </p>
+              </div>
+            </div>
           </div>
-          <CardTitle className="text-2xl">Autenticación en dos pasos</CardTitle>
-          <CardDescription>
-            Completá el segundo factor para entrar con{' '}
-            <span className="font-medium text-foreground">{pendingEmail}</span>
-          </CardDescription>
-        </CardHeader>
 
-        <CardContent className="space-y-4">
+          <Card className="w-full max-w-none">
+            <CardHeader>
+              <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-[1.35rem] border border-border/80 bg-primary text-primary-foreground shadow-lift">
+                <Shield className="h-6 w-6" />
+              </div>
+              <CardTitle className="text-3xl">Autenticación en dos pasos</CardTitle>
+              <CardDescription className="text-base">
+                Completá el segundo factor para entrar con{' '}
+                <span className="font-semibold text-foreground">{pendingEmail}</span>
+              </CardDescription>
+            </CardHeader>
+
+            <CardContent className="space-y-4">
           {notice ? (
-            <div className="p-3 text-sm text-primary bg-primary/10 rounded-md border border-primary/20">
+            <div className="rounded-[1.3rem] border border-primary/20 bg-primary/10 p-4 text-sm text-primary">
               {notice}
             </div>
           ) : null}
 
           {errorMsg ? (
-            <div className="p-3 text-sm text-destructive bg-destructive/10 rounded-md">
+            <div className="rounded-[1.3rem] border border-destructive/25 bg-destructive/10 p-4 text-sm text-destructive">
               {errorMsg}
             </div>
           ) : null}
 
-          <div className="flex gap-2">
+          <div className="grid grid-cols-2 gap-2">
             <Button
               type="button"
               variant={isCodeMode ? 'default' : 'outline'}
@@ -105,7 +122,7 @@ export function TwoFactorLoginStep({
                   onChange={(event) => {
                     onCodeChange(event.target.value.replace(/\D/g, '').slice(0, 6));
                   }}
-                  className="text-center text-2xl tracking-[0.5em] font-mono"
+                  className="text-center font-mono text-2xl tracking-[0.5em]"
                 />
                 <p className="text-xs text-muted-foreground text-center">
                   Ingresá el código de 6 dígitos de tu app autenticadora.
@@ -133,7 +150,7 @@ export function TwoFactorLoginStep({
             <Button type="submit" className="w-full" disabled={loading || !canSubmit}>
               {loading ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <Loader2 className="h-4 w-4 animate-spin" />
                   Verificando...
                 </>
               ) : (
@@ -141,14 +158,16 @@ export function TwoFactorLoginStep({
               )}
             </Button>
           </form>
-        </CardContent>
+            </CardContent>
 
-        <CardFooter className="justify-center">
-          <Button variant="link" onClick={onBack}>
-            Volver al login
-          </Button>
-        </CardFooter>
-      </Card>
+            <CardFooter className="justify-center">
+              <Button variant="link" onClick={onBack}>
+                Volver al login
+              </Button>
+            </CardFooter>
+          </Card>
+        </div>
+      </div>
     </div>
   );
 }

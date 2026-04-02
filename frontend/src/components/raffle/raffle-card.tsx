@@ -137,16 +137,16 @@ export function RaffleCard({ raffle }: RaffleCardProps) {
 
   return (
     <Link href={`/raffle/${raffle.id}`}>
-      <div className="group bg-card rounded-xl border hover:border-primary/25 card-hover card-shine overflow-hidden">
+      <div className="group card-hover card-shine overflow-hidden rounded-[1.9rem] border border-border/80 bg-card/94 shadow-panel hover:border-primary/28">
         {/* Image Section */}
-        <div className="relative aspect-[4/3] bg-muted overflow-hidden">
+        <div className="relative aspect-[4/3] overflow-hidden bg-muted">
           {imageUrl && imageUrl !== '/placeholder.jpg' ? (
             <Image
               src={imageUrl}
               alt={raffle.product?.nombre || raffle.titulo}
               fill
               sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-              className="object-cover group-hover:scale-105 transition-transform duration-500"
+              className="object-cover transition-transform duration-700 group-hover:scale-[1.06]"
             />
           ) : (
             <div className="w-full h-full flex items-center justify-center bg-muted">
@@ -154,12 +154,14 @@ export function RaffleCard({ raffle }: RaffleCardProps) {
             </div>
           )}
 
+          <div className="absolute inset-0 bg-gradient-to-t from-[oklch(0.14_0.02_260_/_0.72)] via-transparent to-transparent" />
+
           {/* Favorite button */}
           {isAuthenticated && (
             <button
               onClick={handleFavoriteClick}
               disabled={isToggling}
-              className="absolute top-3 left-3 p-2 rounded-full bg-card/90 backdrop-blur-sm hover:bg-card transition-all hover:scale-105"
+              className="absolute left-4 top-4 rounded-full border border-white/20 bg-card/92 p-2.5 backdrop-blur-md transition-all hover:scale-105 hover:bg-card"
               title={isFavorite ? 'Quitar de favoritos' : 'Agregar a favoritos'}
             >
               <Heart
@@ -173,12 +175,12 @@ export function RaffleCard({ raffle }: RaffleCardProps) {
           )}
 
           {/* Status badge */}
-          <div className="absolute top-3 right-3 flex flex-col gap-2">
+          <div className="absolute right-4 top-4 flex flex-col items-end gap-2">
             <span className={`badge-status ${getEstadoClass(raffle.estado)}`}>
               {formatEstado(raffle.estado)}
             </span>
             {hasRecentPriceDrop && raffle.estado === 'ACTIVA' && (
-              <span className="badge-status bg-emerald-100 text-emerald-800 flex items-center gap-1">
+              <span className="badge-status flex items-center gap-1 border-success/24 bg-success/18 text-success">
                 <TrendingDown className="h-3 w-3" />
                 Rebajado
               </span>
@@ -191,33 +193,40 @@ export function RaffleCard({ raffle }: RaffleCardProps) {
           </div>
 
           {/* Price tag */}
-          <div className="absolute bottom-3 left-3">
-            <div className="px-3 py-1.5 rounded-lg bg-card/95 backdrop-blur-sm shadow-sm">
-              <p className="text-lg font-display text-primary">${raffle.precioPorTicket}</p>
-              <p className="text-[10px] text-muted-foreground">por ticket</p>
+          <div className="absolute bottom-4 left-4 right-4 flex items-end justify-between gap-4">
+            <div className="rounded-[1.25rem] border border-white/18 bg-card/92 px-4 py-2.5 backdrop-blur-md shadow-lift">
+              <p className="font-display text-2xl leading-none text-primary">${raffle.precioPorTicket}</p>
+              <p className="mt-1 text-[0.65rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">por ticket</p>
+            </div>
+            <div className="rounded-full border border-white/18 bg-card/15 px-3 py-1.5 text-right backdrop-blur-md">
+              <p className="text-[0.65rem] font-semibold uppercase tracking-[0.18em] text-white/80">valor total</p>
+              <p className="mt-1 text-sm font-semibold text-white">${(raffle.precioPorTicket * raffle.totalTickets).toFixed(0)}</p>
             </div>
           </div>
         </div>
 
         {/* Content Section */}
-        <div className="p-4">
-          <h3 className="font-medium text-card-foreground truncate group-hover:text-primary transition-colors">
-            {raffle.titulo}
-          </h3>
-          <p className="text-sm text-muted-foreground mt-0.5 truncate">
+        <div className="space-y-5 p-5">
+          <div className="space-y-2">
+            <p className="editorial-kicker text-muted-foreground">
+              {raffle.product?.condicion ?? 'Producto'}
+            </p>
+            <h3 className="line-clamp-2 font-display text-2xl leading-none text-card-foreground transition-colors group-hover:text-primary">
+              {raffle.titulo}
+            </h3>
+          </div>
+          <p className="truncate text-sm font-medium text-muted-foreground">
             {raffle.product?.nombre}
           </p>
 
-          {/* Progress Section */}
-          <div className="mt-4">
-            <div className="flex items-center justify-between text-sm mb-1.5">
+          <div className="rounded-[1.35rem] border border-border/80 bg-background/72 p-4">
+            <div className="mb-2 flex items-center justify-between text-sm">
               <span className="flex items-center gap-1.5 text-muted-foreground">
                 <Users className="h-3.5 w-3.5" />
-                <span className="font-medium text-card-foreground">{raffle.ticketsVendidos}</span>
-                <span className="text-xs">/</span>
-                <span className="text-xs">{raffle.totalTickets}</span>
+                <span className="font-semibold text-card-foreground">{raffle.ticketsVendidos}</span>
+                <span className="text-xs">/ {raffle.totalTickets}</span>
               </span>
-              <span className={`text-sm font-medium ${
+              <span className={`font-display text-xl ${
                 isAlmostDone ? 'text-destructive' : isHot ? 'text-secondary' : 'text-primary'
               }`}>
                 {progress.toFixed(0)}%
@@ -237,9 +246,8 @@ export function RaffleCard({ raffle }: RaffleCardProps) {
             </div>
           </div>
 
-          {/* Footer */}
-          <div className="mt-4 pt-3 border-t flex items-center justify-between">
-            <div className="flex items-center gap-1.5 text-sm">
+          <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 border-t border-border/80 pt-4">
+            <div className="flex items-center gap-2 text-sm">
               <Clock className="h-3.5 w-3.5 text-muted-foreground" />
               <Countdown
                 targetDate={raffle.fechaLimiteSorteo}
@@ -249,10 +257,10 @@ export function RaffleCard({ raffle }: RaffleCardProps) {
               />
             </div>
             <div className="text-right">
-              <p className="text-sm font-medium text-card-foreground">
-                ${(raffle.precioPorTicket * raffle.totalTickets).toFixed(0)}
+              <p className="text-[0.65rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">vendedor</p>
+              <p className="mt-1 text-sm font-semibold text-card-foreground">
+                {raffle.seller?.nombre} {raffle.seller?.apellido}
               </p>
-              <p className="text-[10px] text-muted-foreground">valor total</p>
             </div>
           </div>
         </div>
@@ -260,4 +268,3 @@ export function RaffleCard({ raffle }: RaffleCardProps) {
     </Link>
   );
 }
-

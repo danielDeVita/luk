@@ -330,7 +330,7 @@ export function TwoFactorSettingsCard({
                 width={192}
                 height={192}
                 unoptimized
-                className="h-48 w-48 rounded-lg border bg-white p-3"
+                className="h-48 w-48 rounded-[1.35rem] border border-border/80 bg-card p-3 shadow-panel"
               />
             </div>
 

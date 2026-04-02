@@ -9,23 +9,23 @@ export function HeroCTA() {
   const { isAuthenticated } = useAuthStore();
 
   return (
-    <div className="flex flex-col sm:flex-row justify-center gap-4 animate-slide-up opacity-0" style={{ animationDelay: '0.4s', animationFillMode: 'forwards' }}>
+    <div className="flex flex-col gap-4 sm:flex-row animate-slide-up opacity-0" style={{ animationDelay: '0.4s', animationFillMode: 'forwards' }}>
       <Link href="/search">
-        <Button size="lg" className="text-lg px-8 py-6 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 group">
+        <Button size="lg" className="group min-w-[220px] btn-press">
           Explorar Rifas
-          <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
+          <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-1" />
         </Button>
       </Link>
       {isAuthenticated ? (
         <Link href="/dashboard/create">
-          <Button size="lg" variant="outline" className="text-lg px-8 py-6 rounded-xl border-2 hover:bg-primary/5 transition-all duration-300 group">
-            <Sparkles className="mr-2 w-5 h-5" />
+          <Button size="lg" variant="outline" className="group min-w-[220px] btn-press">
+            <Sparkles className="h-5 w-5" />
             Crear una Rifa
           </Button>
         </Link>
       ) : (
         <Link href="/auth/register">
-          <Button size="lg" variant="outline" className="text-lg px-8 py-6 rounded-xl border-2 hover:bg-primary/5 transition-all duration-300">
+          <Button size="lg" variant="outline" className="min-w-[220px] btn-press">
             Creá tu Cuenta Gratis
           </Button>
         </Link>
@@ -39,9 +39,9 @@ export function SellerCTA() {
 
   return (
     <Link href={isAuthenticated ? "/dashboard/create" : "/auth/register"}>
-      <Button size="lg" variant="secondary" className="text-lg px-10 py-6 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 group">
+      <Button size="lg" variant="secondary" className="group w-full btn-press">
         {isAuthenticated ? "Crear mi Rifa" : "Empezar a Vender"}
-        <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
+        <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-1" />
       </Button>
     </Link>
   );

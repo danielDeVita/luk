@@ -247,31 +247,56 @@ function RegisterPageContent() {
   }
 
   return (
-    <div className="min-h-[calc(100vh-8rem)] flex items-center justify-center p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="text-center">
-          <CardTitle className="text-2xl">Crear Cuenta</CardTitle>
-          <CardDescription>
-            Unite para participar en rifas y ganar premios
-          </CardDescription>
-        </CardHeader>
-
-        <CardContent className="space-y-4">
-          {/* Age Warning */}
-          <div className="flex items-start gap-2 p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg">
-            <AlertTriangle className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
-            <p className="text-sm text-amber-800 dark:text-amber-200">
-              La participación en rifas está reservada exclusivamente a mayores de 18 años. Al registrarte, declarás bajo juramento ser mayor de edad.
-            </p>
+    <div className="min-h-[calc(100vh-8rem)] px-4 py-8">
+      <div className="container mx-auto">
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,460px)] lg:items-start">
+          <div className="bg-mesh hidden overflow-hidden rounded-[2.5rem] border border-border/80 p-8 shadow-panel lg:flex lg:flex-col lg:justify-between">
+            <div className="space-y-6">
+              <p className="editorial-kicker text-primary">LUK / Registro</p>
+              <div className="space-y-4">
+                <h1 className="font-display text-6xl leading-[0.9] text-balance">
+                  Crear Cuenta
+                </h1>
+                <p className="max-w-lg text-lg leading-relaxed text-muted-foreground">
+                  Unite para participar en rifas y ganar premios
+                </p>
+              </div>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="rounded-[1.6rem] border border-border/80 bg-card/88 p-5 shadow-lift">
+                <p className="editorial-kicker text-muted-foreground">Mayoría de edad</p>
+                <p className="mt-3 font-display text-3xl text-primary">18+</p>
+              </div>
+              <div className="rounded-[1.6rem] border border-border/80 bg-card/88 p-5 shadow-lift">
+                <p className="editorial-kicker text-muted-foreground">Ingreso</p>
+                <p className="mt-3 font-display text-3xl text-secondary">Gratis</p>
+              </div>
+            </div>
           </div>
 
-          {errorMsg && (
-            <div className="p-3 text-sm text-destructive bg-destructive/10 rounded-md">
-              {errorMsg}
-            </div>
-          )}
+          <Card className="w-full">
+            <CardHeader>
+              <CardTitle className="text-3xl">Crear Cuenta</CardTitle>
+              <CardDescription className="text-base">
+                Unite para participar en rifas y ganar premios
+              </CardDescription>
+            </CardHeader>
 
-          <form onSubmit={handleSubmit(onRegisterSubmit)} className="space-y-4">
+            <CardContent className="space-y-5">
+              <div className="flex items-start gap-3 rounded-[1.35rem] border border-amber-300/40 bg-amber-100/60 p-4 dark:border-amber-700/40 dark:bg-amber-950/28">
+                <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-700 dark:text-amber-300" />
+                <p className="text-sm leading-relaxed text-amber-950 dark:text-amber-100">
+                  La participación en rifas está reservada exclusivamente a mayores de 18 años. Al registrarte, declarás bajo juramento ser mayor de edad.
+                </p>
+              </div>
+
+              {errorMsg && (
+                <div className="rounded-[1.3rem] border border-destructive/25 bg-destructive/10 p-4 text-sm text-destructive">
+                  {errorMsg}
+                </div>
+              )}
+
+              <form onSubmit={handleSubmit(onRegisterSubmit)} className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="nombre">Nombre</Label>
@@ -334,7 +359,7 @@ function RegisterPageContent() {
               />
 
               {/* Password strength */}
-              <div className="grid grid-cols-2 gap-1 text-xs">
+              <div className="grid grid-cols-2 gap-2 text-xs">
                 <PasswordCheck valid={hasMinLength} text="8+ caracteres" />
                 <PasswordCheck valid={hasUppercase} text="Una mayúscula" />
                 <PasswordCheck valid={hasLowercase} text="Una minúscula" />
@@ -362,11 +387,11 @@ function RegisterPageContent() {
               )}
             </div>
 
-            <div className="flex items-start space-x-2">
+            <div className="flex items-start space-x-3 rounded-[1.2rem] border border-border/80 bg-background/70 p-4">
               <input
                 type="checkbox"
                 id="acceptTerms"
-                className="mt-1 rounded border-input"
+                className="mt-1 h-4 w-4 rounded border-input"
                 {...register('acceptTerms')}
               />
               <Label htmlFor="acceptTerms" className="text-sm font-normal leading-snug">
@@ -392,12 +417,12 @@ function RegisterPageContent() {
 
             <Button
               type="submit"
-              className="w-full"
+              className="w-full btn-press"
               disabled={registering || isSubmitting || (captchaEnabled && !captchaToken)}
             >
               {registering ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <Loader2 className="h-4 w-4 animate-spin" />
                   Creando cuenta...
                 </>
               ) : (
@@ -408,17 +433,17 @@ function RegisterPageContent() {
 
           <div className="relative">
             <div className="absolute inset-0 flex items-center">
-              <span className="w-full border-t" />
+              <span className="w-full border-t border-border/80" />
             </div>
             <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-card px-2 text-muted-foreground">O continua con</span>
+              <span className="bg-card px-2 font-semibold tracking-[0.18em] text-muted-foreground">O continua con</span>
             </div>
           </div>
 
           <Button
             type="button"
             variant="outline"
-            className="w-full"
+            className="w-full btn-press"
             onClick={() => {
               window.location.href = `${getPublicBackendUrl()}/auth/google`;
             }}
@@ -435,24 +460,26 @@ function RegisterPageContent() {
           <p className="text-xs text-center text-muted-foreground">
             Al registrarte con Google, también aceptás los términos y condiciones y debés ser mayor de 18 años.
           </p>
-        </CardContent>
+            </CardContent>
 
-        <CardFooter className="justify-center">
-          <p className="text-sm text-muted-foreground">
-            ¿Ya tenés cuenta?{' '}
-            <Link href="/auth/login" className="text-primary hover:underline">
-              Iniciá sesión
-            </Link>
-          </p>
-        </CardFooter>
-      </Card>
+            <CardFooter className="justify-center">
+              <p className="text-sm text-muted-foreground">
+                ¿Ya tenés cuenta?{' '}
+                <Link href="/auth/login" className="font-semibold text-primary hover:underline">
+                  Iniciá sesión
+                </Link>
+              </p>
+            </CardFooter>
+          </Card>
+        </div>
+      </div>
     </div>
   );
 }
 
 function PasswordCheck({ valid, text }: { valid: boolean; text: string }) {
   return (
-    <div className={`flex items-center space-x-1 ${valid ? 'text-green-600' : 'text-muted-foreground'}`}>
+    <div className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1.5 ${valid ? 'border-green-400/40 bg-green-500/10 text-green-600 dark:text-green-400' : 'border-border/80 bg-background/60 text-muted-foreground'}`}>
       <Check className={`h-3 w-3 ${valid ? 'opacity-100' : 'opacity-30'}`} />
       <span>{text}</span>
     </div>

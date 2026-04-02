@@ -206,39 +206,55 @@ export default function SearchPage() {
     allRaffles.length > 0 ? allRaffles : data?.rafflesPaginated?.items || [];
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="mb-8 space-y-4">
-        <div className="flex items-center justify-between">
-          <h1 className="font-display text-3xl">Explorar rifas</h1>
-          {totalCount > 0 && (
-            <p className="text-sm text-muted-foreground">
-              {displayRaffles.length} de {totalCount} rifas
-            </p>
-          )}
+    <div className="pb-14 pt-6">
+      <div className="container mx-auto px-4">
+        <div className="mb-10 overflow-hidden rounded-[2.25rem] border border-border/80 bg-mesh px-6 py-8 shadow-panel sm:px-8 lg:px-10">
+          <div className="grid gap-8 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:items-end">
+            <div className="space-y-4">
+              <p className="editorial-kicker text-primary">Explorar rifas</p>
+              <h1 className="font-display text-4xl leading-none text-balance sm:text-5xl">
+                Encontrá oportunidades con más contexto y mejor ritmo visual.
+              </h1>
+            </div>
+            <div className="space-y-4">
+              {totalCount > 0 && (
+                <p className="text-sm font-medium text-muted-foreground">
+                  {displayRaffles.length} de {totalCount} rifas
+                </p>
+              )}
+              <SearchFilters onSearch={handleSearch} initialFilters={filters} />
+            </div>
+          </div>
         </div>
-        <SearchFilters onSearch={handleSearch} initialFilters={filters} />
-      </div>
 
       {/* Results */}
       {loading && displayRaffles.length === 0 ? (
         <RaffleGridSkeleton count={8} />
       ) : error ? (
-        <div className="text-center py-20">
-          <p className="text-destructive mb-4">Error al cargar rifas: {error.message}</p>
+        <div className="rounded-[2rem] border border-border/80 bg-card/90 py-20 text-center shadow-panel">
+          <p className="mb-4 text-destructive">Error al cargar rifas: {error.message}</p>
           <Button variant="outline" onClick={() => refetch()}>
             Intentar de nuevo
           </Button>
         </div>
       ) : displayRaffles.length === 0 ? (
-        <div className="text-center py-20">
-          <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center mx-auto mb-4">
+        <div className="rounded-[2rem] border border-border/80 bg-card/90 py-20 text-center shadow-panel">
+          <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-[1.75rem] border border-border/80 bg-muted/60">
             <Ticket className="h-8 w-8 text-muted-foreground" />
           </div>
           <p className="text-muted-foreground">No se encontraron rifas con estos criterios</p>
         </div>
       ) : (
         <>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
+          <div className="mb-4 flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <p className="editorial-kicker text-muted-foreground">Resultados</p>
+              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                Refiná categoría, precio y orden para ajustar la selección.
+              </p>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
             {displayRaffles.map((raffle: RaffleData) => (
               <RaffleCard key={raffle.id} raffle={raffle} />
             ))}
@@ -248,17 +264,18 @@ export default function SearchPage() {
           {hasMore && (
             <div
               ref={sentinelRef}
-              className="flex justify-center items-center py-8"
+              className="flex justify-center items-center py-10"
               aria-label="Cargando más resultados"
             >
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-              <span className="ml-2 text-sm text-muted-foreground">Cargando más rifas...</span>
+              <div className="inline-flex items-center gap-3 rounded-full border border-border/80 bg-card/85 px-5 py-3 shadow-panel">
+                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                <span className="text-sm text-muted-foreground">Cargando más rifas...</span>
+              </div>
             </div>
           )}
 
-          {/* End of results message */}
           {!hasMore && displayRaffles.length > ITEMS_PER_PAGE && (
-            <div className="text-center py-8">
+            <div className="py-10 text-center">
               <p className="text-sm text-muted-foreground">
                 Has visto todas las {totalCount} rifas disponibles
               </p>
@@ -267,11 +284,12 @@ export default function SearchPage() {
         </>
       )}
 
-      <div className="mx-auto mt-12 max-w-4xl">
+      <div className="mx-auto mt-14 max-w-4xl">
         <ComplianceNotice
           title="Aviso legal antes de participar"
           tone="subtle"
         />
+      </div>
       </div>
     </div>
   );

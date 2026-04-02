@@ -116,10 +116,10 @@ export function SearchFilters({ onSearch, initialFilters }: SearchFiltersProps) 
     <div className="space-y-6">
       {/* Search Input */}
       <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         <Input
           placeholder="Buscar rifas..."
-          className="pl-10"
+          className="h-14 pl-11"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           onKeyDown={handleKeyDown}
@@ -127,10 +127,10 @@ export function SearchFilters({ onSearch, initialFilters }: SearchFiltersProps) 
         />
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 lg:items-end">
         {/* Category Select */}
-        <div className="space-y-2">
-          <label className="text-sm font-medium">Categoría</label>
+        <div className="space-y-2 rounded-[1.5rem] border border-border/80 bg-card/70 p-4 shadow-panel">
+          <label className="text-[0.7rem] font-bold uppercase tracking-[0.18em] text-muted-foreground">Categoría</label>
           <Select value={category} onValueChange={handleCategoryChange}>
             <SelectTrigger className="w-full">
               <SelectValue placeholder="Todas" />
@@ -149,8 +149,8 @@ export function SearchFilters({ onSearch, initialFilters }: SearchFiltersProps) 
         </div>
 
         {/* Sort Select */}
-        <div className="space-y-2">
-          <label className="text-sm font-medium">Ordenar por</label>
+        <div className="space-y-2 rounded-[1.5rem] border border-border/80 bg-card/70 p-4 shadow-panel">
+          <label className="text-[0.7rem] font-bold uppercase tracking-[0.18em] text-muted-foreground">Ordenar por</label>
           <Select value={sortBy} onValueChange={handleSortChange}>
             <SelectTrigger className="w-full">
               <SelectValue placeholder="Ordenar por..." />
@@ -167,9 +167,9 @@ export function SearchFilters({ onSearch, initialFilters }: SearchFiltersProps) 
         </div>
 
         {/* Price Slider */}
-        <div className="space-y-2">
+        <div className="space-y-3 rounded-[1.5rem] border border-border/80 bg-card/70 p-4 shadow-panel">
           <div className="flex justify-between text-sm">
-            <span className="font-medium">Precio</span>
+            <span className="font-semibold">Precio</span>
             <span className="text-muted-foreground">
               ${priceRange[0]} - ${priceRange[1] === 10000 ? '10k+' : priceRange[1]}
             </span>
@@ -185,7 +185,7 @@ export function SearchFilters({ onSearch, initialFilters }: SearchFiltersProps) 
         </div>
 
         {/* Clear Button */}
-        <Button variant="ghost" onClick={clearFilters} className="w-full">
+        <Button variant="outline" onClick={clearFilters} className="h-14 w-full">
           <X className="mr-2 h-4 w-4" /> Limpiar
         </Button>
       </div>

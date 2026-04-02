@@ -7,7 +7,7 @@ type SkeletonProps = React.HTMLAttributes<HTMLDivElement>
 export function Skeleton({ className, ...props }: SkeletonProps) {
   return (
     <div
-      className={cn('animate-pulse rounded-md bg-muted', className)}
+      className={cn('animate-pulse rounded-[1.2rem] bg-muted/80', className)}
       {...props}
     />
   );
@@ -15,7 +15,7 @@ export function Skeleton({ className, ...props }: SkeletonProps) {
 
 export function RaffleCardSkeleton() {
   return (
-    <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
+    <div className="overflow-hidden rounded-[1.75rem] border border-border/80 bg-card shadow-panel">
       {/* Image placeholder */}
       <Skeleton className="h-48 w-full rounded-none" />
 
@@ -77,7 +77,7 @@ export function TableRowSkeleton({ columns = 5 }: { columns?: number }) {
 
 export function TableSkeleton({ rows = 5, columns = 5 }: { rows?: number; columns?: number }) {
   return (
-    <div className="rounded-lg border overflow-hidden">
+    <div className="overflow-hidden rounded-[1.75rem] border border-border/80 bg-card shadow-panel">
       <table className="w-full">
         <thead className="bg-muted/50">
           <tr>
@@ -140,7 +140,7 @@ export function RaffleDetailSkeleton() {
 
 export function DashboardCardSkeleton() {
   return (
-    <div className="rounded-xl border bg-card p-6 space-y-4">
+      <div className="space-y-4 rounded-[1.75rem] border border-border/80 bg-card p-6 shadow-panel">
       <div className="flex items-center justify-between">
         <Skeleton className="h-5 w-24" />
         <Skeleton className="h-8 w-8 rounded-full" />

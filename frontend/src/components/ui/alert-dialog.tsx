@@ -49,7 +49,7 @@ function AlertDialogContent({
       <AlertDialogPrimitive.Content
         className={cn(
           "fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%]",
-          "gap-6 border bg-background p-8 shadow-2xl duration-200 rounded-xl",
+          "gap-6 rounded-[2rem] border border-border/80 bg-card/96 p-8 shadow-panel duration-200 backdrop-blur-xl",
           "data-[state=open]:animate-in data-[state=closed]:animate-out",
           "data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
           "data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
@@ -96,7 +96,7 @@ function AlertDialogTitle({
 }: React.ComponentProps<typeof AlertDialogPrimitive.Title>) {
   return (
     <AlertDialogPrimitive.Title
-      className={cn("text-xl font-semibold leading-tight", className)}
+      className={cn("font-display text-3xl leading-none", className)}
       {...props}
     />
   )
@@ -121,9 +121,9 @@ function AlertDialogAction({
   return (
     <AlertDialogPrimitive.Action
       className={cn(
-        "inline-flex h-11 items-center justify-center rounded-lg px-6 text-sm font-medium",
-        "bg-primary text-primary-foreground shadow-sm",
-        "hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2",
+        "inline-flex h-12 items-center justify-center rounded-full px-6 text-sm font-semibold",
+        "bg-primary text-primary-foreground shadow-lift",
+        "hover:bg-primary/95 focus-visible:outline-none focus-visible:ring-2",
         "focus-visible:ring-ring focus-visible:ring-offset-2",
         "disabled:pointer-events-none disabled:opacity-50",
         "transition-colors",
@@ -141,8 +141,8 @@ function AlertDialogCancel({
   return (
     <AlertDialogPrimitive.Cancel
       className={cn(
-        "inline-flex h-11 items-center justify-center rounded-lg px-6 text-sm font-medium",
-        "border border-input bg-background shadow-sm",
+        "inline-flex h-12 items-center justify-center rounded-full px-6 text-sm font-semibold",
+        "border border-border/80 bg-background/80 shadow-panel",
         "hover:bg-accent hover:text-accent-foreground",
         "focus-visible:outline-none focus-visible:ring-2",
         "focus-visible:ring-ring focus-visible:ring-offset-2",

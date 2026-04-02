@@ -594,13 +594,18 @@ export default function AdminPage() {
   const activities: UserActivity[] = activityData?.adminUserActivity || [];
 
   return (
-    <div className="container mx-auto px-4 py-8">
+    <div className="container mx-auto px-4 py-10">
       {/* Header */}
-      <div className="flex items-center gap-3 mb-8">
-        <Shield className="h-8 w-8 text-primary" />
-        <div>
-          <h1 className="text-3xl font-bold">Panel de Administracion</h1>
-          <p className="text-muted-foreground">Gestion de usuarios, rifas y reportes</p>
+      <div className="mb-8 overflow-hidden rounded-[2.2rem] border border-border/80 bg-mesh px-6 py-7 shadow-panel sm:px-8">
+        <div className="flex items-center gap-3">
+          <div className="flex h-14 w-14 items-center justify-center rounded-[1.35rem] border border-border/80 bg-primary text-primary-foreground shadow-lift">
+            <Shield className="h-7 w-7" />
+          </div>
+          <div>
+            <p className="editorial-kicker text-primary">Admin / Control</p>
+            <h1 className="mt-3 font-display text-4xl leading-none sm:text-5xl">Panel de Administracion</h1>
+            <p className="mt-3 text-muted-foreground">Gestion de usuarios, rifas y reportes</p>
+          </div>
         </div>
       </div>
 

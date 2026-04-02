@@ -41,7 +41,7 @@ export function FeaturedRaffles() {
 
   if (loading) {
     return (
-      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+      <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
         <RaffleSkeletonCard />
         <RaffleSkeletonCard />
         <RaffleSkeletonCard />
@@ -51,7 +51,7 @@ export function FeaturedRaffles() {
 
   if (error || featuredRaffles.length === 0) {
     return (
-      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+      <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
         <EmptyStateCard />
         <EmptyStateCard />
         <EmptyStateCard />
@@ -60,7 +60,7 @@ export function FeaturedRaffles() {
   }
 
   return (
-    <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+    <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
       {featuredRaffles.map((raffle) => (
         <RaffleCard key={raffle.id} raffle={raffle} />
       ))}
@@ -70,7 +70,7 @@ export function FeaturedRaffles() {
 
 function RaffleSkeletonCard() {
   return (
-    <Card className="overflow-hidden card-lift">
+    <Card className="card-lift overflow-hidden">
       <div className="aspect-[4/3] bg-muted animate-pulse" />
       <CardHeader className="pb-2">
         <div className="h-6 bg-muted rounded animate-pulse w-3/4" />
@@ -91,17 +91,17 @@ function RaffleSkeletonCard() {
 
 function EmptyStateCard() {
   return (
-    <Card className="overflow-hidden card-lift lucky-shimmer group cursor-pointer">
-      <div className="aspect-[4/3] bg-primary/5 flex items-center justify-center relative">
+    <Card className="card-lift lucky-shimmer group cursor-pointer overflow-hidden">
+      <div className="relative flex aspect-[4/3] items-center justify-center bg-primary/8">
         <Ticket className="h-20 w-20 text-primary/30 group-hover:scale-110 transition-transform duration-500" />
         <div className="absolute top-3 right-3">
-          <span className="px-3 py-1 text-xs font-semibold rounded-full bg-muted text-muted-foreground shadow-lg">
+          <span className="rounded-full border border-border/80 bg-card/90 px-3 py-1 text-[0.68rem] font-bold uppercase tracking-[0.18em] text-muted-foreground shadow-lift">
             PRÓXIMAMENTE
           </span>
         </div>
       </div>
       <CardHeader className="pb-2">
-        <CardTitle className="line-clamp-1 group-hover:text-primary transition-colors">
+        <CardTitle className="line-clamp-1 transition-colors group-hover:text-primary">
           Nuevas rifas pronto...
         </CardTitle>
         <p className="text-sm text-muted-foreground">Volvé más tarde</p>
