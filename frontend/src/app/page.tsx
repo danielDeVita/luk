@@ -14,8 +14,7 @@ import {
 
 export const metadata: Metadata = {
   title: 'Rifas digitales seguras y transparentes',
-  description:
-    'Participá en rifas digitales con tickets accesibles para premios de alto valor en una experiencia segura y transparente.',
+  description: BRAND_DESCRIPTION,
   alternates: {
     canonical: '/',
   },
@@ -82,18 +81,19 @@ export default function HomePage() {
               <div className="grid gap-4 lg:pb-2">
                 <Card className="bg-card/95">
                   <CardHeader className="pb-4">
-                    <p className="editorial-kicker text-primary">Ritmo</p>
-                    <CardTitle className="text-3xl">Una experiencia diseñada para moverse rápido.</CardTitle>
+                    <CardTitle className="text-3xl">
+                      Elegí una rifa, comprá tu ticket y seguí todo el proceso sin vueltas.
+                    </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-5">
                     <div className="grid grid-cols-2 gap-3">
                       <div className="rounded-[1.35rem] border border-border/80 bg-background/70 p-4">
-                        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">Tickets</p>
-                        <p className="mt-3 font-display text-3xl text-foreground">Accesibles</p>
+                        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">Compra</p>
+                        <p className="mt-3 font-display text-3xl text-foreground">Simple</p>
                       </div>
                       <div className="rounded-[1.35rem] border border-border/80 bg-background/70 p-4">
-                        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">Premios</p>
-                        <p className="mt-3 font-display text-3xl text-secondary">Alto valor</p>
+                        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">Seguimiento</p>
+                        <p className="mt-3 font-display text-3xl text-secondary">Claro</p>
                       </div>
                     </div>
                     <div className="rounded-[1.35rem] border border-border/80 bg-primary p-5 text-primary-foreground shadow-lift">
@@ -127,11 +127,11 @@ export default function HomePage() {
             <div>
               <p className="editorial-kicker text-primary">Por qué elegir {BRAND_NAME}</p>
               <h2 className="mt-4 font-display text-4xl leading-none text-balance sm:text-5xl">
-                Tickets accesibles, premios grandes y un marco claro de confianza.
+                A veces, algo grande empieza con una entrada chica.
               </h2>
             </div>
             <p className="max-w-2xl text-lg leading-relaxed text-muted-foreground">
-              {BRAND_NAME} conecta tickets accesibles con premios de alto valor en una experiencia segura y transparente.
+              Participá por premios reales, seguí el avance de cada rifa y comprá con pagos protegidos de punta a punta.
             </p>
           </div>
 
@@ -174,7 +174,7 @@ export default function HomePage() {
               </Link>
             </div>
             <div className="rounded-[2rem] border border-dashed border-border/80 px-6 py-6 text-sm leading-relaxed text-muted-foreground">
-              Explorá rifas activas con tickets accesibles, progreso visible y tiempos claros para participar con mejor contexto.
+              Explorá rifas activas con tickets accesibles, progreso visible y tiempos claros.
             </div>
           </div>
 

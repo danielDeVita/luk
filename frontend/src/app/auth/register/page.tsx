@@ -262,16 +262,6 @@ function RegisterPageContent() {
                 </p>
               </div>
             </div>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="rounded-[1.6rem] border border-border/80 bg-card/88 p-5 shadow-lift">
-                <p className="editorial-kicker text-muted-foreground">Mayoría de edad</p>
-                <p className="mt-3 font-display text-3xl text-primary">18+</p>
-              </div>
-              <div className="rounded-[1.6rem] border border-border/80 bg-card/88 p-5 shadow-lift">
-                <p className="editorial-kicker text-muted-foreground">Ingreso</p>
-                <p className="mt-3 font-display text-3xl text-secondary">Gratis</p>
-              </div>
-            </div>
           </div>
 
           <Card className="w-full">
