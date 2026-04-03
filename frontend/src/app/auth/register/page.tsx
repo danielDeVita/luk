@@ -250,7 +250,10 @@ function RegisterPageContent() {
     <div className="min-h-[calc(100vh-8rem)] px-4 py-8">
       <div className="container mx-auto">
         <div className="grid gap-6 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,460px)] lg:items-start">
-          <div className="bg-mesh hidden overflow-hidden rounded-[2.5rem] border border-border/80 p-8 shadow-panel lg:flex lg:flex-col lg:justify-between">
+          <div
+            aria-hidden="true"
+            className="bg-mesh hidden overflow-hidden rounded-[2.5rem] border border-border/80 p-8 shadow-panel lg:flex lg:flex-col lg:justify-between"
+          >
             <div className="space-y-6">
               <p className="editorial-kicker text-primary">LUK / Registro</p>
               <div className="space-y-4">
