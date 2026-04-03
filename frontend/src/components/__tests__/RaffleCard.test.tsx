@@ -99,7 +99,7 @@ describe('RaffleCard', () => {
     // 500 sold / 1000 total = 50%
     expect(screen.getByText('50%')).toBeInTheDocument();
     expect(screen.getByText('500')).toBeInTheDocument();
-    expect(screen.getByText('1000')).toBeInTheDocument();
+    expect(screen.getByText(/\/\s*1000/i)).toBeInTheDocument();
   });
 
   it('should display countdown timer', () => {

@@ -14,8 +14,7 @@ import {
 
 export const metadata: Metadata = {
   title: 'Rifas digitales seguras y transparentes',
-  description:
-    'Participá en rifas digitales con tickets accesibles para premios de alto valor en una experiencia segura y transparente.',
+  description: BRAND_DESCRIPTION,
   alternates: {
     canonical: '/',
   },
@@ -36,79 +35,107 @@ export const metadata: Metadata = {
 export default function HomePage() {
   return (
     <div className="flex flex-col">
-      {/* Hero Section */}
-      <section className="relative min-h-[85vh] flex items-center overflow-hidden bg-mesh">
-        {/* Floating decorative elements */}
-        <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute top-24 left-[12%] w-16 h-16 animate-float delay-1 opacity-40">
-            <div className="w-full h-full rounded-2xl bg-primary/20 rotate-12" />
-          </div>
-          <div className="absolute top-40 right-[18%] w-12 h-12 animate-float delay-2 opacity-30">
-            <div className="w-full h-full rounded-full bg-secondary/25" />
-          </div>
-          <div className="absolute bottom-36 left-[22%] w-10 h-10 animate-float delay-3 opacity-35">
-            <Star className="w-full h-full text-secondary/40" />
-          </div>
-          <div className="absolute top-1/3 right-[10%] w-20 h-20 animate-float delay-4 opacity-25">
-            <div className="w-full h-full rounded-3xl bg-primary/10 -rotate-12" />
-          </div>
-        </div>
+      <section className="relative overflow-hidden pb-12 pt-8 sm:pt-12">
+        <div className="container mx-auto px-4">
+          <div className="bg-mesh overflow-hidden rounded-[2.5rem] border border-border/80 px-5 py-8 shadow-panel sm:px-8 sm:py-10 lg:px-10 lg:py-14">
+            <div className="grid gap-10 lg:grid-cols-[minmax(0,1.15fr)_420px] lg:items-end">
+              <div className="space-y-8">
+                <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-4 py-2 animate-fade-up delay-1">
+                  <Trophy className="h-4 w-4 text-primary" />
+                  <span className="text-sm font-semibold text-primary">
+                    {BRAND_NAME} | {BRAND_TAGLINE}
+                  </span>
+                </div>
 
-        <div className="container mx-auto px-4 py-20 relative z-10">
-          <div className="max-w-3xl mx-auto text-center">
-            {/* Badge */}
-            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/8 border border-primary/15 mb-8 animate-fade-up delay-1">
-              <Trophy className="w-4 h-4 text-primary" />
-              <span className="text-sm font-medium text-primary">{BRAND_NAME} | {BRAND_TAGLINE}</span>
-            </div>
+                <div className="space-y-5">
+                  <h1 className="font-display text-5xl leading-[0.92] tracking-[-0.07em] text-balance text-foreground sm:text-6xl lg:text-[6.3rem] animate-fade-up delay-2">
+                    <span className="block">Tu suerte</span>
+                    <span className="block text-primary">empieza acá</span>
+                  </h1>
+                  <p className="max-w-2xl text-lg leading-relaxed text-muted-foreground sm:text-xl animate-fade-up delay-3">
+                    {BRAND_DESCRIPTION}{' '}
+                    <span className="font-semibold text-foreground">
+                      100% seguro y transparente.
+                    </span>
+                  </p>
+                </div>
 
-            {/* Main heading */}
-            <h1 className="font-display text-4xl sm:text-5xl md:text-6xl lg:text-7xl mb-6 animate-fade-up delay-2 text-balance">
-              <span className="block text-foreground">Tu suerte</span>
-              <span className="block text-primary">empieza acá</span>
-            </h1>
+                <HeroCTA />
 
-            {/* Subheading */}
-            <p className="text-lg md:text-xl text-muted-foreground mb-10 max-w-xl mx-auto animate-fade-up delay-3 text-balance">
-              {BRAND_DESCRIPTION}{' '}
-              <span className="text-foreground font-medium"> 100% seguro y transparente.</span>
-            </p>
-
-            {/* CTA Buttons */}
-            <HeroCTA />
-
-            {/* Value Props */}
-            <div className="mt-16 grid grid-cols-3 gap-6 max-w-md mx-auto animate-fade-up delay-5">
-              <div className="text-center">
-                <p className="font-display text-2xl md:text-3xl text-primary">100%</p>
-                <p className="text-sm text-muted-foreground mt-1">Seguro</p>
+                <div className="grid gap-4 sm:grid-cols-3 animate-fade-up delay-5">
+                  <div className="rounded-[1.6rem] border border-border/80 bg-card/88 p-5 shadow-lift">
+                    <p className="editorial-kicker text-muted-foreground">Seguro</p>
+                    <p className="mt-3 font-display text-4xl text-primary">100%</p>
+                  </div>
+                  <div className="rounded-[1.6rem] border border-border/80 bg-card/88 p-5 shadow-lift">
+                    <p className="editorial-kicker text-muted-foreground">Disponible</p>
+                    <p className="mt-3 font-display text-4xl text-secondary">24/7</p>
+                  </div>
+                  <div className="rounded-[1.6rem] border border-border/80 bg-card/88 p-5 shadow-lift">
+                    <p className="editorial-kicker text-muted-foreground">Comisión al comprar</p>
+                    <p className="mt-3 font-display text-4xl text-primary">0%</p>
+                  </div>
+                </div>
               </div>
-              <div className="text-center">
-                <p className="font-display text-2xl md:text-3xl text-secondary">24/7</p>
-                <p className="text-sm text-muted-foreground mt-1">Disponible</p>
-              </div>
-              <div className="text-center">
-                <p className="font-display text-2xl md:text-3xl text-primary">0%</p>
-                <p className="text-sm text-muted-foreground mt-1">Comisión al comprar</p>
+
+              <div className="grid gap-4 lg:pb-2">
+                <Card className="bg-card/95">
+                  <CardHeader className="pb-4">
+                    <CardTitle className="text-3xl">
+                      Elegí una rifa, comprá tu ticket y seguí todo el proceso sin vueltas.
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-5">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="rounded-[1.35rem] border border-border/80 bg-background/70 p-4">
+                        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">Compra</p>
+                        <p className="mt-3 font-display text-3xl text-foreground">Simple</p>
+                      </div>
+                      <div className="rounded-[1.35rem] border border-border/80 bg-background/70 p-4">
+                        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">Seguimiento</p>
+                        <p className="mt-3 font-display text-3xl text-secondary">Claro</p>
+                      </div>
+                    </div>
+                    <div className="rounded-[1.35rem] border border-border/80 bg-primary p-5 text-primary-foreground shadow-lift">
+                      <p className="text-xs font-semibold uppercase tracking-[0.22em] text-primary-foreground/80">Transparencia</p>
+                      <p className="mt-3 text-base leading-relaxed">
+                        Pagos protegidos, reglas claras y rifas verificables en una sola plataforma.
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="rounded-[1.6rem] border border-border/80 bg-secondary p-5 text-secondary-foreground shadow-lift">
+                    <Star className="h-5 w-5" />
+                    <p className="mt-5 font-display text-2xl">Comunidad activa</p>
+                  </div>
+                  <div className="rounded-[1.6rem] border border-border/80 bg-accent p-5 text-accent-foreground shadow-lift">
+                    <Sparkles className="h-5 w-5" />
+                    <p className="mt-5 font-display text-2xl">Premios reales</p>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Features */}
-      <section className="py-24 bg-background">
+      <section className="py-24">
         <div className="container mx-auto px-4">
-          <div className="text-center mb-16">
-            <h2 className="font-display text-3xl md:text-4xl mb-4">
-              Por qué <span className="text-primary">elegir {BRAND_NAME}</span>
-            </h2>
-            <p className="text-muted-foreground text-lg max-w-xl mx-auto">
-              {BRAND_NAME} conecta tickets accesibles con premios de alto valor en una experiencia segura y transparente.
+          <div className="mb-14 grid gap-6 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1fr)] lg:items-end">
+            <div>
+              <p className="editorial-kicker text-primary">Por qué elegir {BRAND_NAME}</p>
+              <h2 className="mt-4 font-display text-4xl leading-none text-balance sm:text-5xl">
+                A veces, algo grande empieza con una entrada chica.
+              </h2>
+            </div>
+            <p className="max-w-2xl text-lg leading-relaxed text-muted-foreground">
+              Participá por premios reales, seguí el avance de cada rifa y comprá con pagos protegidos de punta a punta.
             </p>
           </div>
 
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-5">
+          <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
             <FeatureCard
               icon={<Ticket className="h-6 w-6" />}
               title="Fácil de usar"
@@ -133,79 +160,81 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Featured Raffles */}
-      <section className="py-24 bg-muted/40 pattern-dots">
+      <section className="pattern-dots py-24">
         <div className="container mx-auto px-4">
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-12">
-            <div>
-              <h2 className="font-display text-3xl md:text-4xl mb-2">
-                Rifas <span className="text-primary">destacadas</span>
-              </h2>
-              <p className="text-muted-foreground">Los premios más codiciados de esta semana</p>
+          <div className="mb-12 grid gap-6 lg:grid-cols-[320px_minmax(0,1fr)] lg:items-end">
+            <div className="rounded-[2rem] border border-border/80 bg-card/90 p-6 shadow-panel">
+              <p className="editorial-kicker text-primary">Rifas destacadas</p>
+              <h2 className="mt-4 font-display text-4xl leading-none">Los premios más codiciados de esta semana</h2>
+              <Link href="/search" className="mt-6 inline-flex">
+                <Button variant="outline" className="group btn-press">
+                  Ver todas
+                  <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+                </Button>
+              </Link>
             </div>
-            <Link href="/search">
-              <Button variant="outline" className="group btn-press">
-                Ver todas
-                <ArrowRight className="ml-2 w-4 h-4 group-hover:translate-x-1 transition-transform" />
-              </Button>
-            </Link>
+            <div className="rounded-[2rem] border border-dashed border-border/80 px-6 py-6 text-sm leading-relaxed text-muted-foreground">
+              Explorá rifas activas con tickets accesibles, progreso visible y tiempos claros.
+            </div>
           </div>
 
           <FeaturedRaffles />
         </div>
       </section>
 
-      {/* CTA Section */}
-      <section className="py-24 relative overflow-hidden bg-primary">
-        <div className="absolute inset-0 pattern-dots opacity-[0.08]" />
-
-        <div className="container mx-auto px-4 relative z-10">
-          <div className="max-w-2xl mx-auto text-center">
-            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/10 border border-white/15 mb-6">
-              <Sparkles className="w-4 h-4 text-white/90" />
-              <span className="text-sm font-medium text-white/90">Empezá a vender hoy</span>
+      <section className="py-24">
+        <div className="container mx-auto px-4">
+          <div className="overflow-hidden rounded-[2.5rem] border border-border/80 bg-primary shadow-panel">
+            <div className="grid gap-8 px-6 py-10 text-primary-foreground sm:px-10 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-end lg:py-14">
+              <div className="space-y-6">
+                <div className="inline-flex items-center gap-2 rounded-full border border-primary-foreground/20 bg-primary-foreground/8 px-4 py-2">
+                  <Sparkles className="h-4 w-4 text-primary-foreground/90" />
+                  <span className="text-sm font-semibold text-primary-foreground/90">Empezá a vender hoy</span>
+                </div>
+                <div className="space-y-4">
+                  <h2 className="font-display text-4xl leading-none text-balance sm:text-5xl">
+                    ¿Tenés algo que rifar?
+                  </h2>
+                  <p className="max-w-2xl text-lg leading-relaxed text-primary-foreground/82">
+                    Creá tu propia rifa, establecé el precio y dejá que nuestra comunidad participe. Recibí los pagos directamente en tu cuenta.
+                  </p>
+                </div>
+              </div>
+              <div className="rounded-[2rem] border border-primary-foreground/20 bg-primary-foreground/10 p-6 backdrop-blur-sm">
+                <SellerCTA />
+              </div>
             </div>
-
-            <h2 className="font-display text-3xl md:text-5xl text-white mb-6 text-balance">
-              ¿Tenés algo que rifar?
-            </h2>
-            <p className="text-lg text-white/80 mb-10 max-w-lg mx-auto">
-              Creá tu propia rifa, establecé el precio y dejá que nuestra comunidad participe.
-              Recibí los pagos directamente en tu cuenta.
-            </p>
-            <SellerCTA />
           </div>
         </div>
       </section>
 
-      {/* Trust Section */}
-      <section className="py-16 bg-background border-t">
+      <section className="border-t border-border/70 py-16">
         <div className="container mx-auto px-4">
-          <div className="flex flex-col md:flex-row items-center justify-center gap-8 md:gap-12 text-center md:text-left">
+          <div className="grid gap-4 md:grid-cols-3">
             <div className="flex items-center gap-3">
-              <div className="w-11 h-11 rounded-xl bg-primary/10 flex items-center justify-center">
+              <div className="flex h-14 w-14 items-center justify-center rounded-[1.35rem] border border-border/80 bg-card/90 shadow-lift">
                 <Shield className="w-5 h-5 text-primary" />
               </div>
               <div>
-                <p className="font-medium text-sm">Pagos seguros</p>
+                <p className="font-semibold text-sm">Pagos seguros</p>
                 <p className="text-sm text-muted-foreground">Powered by Mercado Pago</p>
               </div>
             </div>
             <div className="flex items-center gap-3">
-              <div className="w-11 h-11 rounded-xl bg-secondary/15 flex items-center justify-center">
+              <div className="flex h-14 w-14 items-center justify-center rounded-[1.35rem] border border-border/80 bg-card/90 shadow-lift">
                 <Star className="w-5 h-5 text-secondary" />
               </div>
               <div>
-                <p className="font-medium text-sm">Sorteos transparentes</p>
+                <p className="font-semibold text-sm">Sorteos transparentes</p>
                 <p className="text-sm text-muted-foreground">100% verificables</p>
               </div>
             </div>
             <div className="flex items-center gap-3">
-              <div className="w-11 h-11 rounded-xl bg-primary/10 flex items-center justify-center">
+              <div className="flex h-14 w-14 items-center justify-center rounded-[1.35rem] border border-border/80 bg-card/90 shadow-lift">
                 <Trophy className="w-5 h-5 text-primary" />
               </div>
               <div>
-                <p className="font-medium text-sm">Ganadores reales</p>
+                <p className="font-semibold text-sm">Ganadores reales</p>
                 <p className="text-sm text-muted-foreground">Sorteos al azar</p>
               </div>
             </div>
@@ -230,15 +259,15 @@ function FeatureCard({
   description: string;
 }) {
   return (
-    <Card className="group card-hover card-shine border hover:border-primary/20 transition-colors">
-      <CardHeader className="pb-3">
-        <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center text-primary mb-4 group-hover:scale-105 transition-transform duration-300">
+    <Card className="group card-hover card-shine overflow-hidden border-border/80 transition-colors hover:border-primary/30">
+      <CardHeader className="pb-4">
+        <div className="mb-5 flex h-14 w-14 items-center justify-center rounded-[1.35rem] border border-border/80 bg-background/70 text-primary transition-transform duration-300 group-hover:-translate-y-1">
           {icon}
         </div>
-        <CardTitle className="text-lg">{title}</CardTitle>
+        <CardTitle className="text-2xl">{title}</CardTitle>
       </CardHeader>
       <CardContent>
-        <p className="text-muted-foreground text-sm leading-relaxed">{description}</p>
+        <p className="text-sm leading-relaxed text-muted-foreground">{description}</p>
       </CardContent>
     </Card>
   );

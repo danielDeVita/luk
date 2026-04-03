@@ -119,6 +119,50 @@ describe('ActivityService', () => {
         }),
       });
     });
+
+    it('should log 2FA activation', async () => {
+      prisma.activityLog.create.mockResolvedValue({ id: 'activity-1' });
+
+      await service.logTwoFactorEnabled('user-1');
+
+      expect(prisma.activityLog.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          userId: 'user-1',
+          action: ActivityType.TWO_FACTOR_ENABLED,
+          metadata: { method: 'totp' },
+        }),
+      });
+    });
+
+    it('should log recovery code usage with remaining count', async () => {
+      prisma.activityLog.create.mockResolvedValue({ id: 'activity-1' });
+
+      await service.logTwoFactorRecoveryCodeUsed('user-1', 7, '192.168.1.1');
+
+      expect(prisma.activityLog.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          userId: 'user-1',
+          action: ActivityType.TWO_FACTOR_RECOVERY_CODE_USED,
+          metadata: { remainingRecoveryCodesCount: 7 },
+          ipAddress: '192.168.1.1',
+        }),
+      });
+    });
+
+    it('should log captcha rejection with stage context', async () => {
+      prisma.activityLog.create.mockResolvedValue({ id: 'activity-1' });
+
+      await service.logAuthCaptchaRejected('user-1', 'login', '192.168.1.1');
+
+      expect(prisma.activityLog.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          userId: 'user-1',
+          action: ActivityType.AUTH_CAPTCHA_REJECTED,
+          metadata: { stage: 'login' },
+          ipAddress: '192.168.1.1',
+        }),
+      });
+    });
   });
 
   describe('Raffle events', () => {

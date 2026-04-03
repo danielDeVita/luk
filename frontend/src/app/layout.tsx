@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import type { Viewport } from "next";
-import { DM_Sans, Fraunces } from "next/font/google";
+import { Bricolage_Grotesque, Manrope } from "next/font/google";
 import "./globals.css";
 import { ApolloWrapper } from "@/lib/apollo-provider";
 import { Navbar } from "@/components/navbar";
@@ -20,13 +20,13 @@ import {
   getSiteOrigin,
 } from '@/lib/seo';
 
-const dmSans = DM_Sans({
+const manrope = Manrope({
   subsets: ["latin"],
   variable: "--font-body",
   display: "swap",
 });
 
-const fraunces = Fraunces({
+const bricolageGrotesque = Bricolage_Grotesque({
   subsets: ["latin"],
   variable: "--font-display",
   display: "swap",
@@ -62,7 +62,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#4f46e5",
+  themeColor: "#1b7666",
 };
 
 export default function RootLayout({
@@ -97,34 +97,42 @@ export default function RootLayout({
           />
         ))}
       </head>
-      <body className={`${dmSans.variable} ${fraunces.variable} font-sans antialiased`}>
+      <body className={`${manrope.variable} ${bricolageGrotesque.variable} font-sans antialiased`}>
         <TabTitleController />
         <GoogleAnalytics />
         <ApolloWrapper>
           <ConfirmDialogProvider>
             <div className="min-h-screen flex flex-col">
               <Navbar />
-              <main className="flex-1">
+              <main className="relative flex-1 overflow-x-clip pb-10">
                 {children}
               </main>
-              <footer className="border-t py-8">
-                <div className="container mx-auto px-4">
-                  <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-                    <p className="text-sm text-muted-foreground">
-                      © {new Date().getFullYear()} <span className="font-display text-primary">{BRAND_NAME}</span>. Todos los derechos reservados.
-                    </p>
-                    <nav className="flex gap-4 text-sm">
-                      <a href="/legal/terminos" className="text-muted-foreground hover:text-primary transition-colors">
-                        Términos y condiciones
-                      </a>
-                      <a href="/legal/privacidad" className="text-muted-foreground hover:text-primary transition-colors">
-                        Política de privacidad
-                      </a>
-                    </nav>
+              <footer className="px-4 pb-4 pt-10">
+                <div className="container mx-auto">
+                  <div className="rounded-[2rem] border border-border/80 bg-card/90 px-6 py-7 shadow-panel backdrop-blur-xl sm:px-8">
+                    <div className="max-w-none">
+                      <p className="text-sm leading-relaxed text-muted-foreground sm:text-[15px]">
+                        La participación en rifas está reservada a mayores de 18 años. El juego compulsivo es perjudicial para la salud. Todos los derechos reservados.{' '}
+                        <span className="font-semibold text-foreground">© {new Date().getFullYear()} {BRAND_NAME}.</span>
+                      </p>
+                    </div>
+                    <div className="mt-6 border-t border-border/70 pt-5">
+                      <nav className="flex flex-col gap-4 text-sm sm:flex-row sm:flex-wrap sm:justify-center">
+                        <a
+                          href="/legal/terminos"
+                          className="inline-flex min-h-11 items-center justify-center rounded-full border border-border/80 bg-background/70 px-5 py-2.5 text-center text-muted-foreground transition-colors hover:text-foreground"
+                        >
+                          Términos y condiciones
+                        </a>
+                        <a
+                          href="/legal/privacidad"
+                          className="inline-flex min-h-11 items-center justify-center rounded-full border border-border/80 bg-background/70 px-5 py-2.5 text-center text-muted-foreground transition-colors hover:text-foreground"
+                        >
+                          Política de privacidad
+                        </a>
+                      </nav>
+                    </div>
                   </div>
-                  <p className="text-xs text-muted-foreground/70 text-center mt-4">
-                    La participación en rifas está reservada a mayores de 18 años. El juego compulsivo es perjudicial para la salud.
-                  </p>
                 </div>
               </footer>
             </div>
@@ -134,7 +142,7 @@ export default function RootLayout({
               closeButton
               theme="system"
               toastOptions={{
-                className: 'rounded-xl border shadow-lg font-sans',
+                className: 'rounded-[1.75rem] border shadow-panel font-sans',
                 style: {
                   background: 'var(--card)',
                   color: 'var(--foreground)',

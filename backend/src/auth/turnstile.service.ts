@@ -11,13 +11,19 @@ interface TurnstileVerificationResponse {
   'error-codes'?: string[];
 }
 
+type TurnstileStage = 'login' | 'register';
+
 @Injectable()
 export class TurnstileService {
   private readonly logger = new Logger(TurnstileService.name);
 
   constructor(private readonly configService: ConfigService) {}
 
-  async assertHuman(captchaToken?: string, remoteIp?: string): Promise<void> {
+  async assertHuman(
+    captchaToken?: string,
+    remoteIp?: string,
+    stage?: TurnstileStage,
+  ): Promise<void> {
     if (!this.configService.get<boolean>('TURNSTILE_ENABLED', false)) {
       return;
     }
@@ -32,7 +38,7 @@ export class TurnstileService {
 
     if (!secretKey) {
       this.logger.error(
-        'TURNSTILE_ENABLED=true but TURNSTILE_SECRET_KEY is missing.',
+        `TURNSTILE_ENABLED=true but TURNSTILE_SECRET_KEY is missing.${this.buildLogContext(stage, remoteIp)}`,
       );
       throw new UnauthorizedException(TURNSTILE_ERROR_MESSAGE);
     }
@@ -57,7 +63,7 @@ export class TurnstileService {
 
       if (!response.ok) {
         this.logger.warn(
-          `Turnstile verification request failed with status ${response.status}.`,
+          `Turnstile verification request failed with status ${response.status}.${this.buildLogContext(stage, remoteIp)}`,
         );
         throw new UnauthorizedException(TURNSTILE_ERROR_MESSAGE);
       }
@@ -67,7 +73,7 @@ export class TurnstileService {
       if (!result.success) {
         const errorCodes = result['error-codes']?.join(', ') ?? 'unknown';
         this.logger.warn(
-          `Turnstile verification rejected request. errorCodes=${errorCodes}`,
+          `Turnstile verification rejected request. errorCodes=${errorCodes}.${this.buildLogContext(stage, remoteIp)}`,
         );
         throw new UnauthorizedException(TURNSTILE_ERROR_MESSAGE);
       }
@@ -77,8 +83,24 @@ export class TurnstileService {
       }
 
       const message = error instanceof Error ? error.message : 'Unknown error';
-      this.logger.error(`Turnstile verification failed: ${message}`);
+      this.logger.error(
+        `Turnstile verification failed: ${message}.${this.buildLogContext(stage, remoteIp)}`,
+      );
       throw new UnauthorizedException(TURNSTILE_ERROR_MESSAGE);
     }
+  }
+
+  private buildLogContext(stage?: TurnstileStage, remoteIp?: string): string {
+    const context: string[] = [];
+
+    if (stage) {
+      context.push(`stage=${stage}`);
+    }
+
+    if (remoteIp) {
+      context.push('remoteIpPresent=true');
+    }
+
+    return context.length > 0 ? ` ${context.join(' ')}` : '';
   }
 }

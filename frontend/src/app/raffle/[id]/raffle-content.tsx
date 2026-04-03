@@ -283,6 +283,20 @@ function getNonActiveRaffleMessage(raffle: RaffleData): string {
   }
 }
 
+function getEstadoClass(estado: string): string {
+  switch (estado) {
+    case 'ACTIVA':
+      return 'badge-active';
+    case 'SORTEADA':
+    case 'FINALIZADA':
+      return 'badge-completed';
+    case 'COMPLETADA':
+      return 'badge-hot';
+    default:
+      return 'badge-pending';
+  }
+}
+
 interface PriceHistoryEntry {
   id: string;
   previousPrice: number;
@@ -570,12 +584,12 @@ export function RaffleContent({ id }: RaffleContentProps) {
 
   if (error || !data?.raffle) {
     return (
-      <div className="container mx-auto px-4 py-8">
-        <div className="text-center py-20">
+      <div className="container mx-auto px-4 py-10">
+        <div className="rounded-[2rem] border border-border/80 bg-card/90 py-20 text-center shadow-panel">
           <AlertTriangle className="h-16 w-16 mx-auto mb-4 text-destructive" />
-          <h1 className="text-2xl font-bold mb-2">Rifa no encontrada</h1>
+          <h1 className="font-display text-4xl mb-2">Rifa no encontrada</h1>
           <Link href="/search">
-            <Button>Volver a rifas</Button>
+            <Button className="btn-press">Volver a rifas</Button>
           </Link>
         </div>
       </div>
@@ -700,11 +714,39 @@ export function RaffleContent({ id }: RaffleContentProps) {
   };
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="grid md:grid-cols-2 gap-8">
+    <div className="container mx-auto px-4 pb-16 pt-6">
+      <div className="mb-8 overflow-hidden rounded-[2.25rem] border border-border/80 bg-mesh px-5 py-6 shadow-panel sm:px-8 sm:py-7">
+        <div className="flex flex-wrap items-center gap-3">
+          <span className={`badge-status ${getEstadoClass(raffle.estado)}`}>
+            {raffle.estado}
+          </span>
+          {raffle.product?.categoria ? (
+            <span className="rounded-full border border-border/80 bg-card/80 px-3 py-1.5 text-[0.7rem] font-bold uppercase tracking-[0.18em] text-muted-foreground">
+              {raffle.product?.categoria}
+            </span>
+          ) : null}
+        </div>
+        <div className="mt-5 grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-end">
+          <div>
+            <h1 className="font-display text-3xl leading-none text-balance sm:text-5xl lg:text-6xl">
+              {raffle.titulo}
+            </h1>
+            <p className="mt-4 max-w-3xl text-base leading-relaxed text-muted-foreground">
+              {raffle.descripcion}
+            </p>
+          </div>
+          <div className="rounded-[1.8rem] border border-border/80 bg-card/92 p-5 shadow-lift">
+            <p className="editorial-kicker text-primary">Ticket</p>
+            <p className="mt-3 font-display text-4xl leading-none text-primary sm:text-5xl">${raffle.precioPorTicket}</p>
+            <p className="mt-2 text-sm text-muted-foreground">por ticket</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid gap-8 lg:grid-cols-[minmax(0,1.05fr)_420px]">
         {/* Image Gallery */}
         <div className="space-y-4">
-          <div className="relative aspect-square rounded-lg overflow-hidden bg-muted">
+          <div className="relative aspect-square overflow-hidden rounded-[2rem] border border-border/80 bg-muted shadow-panel">
             {images.length > 0 ? (
               <Image
                 src={getOptimizedImageUrl(images[currentImageIndex], CLOUDINARY_PRESETS.detail)}
@@ -720,17 +762,19 @@ export function RaffleContent({ id }: RaffleContentProps) {
               </div>
             )}
 
+            <div className="absolute inset-0 bg-gradient-to-t from-[oklch(0.14_0.02_260_/_0.38)] via-transparent to-transparent" />
+
             {images.length > 1 && (
               <>
                 <button
                   onClick={() => setCurrentImageIndex((i) => (i > 0 ? i - 1 : images.length - 1))}
-                  className="absolute left-2 top-1/2 -translate-y-1/2 p-2 rounded-full bg-black/50 text-white hover:bg-black/70 z-10"
+                  className="absolute left-4 top-1/2 z-10 rounded-full border border-white/20 bg-card/90 p-2.5 text-foreground backdrop-blur-sm transition-colors hover:bg-card"
                 >
                   <ChevronLeft className="h-5 w-5" />
                 </button>
                 <button
                   onClick={() => setCurrentImageIndex((i) => (i < images.length - 1 ? i + 1 : 0))}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-full bg-black/50 text-white hover:bg-black/70 z-10"
+                  className="absolute right-4 top-1/2 z-10 rounded-full border border-white/20 bg-card/90 p-2.5 text-foreground backdrop-blur-sm transition-colors hover:bg-card"
                 >
                   <ChevronRight className="h-5 w-5" />
                 </button>
@@ -739,13 +783,13 @@ export function RaffleContent({ id }: RaffleContentProps) {
           </div>
 
           {images.length > 1 && (
-            <div className="flex gap-2 overflow-x-auto">
+            <div className="flex gap-3 overflow-x-auto pb-1">
               {images.map((img: string, i: number) => (
                 <button
                   key={i}
                   onClick={() => setCurrentImageIndex(i)}
-                  className={`relative flex-shrink-0 w-20 h-20 rounded-md overflow-hidden border-2 ${
-                    i === currentImageIndex ? 'border-primary' : 'border-transparent'
+                  className={`relative h-24 w-24 flex-shrink-0 overflow-hidden rounded-[1.2rem] border-2 shadow-lift ${
+                    i === currentImageIndex ? 'border-primary' : 'border-border/80'
                   }`}
                 >
                   <Image
@@ -762,39 +806,30 @@ export function RaffleContent({ id }: RaffleContentProps) {
         </div>
 
         {/* Info */}
-        <div className="space-y-6">
-          <div>
-            <span className={`inline-block px-3 py-1 text-sm rounded-full mb-2 ${
-              raffle.estado === 'ACTIVA' ? 'bg-green-500/20 text-green-600' : 'bg-muted text-muted-foreground'
-            }`}>
-              {raffle.estado}
-            </span>
-            <h1 className="text-3xl font-bold mb-2">{raffle.titulo}</h1>
-            <p className="text-muted-foreground">{raffle.product?.categoria}</p>
-          </div>
+        <div className="space-y-5 lg:sticky lg:top-28 lg:self-start">
 
           {/* Seller */}
-          <div className="flex items-center gap-3 p-4 bg-muted/50 rounded-lg">
-            <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center">
+          <div className="flex flex-col items-start gap-4 rounded-[1.7rem] border border-border/80 bg-card/92 p-5 shadow-panel sm:flex-row sm:items-center">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/12">
               <User className="h-5 w-5 text-primary" />
             </div>
             <div>
+              <p className="editorial-kicker text-muted-foreground">Vendedor</p>
               <Link href={`/seller/${raffle.seller?.id}`} className="hover:underline">
-                <p className="font-medium text-primary">{raffle.seller?.nombre} {raffle.seller?.apellido}</p>
+                <p className="mt-2 font-display text-2xl leading-none text-primary">{raffle.seller?.nombre} {raffle.seller?.apellido}</p>
               </Link>
-              <p className="text-sm text-muted-foreground">Vendedor</p>
             </div>
           </div>
 
           {/* Progress */}
-          <div className="space-y-2">
+          <div className="space-y-3 rounded-[1.7rem] border border-border/80 bg-card/92 p-5 shadow-panel">
             <div className="flex justify-between text-sm">
-              <span>{soldTickets} vendidos</span>
-              <span>{raffle.totalTickets} total</span>
+              <span className="font-semibold">{soldTickets} vendidos</span>
+              <span className="text-muted-foreground">{raffle.totalTickets} total</span>
             </div>
-            <div className="h-3 bg-muted rounded-full overflow-hidden">
+            <div className="progress-bar h-3">
               <div
-                className="h-full bg-primary rounded-full transition-all"
+                className="progress-fill bg-primary"
                 style={{ width: `${progress}%` }}
               />
             </div>
@@ -802,8 +837,8 @@ export function RaffleContent({ id }: RaffleContentProps) {
           </div>
 
           {shouldShowCountdown ? (
-            <div className="p-4 rounded-lg bg-muted/50 border">
-              <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
+            <div className="rounded-[1.7rem] border border-border/80 bg-card/92 p-5 shadow-panel">
+              <div className="mb-3 flex items-center gap-2 text-sm text-muted-foreground">
                 <Clock className="h-4 w-4" />
                 <span>Tiempo restante:</span>
               </div>
@@ -814,16 +849,16 @@ export function RaffleContent({ id }: RaffleContentProps) {
               />
             </div>
           ) : (
-            <div className="space-y-3 rounded-lg border bg-muted/50 p-4">
+            <div className="space-y-3 rounded-[1.7rem] border border-border/80 bg-card/92 p-5 shadow-panel">
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Clock className="h-4 w-4" />
                 <span>Estado de la rifa</span>
               </div>
               <p className="font-medium">{getNonActiveRaffleMessage(raffle)}</p>
               {shouldShowWinningNumber && (
-                <div className="rounded-lg border bg-background p-4">
+                <div className="rounded-[1.35rem] border border-border/80 bg-background/72 p-4">
                   <p className="text-sm text-muted-foreground">Número ganador</p>
-                  <p className="text-3xl font-bold text-primary">
+                  <p className="font-display text-5xl leading-none text-primary">
                     #{raffle.winningTicketNumber}
                   </p>
                 </div>
@@ -833,16 +868,16 @@ export function RaffleContent({ id }: RaffleContentProps) {
 
           {/* Price History Badge */}
           {priceHistoryData?.priceHistory && priceHistoryData.priceHistory.length > 0 && (
-            <div className="p-3 bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-lg">
-              <div className="flex items-center gap-2 mb-2">
-                <TrendingDown className="h-4 w-4 text-green-600" />
-                <span className="font-medium text-green-700 dark:text-green-400">Historial de precios</span>
+            <div className="rounded-[1.7rem] border border-success/24 bg-success/10 p-4 shadow-panel">
+              <div className="mb-2 flex items-center gap-2">
+                <TrendingDown className="h-4 w-4 text-success" />
+                <span className="font-medium text-success">Historial de precios</span>
               </div>
               <div className="space-y-1 text-sm">
                 <p className="text-muted-foreground">
                   Precio original: <span className="line-through">${priceHistoryData.priceHistory[0].previousPrice}</span>
                 </p>
-                <p className="text-green-600 dark:text-green-400 font-medium">
+                <p className="font-medium text-success">
                   Precio actual: ${raffle.precioPorTicket}
                   {' '}
                   <span className="text-xs">
@@ -855,7 +890,7 @@ export function RaffleContent({ id }: RaffleContentProps) {
                       <History className="h-3 w-3" />
                       Ver {priceHistoryData.priceHistory.length} cambios de precio
                     </summary>
-                    <ul className="mt-2 space-y-1 pl-4 border-l-2 border-muted">
+                    <ul className="mt-2 space-y-1 border-l-2 border-muted pl-4">
                       {priceHistoryData.priceHistory.map((entry) => (
                         <li key={entry.id} className="text-xs text-muted-foreground">
                           {new Date(entry.changedAt).toLocaleDateString('es-AR')}: ${entry.previousPrice} → ${entry.newPrice}
@@ -870,9 +905,9 @@ export function RaffleContent({ id }: RaffleContentProps) {
 
           {/* Buy Section */}
           {canBuyThisRaffle && (
-            <Card>
+            <Card className="border-primary/15">
               <CardHeader>
-                <CardTitle className="flex items-center justify-between">
+                <CardTitle className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <span>Comprar Tickets</span>
                   <span className="text-2xl text-primary">${raffle.precioPorTicket}/ticket</span>
                 </CardTitle>
@@ -891,10 +926,10 @@ export function RaffleContent({ id }: RaffleContentProps) {
                   <TabsContent value="RANDOM" className="space-y-4">
                     <div className="space-y-2">
                       <Label>Cantidad</Label>
-                      <div className="flex gap-2">
+                      <div className="flex items-stretch gap-2">
                         <Button
                           variant="outline"
-                          className="h-12 w-12 text-xl font-bold"
+                          className="h-12 w-12 shrink-0 text-xl font-bold"
                           onClick={() => setQuantity(Math.max(1, quantity - 1))}
                         >
                           -
@@ -906,11 +941,11 @@ export function RaffleContent({ id }: RaffleContentProps) {
                           onChange={(e) =>
                             setQuantity(Math.max(1, parseInt(e.target.value, 10) || 1))
                           }
-                          className="h-12 text-center text-lg font-semibold"
+                          className="h-12 min-w-0 flex-1 text-center text-lg font-semibold"
                         />
                         <Button
                           variant="outline"
-                          className="h-12 w-12 text-xl font-bold"
+                          className="h-12 w-12 shrink-0 text-xl font-bold"
                           onClick={() => setQuantity(quantity + 1)}
                         >
                           +
@@ -927,13 +962,13 @@ export function RaffleContent({ id }: RaffleContentProps) {
                       onPreviewChange={setBonusPreview}
                     />
 
-                    <div className="rounded-lg bg-muted/50 p-4">
+                    <div className="rounded-[1.35rem] bg-muted/50 p-4">
                       <div className="mb-2 flex justify-between">
                         <span>Subtotal</span>
                         <span>${grossSubtotal.toFixed(2)}</span>
                       </div>
                       {bonusPreview && (
-                        <div className="mb-2 flex justify-between text-green-600">
+                        <div className="mb-2 flex justify-between text-success">
                           <span>Bonificación aplicada</span>
                           <span>-${bonusPreview.discountApplied.toFixed(2)}</span>
                         </div>
@@ -982,7 +1017,7 @@ export function RaffleContent({ id }: RaffleContentProps) {
                       {parsedSearchNumber !== undefined && (
                         <div className="rounded-lg border border-dashed p-3 text-sm">
                           {searchedTicket ? (
-                            <div className="flex items-center justify-between gap-3">
+                            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                               <div>
                                 <p className="font-medium">Resultado de búsqueda</p>
                                 <p className="text-muted-foreground">
@@ -1020,7 +1055,7 @@ export function RaffleContent({ id }: RaffleContentProps) {
                       )}
                     </div>
 
-                    <div className="space-y-3 rounded-lg border p-4">
+                    <div className="space-y-3 rounded-[1.35rem] border border-border/80 bg-background/60 p-4">
                       <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
                         <div>
                           <p className="font-medium">Disponibilidad por página</p>
@@ -1036,7 +1071,7 @@ export function RaffleContent({ id }: RaffleContentProps) {
                         )}
                       </div>
 
-                      <div className="grid grid-cols-4 gap-2 sm:grid-cols-5 md:grid-cols-6">
+                      <div className="grid grid-cols-3 gap-2 sm:grid-cols-5 md:grid-cols-6">
                         {ticketAvailability?.items.map((item) => {
                           const isSelected = selectedNumbers.includes(item.number);
 
@@ -1057,7 +1092,7 @@ export function RaffleContent({ id }: RaffleContentProps) {
                         })}
                       </div>
 
-                      <div className="flex items-center justify-between gap-2">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                         <Button
                           type="button"
                           variant="outline"
@@ -1070,7 +1105,7 @@ export function RaffleContent({ id }: RaffleContentProps) {
                         >
                           Anterior
                         </Button>
-                        <p className="text-sm text-muted-foreground">
+                        <p className="text-center text-sm text-muted-foreground">
                           Página {ticketAvailability?.page ?? availabilityPage} de{' '}
                           {ticketAvailability?.totalPages ?? 1}
                         </p>
@@ -1090,8 +1125,8 @@ export function RaffleContent({ id }: RaffleContentProps) {
                       </div>
                     </div>
 
-                    <div className="space-y-3 rounded-lg bg-muted/50 p-4">
-                      <div className="flex items-center justify-between gap-3">
+                    <div className="space-y-3 rounded-[1.35rem] bg-muted/50 p-4">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                         <div>
                           <p className="font-medium">
                             {selectedNumbers.length} número
@@ -1122,7 +1157,7 @@ export function RaffleContent({ id }: RaffleContentProps) {
                               key={number}
                               type="button"
                               variant="secondary"
-                              className="h-9"
+                              className="h-auto min-h-9"
                               onClick={() => toggleSelectedNumber(number, true)}
                             >
                               #{number}
@@ -1149,13 +1184,13 @@ export function RaffleContent({ id }: RaffleContentProps) {
                       />
                     )}
 
-                    <div className="rounded-lg bg-muted/50 p-4">
+                    <div className="rounded-[1.35rem] bg-muted/50 p-4">
                       <div className="mb-2 flex justify-between">
                         <span>Subtotal base</span>
                         <span>${selectedModeGrossSubtotal.toFixed(2)}</span>
                       </div>
                       {bonusPreview && (
-                        <div className="mb-2 flex justify-between text-green-600">
+                        <div className="mb-2 flex justify-between text-success">
                           <span>Bonificación aplicada</span>
                           <span>-${bonusPreview.discountApplied.toFixed(2)}</span>
                         </div>
@@ -1207,7 +1242,7 @@ export function RaffleContent({ id }: RaffleContentProps) {
                 <CardTitle>No podés comprar tickets de tu propia rifa</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100">
+                <div className="flex items-start gap-3 rounded-[1.35rem] border border-secondary/35 bg-secondary/14 p-4 text-sm text-foreground dark:border-secondary/28 dark:bg-secondary/12 dark:text-foreground">
                   <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" />
                   <p>
                     La compra está bloqueada para evitar autocompras. Podés compartirla o
@@ -1264,7 +1299,7 @@ export function RaffleContent({ id }: RaffleContentProps) {
       </div>
 
       {/* Description */}
-      <div className="mt-12 grid md:grid-cols-2 gap-8">
+      <div className="mt-12 grid gap-8 md:grid-cols-2">
         <Card>
           <CardHeader>
             <CardTitle>Descripcion</CardTitle>

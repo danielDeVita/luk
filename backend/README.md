@@ -53,7 +53,7 @@ MP_ACCESS_TOKEN=""
 
 - **API**: GraphQL (Apollo) + REST for webhooks/OAuth
 - **Database**: PostgreSQL + Prisma ORM
-- **Auth**: JWT + Google OAuth (Passport.js)
+- **Auth**: JWT + Google OAuth (Passport.js) + email verification + TOTP-based 2FA
 - **Real-time**: GraphQL Subscriptions
 - **Patterns**: Repository layer, Event-driven
 - **Background Processing**: Scheduled jobs in backend + dedicated `social-worker`
@@ -62,7 +62,7 @@ MP_ACCESS_TOKEN=""
 
 | Module | Purpose |
 |--------|---------|
-| `auth/` | JWT authentication, Google OAuth, email verification, guards |
+| `auth/` | JWT authentication, Google OAuth, email verification, 2FA, guards |
 | `users/` | User management, profiles |
 | `raffles/` | Raffle CRUD, state management, seller dashboard, buyer experience, analytics |
 | `tickets/` | Ticket reservation and purchase |
@@ -282,6 +282,41 @@ mutation { verifyEmail(userId: "...", code: "123456") { token user { id emailVer
 # Resend verification code (rate limited to 3 per hour)
 mutation { resendVerificationCode(userId: "...") }
 ```
+
+### Login Continuation and 2FA
+```graphql
+# Login may return tokens directly, or require an extra step
+mutation {
+  login(input: { email: "...", password: "..." }) {
+    token
+    refreshToken
+    requiresVerification
+    requiresTwoFactor
+    twoFactorChallengeToken
+    message
+  }
+}
+
+# Complete the second factor with TOTP or a recovery code
+mutation {
+  completeTwoFactorLogin(
+    challengeToken: "...",
+    code: "123456",
+    recoveryCode: null
+  ) {
+    token
+    refreshToken
+    user { id email }
+  }
+}
+```
+
+Behavior summary:
+- `requiresVerification = true` means the client must finish email verification before tokens are issued.
+- `requiresTwoFactor = true` means the client must continue with the 2FA challenge using `twoFactorChallengeToken`.
+- 2FA uses authenticator-app TOTP codes and supports one-time recovery codes.
+- Auth observability stores 2FA activation/deactivation, recovery-code usage, rejected second-factor attempts, and known-user captcha rejects in `ActivityLog`.
+- Expected 4xx auth rejects remain out of Sentry; only infrastructure/code failures should be captured there.
 
 ### Price History
 ```graphql

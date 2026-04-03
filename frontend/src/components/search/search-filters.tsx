@@ -113,13 +113,13 @@ export function SearchFilters({ onSearch, initialFilters }: SearchFiltersProps) 
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-2.5">
       {/* Search Input */}
       <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         <Input
           placeholder="Buscar rifas..."
-          className="pl-10"
+          className="h-10 min-h-10 pl-11"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           onKeyDown={handleKeyDown}
@@ -127,16 +127,17 @@ export function SearchFilters({ onSearch, initialFilters }: SearchFiltersProps) 
         />
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 2xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(12rem,0.95fr)]">
         {/* Category Select */}
-        <div className="space-y-2">
-          <label className="text-sm font-medium">Categoría</label>
+        <div className="rounded-[1.3rem] border border-border/80 bg-card/70 p-2.5 shadow-panel">
+          <div className="space-y-1.5">
+            <label className="text-[0.7rem] font-bold uppercase tracking-[0.18em] text-muted-foreground">Categoría</label>
           <Select value={category} onValueChange={handleCategoryChange}>
-            <SelectTrigger className="w-full">
+            <SelectTrigger className="min-h-10 w-full bg-background/90 px-3.5">
               <SelectValue placeholder="Todas" />
             </SelectTrigger>
             <SelectContent className="z-50">
-              <SelectItem value="ALL">Todas las categorías</SelectItem>
+              <SelectItem value="ALL">Todas</SelectItem>
               {[...categories]
                 .sort((a, b) => a.orden - b.orden)
                 .map((cat) => (
@@ -146,48 +147,61 @@ export function SearchFilters({ onSearch, initialFilters }: SearchFiltersProps) 
                 ))}
             </SelectContent>
           </Select>
+          </div>
         </div>
 
         {/* Sort Select */}
-        <div className="space-y-2">
-          <label className="text-sm font-medium">Ordenar por</label>
+        <div className="rounded-[1.3rem] border border-border/80 bg-card/70 p-2.5 shadow-panel">
+          <div className="space-y-1.5">
+            <label className="text-[0.7rem] font-bold uppercase tracking-[0.18em] text-muted-foreground">Ordenar por</label>
           <Select value={sortBy} onValueChange={handleSortChange}>
-            <SelectTrigger className="w-full">
+            <SelectTrigger className="min-h-10 w-full bg-background/90 px-3.5">
               <SelectValue placeholder="Ordenar por..." />
             </SelectTrigger>
             <SelectContent className="z-50">
-              <SelectItem value="PRICE_ASC">Precio: menor a mayor</SelectItem>
-              <SelectItem value="PRICE_DESC">Precio: mayor a menor</SelectItem>
-              <SelectItem value="END_DATE_ASC">Fecha fin: más próximos</SelectItem>
-              <SelectItem value="END_DATE_DESC">Fecha fin: más lejanos</SelectItem>
-              <SelectItem value="CREATED_ASC">Creación: más antiguos</SelectItem>
-              <SelectItem value="CREATED_DESC">Creación: más recientes</SelectItem>
+              <SelectItem value="PRICE_ASC">Menor precio</SelectItem>
+              <SelectItem value="PRICE_DESC">Mayor precio</SelectItem>
+              <SelectItem value="END_DATE_ASC">Terminan antes</SelectItem>
+              <SelectItem value="END_DATE_DESC">Terminan después</SelectItem>
+              <SelectItem value="CREATED_ASC">Más antiguas</SelectItem>
+              <SelectItem value="CREATED_DESC">Más recientes</SelectItem>
             </SelectContent>
           </Select>
+          </div>
         </div>
 
         {/* Price Slider */}
-        <div className="space-y-2">
-          <div className="flex justify-between text-sm">
-            <span className="font-medium">Precio</span>
-            <span className="text-muted-foreground">
+        <div className="rounded-[1.3rem] border border-border/80 bg-card/70 p-2.5 shadow-panel">
+          <div className="space-y-2">
+            <label className="text-[0.7rem] font-bold uppercase tracking-[0.18em] text-muted-foreground">Precio</label>
+            <div className="flex items-center justify-between gap-3 text-sm">
+              <span className="font-semibold text-foreground">Rango</span>
+              <span className="text-right text-muted-foreground">
               ${priceRange[0]} - ${priceRange[1] === 10000 ? '10k+' : priceRange[1]}
-            </span>
+              </span>
+            </div>
           </div>
-          <Slider
-            value={priceRange}
-            min={0}
-            max={10000}
-            step={100}
-            onValueChange={(val) => setPriceRange(val as [number, number])}
-            className="py-4"
-          />
+          <div className="pt-2">
+            <Slider
+              value={priceRange}
+              min={0}
+              max={10000}
+              step={100}
+              onValueChange={(val) => setPriceRange(val as [number, number])}
+              className="py-1"
+            />
+          </div>
         </div>
 
         {/* Clear Button */}
-        <Button variant="ghost" onClick={clearFilters} className="w-full">
-          <X className="mr-2 h-4 w-4" /> Limpiar
-        </Button>
+        <div className="rounded-[1.3rem] border border-border/80 bg-card/70 p-2.5 shadow-panel">
+          <div className="space-y-1.5">
+            <label className="text-[0.7rem] font-bold uppercase tracking-[0.18em] text-muted-foreground">Acciones</label>
+            <Button variant="outline" onClick={clearFilters} className="min-h-10 w-full bg-background/90 px-3.5">
+              <X className="mr-2 h-4 w-4" /> Limpiar filtros
+            </Button>
+          </div>
+        </div>
       </div>
     </div>
   );

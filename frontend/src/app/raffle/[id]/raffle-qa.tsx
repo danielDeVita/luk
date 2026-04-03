@@ -113,7 +113,7 @@ function UserAvatar({ avatarUrl, nombre }: { avatarUrl?: string; nombre: string 
     );
   }
   return (
-    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center">
+    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-primary to-secondary">
       <User className="w-4 h-4 text-white" />
     </div>
   );
@@ -183,15 +183,15 @@ export function RaffleQA({ raffleId, sellerId, isRaffleActive }: RaffleQAProps) 
   const canAsk = isAuthenticated && !isSeller && isRaffleActive;
 
   return (
-    <div className="bg-card backdrop-blur-sm rounded-2xl border border-border overflow-hidden">
+    <div className="overflow-hidden rounded-[1.9rem] border border-border/80 bg-card/92 shadow-panel backdrop-blur-sm">
       {/* Header */}
       <button
         onClick={() => setIsExpanded(!isExpanded)}
-        className="w-full flex items-center justify-between p-4 hover:bg-accent transition-colors"
+        className="flex w-full items-center justify-between p-5 transition-colors hover:bg-accent"
       >
         <div className="flex items-center gap-2">
-          <MessageCircle className="w-5 h-5 text-purple-400" />
-          <h3 className="text-lg font-semibold text-foreground">
+          <MessageCircle className="h-5 w-5 text-primary" />
+          <h3 className="font-display text-2xl text-foreground">
             Preguntas y Respuestas
           </h3>
           <span className="text-sm text-muted-foreground">({questions.length})</span>
@@ -215,7 +215,7 @@ export function RaffleQA({ raffleId, sellerId, isRaffleActive }: RaffleQAProps) 
                     value={newQuestion}
                     onChange={(e) => setNewQuestion(e.target.value)}
                     placeholder="Hacé una pregunta al vendedor..."
-                    className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-purple-500 resize-none"
+                    className="w-full resize-none rounded-[1.2rem] border border-border/80 bg-muted/50 px-4 py-3 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
                     rows={2}
                     maxLength={500}
                   />
@@ -226,7 +226,7 @@ export function RaffleQA({ raffleId, sellerId, isRaffleActive }: RaffleQAProps) 
                     <button
                       type="submit"
                       disabled={askingQuestion || newQuestion.length < 10}
-                      className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                      className="flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       {askingQuestion ? (
                         <Loader2 className="w-4 h-4 animate-spin" />
@@ -244,7 +244,7 @@ export function RaffleQA({ raffleId, sellerId, isRaffleActive }: RaffleQAProps) 
           {/* Not authenticated message */}
           {!isAuthenticated && isRaffleActive && (
             <div className="p-4 border-b border-border text-center text-muted-foreground">
-              <a href="/auth/login" className="text-purple-400 hover:underline">
+              <a href="/auth/login" className="text-primary hover:underline">
                 Iniciá sesión
               </a>
               {' '}para hacer preguntas
@@ -255,7 +255,7 @@ export function RaffleQA({ raffleId, sellerId, isRaffleActive }: RaffleQAProps) 
           <div className="divide-y divide-border">
             {loading ? (
               <div className="p-8 flex justify-center">
-                <Loader2 className="w-6 h-6 animate-spin text-purple-400" />
+                <Loader2 className="w-6 h-6 animate-spin text-primary" />
               </div>
             ) : questions.length === 0 ? (
               <div className="p-8 text-center text-muted-foreground">
@@ -292,7 +292,7 @@ export function RaffleQA({ raffleId, sellerId, isRaffleActive }: RaffleQAProps) 
 
                   {/* Answer */}
                   {question.answer ? (
-                    <div className="mt-3 ml-11 pl-4 border-l-2 border-purple-500/30">
+                    <div className="mt-3 ml-11 border-l-2 border-primary/30 pl-4">
                       <div className="flex gap-3">
                         <UserAvatar
                           avatarUrl={question.answer.seller.avatarUrl}
@@ -300,10 +300,10 @@ export function RaffleQA({ raffleId, sellerId, isRaffleActive }: RaffleQAProps) 
                         />
                         <div className="flex-1">
                           <div className="flex items-baseline gap-2">
-                            <span className="font-medium text-purple-400">
+                            <span className="font-medium text-primary">
                               {question.answer.seller.nombre}
                             </span>
-                            <span className="text-xs bg-purple-500/20 text-purple-300 px-2 py-0.5 rounded">
+                            <span className="rounded-full bg-primary/12 px-2 py-0.5 text-xs text-primary">
                               Vendedor
                             </span>
                             <span className="text-xs text-muted-foreground">
@@ -325,7 +325,7 @@ export function RaffleQA({ raffleId, sellerId, isRaffleActive }: RaffleQAProps) 
                           value={answerText}
                           onChange={(e) => setAnswerText(e.target.value)}
                           placeholder="Escribí tu respuesta..."
-                          className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-purple-500 resize-none"
+                          className="w-full resize-none rounded-[1.2rem] border border-border/80 bg-muted/50 px-4 py-3 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
                           rows={2}
                           maxLength={1000}
                         />
@@ -333,7 +333,7 @@ export function RaffleQA({ raffleId, sellerId, isRaffleActive }: RaffleQAProps) 
                           <button
                             onClick={() => handleAnswerQuestion(question.id)}
                             disabled={answeringQuestion || answerText.length < 5}
-                            className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition-colors"
+                            className="flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
                           >
                             {answeringQuestion ? (
                               <Loader2 className="w-4 h-4 animate-spin" />
@@ -356,7 +356,7 @@ export function RaffleQA({ raffleId, sellerId, isRaffleActive }: RaffleQAProps) 
                     ) : (
                       <button
                         onClick={() => setAnsweringId(question.id)}
-                        className="mt-2 ml-11 text-sm text-purple-400 hover:text-purple-300 transition-colors"
+                        className="mt-2 ml-11 text-sm font-semibold text-primary transition-colors hover:text-secondary"
                       >
                         Responder esta pregunta
                       </button>

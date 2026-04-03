@@ -51,13 +51,13 @@ npm run dev
 | `/raffle/[id]` | Raffle details + ticket purchase + public Q&A | Public |
 | `/checkout/mock/[mockPaymentId]` | Local QA checkout used when `PAYMENTS_PROVIDER=mock` | Public |
 | `/checkout/status` | Payment result handler | Public |
-| `/auth/login` | Login (email + Google) | Public |
+| `/auth/login` | Login (email + Google) with inline email verification and 2FA continuation | Public |
 | `/auth/register` | Registration with email verification (two-step flow) | Public |
 | `/dashboard/create` | Create new raffle | User |
 | `/dashboard/tickets` | Buyer dashboard (stats, recommendations, favorites ending soon, tickets) | User |
 | `/dashboard/sales` | Seller dashboard (revenue chart, analytics, bulk actions, CSV export) | User |
 | `/dashboard/favorites` | Saved raffles wishlist (with price drop alerts) | User |
-| `/dashboard/settings` | Profile (Avatar), Payments (MP Connect), Security | User |
+| `/dashboard/settings` | Profile (Avatar), Payments (MP Connect), Security, and 2FA management | User |
 | `/seller/[id]` | Public seller profile | Public |
 | `/admin` | Admin panel (stats, raffles, reports, user management) | Admin |
 | `/admin/disputes` | Dispute management with bulk resolution | Admin |
@@ -270,6 +270,16 @@ Two-step registration flow:
 - Code expires in 15 minutes
 - Maximum 3 attempts per code
 - Resend option with rate limiting (max 3 codes per hour)
+
+If a user tries to log in before verifying the email, the login page resumes the same verification step inline instead of forcing the user back through registration.
+
+### Two-Factor Authentication
+- TOTP-based 2FA with authenticator apps
+- Inline login continuation when the backend returns a 2FA challenge
+- Recovery codes generated at activation time
+- Activation and deactivation available in `Settings -> Security`
+- The long manual key shown during setup is only for adding the account to an authenticator app when QR scanning is not available; it is not a recovery code
+- Recovery codes are shown only after 2FA activation succeeds and are displayed once, so they must be stored immediately
 
 ### Seller Onboarding
 New sellers see a visual progress checklist at the top of their dashboard:

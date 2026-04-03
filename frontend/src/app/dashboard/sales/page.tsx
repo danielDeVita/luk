@@ -932,12 +932,12 @@ function SalesDashboardContent() {
       {/* Stats Cards */}
       <div className="mb-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
         <Card className="overflow-hidden">
-          <CardContent className="pt-6">
-            <div className="flex min-w-0 items-start gap-3">
-              <div className="shrink-0 rounded-full bg-green-500/10 p-2">
+          <CardContent className="flex min-h-[116px] items-center py-5">
+            <div className="flex min-w-0 items-center gap-3">
+              <div className="shrink-0 rounded-full bg-green-500/10 p-2.5">
                 <DollarSign className="h-5 w-5 text-green-500" />
               </div>
-              <div className="min-w-0 flex-1">
+              <div className="min-w-0 flex-1 space-y-1">
                 <p className="text-xs leading-tight text-muted-foreground">
                   Ingresos Totales
                 </p>
@@ -949,12 +949,12 @@ function SalesDashboardContent() {
           </CardContent>
         </Card>
         <Card className="overflow-hidden">
-          <CardContent className="pt-6">
-            <div className="flex min-w-0 items-start gap-3">
-              <div className="shrink-0 rounded-full bg-blue-500/10 p-2">
+          <CardContent className="flex min-h-[116px] items-center py-5">
+            <div className="flex min-w-0 items-center gap-3">
+              <div className="shrink-0 rounded-full bg-blue-500/10 p-2.5">
                 <Ticket className="h-5 w-5 text-blue-500" />
               </div>
-              <div className="min-w-0 flex-1">
+              <div className="min-w-0 flex-1 space-y-1">
                 <p className="text-xs leading-tight text-muted-foreground">
                   Tickets Vendidos
                 </p>
@@ -966,12 +966,12 @@ function SalesDashboardContent() {
           </CardContent>
         </Card>
         <Card className="overflow-hidden">
-          <CardContent className="pt-6">
-            <div className="flex min-w-0 items-start gap-3">
-              <div className="shrink-0 rounded-full bg-purple-500/10 p-2">
+          <CardContent className="flex min-h-[116px] items-center py-5">
+            <div className="flex min-w-0 items-center gap-3">
+              <div className="shrink-0 rounded-full bg-purple-500/10 p-2.5">
                 <BarChart3 className="h-5 w-5 text-purple-500" />
               </div>
-              <div className="min-w-0 flex-1">
+              <div className="min-w-0 flex-1 space-y-1">
                 <p className="text-xs leading-tight text-muted-foreground">
                   Rifas Activas
                 </p>
@@ -983,12 +983,12 @@ function SalesDashboardContent() {
           </CardContent>
         </Card>
         <Card className="overflow-hidden">
-          <CardContent className="pt-6">
-            <div className="flex min-w-0 items-start gap-3">
-              <div className="shrink-0 rounded-full bg-orange-500/10 p-2">
+          <CardContent className="flex min-h-[116px] items-center py-5">
+            <div className="flex min-w-0 items-center gap-3">
+              <div className="shrink-0 rounded-full bg-orange-500/10 p-2.5">
                 <Users className="h-5 w-5 text-orange-500" />
               </div>
-              <div className="min-w-0 flex-1">
+              <div className="min-w-0 flex-1 space-y-1">
                 <p className="text-xs leading-tight text-muted-foreground">
                   Rifas Completadas
                 </p>
@@ -1000,12 +1000,12 @@ function SalesDashboardContent() {
           </CardContent>
         </Card>
         <Card className="overflow-hidden">
-          <CardContent className="pt-6">
-            <div className="flex min-w-0 items-start gap-3">
-              <div className="shrink-0 rounded-full bg-cyan-500/10 p-2">
+          <CardContent className="flex min-h-[116px] items-center py-5">
+            <div className="flex min-w-0 items-center gap-3">
+              <div className="shrink-0 rounded-full bg-cyan-500/10 p-2.5">
                 <Eye className="h-5 w-5 text-cyan-500" />
               </div>
-              <div className="min-w-0 flex-1">
+              <div className="min-w-0 flex-1 space-y-1">
                 <p className="text-xs leading-tight text-muted-foreground">
                   Vistas Totales
                 </p>
@@ -1017,12 +1017,12 @@ function SalesDashboardContent() {
           </CardContent>
         </Card>
         <Card className="overflow-hidden">
-          <CardContent className="pt-6">
-            <div className="flex min-w-0 items-start gap-3">
-              <div className="shrink-0 rounded-full bg-pink-500/10 p-2">
+          <CardContent className="flex min-h-[116px] items-center py-5">
+            <div className="flex min-w-0 items-center gap-3">
+              <div className="shrink-0 rounded-full bg-pink-500/10 p-2.5">
                 <TrendingUp className="h-5 w-5 text-pink-500" />
               </div>
-              <div className="min-w-0 flex-1">
+              <div className="min-w-0 flex-1 space-y-1">
                 <p className="text-xs leading-tight text-muted-foreground">
                   Tasa Conversión
                 </p>
@@ -1163,9 +1163,9 @@ function SalesDashboardContent() {
 
             return (
               <Card key={raffle.id} className={selectedRaffleIds.includes(raffle.id) ? 'ring-2 ring-primary' : ''}>
-                <CardContent className="p-6">
+                <CardContent className="p-6 sm:p-7">
                   <div className="space-y-4">
-                    <div className="flex flex-col gap-4 md:flex-row md:items-start">
+                    <div className="flex flex-col gap-4 md:flex-row md:items-center">
                     {/* Checkbox for active raffles */}
                     {isActive && (
                       <Checkbox

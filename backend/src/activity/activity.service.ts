@@ -79,6 +79,74 @@ export class ActivityService {
     });
   }
 
+  async logTwoFactorEnabled(userId: string, method: 'totp' = 'totp') {
+    return this.log({
+      userId,
+      action: ActivityType.TWO_FACTOR_ENABLED,
+      metadata: { method },
+    });
+  }
+
+  async logTwoFactorDisabled(userId: string, method: 'totp' | 'recovery') {
+    return this.log({
+      userId,
+      action: ActivityType.TWO_FACTOR_DISABLED,
+      metadata: { method },
+    });
+  }
+
+  async logTwoFactorRecoveryCodeUsed(
+    userId: string,
+    remainingRecoveryCodesCount: number,
+    ipAddress?: string,
+  ) {
+    return this.log({
+      userId,
+      action: ActivityType.TWO_FACTOR_RECOVERY_CODE_USED,
+      metadata: { remainingRecoveryCodesCount },
+      ipAddress,
+    });
+  }
+
+  async logTwoFactorCodeRejected(
+    userId: string,
+    stage: 'login' | 'disable',
+    ipAddress?: string,
+  ) {
+    return this.log({
+      userId,
+      action: ActivityType.TWO_FACTOR_CODE_REJECTED,
+      metadata: { stage },
+      ipAddress,
+    });
+  }
+
+  async logTwoFactorRecoveryCodeRejected(
+    userId: string,
+    stage: 'login' | 'disable',
+    ipAddress?: string,
+  ) {
+    return this.log({
+      userId,
+      action: ActivityType.TWO_FACTOR_RECOVERY_CODE_REJECTED,
+      metadata: { stage },
+      ipAddress,
+    });
+  }
+
+  async logAuthCaptchaRejected(
+    userId: string,
+    stage: 'login' | 'register',
+    ipAddress?: string,
+  ) {
+    return this.log({
+      userId,
+      action: ActivityType.AUTH_CAPTCHA_REJECTED,
+      metadata: { stage },
+      ipAddress,
+    });
+  }
+
   // ==================== Raffle Events ====================
 
   async logRaffleCreated(userId: string, raffleId: string, titulo: string) {
