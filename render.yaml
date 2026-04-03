@@ -22,6 +22,8 @@ services:
         generateValue: true
       - key: ENCRYPTION_KEY
         sync: false
+      - key: PLATFORM_FEE_PERCENT
+        value: "4"
       - key: FRONTEND_URL
         sync: false
       - key: BACKEND_URL
@@ -102,11 +104,19 @@ services:
         value: production
       - key: PORT
         value: 3000
+      - key: NEXT_PUBLIC_SITE_URL
+        sync: false
       - key: NEXT_PUBLIC_GRAPHQL_URL
         sync: false
       - key: NEXT_PUBLIC_GRAPHQL_WS_URL
         sync: false
       - key: NEXT_PUBLIC_BACKEND_URL
+        sync: false
+      - key: NEXT_PUBLIC_TURNSTILE_ENABLED
+        value: "false"
+      - key: NEXT_PUBLIC_TURNSTILE_SITE_KEY
+        sync: false
+      - key: NEXT_PUBLIC_GA_MEASUREMENT_ID
         sync: false
       - key: NEXT_PUBLIC_SENTRY_DSN
         sync: false
