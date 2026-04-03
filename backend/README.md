@@ -315,6 +315,8 @@ Behavior summary:
 - `requiresVerification = true` means the client must finish email verification before tokens are issued.
 - `requiresTwoFactor = true` means the client must continue with the 2FA challenge using `twoFactorChallengeToken`.
 - 2FA uses authenticator-app TOTP codes and supports one-time recovery codes.
+- Auth observability stores 2FA activation/deactivation, recovery-code usage, rejected second-factor attempts, and known-user captcha rejects in `ActivityLog`.
+- Expected 4xx auth rejects remain out of Sentry; only infrastructure/code failures should be captured there.
 
 ### Price History
 ```graphql

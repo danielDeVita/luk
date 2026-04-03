@@ -62,12 +62,14 @@ describe('AuthGoogleController', () => {
       user?: Partial<User>;
       cookies?: Record<string, string>;
       headers?: Record<string, string>;
+      ip?: string;
     } = {},
   ) => {
     return {
       user: options.user,
       cookies: options.cookies || {},
       headers: options.headers || {},
+      ip: options.ip || '203.0.113.10',
     } as any;
   };
 
@@ -102,7 +104,11 @@ describe('AuthGoogleController', () => {
 
       await controller.googleAuthCallback(req, res);
 
-      expect(authService.generateTokenForUser).toHaveBeenCalledWith(mockUser);
+      expect(authService.generateTokenForUser).toHaveBeenCalledWith(
+        mockUser,
+        'google',
+        '203.0.113.10',
+      );
 
       // Check access token cookie
       expect(res.cookie).toHaveBeenCalledWith(

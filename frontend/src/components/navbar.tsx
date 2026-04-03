@@ -119,7 +119,7 @@ export function Navbar() {
   return (
     <header className="sticky top-0 z-50 w-full px-4 pt-4">
       <div className="container mx-auto">
-        <div className="overflow-hidden rounded-[2rem] border border-border/60 bg-card/18 px-3 shadow-panel backdrop-blur-sm sm:px-4">
+        <div className="rounded-[2rem] border border-border/60 bg-card/18 px-3 shadow-panel backdrop-blur-sm sm:px-4">
           <div className="flex min-h-[4.5rem] items-center justify-between gap-3 py-2">
         {/* Logo */}
         <Link href="/" className="group flex min-w-0 items-center gap-3">
@@ -135,7 +135,7 @@ export function Navbar() {
         </Link>
 
         {/* Desktop Navigation */}
-        <nav className="hidden sm:flex items-center gap-2 rounded-full border border-border/70 bg-card/70 px-2 py-2">
+        <nav className="hidden lg:flex items-center gap-2 rounded-full border border-border/70 bg-card/70 px-2 py-2">
           <NavLink href="/">Inicio</NavLink>
           <NavLink href="/search">Explorar</NavLink>
           {isAuthenticated && (
@@ -146,7 +146,7 @@ export function Navbar() {
         </nav>
 
         {/* Desktop Auth */}
-        <div className="hidden sm:flex items-center gap-2">
+        <div className="hidden lg:flex items-center gap-2">
           <ThemeToggle />
           {isAuthenticated ? (
             <div className="flex items-center gap-2">
@@ -333,7 +333,7 @@ export function Navbar() {
 
         {/* Mobile Menu Button + Notifications */}
         <div className="flex lg:hidden items-center gap-1">
-          <div className="flex items-center gap-1 sm:hidden">
+          <div className="flex items-center gap-1 lg:hidden">
             <ThemeToggle />
             {isAuthenticated && <NotificationsBell />}
           </div>
@@ -353,10 +353,10 @@ export function Navbar() {
       </div>
 
       {/* Mobile Menu */}
-      <div className={`md:hidden overflow-hidden px-4 transition-all duration-300 ${
-        mobileMenuOpen ? 'max-h-[80vh] opacity-100' : 'max-h-0 opacity-0'
+      <div className={`lg:hidden px-4 transition-all duration-300 ${
+        mobileMenuOpen ? 'max-h-[calc(100vh-6rem)] opacity-100' : 'max-h-0 opacity-0'
       }`}>
-        <nav className="container mx-auto mt-3 space-y-1 rounded-[1.75rem] border border-border/80 bg-card/92 p-4 shadow-panel backdrop-blur-xl">
+        <nav className="container mx-auto mt-3 max-h-[calc(100vh-7rem)] overflow-y-auto rounded-[1.75rem] border border-border/80 bg-card/92 p-4 shadow-panel backdrop-blur-xl">
           {/* Main Navigation */}
           <MobileNavLink href="/" onClick={closeMobileMenu} icon={<Home className="h-4 w-4" />}>
             Inicio

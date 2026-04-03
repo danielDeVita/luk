@@ -55,6 +55,8 @@ export class AuthGoogleController {
     // Generate JWT access token and refresh token
     const { token, refreshToken } = await this.authService.generateTokenForUser(
       req.user,
+      'google',
+      req.ip,
     );
 
     // Pass token in URL for cross-subdomain deployments (third-party cookies blocked)

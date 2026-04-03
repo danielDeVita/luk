@@ -40,7 +40,11 @@ export class AuthService {
   ) {}
 
   async register(input: RegisterInput) {
-    await this.turnstileService.assertHuman(input.captchaToken);
+    await this.turnstileService.assertHuman(
+      input.captchaToken,
+      undefined,
+      'register',
+    );
 
     const existingUser = await this.prisma.user.findUnique({
       where: { email: input.email },
@@ -303,7 +307,12 @@ export class AuthService {
   }
 
   async login(input: LoginInput, ip?: string): Promise<LoginPayload> {
-    await this.turnstileService.assertHuman(input.captchaToken, ip);
+    try {
+      await this.turnstileService.assertHuman(input.captchaToken, ip, 'login');
+    } catch (error) {
+      await this.logAuthCaptchaRejectedIfKnownUser(input.email, ip);
+      throw error;
+    }
 
     const user = await this.prisma.user.findUnique({
       where: { email: input.email },
@@ -373,10 +382,10 @@ export class AuthService {
     const refreshToken = await this.createRefreshToken(user.id, undefined, ip);
 
     // Log login activity (non-blocking)
-    this.activityService.logUserLoggedIn(user.id).catch((err: unknown) => {
-      const message = err instanceof Error ? err.message : 'Unknown error';
-      this.logger.error(`Failed to log login activity: ${message}`);
-    });
+    this.logAuthActivity(
+      this.activityService.logUserLoggedIn(user.id, 'email', ip),
+      'Failed to log login activity',
+    );
 
     return {
       token: accessToken,
@@ -439,6 +448,11 @@ export class AuthService {
       },
     });
 
+    this.logAuthActivity(
+      this.activityService.logTwoFactorEnabled(userId),
+      'Failed to log 2FA activation activity',
+    );
+
     return {
       user: updatedUser,
       recoveryCodes,
@@ -482,6 +496,10 @@ export class AuthService {
     if (code) {
       const isValidCode = this.twoFactorService.verifyTotp(code, secret);
       if (!isValidCode) {
+        this.logAuthActivity(
+          this.activityService.logTwoFactorCodeRejected(user.id, 'login', ip),
+          'Failed to log rejected 2FA code',
+        );
         return this.recordFailedAttempt(
           ip,
           'El código de autenticación es inválido.',
@@ -497,6 +515,14 @@ export class AuthService {
       );
 
       if (!result.matched) {
+        this.logAuthActivity(
+          this.activityService.logTwoFactorRecoveryCodeRejected(
+            user.id,
+            'login',
+            ip,
+          ),
+          'Failed to log rejected recovery code',
+        );
         return this.recordFailedAttempt(
           ip,
           'El código de recuperación es inválido.',
@@ -510,6 +536,15 @@ export class AuthService {
             result.remainingHashes as Prisma.InputJsonValue,
         },
       });
+
+      this.logAuthActivity(
+        this.activityService.logTwoFactorRecoveryCodeUsed(
+          user.id,
+          result.remainingHashes.length,
+          ip,
+        ),
+        'Failed to log recovery code usage',
+      );
     }
 
     if (ip) {
@@ -523,10 +558,10 @@ export class AuthService {
     );
     const refreshToken = await this.createRefreshToken(user.id, undefined, ip);
 
-    this.activityService.logUserLoggedIn(user.id).catch((err: unknown) => {
-      const message = err instanceof Error ? err.message : 'Unknown error';
-      this.logger.error(`Failed to log login activity: ${message}`);
-    });
+    this.logAuthActivity(
+      this.activityService.logUserLoggedIn(user.id, 'email', ip),
+      'Failed to log login activity',
+    );
 
     return {
       token: accessToken,
@@ -566,6 +601,10 @@ export class AuthService {
     if (code) {
       const isValidCode = this.twoFactorService.verifyTotp(code, secret);
       if (!isValidCode) {
+        this.logAuthActivity(
+          this.activityService.logTwoFactorCodeRejected(user.id, 'disable'),
+          'Failed to log rejected 2FA code',
+        );
         throw new UnauthorizedException(
           'El código de autenticación es inválido.',
         );
@@ -580,6 +619,13 @@ export class AuthService {
       );
 
       if (!result.matched) {
+        this.logAuthActivity(
+          this.activityService.logTwoFactorRecoveryCodeRejected(
+            user.id,
+            'disable',
+          ),
+          'Failed to log rejected recovery code',
+        );
         throw new UnauthorizedException(
           'El código de recuperación es inválido.',
         );
@@ -595,6 +641,14 @@ export class AuthService {
         twoFactorRecoveryCodeHashes: Prisma.JsonNull,
       },
     });
+
+    this.logAuthActivity(
+      this.activityService.logTwoFactorDisabled(
+        userId,
+        code ? 'totp' : 'recovery',
+      ),
+      'Failed to log 2FA disable activity',
+    );
 
     return true;
   }
@@ -614,18 +668,30 @@ export class AuthService {
   /**
    * Generate JWT token for a user (used by OAuth flows)
    */
-  async generateTokenForUser(user: {
-    id: string;
-    email: string;
-    role: UserRole;
-    emailVerified: boolean;
-  }): Promise<{ token: string; refreshToken: string }> {
+  async generateTokenForUser(
+    user: {
+      id: string;
+      email: string;
+      role: UserRole;
+      emailVerified: boolean;
+    },
+    method: 'email' | 'google' = 'email',
+    ipAddress?: string,
+  ): Promise<{ token: string; refreshToken: string }> {
     if (!user.emailVerified) {
       throw new UnauthorizedException('Email not verified');
     }
 
     const token = this.generateAccessToken(user.id, user.email, user.role);
-    const refreshToken = await this.createRefreshToken(user.id);
+    const refreshToken = await this.createRefreshToken(
+      user.id,
+      undefined,
+      ipAddress,
+    );
+    this.logAuthActivity(
+      this.activityService.logUserLoggedIn(user.id, method, ipAddress),
+      'Failed to log login activity',
+    );
     return { token, refreshToken };
   }
 
@@ -828,6 +894,37 @@ export class AuthService {
     }
 
     return value.filter((entry): entry is string => typeof entry === 'string');
+  }
+
+  private logAuthActivity(
+    activityPromise: Promise<unknown>,
+    failureMessage: string,
+  ): void {
+    activityPromise.catch((err: unknown) => {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      this.logger.error(`${failureMessage}: ${message}`);
+    });
+  }
+
+  private async logAuthCaptchaRejectedIfKnownUser(
+    email: string,
+    ip?: string,
+  ): Promise<void> {
+    try {
+      const user = await this.prisma.user.findUnique({
+        where: { email },
+        select: { id: true },
+      });
+
+      if (!user) {
+        return;
+      }
+
+      await this.activityService.logAuthCaptchaRejected(user.id, 'login', ip);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      this.logger.error(`Failed to log captcha rejection activity: ${message}`);
+    }
   }
 
   private recordFailedAttempt(ip: string | undefined, message: string): never {

@@ -278,6 +278,8 @@ If a user tries to log in before verifying the email, the login page resumes the
 - Inline login continuation when the backend returns a 2FA challenge
 - Recovery codes generated at activation time
 - Activation and deactivation available in `Settings -> Security`
+- The long manual key shown during setup is only for adding the account to an authenticator app when QR scanning is not available; it is not a recovery code
+- Recovery codes are shown only after 2FA activation succeeds and are displayed once, so they must be stored immediately
 
 ### Seller Onboarding
 New sellers see a visual progress checklist at the top of their dashboard:

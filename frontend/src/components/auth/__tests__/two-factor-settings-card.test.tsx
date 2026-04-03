@@ -146,8 +146,72 @@ describe('TwoFactorSettingsCard', () => {
       expect(onStatusChanged).toHaveBeenCalled();
       expect(screen.getByText('ABCD-1234')).toBeInTheDocument();
       expect(screen.getByText('EFGH-5678')).toBeInTheDocument();
-      expect(mockToast.success).toHaveBeenCalledWith('2FA activado correctamente.');
+      expect(mockToast.success).toHaveBeenCalledWith(
+        '2FA activado. Guardá ahora tus recovery codes de respaldo: se muestran una sola vez.',
+      );
     });
+  });
+
+  it('shows recovery codes immediately even if status refresh is still pending', async () => {
+    const { mutationOptions, beginSetupMutate, enableTwoFactorMutate } =
+      setupMutations();
+    const pendingStatusRefresh = vi.fn(() => new Promise(() => {}));
+
+    render(
+      <TwoFactorSettingsCard
+        twoFactorEnabled={false}
+        twoFactorEnabledAt={null}
+        onStatusChanged={pendingStatusRefresh}
+      />,
+    );
+
+    beginSetupMutate.mockImplementation(async (variables) => {
+      const onCompleted = mutationOptions.get('BeginTwoFactorSetup')?.onCompleted as
+        | ((payload: unknown) => void)
+        | undefined;
+      onCompleted?.({
+        beginTwoFactorSetup: {
+          setupToken: 'setup-token',
+          manualEntryKey: 'SECRET123',
+          otpauthUrl: 'otpauth://totp/LUK:test@example.com',
+          qrCodeDataUrl: 'data:image/png;base64,qr',
+        },
+      });
+
+      return { data: variables };
+    });
+
+    enableTwoFactorMutate.mockResolvedValue({
+      data: {
+        enableTwoFactor: {
+          recoveryCodes: ['ZXCV-9876', 'QWER-1234'],
+          user: {
+            id: 'user-1',
+            twoFactorEnabled: true,
+            twoFactorEnabledAt: '2026-04-01T12:00:00.000Z',
+          },
+        },
+      },
+    });
+
+    fireEvent.change(screen.getByLabelText(/contraseña actual/i), {
+      target: { value: 'Password123!' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /configurar 2fa/i }));
+
+    expect(await screen.findByAltText(/código qr para configurar 2fa/i)).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText(/código de autenticación/i), {
+      target: { value: '123456' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /activar 2fa/i }));
+
+    expect(await screen.findByText('ZXCV-9876')).toBeInTheDocument();
+    expect(screen.getByText('QWER-1234')).toBeInTheDocument();
+    expect(pendingStatusRefresh).toHaveBeenCalled();
+    expect(mockToast.success).toHaveBeenCalledWith(
+      '2FA activado. Guardá ahora tus recovery codes de respaldo: se muestran una sola vez.',
+    );
   });
 
   it('disables 2FA with password and TOTP code', async () => {

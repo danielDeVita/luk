@@ -69,6 +69,16 @@ describe('AuthService', () => {
   const mockActivityService = {
     logUserRegistered: jest.fn().mockResolvedValue({ id: 'activity-1' }),
     logUserLoggedIn: jest.fn().mockResolvedValue({ id: 'activity-2' }),
+    logTwoFactorEnabled: jest.fn().mockResolvedValue({ id: 'activity-3' }),
+    logTwoFactorDisabled: jest.fn().mockResolvedValue({ id: 'activity-4' }),
+    logTwoFactorRecoveryCodeUsed: jest
+      .fn()
+      .mockResolvedValue({ id: 'activity-5' }),
+    logTwoFactorCodeRejected: jest.fn().mockResolvedValue({ id: 'activity-6' }),
+    logTwoFactorRecoveryCodeRejected: jest
+      .fn()
+      .mockResolvedValue({ id: 'activity-7' }),
+    logAuthCaptchaRejected: jest.fn().mockResolvedValue({ id: 'activity-8' }),
   };
 
   const mockLoginThrottler = {
@@ -128,6 +138,15 @@ describe('AuthService', () => {
     // Mock bcrypt
     (bcrypt.hash as jest.Mock).mockResolvedValue('hashed-password');
     (bcrypt.compare as jest.Mock).mockResolvedValue(true);
+    mockLoginThrottler.isBlocked.mockReturnValue({
+      blocked: false,
+      remainingMs: 0,
+      retryAfter: null,
+    });
+    mockLoginThrottler.recordFailedAttempt.mockReturnValue({
+      remainingAttempts: 4,
+      blocked: false,
+    });
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -183,11 +202,26 @@ describe('AuthService', () => {
       expect(result.message).toContain('Verificá tu email');
       expect(_turnstileService.assertHuman).toHaveBeenCalledWith(
         'captcha-token',
+        undefined,
+        'register',
       );
       expect(mockPrismaService.user.create).toHaveBeenCalled();
       expect(
         mockNotificationsService.sendEmailVerificationCode,
       ).toHaveBeenCalled();
+    });
+
+    it('should reject registration when captcha validation fails', async () => {
+      mockTurnstileService.assertHuman.mockRejectedValueOnce(
+        new UnauthorizedException(
+          'No pudimos validar que sos humano. Intentá nuevamente.',
+        ),
+      );
+
+      await expect(service.register(validInput)).rejects.toThrow(
+        UnauthorizedException,
+      );
+      expect(mockPrismaService.user.findUnique).not.toHaveBeenCalled();
     });
 
     it('should throw ConflictException if email already exists', async () => {
@@ -232,19 +266,6 @@ describe('AuthService', () => {
       await expect(service.register(inputUnderage)).rejects.toThrow(
         'mayor de 18 años',
       );
-    });
-
-    it('should reject registration when captcha validation fails', async () => {
-      mockTurnstileService.assertHuman.mockRejectedValueOnce(
-        new UnauthorizedException(
-          'No pudimos validar que sos humano. Intentá nuevamente.',
-        ),
-      );
-
-      await expect(service.register(validInput)).rejects.toThrow(
-        UnauthorizedException,
-      );
-      expect(mockPrismaService.user.findUnique).not.toHaveBeenCalled();
     });
 
     it('should hash the password before storing', async () => {
@@ -503,6 +524,7 @@ describe('AuthService', () => {
       expect(_turnstileService.assertHuman).toHaveBeenCalledWith(
         'captcha-token',
         undefined,
+        'login',
       );
     });
 
@@ -589,6 +611,13 @@ describe('AuthService', () => {
       await expect(service.login(loginInput)).rejects.toThrow(
         'Invalid credentials',
       );
+      expect(mockActivityService.logAuthCaptchaRejected).not.toHaveBeenCalled();
+      expect(
+        mockActivityService.logTwoFactorCodeRejected,
+      ).not.toHaveBeenCalled();
+      expect(
+        mockActivityService.logTwoFactorRecoveryCodeRejected,
+      ).not.toHaveBeenCalled();
     });
 
     it('should record failed attempt and block IP after max attempts', async () => {
@@ -607,6 +636,7 @@ describe('AuthService', () => {
     });
 
     it('should reject login when captcha validation fails', async () => {
+      mockPrismaService.user.findUnique.mockResolvedValue(createTestUser());
       mockTurnstileService.assertHuman.mockRejectedValueOnce(
         new UnauthorizedException(
           'No pudimos validar que sos humano. Intentá nuevamente.',
@@ -616,7 +646,29 @@ describe('AuthService', () => {
       await expect(service.login(loginInput, '192.168.1.1')).rejects.toThrow(
         UnauthorizedException,
       );
-      expect(mockPrismaService.user.findUnique).not.toHaveBeenCalled();
+      expect(mockPrismaService.user.findUnique).toHaveBeenCalledWith({
+        where: { email: loginInput.email },
+        select: { id: true },
+      });
+      expect(mockActivityService.logAuthCaptchaRejected).toHaveBeenCalledWith(
+        'user-123',
+        'login',
+        '192.168.1.1',
+      );
+    });
+
+    it('should not persist captcha rejection when the login email is unknown', async () => {
+      mockPrismaService.user.findUnique.mockResolvedValue(null);
+      mockTurnstileService.assertHuman.mockRejectedValueOnce(
+        new UnauthorizedException(
+          'No pudimos validar que sos humano. Intentá nuevamente.',
+        ),
+      );
+
+      await expect(service.login(loginInput, '192.168.1.1')).rejects.toThrow(
+        UnauthorizedException,
+      );
+      expect(mockActivityService.logAuthCaptchaRejected).not.toHaveBeenCalled();
     });
 
     it('should clear failed attempts on successful login', async () => {
@@ -640,9 +692,28 @@ describe('AuthService', () => {
         token: 'refresh-token',
       });
 
-      await service.login(loginInput);
+      await service.login(loginInput, '192.168.1.1');
 
-      expect(mockActivityService.logUserLoggedIn).toHaveBeenCalledWith(user.id);
+      expect(mockActivityService.logUserLoggedIn).toHaveBeenCalledWith(
+        user.id,
+        'email',
+        '192.168.1.1',
+      );
+    });
+
+    it('should not fail login when activity logging fails', async () => {
+      const user = createTestUser({ emailVerified: true });
+      mockPrismaService.user.findUnique.mockResolvedValue(user);
+      mockPrismaService.refreshToken.create.mockResolvedValue({
+        token: 'refresh-token',
+      });
+      mockActivityService.logUserLoggedIn.mockRejectedValueOnce(
+        new Error('activity failed'),
+      );
+
+      const result = await service.login(loginInput, '192.168.1.1');
+
+      expect(result.token).toBe('mock-jwt-token');
     });
 
     it('should require two-factor login when the user has 2FA enabled', async () => {
@@ -741,6 +812,9 @@ describe('AuthService', () => {
           }),
         }),
       );
+      expect(mockActivityService.logTwoFactorEnabled).toHaveBeenCalledWith(
+        user.id,
+      );
     });
 
     it('should reject invalid TOTP codes during activation', async () => {
@@ -788,6 +862,11 @@ describe('AuthService', () => {
       expect(mockLoginThrottler.clearAttempts).toHaveBeenCalledWith(
         '192.168.1.1',
       );
+      expect(mockActivityService.logUserLoggedIn).toHaveBeenCalledWith(
+        user.id,
+        'email',
+        '192.168.1.1',
+      );
     });
 
     it('should consume a recovery code only once', async () => {
@@ -825,6 +904,69 @@ describe('AuthService', () => {
           }),
         }),
       );
+      expect(
+        mockActivityService.logTwoFactorRecoveryCodeUsed,
+      ).toHaveBeenCalledWith(user.id, 1, '192.168.1.1');
+    });
+
+    it('should persist rejected TOTP attempts during 2FA login', async () => {
+      const user = createTestUser({
+        emailVerified: true,
+        twoFactorEnabled: true,
+        twoFactorSecretEncrypted: 'encrypted-secret',
+      });
+      mockTwoFactorService.validateChallengeToken.mockReturnValue({
+        userId: user.id,
+      });
+      mockPrismaService.user.findUnique.mockResolvedValue(user);
+      mockTwoFactorService.decryptSecret.mockReturnValue('SECRET123');
+      mockTwoFactorService.verifyTotp.mockReturnValue(false);
+
+      await expect(
+        service.completeTwoFactorLogin(
+          'challenge-token',
+          '999999',
+          undefined,
+          '192.168.1.1',
+        ),
+      ).rejects.toThrow('El código de autenticación es inválido.');
+
+      expect(mockActivityService.logTwoFactorCodeRejected).toHaveBeenCalledWith(
+        user.id,
+        'login',
+        '192.168.1.1',
+      );
+    });
+
+    it('should persist rejected recovery codes during 2FA login', async () => {
+      const user = createTestUser({
+        emailVerified: true,
+        twoFactorEnabled: true,
+        twoFactorSecretEncrypted: 'encrypted-secret',
+        twoFactorRecoveryCodeHashes: ['hash-1', 'hash-2'],
+      });
+      mockTwoFactorService.validateChallengeToken.mockReturnValue({
+        userId: user.id,
+      });
+      mockPrismaService.user.findUnique.mockResolvedValue(user);
+      mockTwoFactorService.decryptSecret.mockReturnValue('SECRET123');
+      mockTwoFactorService.consumeRecoveryCode.mockReturnValue({
+        matched: false,
+        remainingHashes: ['hash-1', 'hash-2'],
+      });
+
+      await expect(
+        service.completeTwoFactorLogin(
+          'challenge-token',
+          undefined,
+          'WRONG-0000',
+          '192.168.1.1',
+        ),
+      ).rejects.toThrow('El código de recuperación es inválido.');
+
+      expect(
+        mockActivityService.logTwoFactorRecoveryCodeRejected,
+      ).toHaveBeenCalledWith(user.id, 'login', '192.168.1.1');
     });
   });
 
@@ -853,6 +995,60 @@ describe('AuthService', () => {
           }),
         }),
       );
+      expect(mockActivityService.logTwoFactorDisabled).toHaveBeenCalledWith(
+        'user-123',
+        'totp',
+      );
+    });
+
+    it('should persist rejected TOTP attempts during 2FA disable', async () => {
+      mockPrismaService.user.findUnique.mockResolvedValue(
+        createTestUser({
+          emailVerified: true,
+          twoFactorEnabled: true,
+          twoFactorSecretEncrypted: 'encrypted-secret',
+        }),
+      );
+      mockTwoFactorService.decryptSecret.mockReturnValue('SECRET123');
+      mockTwoFactorService.verifyTotp.mockReturnValue(false);
+
+      await expect(
+        service.disableTwoFactor('user-123', 'Password123!', '999999'),
+      ).rejects.toThrow('El código de autenticación es inválido.');
+
+      expect(mockActivityService.logTwoFactorCodeRejected).toHaveBeenCalledWith(
+        'user-123',
+        'disable',
+      );
+    });
+
+    it('should persist rejected recovery codes during 2FA disable', async () => {
+      mockPrismaService.user.findUnique.mockResolvedValue(
+        createTestUser({
+          emailVerified: true,
+          twoFactorEnabled: true,
+          twoFactorSecretEncrypted: 'encrypted-secret',
+          twoFactorRecoveryCodeHashes: ['hash-1'],
+        }),
+      );
+      mockTwoFactorService.decryptSecret.mockReturnValue('SECRET123');
+      mockTwoFactorService.consumeRecoveryCode.mockReturnValue({
+        matched: false,
+        remainingHashes: ['hash-1'],
+      });
+
+      await expect(
+        service.disableTwoFactor(
+          'user-123',
+          'Password123!',
+          undefined,
+          'WRONG-0000',
+        ),
+      ).rejects.toThrow('El código de recuperación es inválido.');
+
+      expect(
+        mockActivityService.logTwoFactorRecoveryCodeRejected,
+      ).toHaveBeenCalledWith('user-123', 'disable');
     });
   });
 
@@ -913,6 +1109,11 @@ describe('AuthService', () => {
           role: user.role,
         }),
         expect.any(Object),
+      );
+      expect(mockActivityService.logUserLoggedIn).toHaveBeenCalledWith(
+        user.id,
+        'email',
+        undefined,
       );
     });
 

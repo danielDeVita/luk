@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { gql } from '@apollo/client/core';
 import { useMutation } from '@apollo/client/react';
 import { Loader2, Shield, ShieldCheck, ShieldOff } from 'lucide-react';
@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { PasswordInput } from '@/components/ui/password-input';
 
 const BEGIN_TWO_FACTOR_SETUP = gql`
   mutation BeginTwoFactorSetup($currentPassword: String!) {
@@ -101,6 +102,7 @@ export function TwoFactorSettingsCard({
   const [setupCode, setSetupCode] = useState('');
   const [setupData, setSetupData] = useState<BeginTwoFactorSetupData['beginTwoFactorSetup'] | null>(null);
   const [recoveryCodes, setRecoveryCodes] = useState<string[] | null>(null);
+  const recoveryCodesRef = useRef<HTMLDivElement | null>(null);
 
   const [disablePassword, setDisablePassword] = useState('');
   const [disableCode, setDisableCode] = useState('');
@@ -182,8 +184,10 @@ export function TwoFactorSettingsCard({
       setSetupPassword('');
       setSetupCode('');
       setSetupData(null);
-      await onStatusChanged();
-      toast.success('2FA activado correctamente.');
+      toast.success(
+        '2FA activado. Guardá ahora tus recovery codes de respaldo: se muestran una sola vez.',
+      );
+      void onStatusChanged();
     }
   };
 
@@ -228,6 +232,21 @@ export function TwoFactorSettingsCard({
 
   const isShowingRecoveryCodes = Boolean(recoveryCodes?.length);
 
+  useEffect(() => {
+    if (!isShowingRecoveryCodes) {
+      return;
+    }
+
+    if (typeof recoveryCodesRef.current?.scrollIntoView === 'function') {
+      recoveryCodesRef.current.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center',
+      });
+    }
+
+    recoveryCodesRef.current?.focus();
+  }, [isShowingRecoveryCodes]);
+
   return (
     <Card>
       <CardHeader>
@@ -251,12 +270,26 @@ export function TwoFactorSettingsCard({
 
       <CardContent className="space-y-4">
         {isShowingRecoveryCodes ? (
-          <div className="space-y-4 rounded-lg border border-primary/20 bg-primary/5 p-4">
+          <div
+            ref={recoveryCodesRef}
+            tabIndex={-1}
+            className="space-y-4 rounded-lg border border-primary/20 bg-primary/5 p-4 outline-none"
+          >
             <div>
-              <p className="font-medium">Guardá estos recovery codes ahora.</p>
-              <p className="text-sm text-muted-foreground">
-                Se muestran una sola vez. Cada código sirve para un único acceso.
+              <p className="font-medium">
+                Guardá estos recovery codes de respaldo ahora.
               </p>
+              <p className="text-sm text-muted-foreground">
+                Se muestran una sola vez. Guardalos en un lugar seguro. Cada
+                código sirve para un único acceso y es distinto de la clave de
+                tu app autenticadora.
+              </p>
+            </div>
+
+            <div className="rounded-lg border border-destructive/20 bg-destructive/8 p-4 text-sm text-destructive">
+              Si perdés la app autenticadora y no guardás bien estos códigos,
+              podés quedar sin acceso a la cuenta y no vas a poder desactivar
+              2FA por tu cuenta.
             </div>
 
             <div className="grid gap-2 sm:grid-cols-2">
@@ -291,9 +324,8 @@ export function TwoFactorSettingsCard({
               <Label htmlFor="twoFactorCurrentPassword">
                 Contraseña actual
               </Label>
-              <Input
+              <PasswordInput
                 id="twoFactorCurrentPassword"
-                type="password"
                 value={setupPassword}
                 onChange={(event) => setSetupPassword(event.target.value)}
                 placeholder="Ingresá tu contraseña"
@@ -335,13 +367,20 @@ export function TwoFactorSettingsCard({
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="manualEntryKey">Clave manual</Label>
+              <Label htmlFor="manualEntryKey">
+                Clave para tu app autenticadora
+              </Label>
               <Input
                 id="manualEntryKey"
                 readOnly
                 value={setupData.manualEntryKey}
                 className="font-mono text-sm"
               />
+              <p className="text-xs text-muted-foreground">
+                Usala solo si no podés escanear el QR. Esta clave larga sirve
+                para cargar la app autenticadora manualmente y no funciona como
+                recovery code.
+              </p>
             </div>
 
             <form onSubmit={handleEnableTwoFactor} className="space-y-4">
@@ -404,9 +443,8 @@ export function TwoFactorSettingsCard({
             <form onSubmit={handleDisableTwoFactor} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="disableCurrentPassword">Contraseña actual</Label>
-                <Input
+                <PasswordInput
                   id="disableCurrentPassword"
-                  type="password"
                   value={disablePassword}
                   onChange={(event) => setDisablePassword(event.target.value)}
                   placeholder="Ingresá tu contraseña"
