@@ -23,6 +23,8 @@ const GET_PUBLIC_RAFFLES_FOR_SITEMAP = `
   }
 `;
 
+const SITEMAP_GRAPHQL_TIMEOUT_MS = 8000;
+
 interface SitemapRaffleItem {
   id: string;
   updatedAt: string;
@@ -85,7 +87,7 @@ async function fetchActiveRaffles(): Promise<SitemapRaffleItem[]> {
         pagination: { limit: 100, page },
         filters: { estado: 'ACTIVA' },
       },
-      { revalidate },
+      { revalidate, timeoutMs: SITEMAP_GRAPHQL_TIMEOUT_MS },
     );
 
     if (!data?.rafflesPaginated) {

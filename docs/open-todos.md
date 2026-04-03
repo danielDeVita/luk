@@ -41,6 +41,9 @@ No intenta reemplazar esos documentos. Sirve como checklist única para ordenar 
   `backend/Dockerfile`
   `backend/Dockerfile.social-worker`
   `docker-compose.yml`
+  Incidente ya observado en Render:
+  el backend no pudo bootear porque `db push` frenó el arranque ante cambios destructivos (`referral_balance`, enum `THREADS`) y luego volvió a frenarse al detectar tablas backup no versionadas en `public`.
+  La conclusión práctica es que los cambios de schema deben ejecutarse en un paso controlado de release, no en el `CMD` del contenedor.
   Fuente: [aws-migration-plan.md](./aws-migration-plan.md)
 
 - [ ] Formalizar la política de secretos para entornos reales.

@@ -11,6 +11,7 @@ interface GraphqlResponse<TData> {
 
 interface PublicGraphqlOptions {
   revalidate?: number;
+  timeoutMs?: number;
 }
 
 export async function fetchPublicGraphql<
@@ -22,6 +23,11 @@ export async function fetchPublicGraphql<
   options: PublicGraphqlOptions = {},
 ): Promise<TData | null> {
   const graphqlUrl = getPublicGraphqlUrl();
+  const controller = new AbortController();
+  const timeoutId = setTimeout(
+    () => controller.abort(),
+    options.timeoutMs ?? 8000,
+  );
 
   try {
     const response = await fetch(graphqlUrl, {
@@ -34,6 +40,7 @@ export async function fetchPublicGraphql<
         variables,
       }),
       next: { revalidate: options.revalidate ?? 300 },
+      signal: controller.signal,
     });
 
     if (!response.ok) {
@@ -49,5 +56,7 @@ export async function fetchPublicGraphql<
     return result.data ?? null;
   } catch {
     return null;
+  } finally {
+    clearTimeout(timeoutId);
   }
 }
