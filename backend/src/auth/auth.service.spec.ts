@@ -63,6 +63,11 @@ describe('AuthService', () => {
   const mockNotificationsService = {
     sendEmailVerificationCode: jest.fn().mockResolvedValue(true),
     sendWelcomeEmail: jest.fn().mockResolvedValue(true),
+    sendTwoFactorEnabledNotification: jest.fn().mockResolvedValue(true),
+    sendTwoFactorDisabledNotification: jest.fn().mockResolvedValue(true),
+    sendTwoFactorRecoveryCodeUsedNotification: jest
+      .fn()
+      .mockResolvedValue(true),
     create: jest.fn().mockResolvedValue({ id: 'notif-1' }),
   };
 
@@ -699,6 +704,9 @@ describe('AuthService', () => {
         'email',
         '192.168.1.1',
       );
+      expect(
+        mockNotificationsService.sendTwoFactorRecoveryCodeUsedNotification,
+      ).not.toHaveBeenCalled();
     });
 
     it('should not fail login when activity logging fails', async () => {
@@ -815,6 +823,18 @@ describe('AuthService', () => {
       expect(mockActivityService.logTwoFactorEnabled).toHaveBeenCalledWith(
         user.id,
       );
+      expect(
+        mockNotificationsService.sendTwoFactorEnabledNotification,
+      ).toHaveBeenCalledWith(user.email, {
+        userName: user.nombre,
+      });
+      expect(mockNotificationsService.create).toHaveBeenCalledWith(
+        user.id,
+        'SECURITY',
+        '2FA activado',
+        expect.stringContaining('autenticación en dos pasos ya está activa'),
+        '/dashboard/settings',
+      );
     });
 
     it('should reject invalid TOTP codes during activation', async () => {
@@ -831,6 +851,36 @@ describe('AuthService', () => {
       await expect(
         service.enableTwoFactor('user-123', 'setup-token', '123456'),
       ).rejects.toThrow('código de autenticación es inválido');
+    });
+
+    it('should keep 2FA activation successful when security notifications fail', async () => {
+      const user = createTestUser({ emailVerified: true });
+      const updatedUser = createTestUser({
+        emailVerified: true,
+        twoFactorEnabled: true,
+        twoFactorEnabledAt: new Date(),
+      });
+      mockPrismaService.user.findUnique.mockResolvedValue(user);
+      mockTwoFactorService.validateSetupToken.mockReturnValue({
+        userId: user.id,
+        email: user.email,
+        secret: 'SECRET123',
+      });
+      mockTwoFactorService.verifyTotp.mockReturnValue(true);
+      mockTwoFactorService.generateRecoveryCodes.mockReturnValue(['ABCD-1234']);
+      mockTwoFactorService.hashRecoveryCodes.mockReturnValue(['hash-1']);
+      mockTwoFactorService.encryptSecret.mockReturnValue('encrypted-secret');
+      mockPrismaService.user.update.mockResolvedValue(updatedUser);
+      mockNotificationsService.sendTwoFactorEnabledNotification.mockRejectedValueOnce(
+        new Error('email failed'),
+      );
+
+      await expect(
+        service.enableTwoFactor(user.id, 'setup-token', '123456'),
+      ).resolves.toEqual({
+        user: updatedUser,
+        recoveryCodes: ['ABCD-1234'],
+      });
     });
   });
 
@@ -907,6 +957,19 @@ describe('AuthService', () => {
       expect(
         mockActivityService.logTwoFactorRecoveryCodeUsed,
       ).toHaveBeenCalledWith(user.id, 1, '192.168.1.1');
+      expect(
+        mockNotificationsService.sendTwoFactorRecoveryCodeUsedNotification,
+      ).toHaveBeenCalledWith(user.email, {
+        userName: user.nombre,
+        remainingRecoveryCodesCount: 1,
+      });
+      expect(mockNotificationsService.create).toHaveBeenCalledWith(
+        user.id,
+        'SECURITY',
+        'Usaste un código de recuperación',
+        expect.stringContaining('Te queda 1 código de recuperación.'),
+        '/dashboard/settings',
+      );
     });
 
     it('should persist rejected TOTP attempts during 2FA login', async () => {
@@ -999,6 +1062,18 @@ describe('AuthService', () => {
         'user-123',
         'totp',
       );
+      expect(
+        mockNotificationsService.sendTwoFactorDisabledNotification,
+      ).toHaveBeenCalledWith('test@example.com', {
+        userName: 'Test',
+      });
+      expect(mockNotificationsService.create).toHaveBeenCalledWith(
+        'user-123',
+        'SECURITY',
+        '2FA desactivado',
+        expect.stringContaining('autenticación en dos pasos fue desactivada'),
+        '/dashboard/settings',
+      );
     });
 
     it('should persist rejected TOTP attempts during 2FA disable', async () => {
@@ -1049,6 +1124,26 @@ describe('AuthService', () => {
       expect(
         mockActivityService.logTwoFactorRecoveryCodeRejected,
       ).toHaveBeenCalledWith('user-123', 'disable');
+    });
+
+    it('should keep 2FA disable successful when security notifications fail', async () => {
+      mockPrismaService.user.findUnique.mockResolvedValue(
+        createTestUser({
+          emailVerified: true,
+          twoFactorEnabled: true,
+          twoFactorSecretEncrypted: 'encrypted-secret',
+        }),
+      );
+      mockTwoFactorService.decryptSecret.mockReturnValue('SECRET123');
+      mockTwoFactorService.verifyTotp.mockReturnValue(true);
+      mockPrismaService.user.update.mockResolvedValue(createTestUser());
+      mockNotificationsService.sendTwoFactorDisabledNotification.mockRejectedValueOnce(
+        new Error('email failed'),
+      );
+
+      await expect(
+        service.disableTwoFactor('user-123', 'Password123!', '123456'),
+      ).resolves.toBe(true);
     });
   });
 

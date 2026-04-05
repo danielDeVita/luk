@@ -995,6 +995,8 @@ export class PaymentsService {
 
       if (buyer && raffle) {
         const ticketNumbers = tickets.map((t) => t.numeroTicket);
+        const purchaseIncludesPack =
+          packApplied && bonusQuantity > 0 && grantedQuantity > baseQuantity;
 
         // Send purchase confirmation email to buyer
         await this.notificationsService.sendTicketPurchaseConfirmation(
@@ -1003,6 +1005,13 @@ export class PaymentsService {
             raffleName: raffle.titulo,
             ticketNumbers,
             amount: cashChargedAmount,
+            packApplied: purchaseIncludesPack,
+            baseQuantity: purchaseIncludesPack ? baseQuantity : undefined,
+            bonusQuantity: purchaseIncludesPack ? bonusQuantity : undefined,
+            grantedQuantity: purchaseIncludesPack ? grantedQuantity : undefined,
+            subsidyAmount: purchaseIncludesPack
+              ? packDiscountAmount
+              : undefined,
           },
         );
 
@@ -1011,13 +1020,18 @@ export class PaymentsService {
           buyerId,
           'PURCHASE',
           '¡Compra confirmada!',
-          `Compraste ${ticketNumbers.length} ticket(s) para "${raffle.titulo}". Números: ${ticketNumbers.join(', ')}`,
+          purchaseIncludesPack
+            ? `Pagaste ${baseQuantity} ticket(s) para "${raffle.titulo}", recibiste ${grantedQuantity} en total (${bonusQuantity} bonus subsidiados por LUK). Números: ${ticketNumbers.join(', ')}. Total cobrado: $${cashChargedAmount.toFixed(2)}.`
+            : `Compraste ${ticketNumbers.length} ticket(s) para "${raffle.titulo}". Números: ${ticketNumbers.join(', ')}`,
+          '/dashboard/tickets',
         );
 
         // Send notification to seller about the sale
         if (raffle.seller) {
           const soldTickets = raffle.tickets.length;
-          const sellerName = `${raffle.seller.nombre} ${raffle.seller.apellido}`;
+          const sellerName = [raffle.seller.nombre, raffle.seller.apellido]
+            .filter(Boolean)
+            .join(' ');
 
           // Send email notification to seller
           await this.notificationsService.sendSellerTicketPurchasedNotification(
@@ -1030,6 +1044,15 @@ export class PaymentsService {
               soldTickets,
               totalTickets: raffle.totalTickets,
               raffleId: raffle.id,
+              packApplied: purchaseIncludesPack,
+              baseQuantity: purchaseIncludesPack ? baseQuantity : undefined,
+              bonusQuantity: purchaseIncludesPack ? bonusQuantity : undefined,
+              grantedQuantity: purchaseIncludesPack
+                ? grantedQuantity
+                : undefined,
+              subsidyAmount: purchaseIncludesPack
+                ? packDiscountAmount
+                : undefined,
             },
           );
 
@@ -1038,7 +1061,10 @@ export class PaymentsService {
             raffle.seller.id,
             'INFO',
             '¡Nueva venta!',
-            `Vendiste ${ticketNumbers.length} ticket(s) en "${raffle.titulo}" por $${grossAmount.toFixed(2)}. Progreso: ${soldTickets}/${raffle.totalTickets}`,
+            purchaseIncludesPack
+              ? `Se emitieron ${grantedQuantity} ticket(s) en "${raffle.titulo}" (${baseQuantity} pagos + ${bonusQuantity} bonus subsidiados por LUK) por $${grossAmount.toFixed(2)} brutos. Tu cobro no se reduce. Progreso: ${soldTickets}/${raffle.totalTickets}.`
+              : `Vendiste ${ticketNumbers.length} ticket(s) en "${raffle.titulo}" por $${grossAmount.toFixed(2)}. Progreso: ${soldTickets}/${raffle.totalTickets}`,
+            '/dashboard/sales',
           );
         }
 

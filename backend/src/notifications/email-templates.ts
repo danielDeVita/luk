@@ -195,6 +195,102 @@ export const getEmailVerificationCodeContent = (
   return wrapEmailTemplate(content, configService);
 };
 
+export const getTwoFactorEnabledContent = (
+  data: { userName: string },
+  configService: ConfigService,
+) => {
+  const frontendUrl = getFrontendUrl(configService);
+  const content = `
+    <h2 style="color: #0F766E; font-family: 'Fraunces', serif; font-size: 24px; font-weight: 700; margin: 0 0 16px 0;">
+      La autenticación en dos pasos ya está activa 🔐
+    </h2>
+    <p style="color: #4B5563; font-size: 15px; line-height: 1.6; margin: 0 0 20px 0;">
+      Hola ${data.userName}, tu cuenta ahora requiere un segundo factor para iniciar sesión.
+    </p>
+    <div style="background: #F0FDFA; border: 1px solid #99F6E4; border-radius: 12px; padding: 24px; margin: 24px 0;">
+      <p style="color: #0F766E; font-size: 14px; margin: 0 0 12px 0; font-weight: 700;">
+        Qué revisar ahora
+      </p>
+      <ul style="color: #0F766E; font-size: 14px; margin: 0; padding-left: 20px; line-height: 1.8;">
+        <li>Guardá tus códigos de recuperación en un lugar seguro.</li>
+        <li>Verificá que tu app autenticadora siga vinculada correctamente.</li>
+      </ul>
+    </div>
+    <p style="color: #6B7280; font-size: 14px; line-height: 1.6; margin: 0;">
+      Si no realizaste este cambio, revisá tu configuración de seguridad cuanto antes.
+    </p>
+  `;
+
+  return wrapEmailTemplate(content, configService, {
+    showButton: true,
+    buttonText: 'Revisar seguridad',
+    buttonUrl: `${frontendUrl}/dashboard/settings`,
+  });
+};
+
+export const getTwoFactorDisabledContent = (
+  data: { userName: string },
+  configService: ConfigService,
+) => {
+  const frontendUrl = getFrontendUrl(configService);
+  const content = `
+    <h2 style="color: #D97706; font-family: 'Fraunces', serif; font-size: 24px; font-weight: 700; margin: 0 0 16px 0;">
+      La autenticación en dos pasos fue desactivada ⚠️
+    </h2>
+    <p style="color: #4B5563; font-size: 15px; line-height: 1.6; margin: 0 0 20px 0;">
+      Hola ${data.userName}, tu cuenta ya no requiere un segundo factor para iniciar sesión.
+    </p>
+    <div style="background: #FFFBEB; border: 1px solid #FDE68A; border-radius: 12px; padding: 24px; margin: 24px 0;">
+      <p style="color: #92400E; font-size: 14px; line-height: 1.6; margin: 0;">
+        Si no realizaste este cambio, te recomendamos revisar tu cuenta y volver a activar 2FA cuanto antes.
+      </p>
+    </div>
+  `;
+
+  return wrapEmailTemplate(content, configService, {
+    showButton: true,
+    buttonText: 'Ir a seguridad',
+    buttonUrl: `${frontendUrl}/dashboard/settings`,
+  });
+};
+
+export const getTwoFactorRecoveryCodeUsedContent = (
+  data: { userName: string; remainingRecoveryCodesCount: number },
+  configService: ConfigService,
+) => {
+  const frontendUrl = getFrontendUrl(configService);
+  const remainingCodesLabel =
+    data.remainingRecoveryCodesCount === 1
+      ? 'Te queda 1 código de recuperación.'
+      : `Te quedan ${data.remainingRecoveryCodesCount} códigos de recuperación.`;
+
+  const content = `
+    <h2 style="color: #1F2937; font-family: 'Fraunces', serif; font-size: 24px; font-weight: 700; margin: 0 0 16px 0;">
+      Se usó un código de recuperación 🔐
+    </h2>
+    <p style="color: #4B5563; font-size: 15px; line-height: 1.6; margin: 0 0 20px 0;">
+      Hola ${data.userName}, ingresaste a tu cuenta usando un código de respaldo de 2FA.
+    </p>
+    <div style="background: #EFF6FF; border: 1px solid #BFDBFE; border-radius: 12px; padding: 24px; margin: 24px 0;">
+      <p style="color: #1D4ED8; font-size: 16px; font-weight: 700; margin: 0 0 8px 0;">
+        ${remainingCodesLabel}
+      </p>
+      <p style="color: #1D4ED8; font-size: 14px; line-height: 1.6; margin: 0;">
+        Revisá tu configuración de seguridad y asegurate de conservar los códigos restantes.
+      </p>
+    </div>
+    <p style="color: #6B7280; font-size: 14px; line-height: 1.6; margin: 0;">
+      Si no fuiste vos, cambiá tu contraseña y revisá tu cuenta inmediatamente.
+    </p>
+  `;
+
+  return wrapEmailTemplate(content, configService, {
+    showButton: true,
+    buttonText: 'Revisar seguridad',
+    buttonUrl: `${frontendUrl}/dashboard/settings`,
+  });
+};
+
 export const getPromotionBonusGrantIssuedContent = (
   data: {
     userName: string;
@@ -234,24 +330,57 @@ export const getPromotionBonusGrantIssuedContent = (
 };
 
 export const getTicketPurchaseConfirmationContent = (
-  data: { raffleName: string; ticketNumbers: number[]; amount: number },
+  data: {
+    raffleName: string;
+    ticketNumbers: number[];
+    amount: number;
+    packApplied?: boolean;
+    baseQuantity?: number;
+    bonusQuantity?: number;
+    grantedQuantity?: number;
+    subsidyAmount?: number;
+  },
   configService: ConfigService,
 ) => {
   const frontendUrl = getFrontendUrl(configService);
+  const hasPackDetails =
+    data.packApplied &&
+    typeof data.baseQuantity === 'number' &&
+    typeof data.bonusQuantity === 'number' &&
+    typeof data.grantedQuantity === 'number' &&
+    data.bonusQuantity > 0;
+  const paidTicketCount = data.baseQuantity ?? data.ticketNumbers.length;
+  const grantedTicketCount = data.grantedQuantity ?? data.ticketNumbers.length;
+  const packDetailsHtml = hasPackDetails
+    ? `
+      <div style="background: #F0FDFA; border: 1px solid #99F6E4; border-radius: 12px; padding: 20px; margin: 0 0 16px 0;">
+        <p style="color: #0F766E; font-size: 14px; margin: 0 0 12px 0; font-weight: 700;">Pack simple aplicado</p>
+        <p style="color: #0F766E; font-size: 14px; margin: 0 0 8px 0;">Pagaste <strong>${paidTicketCount}</strong> ticket(s).</p>
+        <p style="color: #0F766E; font-size: 14px; margin: 0 0 8px 0;">Recibiste <strong>${data.bonusQuantity}</strong> ticket(s) bonus.</p>
+        <p style="color: #0F766E; font-size: 14px; margin: 0 0 8px 0;">Total emitido: <strong>${grantedTicketCount}</strong> ticket(s).</p>
+        <p style="color: #0F766E; font-size: 14px; margin: 0;">LUK subsidió <strong>$${(data.subsidyAmount ?? 0).toFixed(2)}</strong> de esta compra.</p>
+      </div>
+    `
+    : '';
   const content = `
     <h2 style="color: #10B981; font-family: 'Fraunces', serif; font-size: 24px; font-weight: 700; margin: 0 0 16px 0;">
       ¡Compra confirmada! ✅
     </h2>
     <p style="color: #4B5563; font-size: 15px; line-height: 1.6; margin: 0 0 24px 0;">
-      Has comprado ${data.ticketNumbers.length} ticket(s) para la rifa:
+      ${
+        hasPackDetails
+          ? `Pagaste ${paidTicketCount} ticket(s) y recibiste ${grantedTicketCount} en total para la rifa:`
+          : `Has comprado ${data.ticketNumbers.length} ticket(s) para la rifa:`
+      }
     </p>
     <div style="background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 12px; padding: 24px; margin: 24px 0;">
       <h3 style="color: #1F2937; font-family: 'Fraunces', serif; font-size: 18px; font-weight: 600; margin: 0 0 16px 0;">${data.raffleName}</h3>
+      ${packDetailsHtml}
       <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px;">
         <p style="color: #4B5563; font-size: 14px; margin: 0;"><strong>Números:</strong> ${data.ticketNumbers.join(', ')}</p>
       </div>
       <div style="background: #ECFDF5; border-radius: 8px; padding: 12px; text-align: center;">
-        <p style="color: #059669; font-size: 20px; font-weight: 700; margin: 0;">Total: $${data.amount.toFixed(2)}</p>
+        <p style="color: #059669; font-size: 20px; font-weight: 700; margin: 0;">Total cobrado: $${data.amount.toFixed(2)}</p>
       </div>
     </div>
     <p style="color: #4B5563; font-size: 16px; text-align: center; margin: 0;">
@@ -981,6 +1110,11 @@ export const getSellerTicketPurchasedContent = (
     soldTickets: number;
     totalTickets: number;
     raffleId: string;
+    packApplied?: boolean;
+    baseQuantity?: number;
+    bonusQuantity?: number;
+    grantedQuantity?: number;
+    subsidyAmount?: number;
   },
   configService: ConfigService,
 ) => {
@@ -988,6 +1122,12 @@ export const getSellerTicketPurchasedContent = (
   const progressPercent = Math.round(
     (data.soldTickets / data.totalTickets) * 100,
   );
+  const hasPackDetails =
+    data.packApplied &&
+    typeof data.baseQuantity === 'number' &&
+    typeof data.bonusQuantity === 'number' &&
+    typeof data.grantedQuantity === 'number' &&
+    data.bonusQuantity > 0;
   const content = `
     <h2 style="color: #10B981; font-family: 'Fraunces', serif; font-size: 24px; font-weight: 700; margin: 0 0 16px 0;">
       ¡Nueva venta! 🎉
@@ -998,11 +1138,25 @@ export const getSellerTicketPurchasedContent = (
     <div style="background: #F0FDFA; border: 1px solid #99F6E4; border-radius: 12px; padding: 24px; margin: 24px 0;">
       <table width="100%" cellpadding="0" cellspacing="0">
         <tr>
-          <td style="color: #0F766E; font-size: 14px; padding-bottom: 12px;">Tickets vendidos:</td>
-          <td align="right" style="color: #1E293B; font-size: 14px; font-weight: 700; padding-bottom: 12px;">${data.ticketCount}</td>
+          <td style="color: #0F766E; font-size: 14px; padding-bottom: 12px;">${hasPackDetails ? 'Tickets emitidos:' : 'Tickets vendidos:'}</td>
+          <td align="right" style="color: #1E293B; font-size: 14px; font-weight: 700; padding-bottom: 12px;">${hasPackDetails ? data.grantedQuantity : data.ticketCount}</td>
+        </tr>
+        ${
+          hasPackDetails
+            ? `
+        <tr>
+          <td style="color: #0F766E; font-size: 14px; padding-bottom: 12px;">Tickets bonus:</td>
+          <td align="right" style="color: #1E293B; font-size: 14px; font-weight: 700; padding-bottom: 12px;">${data.bonusQuantity}</td>
         </tr>
         <tr>
-          <td style="color: #0F766E; font-size: 14px; padding-bottom: 16px;">Monto:</td>
+          <td style="color: #0F766E; font-size: 14px; padding-bottom: 12px;">Subsidio LUK:</td>
+          <td align="right" style="color: #1E293B; font-size: 14px; font-weight: 700; padding-bottom: 12px;">$${(data.subsidyAmount ?? 0).toFixed(2)}</td>
+        </tr>
+        `
+            : ''
+        }
+        <tr>
+          <td style="color: #0F766E; font-size: 14px; padding-bottom: 16px;">${hasPackDetails ? 'Monto bruto:' : 'Monto:'}</td>
           <td align="right" style="color: #059669; font-size: 18px; font-weight: 800; padding-bottom: 16px;">$${data.amount.toFixed(2)}</td>
         </tr>
         <tr>
@@ -1018,7 +1172,11 @@ export const getSellerTicketPurchasedContent = (
       </table>
     </div>
     <p style="color: #6B7280; font-size: 14px; line-height: 1.6;">
-      ¡Seguí así! Compartí tu rifa para vender más rápido.
+      ${
+        hasPackDetails
+          ? 'Los tickets bonus fueron subsidiados por LUK y no reducen el cobro de esta venta.'
+          : '¡Seguí así! Compartí tu rifa para vender más rápido.'
+      }
     </p>
   `;
   return wrapEmailTemplate(content, configService, {

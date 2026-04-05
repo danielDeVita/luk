@@ -346,6 +346,126 @@ describe('PaymentsService', () => {
       });
     });
 
+    it('should include pack details in buyer and seller notifications', async () => {
+      mockPrismaService.ticket.updateMany.mockResolvedValue({ count: 6 });
+      mockPrismaService.transaction.findFirst.mockResolvedValue(null);
+      mockPrismaService.transaction.create.mockResolvedValue({
+        id: 'tx-pack-1',
+      });
+      mockPrismaService.user.findUnique.mockResolvedValue({
+        email: 'buyer@test.com',
+        nombre: 'Buyer',
+      });
+      mockPrismaService.raffle.findUnique.mockResolvedValue({
+        id: 'raffle-123',
+        titulo: 'MacBook Pro',
+        sellerId: 'seller-123',
+        totalTickets: 20,
+        tickets: Array.from({ length: 6 }, (_, index) => ({
+          id: `ticket-${index + 1}`,
+          estado: 'PAGADO',
+        })),
+        seller: {
+          id: 'seller-123',
+          email: 'seller@test.com',
+          nombre: 'Seller',
+          apellido: 'Pro',
+        },
+      });
+      mockPrismaService.ticket.findMany.mockResolvedValue([
+        { id: 'ticket-1', numeroTicket: 4 },
+        { id: 'ticket-2', numeroTicket: 7 },
+        { id: 'ticket-3', numeroTicket: 12 },
+        { id: 'ticket-4', numeroTicket: 19 },
+        { id: 'ticket-5', numeroTicket: 23 },
+        { id: 'ticket-6', numeroTicket: 31 },
+      ]);
+
+      await service.handlePaymentApproved(mockPackPaymentData);
+
+      expect(
+        mockNotificationsService.sendTicketPurchaseConfirmation,
+      ).toHaveBeenCalledWith(
+        'buyer@test.com',
+        expect.objectContaining({
+          raffleName: 'MacBook Pro',
+          amount: 2500,
+          packApplied: true,
+          baseQuantity: 5,
+          bonusQuantity: 1,
+          grantedQuantity: 6,
+          subsidyAmount: 500,
+        }),
+      );
+      expect(mockNotificationsService.create).toHaveBeenNthCalledWith(
+        1,
+        'buyer-456',
+        'PURCHASE',
+        '¡Compra confirmada!',
+        expect.stringContaining('recibiste 6 en total'),
+        '/dashboard/tickets',
+      );
+      expect(
+        mockNotificationsService.sendSellerTicketPurchasedNotification,
+      ).toHaveBeenCalledWith(
+        'seller@test.com',
+        expect.objectContaining({
+          sellerName: 'Seller Pro',
+          raffleName: 'MacBook Pro',
+          amount: 3000,
+          packApplied: true,
+          baseQuantity: 5,
+          bonusQuantity: 1,
+          grantedQuantity: 6,
+          subsidyAmount: 500,
+        }),
+      );
+      expect(mockNotificationsService.create).toHaveBeenNthCalledWith(
+        2,
+        'seller-123',
+        'INFO',
+        '¡Nueva venta!',
+        expect.stringContaining('bonus subsidiados por LUK'),
+        '/dashboard/sales',
+      );
+    });
+
+    it('should not fail approved payments when purchase notifications fail', async () => {
+      mockPrismaService.ticket.updateMany.mockResolvedValue({ count: 6 });
+      mockPrismaService.transaction.findFirst.mockResolvedValue(null);
+      mockPrismaService.transaction.create.mockResolvedValue({
+        id: 'tx-pack-1',
+      });
+      mockPrismaService.user.findUnique.mockResolvedValue({
+        email: 'buyer@test.com',
+        nombre: 'Buyer',
+      });
+      mockPrismaService.raffle.findUnique.mockResolvedValue({
+        id: 'raffle-123',
+        titulo: 'MacBook Pro',
+        sellerId: 'seller-123',
+        totalTickets: 20,
+        tickets: [],
+        seller: {
+          id: 'seller-123',
+          email: 'seller@test.com',
+          nombre: 'Seller',
+          apellido: 'Pro',
+        },
+      });
+      mockPrismaService.ticket.findMany.mockResolvedValue([
+        { id: 'ticket-1', numeroTicket: 4 },
+      ]);
+      mockNotificationsService.sendTicketPurchaseConfirmation.mockRejectedValueOnce(
+        new Error('email failed'),
+      );
+
+      await expect(
+        service.handlePaymentApproved(mockPackPaymentData),
+      ).resolves.toBeUndefined();
+      expect(mockPrismaService.transaction.create).toHaveBeenCalled();
+    });
+
     it('should persist purchase mode and premium details in transaction metadata', async () => {
       mockPrismaService.ticket.updateMany.mockResolvedValue({ count: 2 });
       mockPrismaService.transaction.findFirst.mockResolvedValue(null);

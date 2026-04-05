@@ -28,16 +28,18 @@ test.describe('Dashboard Favorites', () => {
   });
 
   test('should show list of favorited raffles or empty state', async ({ page }) => {
-    await page.waitForTimeout(2000);
+    const emptyState = page.locator('main').getByText(/No tenés favoritos/i);
+    const favoriteCards = page.locator('main a[href*="/raffle/"]');
 
-    // Check for favorites list or empty state
-    const emptyState = page.getByText(/No tenés favoritos/i);
-    const favoritesList = page.getByText(/rifas que te gustan/i);
-
-    const hasEmptyState = await emptyState.isVisible();
-    const hasFavorites = await favoritesList.isVisible();
-
-    expect(hasEmptyState || hasFavorites).toBeTruthy();
+    await expect
+      .poll(
+        async () =>
+          (await emptyState.isVisible()) || (await favoriteCards.count()) > 0,
+        {
+          timeout: 10000,
+        },
+      )
+      .toBeTruthy();
   });
 
   test('should display remove favorite button on each card', async ({ page }) => {

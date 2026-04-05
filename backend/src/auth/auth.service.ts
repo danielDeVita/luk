@@ -452,6 +452,7 @@ export class AuthService {
       this.activityService.logTwoFactorEnabled(userId),
       'Failed to log 2FA activation activity',
     );
+    this.notifyTwoFactorEnabled(updatedUser);
 
     return {
       user: updatedUser,
@@ -466,6 +467,7 @@ export class AuthService {
     ip?: string,
   ) {
     this.assertExactlyOneSecondFactor(code, recoveryCode);
+    let remainingRecoveryCodesCount: number | null = null;
 
     const challenge =
       this.twoFactorService.validateChallengeToken(challengeToken);
@@ -545,6 +547,7 @@ export class AuthService {
         ),
         'Failed to log recovery code usage',
       );
+      remainingRecoveryCodesCount = result.remainingHashes.length;
     }
 
     if (ip) {
@@ -562,6 +565,9 @@ export class AuthService {
       this.activityService.logUserLoggedIn(user.id, 'email', ip),
       'Failed to log login activity',
     );
+    if (remainingRecoveryCodesCount !== null) {
+      this.notifyRecoveryCodeLogin(user, remainingRecoveryCodesCount);
+    }
 
     return {
       token: accessToken,
@@ -632,7 +638,7 @@ export class AuthService {
       }
     }
 
-    await this.prisma.user.update({
+    const updatedUser = await this.prisma.user.update({
       where: { id: userId },
       data: {
         twoFactorEnabled: false,
@@ -649,6 +655,7 @@ export class AuthService {
       ),
       'Failed to log 2FA disable activity',
     );
+    this.notifyTwoFactorDisabled(updatedUser);
 
     return true;
   }
@@ -900,10 +907,98 @@ export class AuthService {
     activityPromise: Promise<unknown>,
     failureMessage: string,
   ): void {
-    activityPromise.catch((err: unknown) => {
+    this.runAuthSideEffect(activityPromise, failureMessage);
+  }
+
+  private runAuthSideEffect(
+    sideEffectPromise: Promise<unknown>,
+    failureMessage: string,
+  ): void {
+    sideEffectPromise.catch((err: unknown) => {
       const message = err instanceof Error ? err.message : 'Unknown error';
       this.logger.error(`${failureMessage}: ${message}`);
     });
+  }
+
+  private notifyTwoFactorEnabled(
+    user: Pick<PrismaUser, 'id' | 'email' | 'nombre'>,
+  ): void {
+    const userName = this.getUserDisplayName(user);
+
+    this.runAuthSideEffect(
+      this.notifications.sendTwoFactorEnabledNotification(user.email, {
+        userName,
+      }),
+      'Failed to send 2FA enabled email',
+    );
+    this.runAuthSideEffect(
+      this.notifications.create(
+        user.id,
+        'SECURITY',
+        '2FA activado',
+        'La autenticación en dos pasos ya está activa. Guardá tus códigos de recuperación y revisá tu configuración.',
+        '/dashboard/settings',
+      ),
+      'Failed to create 2FA enabled notification',
+    );
+  }
+
+  private notifyTwoFactorDisabled(
+    user: Pick<PrismaUser, 'id' | 'email' | 'nombre'>,
+  ): void {
+    const userName = this.getUserDisplayName(user);
+
+    this.runAuthSideEffect(
+      this.notifications.sendTwoFactorDisabledNotification(user.email, {
+        userName,
+      }),
+      'Failed to send 2FA disabled email',
+    );
+    this.runAuthSideEffect(
+      this.notifications.create(
+        user.id,
+        'SECURITY',
+        '2FA desactivado',
+        'La autenticación en dos pasos fue desactivada en tu cuenta. Si no fuiste vos, revisá tu seguridad.',
+        '/dashboard/settings',
+      ),
+      'Failed to create 2FA disabled notification',
+    );
+  }
+
+  private notifyRecoveryCodeLogin(
+    user: Pick<PrismaUser, 'id' | 'email' | 'nombre'>,
+    remainingRecoveryCodesCount: number,
+  ): void {
+    const userName = this.getUserDisplayName(user);
+    const remainingCodesLabel =
+      remainingRecoveryCodesCount === 1
+        ? 'Te queda 1 código de recuperación.'
+        : `Te quedan ${remainingRecoveryCodesCount} códigos de recuperación.`;
+
+    this.runAuthSideEffect(
+      this.notifications.sendTwoFactorRecoveryCodeUsedNotification(user.email, {
+        userName,
+        remainingRecoveryCodesCount,
+      }),
+      'Failed to send recovery code usage email',
+    );
+    this.runAuthSideEffect(
+      this.notifications.create(
+        user.id,
+        'SECURITY',
+        'Usaste un código de recuperación',
+        `${remainingCodesLabel} Si no fuiste vos, revisá tu cuenta de inmediato.`,
+        '/dashboard/settings',
+      ),
+      'Failed to create recovery code usage notification',
+    );
+  }
+
+  private getUserDisplayName(
+    user: Pick<PrismaUser, 'email' | 'nombre'>,
+  ): string {
+    return user.nombre?.trim() || user.email.split('@')[0];
   }
 
   private async logAuthCaptchaRejectedIfKnownUser(

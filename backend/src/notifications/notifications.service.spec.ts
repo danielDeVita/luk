@@ -210,6 +210,77 @@ describe('NotificationsService', () => {
       });
     });
 
+    describe('sendTwoFactorEnabledNotification', () => {
+      it('should send the 2FA enabled security email with settings CTA', async () => {
+        const sendEmailSpy = getSendEmailSpy().mockResolvedValue(true);
+
+        const result = await service.sendTwoFactorEnabledNotification(
+          'test@example.com',
+          {
+            userName: 'Juan',
+          },
+        );
+
+        expect(result).toBe(true);
+        expect(sendEmailSpy).toHaveBeenCalledWith(
+          expect.objectContaining({
+            subject: '🔐 La autenticación en dos pasos ya está activa',
+            html: expect.stringContaining('Revisar seguridad'),
+          }),
+        );
+        expect(sendEmailSpy).toHaveBeenCalledWith(
+          expect.objectContaining({
+            html: expect.stringContaining('/dashboard/settings'),
+          }),
+        );
+      });
+    });
+
+    describe('sendTwoFactorDisabledNotification', () => {
+      it('should send the 2FA disabled security email', async () => {
+        const sendEmailSpy = getSendEmailSpy().mockResolvedValue(true);
+
+        const result = await service.sendTwoFactorDisabledNotification(
+          'test@example.com',
+          {
+            userName: 'Juan',
+          },
+        );
+
+        expect(result).toBe(true);
+        expect(sendEmailSpy).toHaveBeenCalledWith(
+          expect.objectContaining({
+            subject: '⚠️ La autenticación en dos pasos fue desactivada',
+            html: expect.stringContaining('ya no requiere un segundo factor'),
+          }),
+        );
+      });
+    });
+
+    describe('sendTwoFactorRecoveryCodeUsedNotification', () => {
+      it('should send the recovery-code usage email with remaining code count', async () => {
+        const sendEmailSpy = getSendEmailSpy().mockResolvedValue(true);
+
+        const result = await service.sendTwoFactorRecoveryCodeUsedNotification(
+          'test@example.com',
+          {
+            userName: 'Juan',
+            remainingRecoveryCodesCount: 2,
+          },
+        );
+
+        expect(result).toBe(true);
+        expect(sendEmailSpy).toHaveBeenCalledWith(
+          expect.objectContaining({
+            subject: '🔐 Se usó un código de recuperación en tu cuenta',
+            html: expect.stringContaining(
+              'Te quedan 2 códigos de recuperación.',
+            ),
+          }),
+        );
+      });
+    });
+
     describe('sendPromotionBonusGrantIssuedEmail', () => {
       it('should send promotion bonus grant email with CTA and grant details', async () => {
         const sendEmailSpy = getSendEmailSpy().mockResolvedValue(true);
@@ -265,6 +336,57 @@ describe('NotificationsService', () => {
         );
 
         expect(result).toBe(true);
+      });
+
+      it('should render pack details when the purchase includes a pack bonus', async () => {
+        const sendEmailSpy = getSendEmailSpy().mockResolvedValue(true);
+
+        const result = await service.sendTicketPurchaseConfirmation(
+          'test@example.com',
+          {
+            raffleName: 'iPhone 15 Pro',
+            ticketNumbers: [1, 2, 3, 4, 5, 6],
+            amount: 2500,
+            packApplied: true,
+            baseQuantity: 5,
+            bonusQuantity: 1,
+            grantedQuantity: 6,
+            subsidyAmount: 500,
+          },
+        );
+
+        expect(result).toBe(true);
+        expect(sendEmailSpy).toHaveBeenCalledWith(
+          expect.objectContaining({
+            html: expect.stringContaining('Pack simple aplicado'),
+          }),
+        );
+        expect(sendEmailSpy).toHaveBeenCalledWith(
+          expect.objectContaining({
+            html: expect.stringContaining('Pagaste 5 ticket(s)'),
+          }),
+        );
+        expect(sendEmailSpy).toHaveBeenCalledWith(
+          expect.objectContaining({
+            html: expect.stringMatching(/LUK subsidió[\s\S]*\$500\.00/),
+          }),
+        );
+      });
+
+      it('should not render pack details when the purchase is normal', async () => {
+        const sendEmailSpy = getSendEmailSpy().mockResolvedValue(true);
+
+        await service.sendTicketPurchaseConfirmation('test@example.com', {
+          raffleName: 'iPhone 15 Pro',
+          ticketNumbers: [1, 2, 3],
+          amount: 1500,
+        });
+
+        expect(sendEmailSpy).toHaveBeenCalledWith(
+          expect.objectContaining({
+            html: expect.not.stringContaining('Pack simple aplicado'),
+          }),
+        );
       });
     });
 
@@ -382,6 +504,47 @@ describe('NotificationsService', () => {
         );
 
         expect(result).toBe(true);
+      });
+    });
+
+    describe('sendSellerTicketPurchasedNotification', () => {
+      it('should render pack details for seller notifications when LUK subsidizes bonus tickets', async () => {
+        const sendEmailSpy = getSendEmailSpy().mockResolvedValue(true);
+
+        const result = await service.sendSellerTicketPurchasedNotification(
+          'seller@example.com',
+          {
+            sellerName: 'Seller Pro',
+            raffleName: 'MacBook Pro',
+            ticketCount: 6,
+            amount: 3000,
+            soldTickets: 12,
+            totalTickets: 20,
+            raffleId: 'raffle-1',
+            packApplied: true,
+            baseQuantity: 5,
+            bonusQuantity: 1,
+            grantedQuantity: 6,
+            subsidyAmount: 500,
+          },
+        );
+
+        expect(result).toBe(true);
+        expect(sendEmailSpy).toHaveBeenCalledWith(
+          expect.objectContaining({
+            html: expect.stringContaining('Tickets bonus:'),
+          }),
+        );
+        expect(sendEmailSpy).toHaveBeenCalledWith(
+          expect.objectContaining({
+            html: expect.stringContaining('Subsidio LUK:'),
+          }),
+        );
+        expect(sendEmailSpy).toHaveBeenCalledWith(
+          expect.objectContaining({
+            html: expect.stringContaining('no reducen el cobro de esta venta'),
+          }),
+        );
       });
     });
   });

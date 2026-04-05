@@ -72,6 +72,7 @@ El login con email/contraseña bloquea explícitamente a usuarios con `emailVeri
 5. La desactivación exige password actual y además:
    - un código TOTP válido; o
    - un recovery code válido.
+6. Activar 2FA, desactivarlo o ingresar con un recovery code dispara alertas de seguridad por email e in-app.
 
 ## 2. Preconditions para crear una rifa
 
@@ -206,7 +207,8 @@ Cuando el provider confirma aprobación:
 5. el seller sigue cobrando sobre el bruto completo, no sobre el monto efectivamente cobrado al buyer;
 6. si había bonificación reservada, pasa a `USED`;
 7. se registra atribución de compra para social promotions;
-8. se verifica si la rifa quedó completa para sortearla.
+8. buyer y seller reciben las notificaciones normales de compra/venta, enriquecidas si hubo pack simple;
+9. se verifica si la rifa quedó completa para sortearla.
 
 ### Pago pendiente o rechazado
 

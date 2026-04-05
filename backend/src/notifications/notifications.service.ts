@@ -37,6 +37,9 @@ import {
   getRaffleParticipantNotificationContent,
   getRefundDueToDisputeNotificationContent,
   getRefundNotificationContent,
+  getTwoFactorDisabledContent,
+  getTwoFactorEnabledContent,
+  getTwoFactorRecoveryCodeUsedContent,
   getSellerMustContactWinnerContent,
   getSellerMustRespondDisputeContent,
   getSellerPaymentNotificationContent,
@@ -229,6 +232,42 @@ export class NotificationsService {
     });
   }
 
+  async sendTwoFactorEnabledNotification(
+    email: string,
+    data: { userName: string },
+  ) {
+    const html = getTwoFactorEnabledContent(data, this.configService);
+    return this.sendEmail({
+      to: email,
+      subject: '🔐 La autenticación en dos pasos ya está activa',
+      html,
+    });
+  }
+
+  async sendTwoFactorDisabledNotification(
+    email: string,
+    data: { userName: string },
+  ) {
+    const html = getTwoFactorDisabledContent(data, this.configService);
+    return this.sendEmail({
+      to: email,
+      subject: '⚠️ La autenticación en dos pasos fue desactivada',
+      html,
+    });
+  }
+
+  async sendTwoFactorRecoveryCodeUsedNotification(
+    email: string,
+    data: { userName: string; remainingRecoveryCodesCount: number },
+  ) {
+    const html = getTwoFactorRecoveryCodeUsedContent(data, this.configService);
+    return this.sendEmail({
+      to: email,
+      subject: '🔐 Se usó un código de recuperación en tu cuenta',
+      html,
+    });
+  }
+
   async sendPromotionBonusGrantIssuedEmail(
     email: string,
     data: {
@@ -251,7 +290,16 @@ export class NotificationsService {
 
   async sendTicketPurchaseConfirmation(
     email: string,
-    data: { raffleName: string; ticketNumbers: number[]; amount: number },
+    data: {
+      raffleName: string;
+      ticketNumbers: number[];
+      amount: number;
+      packApplied?: boolean;
+      baseQuantity?: number;
+      bonusQuantity?: number;
+      grantedQuantity?: number;
+      subsidyAmount?: number;
+    },
   ) {
     const html = getTicketPurchaseConfirmationContent(data, this.configService);
     return this.sendEmail({
@@ -643,6 +691,11 @@ export class NotificationsService {
       soldTickets: number;
       totalTickets: number;
       raffleId: string;
+      packApplied?: boolean;
+      baseQuantity?: number;
+      bonusQuantity?: number;
+      grantedQuantity?: number;
+      subsidyAmount?: number;
     },
   ) {
     const html = getSellerTicketPurchasedContent(data, this.configService);

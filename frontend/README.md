@@ -209,10 +209,11 @@ The raffle detail page applies a global incentive for random purchases:
 UI behavior:
 
 - only applies in `RANDOM` mode;
-- the summary shows paid tickets, bonus tickets, gross subtotal, Luk subsidy, and total charged;
+- the summary shows paid tickets, bonus tickets, gross subtotal, LUK subsidy, and total charged;
 - the seller still gets paid on the gross emitted-ticket value;
 - it does not stack with the social-promotion bonus selector;
 - if the pack cannot be completed because of remaining stock or the buyer cap, the UI falls back to a normal purchase summary and explains why.
+- after approval, buyer and seller notifications reflect the paid quantity, bonus tickets, total emitted tickets, and LUK subsidy when a pack was applied.
 
 ### Search & Filters
 - Category filter with backend categories
@@ -295,6 +296,7 @@ If a user tries to log in before verifying the email, the login page resumes the
 - Activation and deactivation available in `Settings -> Security`
 - The long manual key shown during setup is only for adding the account to an authenticator app when QR scanning is not available; it is not a recovery code
 - Recovery codes are shown only after 2FA activation succeeds and are displayed once, so they must be stored immediately
+- 2FA activation, deactivation, and recovery-code logins trigger security notifications by email and in-app
 
 ### Seller Onboarding
 New sellers see a visual progress checklist at the top of their dashboard:

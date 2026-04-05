@@ -153,9 +153,10 @@ The pack:
 
 - applies only to `RANDOM` purchases;
 - emits real tickets that count toward raffle completion and the buyer cap;
-- is subsidized by Luk, not by the seller;
+- is subsidized by LUK, not by the seller;
 - does not stack with social-promotion `bonusGrantId`;
 - falls back to a normal purchase when the full pack cannot be honored because of stock or buyer-limit constraints.
+- enriches the existing buyer/seller purchase notifications so both sides can see paid quantity, bonus tickets, total emitted tickets, and LUK subsidy when applicable.
 
 ### Google OAuth Setup
 
@@ -334,6 +335,7 @@ Behavior summary:
 - `requiresVerification = true` means the client must finish email verification before tokens are issued.
 - `requiresTwoFactor = true` means the client must continue with the 2FA challenge using `twoFactorChallengeToken`.
 - 2FA uses authenticator-app TOTP codes and supports one-time recovery codes.
+- Activating 2FA, disabling it, and logging in with a recovery code trigger security notifications by email and in-app.
 - Auth observability stores 2FA activation/deactivation, recovery-code usage, rejected second-factor attempts, and known-user captcha rejects in `ActivityLog`.
 - Expected 4xx auth rejects remain out of Sentry; only infrastructure/code failures should be captured there.
 
