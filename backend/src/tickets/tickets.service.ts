@@ -16,6 +16,8 @@ import { randomUUID } from 'crypto';
 import { RaffleEvents, TicketsRefundedEvent } from '../common/events';
 import { SocialPromotionsService } from '../social-promotions/social-promotions.service';
 import { TicketPurchaseMode } from '../common/enums';
+import { BuyTicketsResult } from './entities/buy-tickets-result.entity';
+import { evaluateSimpleRandomPack } from './pack-simple.util';
 
 /**
  * Type for raw SQL query result when selecting raffle with sold count.
@@ -68,7 +70,7 @@ export class TicketsService {
     cantidad: number,
     bonusGrantId?: string | null,
     promotionToken?: string | null,
-  ) {
+  ): Promise<BuyTicketsResult> {
     return this.reserveTicketsForCheckout({
       userId,
       raffleId,
@@ -88,7 +90,7 @@ export class TicketsService {
     selectedNumbers: number[],
     bonusGrantId?: string | null,
     promotionToken?: string | null,
-  ) {
+  ): Promise<BuyTicketsResult> {
     this.validateSelectedNumbers(selectedNumbers);
 
     return this.reserveTicketsForCheckout({
@@ -452,7 +454,7 @@ export class TicketsService {
     bonusGrantId,
     promotionToken,
     purchaseMode,
-  }: ReserveTicketsOptions) {
+  }: ReserveTicketsOptions): Promise<BuyTicketsResult> {
     await this.ensureBuyerHasShippingAddress(userId);
 
     await this.paymentsService.expireSupersededInitiatedMockPaymentsForRaffle(
@@ -539,6 +541,14 @@ export class TicketsService {
           );
         }
 
+        const packEvaluation = evaluateSimpleRandomPack({
+          purchaseMode,
+          requestedQuantity: requestedCount,
+          availableTickets,
+          remainingAllowed,
+        });
+        const reservedTicketCount = packEvaluation.grantedQuantity;
+
         if (purchaseMode === TicketPurchaseMode.CHOOSE_NUMBERS) {
           const outOfRangeNumbers = normalizedSelectedNumbers.filter(
             (number) => number < 1 || number > raffle.total_tickets,
@@ -556,7 +566,7 @@ export class TicketsService {
             : this.getRandomAvailableNumbers(
                 usedNumbers,
                 raffle.total_tickets,
-                requestedCount,
+                reservedTicketCount,
               );
 
         if (purchaseMode === TicketPurchaseMode.CHOOSE_NUMBERS) {
@@ -570,7 +580,7 @@ export class TicketsService {
           }
         }
 
-        if (reservedNumbers.length < requestedCount) {
+        if (reservedNumbers.length < reservedTicketCount) {
           throw new BadRequestException(
             'No hay suficientes tickets disponibles',
           );
@@ -578,7 +588,10 @@ export class TicketsService {
 
         const baseTicketPrice = new Prisma.Decimal(raffle.precio_por_ticket);
         const grossSubtotal = Number(
-          baseTicketPrice.mul(requestedCount).toFixed(2),
+          baseTicketPrice.mul(reservedTicketCount).toFixed(2),
+        );
+        const packDiscountApplied = Number(
+          baseTicketPrice.mul(packEvaluation.bonusQuantity).toFixed(2),
         );
         const selectionPremiumPercent =
           purchaseMode === TicketPurchaseMode.CHOOSE_NUMBERS
@@ -611,26 +624,39 @@ export class TicketsService {
             }),
           ),
         );
+        const normalizedTickets = tickets.map((ticket) => ({
+          ...ticket,
+          precioPagado: Number(ticket.precioPagado),
+          mpPaymentId: ticket.mpPaymentId ?? undefined,
+        }));
 
         this.logger.log(
-          `User ${userId} reserved ${requestedCount} tickets for raffle ${raffleId} (${purchaseMode})`,
+          `User ${userId} reserved ${reservedTicketCount} tickets for raffle ${raffleId} (${purchaseMode}, base=${requestedCount}, bonus=${packEvaluation.bonusQuantity})`,
         );
 
-        const reservedBonus =
-          await this.socialPromotionsService.reserveBonusForCheckout(
-            {
-              buyerId: userId,
-              raffleId,
-              raffleSellerId: raffle.seller_id,
-              reservationId,
-              grossSubtotal,
-              bonusGrantId,
-            },
-            tx,
-          );
+        const canUsePromotionBonus = !packEvaluation.packApplied;
+        const reservedBonus = canUsePromotionBonus
+          ? await this.socialPromotionsService.reserveBonusForCheckout(
+              {
+                buyerId: userId,
+                raffleId,
+                raffleSellerId: raffle.seller_id,
+                reservationId,
+                grossSubtotal,
+                bonusGrantId,
+              },
+              tx,
+            )
+          : null;
 
+        const promotionDiscountApplied =
+          reservedBonus?.preview.discountApplied ?? 0;
         const chargedBaseAmount =
-          reservedBonus?.preview.mpChargeAmount ?? grossSubtotal;
+          reservedBonus?.preview.mpChargeAmount ??
+          Number((grossSubtotal - packDiscountApplied).toFixed(2));
+        const totalDiscountApplied = Number(
+          (packDiscountApplied + promotionDiscountApplied).toFixed(2),
+        );
         const totalChargeAmount = Number(
           (chargedBaseAmount + selectionPremiumAmount).toFixed(2),
         );
@@ -638,13 +664,21 @@ export class TicketsService {
         const { initPoint, preferenceId } =
           await this.paymentsService.createPreference({
             raffleId,
-            cantidad: requestedCount,
+            cantidad: reservedTicketCount,
             buyerId: userId,
             precioPorTicket: Number(raffle.precio_por_ticket),
             tituloRifa: raffle.titulo,
             reservationId,
+            baseQuantity: requestedCount,
+            bonusQuantity: packEvaluation.bonusQuantity,
+            grantedQuantity: reservedTicketCount,
+            packApplied: packEvaluation.packApplied,
+            packIneligibilityReason:
+              packEvaluation.packIneligibilityReason ?? null,
             grossSubtotal,
-            discountApplied: reservedBonus?.preview.discountApplied ?? 0,
+            discountApplied: totalDiscountApplied,
+            promotionDiscountApplied,
+            packDiscountApplied,
             mpChargeAmount: totalChargeAmount,
             bonusGrantId: reservedBonus?.grant.id ?? null,
             promotionBonusRedemptionId: reservedBonus?.redemption.id ?? null,
@@ -659,18 +693,23 @@ export class TicketsService {
           });
 
         return {
-          tickets,
+          tickets: normalizedTickets,
           initPoint,
           preferenceId,
           totalAmount: totalChargeAmount,
           grossSubtotal,
-          discountApplied: reservedBonus?.preview.discountApplied ?? 0,
+          discountApplied: totalDiscountApplied,
           mpChargeAmount: totalChargeAmount,
-          bonusGrantId: reservedBonus?.grant.id ?? null,
+          bonusGrantId: reservedBonus?.grant.id ?? undefined,
           cantidadComprada: requestedCount,
+          baseQuantity: requestedCount,
+          bonusQuantity: packEvaluation.bonusQuantity,
+          grantedQuantity: reservedTicketCount,
+          packApplied: packEvaluation.packApplied,
+          packIneligibilityReason: packEvaluation.packIneligibilityReason,
           ticketsRestantesQuePuedeComprar: Math.max(
             0,
-            remainingAllowed - requestedCount,
+            remainingAllowed - reservedTicketCount,
           ),
           purchaseMode,
           selectionPremiumPercent,

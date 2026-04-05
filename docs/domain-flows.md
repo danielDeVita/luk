@@ -158,6 +158,34 @@ En compra elegida:
 - si otro comprador tomó el número antes de confirmar la transacción, falla con “ya no está disponible”;
 - existe además unicidad por `(raffleId, numeroTicket)` en DB.
 
+### Pack simple global
+
+En compra `RANDOM`, LUK aplica un incentivo global siempre activo:
+
+- `5 -> 6` tickets
+- `10 -> 12` tickets
+
+Reglas del pack:
+
+1. sólo aplica en compra aleatoria;
+2. los tickets bonus son tickets reales:
+   - cuentan para completar la rifa;
+   - cuentan para el límite del 50% por buyer;
+3. el seller cobra sobre el valor bruto completo de todos los tickets emitidos;
+4. la diferencia entre bruto y cobrado la subsidia plataforma;
+5. no acumula con `bonusGrantId` de social promotions.
+
+Si la cantidad base califica pero el pack no puede cumplirse completo por:
+
+- falta de stock; o
+- límite del 50% por buyer,
+
+la compra degrada a compra normal:
+
+- se emite sólo la cantidad base;
+- no hay bonus;
+- no se bloquea la compra si la cantidad base sigue siendo válida.
+
 ### Bonificación promocional
 
 Si el buyer aplica un `bonusGrantId`:
@@ -173,10 +201,12 @@ Cuando el provider confirma aprobación:
 
 1. los tickets reservados pasan a `PAGADO`;
 2. se crea `Transaction` de `COMPRA_TICKET`;
-3. si hubo descuento promocional, se crea también `SUBSIDIO_PROMOCIONAL_PLATAFORMA`;
-4. si había bonificación reservada, pasa a `USED`;
-5. se registra atribución de compra para social promotions;
-6. se verifica si la rifa quedó completa para sortearla.
+3. si hubo pack simple, se crea también `SUBSIDIO_PACK_PLATAFORMA`;
+4. si hubo descuento promocional, se crea también `SUBSIDIO_PROMOCIONAL_PLATAFORMA`;
+5. el seller sigue cobrando sobre el bruto completo, no sobre el monto efectivamente cobrado al buyer;
+6. si había bonificación reservada, pasa a `USED`;
+7. se registra atribución de compra para social promotions;
+8. se verifica si la rifa quedó completa para sortearla.
 
 ### Pago pendiente o rechazado
 
@@ -188,6 +218,7 @@ Cuando el provider confirma aprobación:
 Si la compra se revierte completamente:
 
 - los tickets pasan a `REEMBOLSADO`;
+- si la compra había incluido pack simple, también se revierten los tickets bonus porque forman parte de la misma compra confirmada;
 - si hubo bonificación promocional usada, se puede reinstalar como disponible;
 - se registra `REVERSION_BONIFICACION_PROMOCIONAL` cuando corresponde.
 

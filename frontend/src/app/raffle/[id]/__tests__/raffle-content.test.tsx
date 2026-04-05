@@ -47,6 +47,14 @@ function getOperationName(query: unknown) {
   return document.definitions?.[0]?.name?.value;
 }
 
+async function increaseRandomQuantity(user: ReturnType<typeof userEvent.setup>, clicks: number) {
+  const increaseButton = screen.getByRole('button', { name: '+' });
+
+  for (let index = 0; index < clicks; index += 1) {
+    await user.click(increaseButton);
+  }
+}
+
 vi.mock('../raffle-qa', () => ({
   RaffleQA: () => <div data-testid="raffle-qa">RaffleQA</div>,
 }));
@@ -173,6 +181,8 @@ describe('RaffleContent', () => {
       switch (getOperationName(query)) {
         case 'GetRaffle':
           return createQueryResult(raffleData);
+        case 'MyTicketCountInRaffle':
+          return createQueryResult({ myTicketCountInRaffle: 0 });
         case 'GetPriceHistory':
           return createQueryResult({ priceHistory: [] });
         case 'MySocialPromotionPosts':
@@ -310,6 +320,178 @@ describe('RaffleContent', () => {
     expect(
       screen.getByRole('button', { name: /Comprar números elegidos/i }),
     ).toBeEnabled();
+  });
+
+  it('shows the simple pack summary and hides promotion bonuses when a random pack applies', async () => {
+    const user = userEvent.setup();
+    mockQueries();
+    mockUseAuthStore.mockReturnValue({
+      isAuthenticated: true,
+      hasHydrated: true,
+      user: {
+        id: 'buyer-1',
+        email: 'buyer@example.com',
+        nombre: 'Buyer',
+        apellido: 'User',
+        role: 'USER',
+      },
+      login: vi.fn(),
+      logout: vi.fn(),
+      setUser: vi.fn(),
+    });
+
+    render(<RaffleContent id="raffle-1" />);
+
+    await increaseRandomQuantity(user, 4);
+
+    expect(
+      screen.getByText('Pack activo: pagás 5 y recibís 6 tickets.'),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText('Esta compra no se acumula con bonificaciones promocionales.'),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByTestId('promotion-bonus-selector'),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText('Tickets pagados')).toBeInTheDocument();
+    expect(screen.getByText('Tickets bonus')).toBeInTheDocument();
+    expect(screen.getByText('Total de tickets')).toBeInTheDocument();
+    expect(screen.getByText('$15000.00')).toBeInTheDocument();
+    expect(screen.getByText('-$2500.00')).toBeInTheDocument();
+    expect(screen.getByText('$12500.00')).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /Comprar 5 y recibir 6/i }),
+    ).toBeInTheDocument();
+  });
+
+  it('falls back to normal purchase messaging when the pack cannot apply because stock is too low', async () => {
+    const user = userEvent.setup();
+    mockUseQuery.mockReset();
+    mockUseQuery.mockImplementation((query, options) => {
+      if ((options as { skip?: boolean } | undefined)?.skip) {
+        return createQueryResult(undefined as never);
+      }
+
+      switch (getOperationName(query)) {
+        case 'GetRaffle':
+          return createQueryResult({
+            raffle: {
+              ...raffleData.raffle,
+              tickets: Array.from({ length: 95 }, (_, index) => ({
+                id: `ticket-${index + 1}`,
+                estado: 'PAGADO',
+              })),
+            },
+          });
+        case 'MyTicketCountInRaffle':
+          return createQueryResult({ myTicketCountInRaffle: 0 });
+        case 'GetPriceHistory':
+          return createQueryResult({ priceHistory: [] });
+        case 'MySocialPromotionPosts':
+          return createQueryResult({ mySocialPromotionPosts: [] });
+        case 'IsFavorite':
+          return createQueryResult({ isFavorite: false });
+        case 'TicketNumberAvailability':
+          return createQueryResult(availabilityData);
+        default:
+          return createQueryResult(undefined as never);
+      }
+    });
+    mockUseAuthStore.mockReturnValue({
+      isAuthenticated: true,
+      hasHydrated: true,
+      user: {
+        id: 'buyer-1',
+        email: 'buyer@example.com',
+        nombre: 'Buyer',
+        apellido: 'User',
+        role: 'USER',
+      },
+      login: vi.fn(),
+      logout: vi.fn(),
+      setUser: vi.fn(),
+    });
+
+    render(<RaffleContent id="raffle-1" />);
+
+    await increaseRandomQuantity(user, 4);
+
+    expect(
+      screen.getByText('Quedan pocos tickets, el pack ya no aplica.'),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByTestId('promotion-bonus-selector'),
+    ).toBeInTheDocument();
+    expect(screen.getAllByText('$12500.00')).toHaveLength(2);
+    expect(screen.queryByText('Tickets bonus')).not.toBeInTheDocument();
+  });
+
+  it('falls back to normal purchase messaging when the pack would exceed the buyer cap', async () => {
+    const user = userEvent.setup();
+    mockUseQuery.mockReset();
+    mockUseQuery.mockImplementation((query, options) => {
+      if ((options as { skip?: boolean } | undefined)?.skip) {
+        return createQueryResult(undefined as never);
+      }
+
+      switch (getOperationName(query)) {
+        case 'GetRaffle':
+          return createQueryResult({
+            raffle: {
+              ...raffleData.raffle,
+              totalTickets: 20,
+              tickets: [],
+            },
+          });
+        case 'MyTicketCountInRaffle':
+          return createQueryResult({ myTicketCountInRaffle: 0 });
+        case 'GetPriceHistory':
+          return createQueryResult({ priceHistory: [] });
+        case 'MySocialPromotionPosts':
+          return createQueryResult({ mySocialPromotionPosts: [] });
+        case 'IsFavorite':
+          return createQueryResult({ isFavorite: false });
+        case 'TicketNumberAvailability':
+          return createQueryResult({
+            ...availabilityData,
+            ticketNumberAvailability: {
+              ...availabilityData.ticketNumberAvailability,
+              totalTickets: 20,
+              maxSelectable: 10,
+            },
+          });
+        default:
+          return createQueryResult(undefined as never);
+      }
+    });
+    mockUseAuthStore.mockReturnValue({
+      isAuthenticated: true,
+      hasHydrated: true,
+      user: {
+        id: 'buyer-1',
+        email: 'buyer@example.com',
+        nombre: 'Buyer',
+        apellido: 'User',
+        role: 'USER',
+      },
+      login: vi.fn(),
+      logout: vi.fn(),
+      setUser: vi.fn(),
+    });
+
+    render(<RaffleContent id="raffle-1" />);
+
+    await increaseRandomQuantity(user, 9);
+
+    expect(
+      screen.getByText(
+        'El pack no aplica porque superarías el máximo permitido para esta rifa.',
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByTestId('promotion-bonus-selector'),
+    ).toBeInTheDocument();
+    expect(screen.getAllByText('$25000.00')).toHaveLength(2);
   });
 
   it('hides the countdown and shows the winning number once the raffle is drawn', () => {

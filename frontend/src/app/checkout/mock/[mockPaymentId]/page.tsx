@@ -27,8 +27,14 @@ interface MockPaymentSummary {
   buyerId: string;
   buyerEmail: string;
   quantity: number;
+  baseQuantity?: number;
+  bonusQuantity?: number;
+  grantedQuantity?: number;
+  packApplied?: boolean;
   grossSubtotal: number;
   discountApplied: number;
+  promotionDiscountApplied?: number;
+  packDiscountApplied?: number;
   cashChargedAmount: number;
   status: string;
   statusDetail: string;
@@ -272,12 +278,28 @@ export default function MockCheckoutPage() {
             </div>
 
             <div className="space-y-3 rounded-2xl border p-5">
+              {payment.packApplied ? (
+                <>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">Tickets pagados</span>
+                    <span>{payment.baseQuantity ?? payment.quantity}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">Tickets bonus</span>
+                    <span>+{payment.bonusQuantity ?? 0}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">Tickets totales</span>
+                    <span>{payment.grantedQuantity ?? payment.quantity}</span>
+                  </div>
+                </>
+              ) : null}
               <div className="flex items-center justify-between text-sm">
                 <span className="text-muted-foreground">Subtotal bruto</span>
                 <span>${payment.grossSubtotal.toFixed(2)}</span>
               </div>
               <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">Bonificación aplicada</span>
+                <span className="text-muted-foreground">Subsidio LUK</span>
                 <span>
                   {payment.discountApplied > 0
                     ? `- $${payment.discountApplied.toFixed(2)}`

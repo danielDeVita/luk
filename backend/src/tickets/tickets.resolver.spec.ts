@@ -11,6 +11,7 @@ describe('TicketsResolver', () => {
     buyTickets: jest.fn(),
     buySelectedTickets: jest.fn(),
     getTicketNumberAvailability: jest.fn(),
+    getUserTicketCount: jest.fn(),
     findByUser: jest.fn(),
     findOne: jest.fn(),
   };
@@ -169,6 +170,11 @@ describe('TicketsResolver', () => {
         discountApplied: 0,
         mpChargeAmount: 210,
         cantidadComprada: 2,
+        baseQuantity: 2,
+        bonusQuantity: 0,
+        grantedQuantity: 2,
+        packApplied: false,
+        packIneligibilityReason: undefined,
         ticketsRestantesQuePuedeComprar: 48,
         purchaseMode: 'CHOOSE_NUMBERS',
         selectionPremiumPercent: 5,
@@ -263,6 +269,21 @@ describe('TicketsResolver', () => {
       await resolver.myTickets(user);
 
       expect(ticketsService.findByUser).toHaveBeenCalledWith('custom-user-id');
+    });
+  });
+
+  describe('myTicketCountInRaffle', () => {
+    it('should return the current user ticket count for the raffle', async () => {
+      const user = createTestUser();
+      ticketsService.getUserTicketCount.mockResolvedValue(4);
+
+      const result = await resolver.myTicketCountInRaffle(user, 'raffle-1');
+
+      expect(result).toBe(4);
+      expect(ticketsService.getUserTicketCount).toHaveBeenCalledWith(
+        user.id,
+        'raffle-1',
+      );
     });
   });
 

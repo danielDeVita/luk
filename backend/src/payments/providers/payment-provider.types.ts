@@ -1,4 +1,7 @@
-import { TicketPurchaseMode } from '../../common/enums';
+import {
+  PackIneligibilityReason,
+  TicketPurchaseMode,
+} from '../../common/enums';
 
 export interface CheckoutBuyerPhone {
   areaCode?: string;
@@ -35,8 +38,15 @@ export interface CreateCheckoutSessionInput {
   precioPorTicket: number;
   tituloRifa: string;
   reservationId: string;
+  baseQuantity: number;
+  bonusQuantity: number;
+  grantedQuantity: number;
+  packApplied: boolean;
+  packIneligibilityReason?: PackIneligibilityReason | null;
   grossSubtotal: number;
   discountApplied: number;
+  promotionDiscountApplied: number;
+  packDiscountApplied: number;
   cashChargedAmount: number;
   bonusGrantId?: string | null;
   promotionBonusRedemptionId?: string | null;
@@ -86,8 +96,15 @@ export interface MockPaymentSummary {
   buyerId: string;
   buyerEmail: string;
   quantity: number;
+  baseQuantity?: number;
+  bonusQuantity?: number;
+  grantedQuantity?: number;
+  packApplied?: boolean;
+  packIneligibilityReason?: PackIneligibilityReason | null;
   grossSubtotal: number;
   discountApplied: number;
+  promotionDiscountApplied?: number;
+  packDiscountApplied?: number;
   cashChargedAmount: number;
   purchaseMode: TicketPurchaseMode;
   selectedNumbers?: number[] | null;

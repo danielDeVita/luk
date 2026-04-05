@@ -90,6 +90,18 @@ export class TicketsResolver {
   }
 
   /**
+   * Returns how many non-refunded tickets the authenticated user already holds in the raffle.
+   */
+  @Query(() => Int)
+  @UseGuards(JwtAuthGuard)
+  async myTicketCountInRaffle(
+    @CurrentUser() user: User,
+    @Args('raffleId') raffleId: string,
+  ): Promise<number> {
+    return this.ticketsService.getUserTicketCount(user.id, raffleId);
+  }
+
+  /**
    * Returns a single ticket when the current user is allowed to see it.
    */
   @Query(() => Ticket)

@@ -82,10 +82,17 @@ export class MockPaymentProvider {
       raffleId: data.raffleId,
       buyerId: data.buyerId,
       cantidad: data.cantidad,
+      baseQuantity: data.baseQuantity,
+      bonusQuantity: data.bonusQuantity,
+      grantedQuantity: data.grantedQuantity,
+      packApplied: data.packApplied,
+      packIneligibilityReason: data.packIneligibilityReason ?? null,
       reservationId: data.reservationId,
       bonusGrantId: data.bonusGrantId ?? null,
       grossSubtotal: data.grossSubtotal,
       discountApplied: data.discountApplied,
+      promotionDiscountApplied: data.promotionDiscountApplied,
+      packDiscountApplied: data.packDiscountApplied,
       mpChargeAmount: data.cashChargedAmount,
       promotionToken: data.promotionToken ?? null,
       purchaseMode: data.purchaseMode,
@@ -255,6 +262,20 @@ export class MockPaymentProvider {
       }),
     ]);
 
+    const externalReference = JSON.parse(payment.externalReference || '{}') as {
+      purchaseMode?: MockPaymentSummary['purchaseMode'];
+      selectedNumbers?: number[] | null;
+      selectionPremiumPercent?: number;
+      selectionPremiumAmount?: number;
+      baseQuantity?: number;
+      bonusQuantity?: number;
+      grantedQuantity?: number;
+      packApplied?: boolean;
+      packIneligibilityReason?: MockPaymentSummary['packIneligibilityReason'];
+      promotionDiscountApplied?: number;
+      packDiscountApplied?: number;
+    };
+
     return {
       id: payment.id,
       publicToken: payment.publicToken,
@@ -263,32 +284,27 @@ export class MockPaymentProvider {
       buyerId: payment.buyerId,
       buyerEmail: buyer?.email ?? 'desconocido',
       quantity,
+      baseQuantity: externalReference.baseQuantity ?? quantity,
+      bonusQuantity: externalReference.bonusQuantity ?? 0,
+      grantedQuantity: externalReference.grantedQuantity ?? quantity,
+      packApplied: externalReference.packApplied ?? false,
+      packIneligibilityReason:
+        externalReference.packIneligibilityReason ?? null,
       grossSubtotal: Number(payment.grossSubtotal),
       discountApplied: Number(payment.discountApplied),
+      promotionDiscountApplied: Number(
+        externalReference.promotionDiscountApplied ?? 0,
+      ),
+      packDiscountApplied: Number(externalReference.packDiscountApplied ?? 0),
       cashChargedAmount: Number(payment.cashChargedAmount),
-      purchaseMode: ((
-        JSON.parse(payment.externalReference || '{}') as {
-          purchaseMode?: MockPaymentSummary['purchaseMode'];
-        }
-      ).purchaseMode ?? 'RANDOM') as MockPaymentSummary['purchaseMode'],
-      selectedNumbers: (
-        JSON.parse(payment.externalReference || '{}') as {
-          selectedNumbers?: number[] | null;
-        }
-      ).selectedNumbers,
+      purchaseMode: (externalReference.purchaseMode ??
+        'RANDOM') as MockPaymentSummary['purchaseMode'],
+      selectedNumbers: externalReference.selectedNumbers,
       selectionPremiumPercent: Number(
-        (
-          JSON.parse(payment.externalReference || '{}') as {
-            selectionPremiumPercent?: number;
-          }
-        ).selectionPremiumPercent ?? 0,
+        externalReference.selectionPremiumPercent ?? 0,
       ),
       selectionPremiumAmount: Number(
-        (
-          JSON.parse(payment.externalReference || '{}') as {
-            selectionPremiumAmount?: number;
-          }
-        ).selectionPremiumAmount ?? 0,
+        externalReference.selectionPremiumAmount ?? 0,
       ),
       status: this.mapStatus(payment.status),
       statusDetail: payment.statusDetail || '',

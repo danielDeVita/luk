@@ -417,6 +417,257 @@ describe('TicketsService', () => {
       expect(result.mpChargeAmount).toBe(900);
     });
 
+    it('should apply the 5 to 6 random pack, charge only the base quantity, and skip promotion stacking', async () => {
+      prisma.shippingAddress.count.mockResolvedValue(1);
+
+      const mockRaffle = {
+        id: 'raffle-1',
+        estado: 'ACTIVA',
+        seller_id: 'seller-1',
+        total_tickets: 100,
+        precio_por_ticket: new Prisma.Decimal(500),
+        titulo: 'iPhone 15 Pro',
+        sold_count: BigInt(10),
+        is_hidden: false,
+      };
+
+      prisma.$transaction.mockImplementation(async (callback) => {
+        const mockTx = {
+          $queryRaw: jest.fn().mockResolvedValue([mockRaffle]),
+          ticket: {
+            count: jest.fn().mockResolvedValue(0),
+            findMany: jest.fn().mockResolvedValue(
+              Array.from({ length: 10 }, (_, index) => ({
+                numeroTicket: index + 1,
+              })),
+            ),
+            create: jest.fn().mockImplementation(async ({ data }) => ({
+              id: `ticket-${data.numeroTicket}`,
+              numeroTicket: data.numeroTicket,
+              estado: 'RESERVADO',
+            })),
+          },
+        };
+
+        return callback(mockTx);
+      });
+
+      paymentsService.createPreference.mockResolvedValue({
+        initPoint: 'https://mp.com/checkout/pack-5',
+        preferenceId: 'mp-pref-pack-5',
+      });
+
+      const result = await service.buyTickets(
+        'user-1',
+        'raffle-1',
+        5,
+        'grant-1',
+      );
+
+      expect(result.tickets).toHaveLength(6);
+      expect(result.cantidadComprada).toBe(5);
+      expect(result.baseQuantity).toBe(5);
+      expect(result.bonusQuantity).toBe(1);
+      expect(result.grantedQuantity).toBe(6);
+      expect(result.packApplied).toBe(true);
+      expect(result.packIneligibilityReason).toBeUndefined();
+      expect(result.grossSubtotal).toBe(3000);
+      expect(result.discountApplied).toBe(500);
+      expect(result.totalAmount).toBe(2500);
+      expect(result.mpChargeAmount).toBe(2500);
+      expect(result.ticketsRestantesQuePuedeComprar).toBe(44);
+      expect(
+        socialPromotionsService.reserveBonusForCheckout,
+      ).not.toHaveBeenCalled();
+      expect(paymentsService.createPreference).toHaveBeenCalledWith(
+        expect.objectContaining({
+          cantidad: 6,
+          baseQuantity: 5,
+          bonusQuantity: 1,
+          grantedQuantity: 6,
+          packApplied: true,
+          grossSubtotal: 3000,
+          discountApplied: 500,
+          packDiscountApplied: 500,
+          promotionDiscountApplied: 0,
+          mpChargeAmount: 2500,
+          bonusGrantId: null,
+          promotionBonusRedemptionId: null,
+        }),
+      );
+    });
+
+    it('should apply the 10 to 12 random pack when there is enough stock and buyer capacity', async () => {
+      prisma.shippingAddress.count.mockResolvedValue(1);
+
+      const mockRaffle = {
+        id: 'raffle-1',
+        estado: 'ACTIVA',
+        seller_id: 'seller-1',
+        total_tickets: 200,
+        precio_por_ticket: new Prisma.Decimal(500),
+        titulo: 'PlayStation 5',
+        sold_count: BigInt(15),
+        is_hidden: false,
+      };
+
+      prisma.$transaction.mockImplementation(async (callback) => {
+        const mockTx = {
+          $queryRaw: jest.fn().mockResolvedValue([mockRaffle]),
+          ticket: {
+            count: jest.fn().mockResolvedValue(0),
+            findMany: jest.fn().mockResolvedValue(
+              Array.from({ length: 15 }, (_, index) => ({
+                numeroTicket: index + 1,
+              })),
+            ),
+            create: jest.fn().mockImplementation(async ({ data }) => ({
+              id: `ticket-${data.numeroTicket}`,
+              numeroTicket: data.numeroTicket,
+              estado: 'RESERVADO',
+            })),
+          },
+        };
+
+        return callback(mockTx);
+      });
+
+      paymentsService.createPreference.mockResolvedValue({
+        initPoint: 'https://mp.com/checkout/pack-10',
+        preferenceId: 'mp-pref-pack-10',
+      });
+
+      const result = await service.buyTickets('user-1', 'raffle-1', 10);
+
+      expect(result.tickets).toHaveLength(12);
+      expect(result.baseQuantity).toBe(10);
+      expect(result.bonusQuantity).toBe(2);
+      expect(result.grantedQuantity).toBe(12);
+      expect(result.packApplied).toBe(true);
+      expect(result.grossSubtotal).toBe(6000);
+      expect(result.discountApplied).toBe(1000);
+      expect(result.mpChargeAmount).toBe(5000);
+      expect(result.totalAmount).toBe(5000);
+    });
+
+    it('should degrade to a normal random purchase when the pack would exceed available stock', async () => {
+      prisma.shippingAddress.count.mockResolvedValue(1);
+
+      const mockRaffle = {
+        id: 'raffle-1',
+        estado: 'ACTIVA',
+        seller_id: 'seller-1',
+        total_tickets: 15,
+        precio_por_ticket: new Prisma.Decimal(500),
+        titulo: 'Nintendo Switch',
+        sold_count: BigInt(10),
+        is_hidden: false,
+      };
+
+      prisma.$transaction.mockImplementation(async (callback) => {
+        const mockTx = {
+          $queryRaw: jest.fn().mockResolvedValue([mockRaffle]),
+          ticket: {
+            count: jest.fn().mockResolvedValue(0),
+            findMany: jest.fn().mockResolvedValue(
+              Array.from({ length: 10 }, (_, index) => ({
+                numeroTicket: index + 1,
+              })),
+            ),
+            create: jest.fn().mockImplementation(async ({ data }) => ({
+              id: `ticket-${data.numeroTicket}`,
+              numeroTicket: data.numeroTicket,
+              estado: 'RESERVADO',
+            })),
+          },
+        };
+
+        return callback(mockTx);
+      });
+
+      paymentsService.createPreference.mockResolvedValue({
+        initPoint: 'https://mp.com/checkout/fallback-stock',
+        preferenceId: 'mp-pref-fallback-stock',
+      });
+
+      const result = await service.buyTickets('user-1', 'raffle-1', 5);
+
+      expect(result.tickets).toHaveLength(5);
+      expect(result.baseQuantity).toBe(5);
+      expect(result.bonusQuantity).toBe(0);
+      expect(result.grantedQuantity).toBe(5);
+      expect(result.packApplied).toBe(false);
+      expect(result.packIneligibilityReason).toBe('INSUFFICIENT_STOCK');
+      expect(result.grossSubtotal).toBe(2500);
+      expect(result.discountApplied).toBe(0);
+      expect(result.mpChargeAmount).toBe(2500);
+      expect(paymentsService.createPreference).toHaveBeenCalledWith(
+        expect.objectContaining({
+          cantidad: 5,
+          packApplied: false,
+          packIneligibilityReason: 'INSUFFICIENT_STOCK',
+          grossSubtotal: 2500,
+          discountApplied: 0,
+          packDiscountApplied: 0,
+          promotionDiscountApplied: 0,
+        }),
+      );
+    });
+
+    it('should degrade to a normal random purchase when the pack would exceed the buyer limit', async () => {
+      prisma.shippingAddress.count.mockResolvedValue(1);
+
+      const mockRaffle = {
+        id: 'raffle-1',
+        estado: 'ACTIVA',
+        seller_id: 'seller-1',
+        total_tickets: 100,
+        precio_por_ticket: new Prisma.Decimal(500),
+        titulo: 'Samsung Galaxy',
+        sold_count: BigInt(40),
+        is_hidden: false,
+      };
+
+      prisma.$transaction.mockImplementation(async (callback) => {
+        const mockTx = {
+          $queryRaw: jest.fn().mockResolvedValue([mockRaffle]),
+          ticket: {
+            count: jest.fn().mockResolvedValue(40),
+            findMany: jest.fn().mockResolvedValue(
+              Array.from({ length: 40 }, (_, index) => ({
+                numeroTicket: index + 1,
+              })),
+            ),
+            create: jest.fn().mockImplementation(async ({ data }) => ({
+              id: `ticket-${data.numeroTicket}`,
+              numeroTicket: data.numeroTicket,
+              estado: 'RESERVADO',
+            })),
+          },
+        };
+
+        return callback(mockTx);
+      });
+
+      paymentsService.createPreference.mockResolvedValue({
+        initPoint: 'https://mp.com/checkout/fallback-limit',
+        preferenceId: 'mp-pref-fallback-limit',
+      });
+
+      const result = await service.buyTickets('user-1', 'raffle-1', 10);
+
+      expect(result.tickets).toHaveLength(10);
+      expect(result.baseQuantity).toBe(10);
+      expect(result.bonusQuantity).toBe(0);
+      expect(result.grantedQuantity).toBe(10);
+      expect(result.packApplied).toBe(false);
+      expect(result.packIneligibilityReason).toBe('BUYER_LIMIT');
+      expect(result.grossSubtotal).toBe(5000);
+      expect(result.discountApplied).toBe(0);
+      expect(result.mpChargeAmount).toBe(5000);
+      expect(result.ticketsRestantesQuePuedeComprar).toBe(0);
+    });
+
     it('should use serializable transaction with timeout', async () => {
       prisma.shippingAddress.count.mockResolvedValue(1);
 

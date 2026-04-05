@@ -69,6 +69,11 @@ export const BUY_TICKETS = gql`
       mpChargeAmount
       bonusGrantId
       cantidadComprada
+      baseQuantity
+      bonusQuantity
+      grantedQuantity
+      packApplied
+      packIneligibilityReason
       ticketsRestantesQuePuedeComprar
     }
   }

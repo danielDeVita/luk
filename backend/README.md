@@ -142,6 +142,21 @@ In that mode:
 - full and partial refunds can be simulated from the mock page;
 - `GET /mp/payment-status` continues to work for both real MP ids and `mock_pay_*` ids.
 
+### Random purchase packs
+
+Random purchases include a global pack incentive:
+
+- buy `5`, receive `6`;
+- buy `10`, receive `12`.
+
+The pack:
+
+- applies only to `RANDOM` purchases;
+- emits real tickets that count toward raffle completion and the buyer cap;
+- is subsidized by Luk, not by the seller;
+- does not stack with social-promotion `bonusGrantId`;
+- falls back to a normal purchase when the full pack cannot be honored because of stock or buyer-limit constraints.
+
 ### Google OAuth Setup
 
 To enable Google login:
@@ -215,13 +230,17 @@ The Checkout Pro preference sent to Mercado Pago includes additional buyer and i
 
 The checkout still goes to Mercado Pago as a single bundle item so the charged amount remains exactly aligned with the final LUK calculation, including discounts and chosen-number premium when applicable.
 
+For random pack purchases, the backend still calculates seller economics on the gross value of all emitted tickets and records a separate `SUBSIDIO_PACK_PLATAFORMA` transaction for the Luk-funded bonus portion.
+
 ### Webhook Processing
 1. Receives webhook at `POST /mp/webhook`
 2. Parses payload (supports `type`, `topic`, `action` formats)
 3. Records `MpEvent` for idempotency
 4. On `approved` payment:
    - Updates tickets to `PAGADO`
-   - Creates `Transaction` record
+   - Creates `COMPRA_TICKET`
+   - Creates `SUBSIDIO_PACK_PLATAFORMA` when a random pack discount was applied
+   - Creates `SUBSIDIO_PROMOCIONAL_PLATAFORMA` when a promotion bonus was applied
    - Triggers notifications
 
 ### Self-Healing Sync

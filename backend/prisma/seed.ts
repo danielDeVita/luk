@@ -1,4 +1,5 @@
 import {
+  Prisma,
   PrismaClient,
   UserRole,
   KycStatus,
@@ -16,6 +17,9 @@ import {
   SocialPromotionStatus,
   SocialPromotionAttributionEventType,
   SellerLevel,
+  TransactionType,
+  TransactionStatus,
+  ActivityType,
 } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 
@@ -33,6 +37,22 @@ const USERS = {
   unverifiedKyc: 'unverified@test.com',
   pendingKyc: 'pending-kyc@test.com',
   rejectedKyc: 'rejected-kyc@test.com',
+  sellerPro: 'seller-pro@test.com',
+  sellerGrowth: 'seller-growth@test.com',
+  sellerNoMp: 'seller-no-mp@test.com',
+  sellerNoAddress: 'seller-no-address@test.com',
+  sellerPendingMp: 'seller-pending-mp@test.com',
+  buyerHeavy: 'buyer-heavy@test.com',
+  buyerWinner: 'buyer-winner@test.com',
+  buyerRefund: 'buyer-refund@test.com',
+  buyerDispute: 'buyer-dispute@test.com',
+  buyerNew: 'buyer-new@test.com',
+  buyerPromo: 'buyer-promo@test.com',
+  buyerPack: 'buyer-pack@test.com',
+  googleOnly: 'google-only@test.com',
+  unverifiedEmail: 'email-unverified@test.com',
+  banned: 'banned-user@test.com',
+  adminOps: 'admin-ops@test.com',
 } as const;
 
 const IDS = {
@@ -63,6 +83,22 @@ const IDS = {
   socialClickEvent: 'qa_social_attr_click',
   socialRegistrationEvent: 'qa_social_attr_registration',
   socialPurchaseEvent: 'qa_social_attr_purchase',
+  rafflePackFive: 'qa_raffle_pack_five_random',
+  rafflePackTen: 'qa_raffle_pack_ten_random',
+  rafflePackLowStock: 'qa_raffle_pack_low_stock',
+  rafflePackBuyerLimit: 'qa_raffle_pack_buyer_limit',
+  raffleChooseNumbers: 'qa_raffle_choose_numbers_premium',
+  rafflePriceDropActive: 'qa_raffle_active_price_drop',
+  raffleAlmostSold: 'qa_raffle_active_almost_sold',
+  raffleNewLaunch: 'qa_raffle_new_launch',
+  raffleHomeActive: 'qa_raffle_home_active',
+  raffleFashionActive: 'qa_raffle_fashion_active',
+  raffleSportsActive: 'qa_raffle_sports_active',
+  raffleEntertainmentActive: 'qa_raffle_entertainment_active',
+  raffleCancelledRefunded: 'qa_raffle_cancelled_refunded',
+  raffleFinalizedReviewed: 'qa_raffle_finalized_reviewed',
+  raffleDisputeResolvedSeller: 'qa_raffle_dispute_resolved_seller',
+  raffleDisputeResolvedPartial: 'qa_raffle_dispute_resolved_partial',
 } as const;
 
 const QA_CATEGORIES = [
@@ -142,11 +178,59 @@ function disputeId(raffleId: string): string {
   return `qa_dispute_${raffleId}`;
 }
 
+function addressId(key: string): string {
+  return `qa_addr_${key}_default`;
+}
+
+function priceHistoryId(raffleId: string, index: number): string {
+  return `qa_price_history_${raffleId}_${index}`;
+}
+
+function reviewId(raffleId: string): string {
+  return `qa_review_${raffleId}`;
+}
+
+function questionId(raffleId: string, index: number): string {
+  return `qa_question_${raffleId}_${index}`;
+}
+
+function answerId(raffleId: string, index: number): string {
+  return `qa_answer_${raffleId}_${index}`;
+}
+
+function conversationId(raffleId: string): string {
+  return `qa_conversation_${raffleId}`;
+}
+
+function messageId(raffleId: string, index: number): string {
+  return `qa_message_${raffleId}_${index}`;
+}
+
+function transactionId(key: string): string {
+  return `qa_tx_${key}`;
+}
+
+function notificationId(key: string): string {
+  return `qa_notification_${key}`;
+}
+
+function activityLogId(key: string): string {
+  return `qa_activity_${key}`;
+}
+
+function emailVerificationCodeId(key: string): string {
+  return `qa_email_code_${key}`;
+}
+
+function reportId(raffleId: string, reporterId: string): string {
+  return `qa_report_${raffleId}_${reporterId}`;
+}
+
 async function upsertUser(params: {
   email: string;
   nombre: string;
   apellido: string;
-  passwordHash: string;
+  passwordHash?: string | null;
   role?: UserRole;
   emailVerified?: boolean;
   kycStatus?: KycStatus;
@@ -158,12 +242,14 @@ async function upsertUser(params: {
   mpAccessToken?: string | null;
   documentType?: DocumentType | null;
   documentNumber?: string | null;
+  googleId?: string | null;
+  avatarUrl?: string | null;
 }) {
   const {
     email,
     nombre,
     apellido,
-    passwordHash,
+    passwordHash = null,
     role = UserRole.USER,
     emailVerified = true,
     kycStatus = KycStatus.NOT_SUBMITTED,
@@ -175,6 +261,8 @@ async function upsertUser(params: {
     mpAccessToken = null,
     documentType = null,
     documentNumber = null,
+    googleId = null,
+    avatarUrl = null,
   } = params;
 
   return prisma.user.upsert({
@@ -197,6 +285,8 @@ async function upsertUser(params: {
       mpAccessToken,
       documentType,
       documentNumber,
+      googleId,
+      avatarUrl,
       isDeleted: false,
       deletedAt: null,
     },
@@ -219,21 +309,65 @@ async function upsertUser(params: {
       mpAccessToken,
       documentType,
       documentNumber,
+      googleId,
+      avatarUrl,
     },
   });
 }
 
-async function upsertUserReputation(userId: string, maxRifasSimultaneas = 3) {
+async function upsertUserReputation(params: {
+  userId: string;
+  maxRifasSimultaneas?: number;
+  nivelVendedor?: SellerLevel;
+  totalVentasCompletadas?: number;
+  totalComprasCompletadas?: number;
+  totalRifasGanadas?: number;
+  totalTicketsComprados?: number;
+  disputasComoVendedorGanadas?: number;
+  disputasComoVendedorPerdidas?: number;
+  disputasComoCompradorAbiertas?: number;
+  ratingPromedioVendedor?: number | null;
+}) {
+  const {
+    userId,
+    maxRifasSimultaneas = 3,
+    nivelVendedor = SellerLevel.NUEVO,
+    totalVentasCompletadas = 0,
+    totalComprasCompletadas = 0,
+    totalRifasGanadas = 0,
+    totalTicketsComprados = 0,
+    disputasComoVendedorGanadas = 0,
+    disputasComoVendedorPerdidas = 0,
+    disputasComoCompradorAbiertas = 0,
+    ratingPromedioVendedor = null,
+  } = params;
+
   await prisma.userReputation.upsert({
     where: { userId },
     update: {
       maxRifasSimultaneas,
-      nivelVendedor: SellerLevel.NUEVO,
+      nivelVendedor,
+      totalVentasCompletadas,
+      totalComprasCompletadas,
+      totalRifasGanadas,
+      totalTicketsComprados,
+      disputasComoVendedorGanadas,
+      disputasComoVendedorPerdidas,
+      disputasComoCompradorAbiertas,
+      ratingPromedioVendedor,
     },
     create: {
       userId,
       maxRifasSimultaneas,
-      nivelVendedor: SellerLevel.NUEVO,
+      nivelVendedor,
+      totalVentasCompletadas,
+      totalComprasCompletadas,
+      totalRifasGanadas,
+      totalTicketsComprados,
+      disputasComoVendedorGanadas,
+      disputasComoVendedorPerdidas,
+      disputasComoCompradorAbiertas,
+      ratingPromedioVendedor,
     },
   });
 }
@@ -341,6 +475,8 @@ async function upsertRaffle(params: {
   paymentReleasedAt?: Date | null;
   isHidden?: boolean;
   isDeleted?: boolean;
+  viewCount?: number;
+  lastPriceDropAt?: Date | null;
   productName?: string;
   productCategory?: string;
   productCondition?: ProductCondition;
@@ -364,6 +500,8 @@ async function upsertRaffle(params: {
     paymentReleasedAt = null,
     isHidden = false,
     isDeleted = false,
+    viewCount = 0,
+    lastPriceDropAt = null,
     productName = `${title} - Producto`,
     productCategory = 'Electronica',
     productCondition = ProductCondition.NUEVO,
@@ -387,6 +525,8 @@ async function upsertRaffle(params: {
       shippedAt,
       confirmedAt,
       paymentReleasedAt,
+      viewCount,
+      lastPriceDropAt,
       isHidden,
       isDeleted,
       deletedAt: isDeleted ? new Date() : null,
@@ -409,6 +549,8 @@ async function upsertRaffle(params: {
       shippedAt,
       confirmedAt,
       paymentReleasedAt,
+      viewCount,
+      lastPriceDropAt,
       isHidden,
       isDeleted,
       deletedAt: isDeleted ? new Date() : null,
@@ -657,6 +799,421 @@ async function upsertDispute(params: {
   });
 }
 
+async function upsertFavorite(userId: string, raffleId: string, createdAt = new Date()) {
+  await prisma.favorite.upsert({
+    where: {
+      userId_raffleId: {
+        userId,
+        raffleId,
+      },
+    },
+    update: {
+      createdAt,
+    },
+    create: {
+      userId,
+      raffleId,
+      createdAt,
+    },
+  });
+}
+
+async function upsertPriceHistory(params: {
+  id: string;
+  raffleId: string;
+  previousPrice: number;
+  newPrice: number;
+  changedAt: Date;
+}) {
+  const { id, raffleId, previousPrice, newPrice, changedAt } = params;
+
+  await prisma.priceHistory.upsert({
+    where: { id },
+    update: {
+      raffleId,
+      previousPrice,
+      newPrice,
+      changedAt,
+    },
+    create: {
+      id,
+      raffleId,
+      previousPrice,
+      newPrice,
+      changedAt,
+    },
+  });
+}
+
+async function upsertReview(params: {
+  raffleId: string;
+  reviewerId: string;
+  sellerId: string;
+  rating: number;
+  comentario: string;
+  createdAt?: Date;
+}) {
+  const {
+    raffleId,
+    reviewerId,
+    sellerId,
+    rating,
+    comentario,
+    createdAt = new Date(),
+  } = params;
+
+  await prisma.review.upsert({
+    where: { raffleId },
+    update: {
+      reviewerId,
+      sellerId,
+      rating,
+      comentario,
+      createdAt,
+    },
+    create: {
+      id: reviewId(raffleId),
+      raffleId,
+      reviewerId,
+      sellerId,
+      rating,
+      comentario,
+      createdAt,
+    },
+  });
+}
+
+async function upsertQuestionThread(params: {
+  raffleId: string;
+  index: number;
+  askerId: string;
+  question: string;
+  questionCreatedAt?: Date;
+  sellerId?: string | null;
+  answer?: string | null;
+  answerCreatedAt?: Date | null;
+}) {
+  const {
+    raffleId,
+    index,
+    askerId,
+    question,
+    questionCreatedAt = new Date(),
+    sellerId = null,
+    answer = null,
+    answerCreatedAt = null,
+  } = params;
+
+  const createdQuestion = await prisma.raffleQuestion.upsert({
+    where: { id: questionId(raffleId, index) },
+    update: {
+      raffleId,
+      askerId,
+      content: question,
+      createdAt: questionCreatedAt,
+    },
+    create: {
+      id: questionId(raffleId, index),
+      raffleId,
+      askerId,
+      content: question,
+      createdAt: questionCreatedAt,
+    },
+  });
+
+  if (!sellerId || !answer) {
+    return createdQuestion;
+  }
+
+  await prisma.raffleAnswer.upsert({
+    where: { questionId: createdQuestion.id },
+    update: {
+      sellerId,
+      content: answer,
+      createdAt: answerCreatedAt ?? questionCreatedAt,
+    },
+    create: {
+      id: answerId(raffleId, index),
+      questionId: createdQuestion.id,
+      sellerId,
+      content: answer,
+      createdAt: answerCreatedAt ?? questionCreatedAt,
+    },
+  });
+
+  return createdQuestion;
+}
+
+async function upsertConversationThread(params: {
+  raffleId: string;
+  user1Id: string;
+  user2Id: string;
+  messages: Array<{
+    index: number;
+    senderId: string;
+    content: string;
+    isRead?: boolean;
+    createdAt?: Date;
+  }>;
+}) {
+  const { raffleId, user1Id, user2Id, messages } = params;
+
+  const conversation = await prisma.conversation.upsert({
+    where: { raffleId },
+    update: {
+      user1Id,
+      user2Id,
+      isActive: true,
+    },
+    create: {
+      id: conversationId(raffleId),
+      raffleId,
+      user1Id,
+      user2Id,
+      isActive: true,
+    },
+  });
+
+  for (const message of messages) {
+    await prisma.message.upsert({
+      where: { id: messageId(raffleId, message.index) },
+      update: {
+        conversationId: conversation.id,
+        senderId: message.senderId,
+        content: message.content,
+        isRead: message.isRead ?? false,
+        createdAt: message.createdAt ?? new Date(),
+      },
+      create: {
+        id: messageId(raffleId, message.index),
+        conversationId: conversation.id,
+        senderId: message.senderId,
+        content: message.content,
+        isRead: message.isRead ?? false,
+        createdAt: message.createdAt ?? new Date(),
+      },
+    });
+  }
+}
+
+async function upsertTransaction(params: {
+  id: string;
+  tipo: TransactionType;
+  userId: string;
+  raffleId: string;
+  monto: number;
+  grossAmount?: number | null;
+  promotionDiscountAmount?: number | null;
+  cashChargedAmount?: number | null;
+  comisionPlataforma?: number | null;
+  feeProcesamiento?: number | null;
+  montoNeto?: number | null;
+  mpPaymentId?: string | null;
+  mpMerchantOrderId?: string | null;
+  estado?: TransactionStatus;
+  metadata?: Prisma.InputJsonValue;
+}) {
+  const {
+    id,
+    tipo,
+    userId,
+    raffleId,
+    monto,
+    grossAmount = null,
+    promotionDiscountAmount = null,
+    cashChargedAmount = null,
+    comisionPlataforma = null,
+    feeProcesamiento = null,
+    montoNeto = null,
+    mpPaymentId = null,
+    mpMerchantOrderId = null,
+    estado = TransactionStatus.COMPLETADO,
+    metadata = undefined,
+  } = params;
+
+  await prisma.transaction.upsert({
+    where: { id },
+    update: {
+      tipo,
+      userId,
+      raffleId,
+      monto,
+      grossAmount,
+      promotionDiscountAmount,
+      cashChargedAmount,
+      comisionPlataforma,
+      feeProcesamiento,
+      montoNeto,
+      mpPaymentId,
+      mpMerchantOrderId,
+      estado,
+      metadata,
+      isDeleted: false,
+      deletedAt: null,
+    },
+    create: {
+      id,
+      tipo,
+      userId,
+      raffleId,
+      monto,
+      grossAmount,
+      promotionDiscountAmount,
+      cashChargedAmount,
+      comisionPlataforma,
+      feeProcesamiento,
+      montoNeto,
+      mpPaymentId,
+      mpMerchantOrderId,
+      estado,
+      metadata,
+    },
+  });
+}
+
+async function upsertNotification(params: {
+  id: string;
+  userId: string;
+  type: string;
+  title: string;
+  message: string;
+  actionUrl?: string | null;
+  read?: boolean;
+  createdAt?: Date;
+}) {
+  const {
+    id,
+    userId,
+    type,
+    title,
+    message,
+    actionUrl = null,
+    read = false,
+    createdAt = new Date(),
+  } = params;
+
+  await prisma.notification.upsert({
+    where: { id },
+    update: {
+      userId,
+      type,
+      title,
+      message,
+      actionUrl,
+      read,
+      createdAt,
+    },
+    create: {
+      id,
+      userId,
+      type,
+      title,
+      message,
+      actionUrl,
+      read,
+      createdAt,
+    },
+  });
+}
+
+async function upsertActivityLog(params: {
+  id: string;
+  userId: string;
+  action: ActivityType;
+  targetType?: string | null;
+  targetId?: string | null;
+  metadata?: Prisma.InputJsonValue;
+  ipAddress?: string | null;
+  userAgent?: string | null;
+  createdAt?: Date;
+}) {
+  const {
+    id,
+    userId,
+    action,
+    targetType = null,
+    targetId = null,
+    metadata = undefined,
+    ipAddress = null,
+    userAgent = null,
+    createdAt = new Date(),
+  } = params;
+
+  await prisma.activityLog.upsert({
+    where: { id },
+    update: {
+      userId,
+      action,
+      targetType,
+      targetId,
+      metadata,
+      ipAddress,
+      userAgent,
+      createdAt,
+    },
+    create: {
+      id,
+      userId,
+      action,
+      targetType,
+      targetId,
+      metadata,
+      ipAddress,
+      userAgent,
+      createdAt,
+    },
+  });
+}
+
+async function upsertEmailVerificationCode(params: {
+  id: string;
+  userId: string;
+  code: string;
+  expiresAt: Date;
+  attempts?: number;
+  maxAttempts?: number;
+  isUsed?: boolean;
+  usedAt?: Date | null;
+  createdAt?: Date;
+}) {
+  const {
+    id,
+    userId,
+    code,
+    expiresAt,
+    attempts = 0,
+    maxAttempts = 3,
+    isUsed = false,
+    usedAt = null,
+    createdAt = new Date(),
+  } = params;
+
+  await prisma.emailVerificationCode.upsert({
+    where: { id },
+    update: {
+      userId,
+      code,
+      expiresAt,
+      attempts,
+      maxAttempts,
+      isUsed,
+      usedAt,
+      createdAt,
+    },
+    create: {
+      id,
+      userId,
+      code,
+      expiresAt,
+      attempts,
+      maxAttempts,
+      isUsed,
+      usedAt,
+      createdAt,
+    },
+  });
+}
+
 async function upsertSampleReport(raffleId: string, reporterId: string) {
   await prisma.report.upsert({
     where: {
@@ -673,7 +1230,7 @@ async function upsertSampleReport(raffleId: string, reporterId: string) {
       adminNotes: null,
     },
     create: {
-      id: IDS.reportActiveRaffle,
+      id: reportId(raffleId, reporterId),
       raffleId,
       reporterId,
       reason:
@@ -1021,6 +1578,187 @@ async function main() {
     documentNumber: '35556677',
   });
 
+  const sellerPro = await upsertUser({
+    email: USERS.sellerPro,
+    nombre: 'Sofía',
+    apellido: 'Premium',
+    passwordHash: userHash,
+    kycStatus: KycStatus.VERIFIED,
+    kycVerifiedAt: daysAgo(120),
+    mpConnectStatus: MpConnectStatus.CONNECTED,
+    mpUserId: 'qa_mp_seller_pro_001',
+    mpAccessToken: 'qa_mock_access_token_seller_pro',
+    documentType: DocumentType.DNI,
+    documentNumber: '28888001',
+  });
+
+  const sellerGrowth = await upsertUser({
+    email: USERS.sellerGrowth,
+    nombre: 'Martín',
+    apellido: 'Growth',
+    passwordHash: userHash,
+    kycStatus: KycStatus.VERIFIED,
+    kycVerifiedAt: daysAgo(75),
+    mpConnectStatus: MpConnectStatus.CONNECTED,
+    mpUserId: 'qa_mp_seller_growth_001',
+    mpAccessToken: 'qa_mock_access_token_seller_growth',
+    documentType: DocumentType.DNI,
+    documentNumber: '29999002',
+  });
+
+  const sellerNoMp = await upsertUser({
+    email: USERS.sellerNoMp,
+    nombre: 'Lucía',
+    apellido: 'Sin MP',
+    passwordHash: userHash,
+    kycStatus: KycStatus.VERIFIED,
+    kycVerifiedAt: daysAgo(28),
+    documentType: DocumentType.DNI,
+    documentNumber: '27777003',
+  });
+
+  const sellerNoAddress = await upsertUser({
+    email: USERS.sellerNoAddress,
+    nombre: 'Diego',
+    apellido: 'Sin Dirección',
+    passwordHash: userHash,
+    kycStatus: KycStatus.VERIFIED,
+    kycVerifiedAt: daysAgo(40),
+    mpConnectStatus: MpConnectStatus.CONNECTED,
+    mpUserId: 'qa_mp_seller_no_addr_001',
+    mpAccessToken: 'qa_mock_access_token_seller_no_addr',
+    documentType: DocumentType.DNI,
+    documentNumber: '26666004',
+  });
+
+  const sellerPendingMp = await upsertUser({
+    email: USERS.sellerPendingMp,
+    nombre: 'Valentina',
+    apellido: 'MP Pending',
+    passwordHash: userHash,
+    kycStatus: KycStatus.VERIFIED,
+    kycVerifiedAt: daysAgo(18),
+    mpConnectStatus: MpConnectStatus.PENDING,
+    documentType: DocumentType.DNI,
+    documentNumber: '25555005',
+  });
+
+  const buyerHeavy = await upsertUser({
+    email: USERS.buyerHeavy,
+    nombre: 'Buyer',
+    apellido: 'Heavy',
+    passwordHash: userHash,
+    kycStatus: KycStatus.VERIFIED,
+    kycVerifiedAt: daysAgo(90),
+    documentType: DocumentType.DNI,
+    documentNumber: '34444006',
+  });
+
+  const buyerWinner = await upsertUser({
+    email: USERS.buyerWinner,
+    nombre: 'Buyer',
+    apellido: 'Winner',
+    passwordHash: userHash,
+    kycStatus: KycStatus.VERIFIED,
+    kycVerifiedAt: daysAgo(55),
+    documentType: DocumentType.DNI,
+    documentNumber: '33333007',
+  });
+
+  const buyerRefund = await upsertUser({
+    email: USERS.buyerRefund,
+    nombre: 'Buyer',
+    apellido: 'Refund',
+    passwordHash: userHash,
+    kycStatus: KycStatus.VERIFIED,
+    kycVerifiedAt: daysAgo(30),
+    documentType: DocumentType.DNI,
+    documentNumber: '32222008',
+  });
+
+  const buyerDispute = await upsertUser({
+    email: USERS.buyerDispute,
+    nombre: 'Buyer',
+    apellido: 'Dispute',
+    passwordHash: userHash,
+    kycStatus: KycStatus.VERIFIED,
+    kycVerifiedAt: daysAgo(44),
+    documentType: DocumentType.DNI,
+    documentNumber: '31111009',
+  });
+
+  const buyerNew = await upsertUser({
+    email: USERS.buyerNew,
+    nombre: 'Buyer',
+    apellido: 'Nuevo',
+    passwordHash: userHash,
+    kycStatus: KycStatus.VERIFIED,
+    kycVerifiedAt: daysAgo(3),
+    documentType: DocumentType.DNI,
+    documentNumber: '30000010',
+  });
+
+  const buyerPromo = await upsertUser({
+    email: USERS.buyerPromo,
+    nombre: 'Buyer',
+    apellido: 'Promo',
+    passwordHash: userHash,
+    kycStatus: KycStatus.VERIFIED,
+    kycVerifiedAt: daysAgo(22),
+    documentType: DocumentType.DNI,
+    documentNumber: '39999011',
+  });
+
+  const buyerPack = await upsertUser({
+    email: USERS.buyerPack,
+    nombre: 'Buyer',
+    apellido: 'Pack',
+    passwordHash: userHash,
+    kycStatus: KycStatus.VERIFIED,
+    kycVerifiedAt: daysAgo(14),
+    documentType: DocumentType.DNI,
+    documentNumber: '38888012',
+  });
+
+  const googleOnly = await upsertUser({
+    email: USERS.googleOnly,
+    nombre: 'Google',
+    apellido: 'Only',
+    passwordHash: null,
+    emailVerified: true,
+    googleId: 'qa_google_only_001',
+    avatarUrl: 'https://picsum.photos/seed/qa-google-only/200/200',
+  });
+
+  const unverifiedEmailUser = await upsertUser({
+    email: USERS.unverifiedEmail,
+    nombre: 'Email',
+    apellido: 'Pendiente',
+    passwordHash: userHash,
+    emailVerified: false,
+    kycStatus: KycStatus.NOT_SUBMITTED,
+  });
+
+  const bannedUser = await upsertUser({
+    email: USERS.banned,
+    nombre: 'Usuario',
+    apellido: 'Baneado',
+    passwordHash: userHash,
+    role: UserRole.BANNED,
+    kycStatus: KycStatus.VERIFIED,
+    kycVerifiedAt: daysAgo(12),
+  });
+
+  await upsertUser({
+    email: USERS.adminOps,
+    nombre: 'Admin',
+    apellido: 'Operaciones',
+    passwordHash: adminHash,
+    role: UserRole.ADMIN,
+    kycStatus: KycStatus.VERIFIED,
+    kycVerifiedAt: daysAgo(90),
+  });
+
   await upsertAddress({
     id: IDS.sellerAddress,
     userId: seller.id,
@@ -1060,6 +1798,162 @@ async function main() {
     isDefault: true,
   });
 
+  await upsertAddress({
+    id: addressId('seller_pro'),
+    userId: sellerPro.id,
+    label: 'Showroom premium',
+    recipientName: 'Sofía Premium',
+    street: 'Av. Libertador',
+    number: '1800',
+    city: 'Buenos Aires',
+    province: 'CABA',
+    postalCode: '1425',
+    isDefault: true,
+  });
+
+  await upsertAddress({
+    id: addressId('seller_growth'),
+    userId: sellerGrowth.id,
+    label: 'Depósito growth',
+    recipientName: 'Martín Growth',
+    street: 'Av. Corrientes',
+    number: '2200',
+    city: 'Buenos Aires',
+    province: 'CABA',
+    postalCode: '1046',
+    isDefault: true,
+  });
+
+  await upsertAddress({
+    id: addressId('seller_no_mp'),
+    userId: sellerNoMp.id,
+    label: 'Casa',
+    recipientName: 'Lucía Sin MP',
+    street: 'Calle Comercio',
+    number: '915',
+    city: 'Rosario',
+    province: 'Santa Fe',
+    postalCode: '2000',
+    isDefault: true,
+  });
+
+  await upsertAddress({
+    id: addressId('seller_pending_mp'),
+    userId: sellerPendingMp.id,
+    label: 'Taller',
+    recipientName: 'Valentina MP Pending',
+    street: 'Av. Colón',
+    number: '410',
+    city: 'Córdoba',
+    province: 'Córdoba',
+    postalCode: '5000',
+    isDefault: true,
+  });
+
+  await upsertAddress({
+    id: addressId('buyer_heavy'),
+    userId: buyerHeavy.id,
+    label: 'Casa',
+    recipientName: 'Buyer Heavy',
+    street: 'Calle Tickets',
+    number: '101',
+    city: 'La Plata',
+    province: 'Buenos Aires',
+    postalCode: '1900',
+    isDefault: true,
+  });
+
+  await upsertAddress({
+    id: addressId('buyer_winner'),
+    userId: buyerWinner.id,
+    label: 'Departamento',
+    recipientName: 'Buyer Winner',
+    street: 'Calle Ganador',
+    number: '77',
+    city: 'Mendoza',
+    province: 'Mendoza',
+    postalCode: '5500',
+    isDefault: true,
+  });
+
+  await upsertAddress({
+    id: addressId('buyer_refund'),
+    userId: buyerRefund.id,
+    label: 'Casa',
+    recipientName: 'Buyer Refund',
+    street: 'Calle Reembolso',
+    number: '58',
+    city: 'Mar del Plata',
+    province: 'Buenos Aires',
+    postalCode: '7600',
+    isDefault: true,
+  });
+
+  await upsertAddress({
+    id: addressId('buyer_dispute'),
+    userId: buyerDispute.id,
+    label: 'Oficina',
+    recipientName: 'Buyer Dispute',
+    street: 'Calle Mediación',
+    number: '310',
+    city: 'San Miguel de Tucumán',
+    province: 'Tucumán',
+    postalCode: '4000',
+    isDefault: true,
+  });
+
+  await upsertAddress({
+    id: addressId('buyer_new'),
+    userId: buyerNew.id,
+    label: 'Casa',
+    recipientName: 'Buyer Nuevo',
+    street: 'Calle Inicio',
+    number: '12',
+    city: 'Neuquén',
+    province: 'Neuquén',
+    postalCode: '8300',
+    isDefault: true,
+  });
+
+  await upsertAddress({
+    id: addressId('buyer_promo'),
+    userId: buyerPromo.id,
+    label: 'Casa',
+    recipientName: 'Buyer Promo',
+    street: 'Calle Bonus',
+    number: '555',
+    city: 'Salta',
+    province: 'Salta',
+    postalCode: '4400',
+    isDefault: true,
+  });
+
+  await upsertAddress({
+    id: addressId('buyer_pack'),
+    userId: buyerPack.id,
+    label: 'Casa',
+    recipientName: 'Buyer Pack',
+    street: 'Calle Pack',
+    number: '222',
+    city: 'Bahía Blanca',
+    province: 'Buenos Aires',
+    postalCode: '8000',
+    isDefault: true,
+  });
+
+  await upsertAddress({
+    id: addressId('google_only'),
+    userId: googleOnly.id,
+    label: 'Casa',
+    recipientName: 'Google Only',
+    street: 'Calle OAuth',
+    number: '900',
+    city: 'Buenos Aires',
+    province: 'CABA',
+    postalCode: '1414',
+    isDefault: true,
+  });
+
   await prisma.user.update({
     where: { id: seller.id },
     data: { defaultSenderAddressId: IDS.sellerAddress },
@@ -1070,14 +1964,127 @@ async function main() {
     data: { defaultSenderAddressId: IDS.otherAddress },
   });
 
+  await prisma.user.update({
+    where: { id: sellerPro.id },
+    data: { defaultSenderAddressId: addressId('seller_pro') },
+  });
+
+  await prisma.user.update({
+    where: { id: sellerGrowth.id },
+    data: { defaultSenderAddressId: addressId('seller_growth') },
+  });
+
+  await prisma.user.update({
+    where: { id: sellerNoMp.id },
+    data: { defaultSenderAddressId: addressId('seller_no_mp') },
+  });
+
+  await prisma.user.update({
+    where: { id: sellerPendingMp.id },
+    data: { defaultSenderAddressId: addressId('seller_pending_mp') },
+  });
+
   await Promise.all([
-    upsertUserReputation(seller.id),
-    upsertUserReputation(buyer.id),
-    upsertUserReputation(other.id),
+    upsertUserReputation({ userId: seller.id }),
+    upsertUserReputation({
+      userId: buyer.id,
+      totalComprasCompletadas: 6,
+      totalTicketsComprados: 18,
+    }),
+    upsertUserReputation({
+      userId: other.id,
+      totalVentasCompletadas: 3,
+      nivelVendedor: SellerLevel.BRONCE,
+      ratingPromedioVendedor: 4.4,
+    }),
+    upsertUserReputation({
+      userId: sellerPro.id,
+      maxRifasSimultaneas: 8,
+      nivelVendedor: SellerLevel.ORO,
+      totalVentasCompletadas: 42,
+      disputasComoVendedorGanadas: 5,
+      disputasComoVendedorPerdidas: 1,
+      ratingPromedioVendedor: 4.9,
+    }),
+    upsertUserReputation({
+      userId: sellerGrowth.id,
+      maxRifasSimultaneas: 5,
+      nivelVendedor: SellerLevel.PLATA,
+      totalVentasCompletadas: 16,
+      disputasComoVendedorGanadas: 2,
+      ratingPromedioVendedor: 4.6,
+    }),
+    upsertUserReputation({
+      userId: sellerNoMp.id,
+      maxRifasSimultaneas: 3,
+      nivelVendedor: SellerLevel.BRONCE,
+      totalVentasCompletadas: 4,
+      ratingPromedioVendedor: 4.1,
+    }),
+    upsertUserReputation({
+      userId: sellerNoAddress.id,
+      maxRifasSimultaneas: 4,
+      nivelVendedor: SellerLevel.BRONCE,
+      totalVentasCompletadas: 7,
+      ratingPromedioVendedor: 4.3,
+    }),
+    upsertUserReputation({
+      userId: sellerPendingMp.id,
+      maxRifasSimultaneas: 4,
+      nivelVendedor: SellerLevel.BRONCE,
+      totalVentasCompletadas: 5,
+      ratingPromedioVendedor: 4.2,
+    }),
+    upsertUserReputation({
+      userId: buyerHeavy.id,
+      totalComprasCompletadas: 28,
+      totalTicketsComprados: 91,
+    }),
+    upsertUserReputation({
+      userId: buyerWinner.id,
+      totalComprasCompletadas: 12,
+      totalTicketsComprados: 34,
+      totalRifasGanadas: 3,
+    }),
+    upsertUserReputation({
+      userId: buyerRefund.id,
+      totalComprasCompletadas: 9,
+      totalTicketsComprados: 21,
+    }),
+    upsertUserReputation({
+      userId: buyerDispute.id,
+      totalComprasCompletadas: 11,
+      totalTicketsComprados: 26,
+      disputasComoCompradorAbiertas: 2,
+    }),
+    upsertUserReputation({
+      userId: buyerNew.id,
+      totalComprasCompletadas: 0,
+      totalTicketsComprados: 0,
+    }),
+    upsertUserReputation({
+      userId: buyerPromo.id,
+      totalComprasCompletadas: 8,
+      totalTicketsComprados: 19,
+    }),
+    upsertUserReputation({
+      userId: buyerPack.id,
+      totalComprasCompletadas: 5,
+      totalTicketsComprados: 14,
+    }),
+    upsertUserReputation({
+      userId: googleOnly.id,
+      totalComprasCompletadas: 2,
+      totalTicketsComprados: 4,
+    }),
   ]);
 
   const categories = await upsertCategories();
   const electronicsCategoryId = categories.get('Electronica') ?? null;
+  const fashionCategoryId = categories.get('Moda') ?? null;
+  const homeCategoryId = categories.get('Hogar') ?? null;
+  const sportsCategoryId = categories.get('Deportes') ?? null;
+  const entertainmentCategoryId = categories.get('Entretenimiento') ?? null;
 
   await upsertRaffle({
     id: IDS.raffleActive,
@@ -1531,7 +2538,817 @@ async function main() {
     resolvedAt: daysAgo(7),
   });
 
+  await upsertRaffle({
+    id: IDS.rafflePackFive,
+    sellerId: sellerGrowth.id,
+    categoryId: electronicsCategoryId,
+    title: `${QA_PREFIX} Pack 5 activo`,
+    description: 'Rifa activa ideal para probar el pack simple 5 -> 6.',
+    totalTickets: 18,
+    price: 2100,
+    deadline: daysFromNow(9),
+    status: RaffleStatus.ACTIVA,
+    viewCount: 48,
+  });
+  await deleteDrawResultIfAny(IDS.rafflePackFive);
+  await upsertTicket({
+    raffleId: IDS.rafflePackFive,
+    number: 1,
+    buyerId: buyer.id,
+    status: TicketStatus.PAGADO,
+    price: 2100,
+    mpPaymentId: 'qa_mp_pack_five_1',
+    purchasedAt: daysAgo(1),
+  });
+  await upsertTicket({
+    raffleId: IDS.rafflePackFive,
+    number: 2,
+    buyerId: other.id,
+    status: TicketStatus.PAGADO,
+    price: 2100,
+    mpPaymentId: 'qa_mp_pack_five_2',
+    purchasedAt: daysAgo(1),
+  });
+
+  await upsertRaffle({
+    id: IDS.rafflePackTen,
+    sellerId: sellerPro.id,
+    categoryId: electronicsCategoryId,
+    title: `${QA_PREFIX} Pack 10 activo`,
+    description: 'Rifa activa ideal para probar el pack simple 10 -> 12.',
+    totalTickets: 30,
+    price: 950,
+    deadline: daysFromNow(14),
+    status: RaffleStatus.ACTIVA,
+    viewCount: 71,
+  });
+  await deleteDrawResultIfAny(IDS.rafflePackTen);
+  for (let number = 1; number <= 3; number++) {
+    await upsertTicket({
+      raffleId: IDS.rafflePackTen,
+      number,
+      buyerId: number === 1 ? buyerPack.id : other.id,
+      status: TicketStatus.PAGADO,
+      price: 950,
+      mpPaymentId: `qa_mp_pack_ten_${number}`,
+      purchasedAt: daysAgo(2),
+    });
+  }
+
+  await upsertRaffle({
+    id: IDS.rafflePackLowStock,
+    sellerId: sellerGrowth.id,
+    categoryId: electronicsCategoryId,
+    title: `${QA_PREFIX} Pack fallback por stock`,
+    description: 'Caso para validar que el pack degrade a compra normal cuando quedan pocos tickets.',
+    totalTickets: 10,
+    price: 1750,
+    deadline: daysFromNow(5),
+    status: RaffleStatus.ACTIVA,
+    viewCount: 39,
+  });
+  await deleteDrawResultIfAny(IDS.rafflePackLowStock);
+  for (let number = 1; number <= 5; number++) {
+    await upsertTicket({
+      raffleId: IDS.rafflePackLowStock,
+      number,
+      buyerId: number <= 3 ? buyerRefund.id : other.id,
+      status: TicketStatus.PAGADO,
+      price: 1750,
+      mpPaymentId: `qa_mp_pack_low_stock_${number}`,
+      purchasedAt: daysAgo(1),
+    });
+  }
+
+  await upsertRaffle({
+    id: IDS.rafflePackBuyerLimit,
+    sellerId: sellerPro.id,
+    categoryId: electronicsCategoryId,
+    title: `${QA_PREFIX} Pack fallback por límite`,
+    description:
+      'Caso para validar que el pack degrade a compra normal cuando el bonus excedería el 50% permitido.',
+    totalTickets: 20,
+    price: 1450,
+    deadline: daysFromNow(8),
+    status: RaffleStatus.ACTIVA,
+    viewCount: 67,
+  });
+  await deleteDrawResultIfAny(IDS.rafflePackBuyerLimit);
+  for (let number = 1; number <= 8; number++) {
+    await upsertTicket({
+      raffleId: IDS.rafflePackBuyerLimit,
+      number,
+      buyerId: number <= 5 ? buyerHeavy.id : other.id,
+      status: TicketStatus.PAGADO,
+      price: 1450,
+      mpPaymentId: `qa_mp_pack_limit_${number}`,
+      purchasedAt: daysAgo(2),
+    });
+  }
+
+  await upsertRaffle({
+    id: IDS.raffleChooseNumbers,
+    sellerId: sellerPro.id,
+    categoryId: electronicsCategoryId,
+    title: `${QA_PREFIX} Elegir números premium`,
+    description: 'Rifa activa para QA del flujo elegir números con premium y números ya ocupados.',
+    totalTickets: 50,
+    price: 700,
+    deadline: daysFromNow(16),
+    status: RaffleStatus.ACTIVA,
+    viewCount: 122,
+  });
+  await deleteDrawResultIfAny(IDS.raffleChooseNumbers);
+  for (const number of [2, 7, 15, 18, 27]) {
+    await upsertTicket({
+      raffleId: IDS.raffleChooseNumbers,
+      number,
+      buyerId: number % 2 === 0 ? buyer.id : other.id,
+      status: TicketStatus.PAGADO,
+      price: 700,
+      mpPaymentId: `qa_mp_choose_numbers_${number}`,
+      purchasedAt: daysAgo(3),
+    });
+  }
+  await upsertTicket({
+    raffleId: IDS.raffleChooseNumbers,
+    number: 41,
+    buyerId: buyerRefund.id,
+    status: TicketStatus.REEMBOLSADO,
+    price: 700,
+    mpPaymentId: 'qa_mp_choose_numbers_refunded',
+    purchasedAt: daysAgo(4),
+  });
+
+  await upsertRaffle({
+    id: IDS.rafflePriceDropActive,
+    sellerId: sellerGrowth.id,
+    categoryId: electronicsCategoryId,
+    title: `${QA_PREFIX} Precio rebajado activa`,
+    description: 'Rifa activa con historial de precio y favoritos para QA de alertas.',
+    totalTickets: 40,
+    price: 1800,
+    deadline: daysFromNow(6),
+    status: RaffleStatus.ACTIVA,
+    viewCount: 260,
+    lastPriceDropAt: hoursAgo(18),
+  });
+  await deleteDrawResultIfAny(IDS.rafflePriceDropActive);
+  for (let number = 1; number <= 10; number++) {
+    await upsertTicket({
+      raffleId: IDS.rafflePriceDropActive,
+      number,
+      buyerId: number <= 4 ? buyerHeavy.id : number <= 7 ? buyerPromo.id : buyer.id,
+      status: TicketStatus.PAGADO,
+      price: 1800,
+      mpPaymentId: `qa_mp_price_drop_${number}`,
+      purchasedAt: daysAgo(4),
+    });
+  }
+
+  await upsertRaffle({
+    id: IDS.raffleAlmostSold,
+    sellerId: sellerPro.id,
+    categoryId: entertainmentCategoryId,
+    title: `${QA_PREFIX} Casi agotada`,
+    description: 'Rifa activa casi agotada para QA de urgencia visual y stock restante.',
+    totalTickets: 15,
+    price: 560,
+    deadline: daysFromNow(2),
+    status: RaffleStatus.ACTIVA,
+    viewCount: 304,
+  });
+  await deleteDrawResultIfAny(IDS.raffleAlmostSold);
+  for (let number = 1; number <= 13; number++) {
+    await upsertTicket({
+      raffleId: IDS.raffleAlmostSold,
+      number,
+      buyerId: number <= 5 ? buyerHeavy.id : number <= 9 ? buyerPromo.id : buyerPack.id,
+      status: TicketStatus.PAGADO,
+      price: 560,
+      mpPaymentId: `qa_mp_almost_sold_${number}`,
+      purchasedAt: daysAgo(1),
+    });
+  }
+
+  await upsertRaffle({
+    id: IDS.raffleNewLaunch,
+    sellerId: sellerGrowth.id,
+    categoryId: homeCategoryId,
+    title: `${QA_PREFIX} Lanzamiento sin ventas`,
+    description: 'Rifa recién publicada para QA de estados vacíos.',
+    totalTickets: 60,
+    price: 490,
+    deadline: daysFromNow(20),
+    status: RaffleStatus.ACTIVA,
+    viewCount: 15,
+  });
+  await deleteDrawResultIfAny(IDS.raffleNewLaunch);
+
+  await upsertRaffle({
+    id: IDS.raffleHomeActive,
+    sellerId: sellerPro.id,
+    categoryId: homeCategoryId,
+    title: `${QA_PREFIX} Cafetera premium`,
+    description: 'Rifa activa de hogar para poblar búsqueda y cards.',
+    totalTickets: 35,
+    price: 980,
+    deadline: daysFromNow(11),
+    status: RaffleStatus.ACTIVA,
+    viewCount: 97,
+    productCategory: 'Hogar',
+  });
+  await deleteDrawResultIfAny(IDS.raffleHomeActive);
+  for (let number = 1; number <= 6; number++) {
+    await upsertTicket({
+      raffleId: IDS.raffleHomeActive,
+      number,
+      buyerId: number <= 2 ? buyerNew.id : number <= 4 ? buyerWinner.id : buyer.id,
+      status: TicketStatus.PAGADO,
+      price: 980,
+      mpPaymentId: `qa_mp_home_active_${number}`,
+      purchasedAt: daysAgo(2),
+    });
+  }
+
+  await upsertRaffle({
+    id: IDS.raffleFashionActive,
+    sellerId: other.id,
+    categoryId: fashionCategoryId,
+    title: `${QA_PREFIX} Zapatillas edición limitada`,
+    description: 'Rifa activa de moda para poblar categorías no electrónicas.',
+    totalTickets: 28,
+    price: 890,
+    deadline: daysFromNow(9),
+    status: RaffleStatus.ACTIVA,
+    viewCount: 131,
+    productCategory: 'Moda',
+    productCondition: ProductCondition.NUEVO,
+  });
+  await deleteDrawResultIfAny(IDS.raffleFashionActive);
+  for (let number = 1; number <= 5; number++) {
+    await upsertTicket({
+      raffleId: IDS.raffleFashionActive,
+      number,
+      buyerId: number <= 2 ? buyerPromo.id : number <= 4 ? buyerNew.id : buyerWinner.id,
+      status: TicketStatus.PAGADO,
+      price: 890,
+      mpPaymentId: `qa_mp_fashion_active_${number}`,
+      purchasedAt: daysAgo(2),
+    });
+  }
+
+  await upsertRaffle({
+    id: IDS.raffleSportsActive,
+    sellerId: sellerGrowth.id,
+    categoryId: sportsCategoryId,
+    title: `${QA_PREFIX} Bicicleta gravel`,
+    description: 'Rifa activa de deportes para poblar búsqueda y seller profile.',
+    totalTickets: 32,
+    price: 1150,
+    deadline: daysFromNow(13),
+    status: RaffleStatus.ACTIVA,
+    viewCount: 110,
+    productCategory: 'Deportes',
+  });
+  await deleteDrawResultIfAny(IDS.raffleSportsActive);
+  for (let number = 1; number <= 7; number++) {
+    await upsertTicket({
+      raffleId: IDS.raffleSportsActive,
+      number,
+      buyerId: number <= 3 ? buyerHeavy.id : number <= 5 ? buyerPack.id : buyer.id,
+      status: TicketStatus.PAGADO,
+      price: 1150,
+      mpPaymentId: `qa_mp_sports_active_${number}`,
+      purchasedAt: daysAgo(3),
+    });
+  }
+
+  await upsertRaffle({
+    id: IDS.raffleEntertainmentActive,
+    sellerId: sellerPro.id,
+    categoryId: entertainmentCategoryId,
+    title: `${QA_PREFIX} PlayStation 5`,
+    description: 'Rifa activa de entretenimiento para QA general de home y search.',
+    totalTickets: 45,
+    price: 990,
+    deadline: daysFromNow(18),
+    status: RaffleStatus.ACTIVA,
+    viewCount: 342,
+    productCategory: 'Entretenimiento',
+  });
+  await deleteDrawResultIfAny(IDS.raffleEntertainmentActive);
+  for (let number = 1; number <= 12; number++) {
+    await upsertTicket({
+      raffleId: IDS.raffleEntertainmentActive,
+      number,
+      buyerId:
+        number <= 4 ? buyerHeavy.id : number <= 8 ? buyerPromo.id : buyerPack.id,
+      status: TicketStatus.PAGADO,
+      price: 990,
+      mpPaymentId: `qa_mp_entertainment_active_${number}`,
+      purchasedAt: daysAgo(5),
+    });
+  }
+
+  await upsertRaffle({
+    id: IDS.raffleCancelledRefunded,
+    sellerId: sellerGrowth.id,
+    categoryId: homeCategoryId,
+    title: `${QA_PREFIX} Cancelada con refund`,
+    description: 'Rifa cancelada con tickets ya reembolsados para QA de historial.',
+    totalTickets: 12,
+    price: 840,
+    deadline: daysAgo(6),
+    status: RaffleStatus.CANCELADA,
+    viewCount: 53,
+    productCategory: 'Hogar',
+  });
+  await deleteDrawResultIfAny(IDS.raffleCancelledRefunded);
+  for (let number = 1; number <= 4; number++) {
+    await upsertTicket({
+      raffleId: IDS.raffleCancelledRefunded,
+      number,
+      buyerId: number <= 2 ? buyerRefund.id : buyerDispute.id,
+      status: TicketStatus.REEMBOLSADO,
+      price: 840,
+      mpPaymentId: `qa_mp_cancelled_refund_${number}`,
+      purchasedAt: daysAgo(7),
+    });
+  }
+
+  await upsertRaffle({
+    id: IDS.raffleFinalizedReviewed,
+    sellerId: sellerPro.id,
+    categoryId: electronicsCategoryId,
+    title: `${QA_PREFIX} Finalizada con review`,
+    description: 'Rifa finalizada con payout, review y mensajería post entrega.',
+    totalTickets: 8,
+    price: 1320,
+    deadline: daysAgo(20),
+    status: RaffleStatus.FINALIZADA,
+    deliveryStatus: DeliveryStatus.CONFIRMED,
+    winnerId: buyerWinner.id,
+    drawDate: daysAgo(18),
+    trackingNumber: 'QA-REVIEW-TRACK-88',
+    shippedAt: daysAgo(17),
+    confirmedAt: daysAgo(16),
+    paymentReleasedAt: daysAgo(15),
+    viewCount: 142,
+  });
+  for (let number = 1; number <= 5; number++) {
+    await upsertTicket({
+      raffleId: IDS.raffleFinalizedReviewed,
+      number,
+      buyerId: number === 1 ? buyerWinner.id : number <= 3 ? buyer.id : buyerHeavy.id,
+      status: TicketStatus.PAGADO,
+      price: 1320,
+      mpPaymentId: `qa_mp_final_review_${number}`,
+      purchasedAt: daysAgo(19),
+    });
+  }
+  await upsertDrawResult({
+    raffleId: IDS.raffleFinalizedReviewed,
+    winningTicketId: ticketId(IDS.raffleFinalizedReviewed, 1),
+    winnerId: buyerWinner.id,
+    participants: 5,
+  });
+  await upsertPayout({
+    raffleId: IDS.raffleFinalizedReviewed,
+    sellerId: sellerPro.id,
+    grossAmount: 6600,
+    platformFee: 264,
+    processingFee: 330,
+    netAmount: 6006,
+    status: PayoutStatus.COMPLETED,
+    scheduledFor: daysAgo(16),
+    processedAt: daysAgo(15),
+  });
+
+  await upsertRaffle({
+    id: IDS.raffleDisputeResolvedSeller,
+    sellerId: sellerPro.id,
+    categoryId: electronicsCategoryId,
+    title: `${QA_PREFIX} Disputa resuelta vendedor`,
+    description: 'Caso histórico de disputa resuelta a favor del vendedor.',
+    totalTickets: 6,
+    price: 1180,
+    deadline: daysAgo(18),
+    status: RaffleStatus.FINALIZADA,
+    deliveryStatus: DeliveryStatus.CONFIRMED,
+    winnerId: buyerDispute.id,
+    drawDate: daysAgo(17),
+    shippedAt: daysAgo(16),
+    confirmedAt: daysAgo(14),
+    paymentReleasedAt: daysAgo(13),
+    viewCount: 84,
+  });
+  await upsertTicket({
+    raffleId: IDS.raffleDisputeResolvedSeller,
+    number: 1,
+    buyerId: buyerDispute.id,
+    status: TicketStatus.PAGADO,
+    price: 1180,
+    mpPaymentId: 'qa_mp_dispute_seller_1',
+    purchasedAt: daysAgo(18),
+  });
+  await upsertDrawResult({
+    raffleId: IDS.raffleDisputeResolvedSeller,
+    winningTicketId: ticketId(IDS.raffleDisputeResolvedSeller, 1),
+    winnerId: buyerDispute.id,
+    participants: 1,
+  });
+  await upsertDispute({
+    raffleId: IDS.raffleDisputeResolvedSeller,
+    reporterId: buyerDispute.id,
+    type: DisputeType.DIFERENTE,
+    status: DisputeStatus.RESUELTA_VENDEDOR,
+    title: `${QA_PREFIX} Resuelta a favor del vendedor`,
+    description: 'Fixture para QA de disputa cerrada a favor del vendedor.',
+    createdAt: daysAgo(15),
+    sellerResponse: 'Adjuntamos pruebas de publicación y guía de entrega.',
+    sellerEvidence: ['https://picsum.photos/seed/qa-dispute-seller/600/400'],
+    respondedAt: daysAgo(14),
+    resolution: 'La evidencia del vendedor fue suficiente. No corresponde refund.',
+    refundAmount: 0,
+    sellerAmount: 1180,
+    adminNotes: 'Caso QA resuelto a favor del vendedor.',
+    resolvedAt: daysAgo(13),
+  });
+
+  await upsertRaffle({
+    id: IDS.raffleDisputeResolvedPartial,
+    sellerId: sellerGrowth.id,
+    categoryId: electronicsCategoryId,
+    title: `${QA_PREFIX} Disputa resuelta parcial`,
+    description: 'Fixture para QA de resolución parcial con reparto entre buyer y seller.',
+    totalTickets: 6,
+    price: 1240,
+    deadline: daysAgo(16),
+    status: RaffleStatus.FINALIZADA,
+    deliveryStatus: DeliveryStatus.DISPUTED,
+    winnerId: buyerDispute.id,
+    drawDate: daysAgo(15),
+    shippedAt: daysAgo(14),
+    viewCount: 77,
+  });
+  await upsertTicket({
+    raffleId: IDS.raffleDisputeResolvedPartial,
+    number: 1,
+    buyerId: buyerDispute.id,
+    status: TicketStatus.PAGADO,
+    price: 1240,
+    mpPaymentId: 'qa_mp_dispute_partial_1',
+    purchasedAt: daysAgo(16),
+  });
+  await upsertDrawResult({
+    raffleId: IDS.raffleDisputeResolvedPartial,
+    winningTicketId: ticketId(IDS.raffleDisputeResolvedPartial, 1),
+    winnerId: buyerDispute.id,
+    participants: 1,
+  });
+  await upsertDispute({
+    raffleId: IDS.raffleDisputeResolvedPartial,
+    reporterId: buyerDispute.id,
+    type: DisputeType.DANADO,
+    status: DisputeStatus.RESUELTA_PARCIAL,
+    title: `${QA_PREFIX} Resuelta parcialmente`,
+    description: 'Caso para QA de refund parcial y payout parcial al vendedor.',
+    createdAt: daysAgo(12),
+    sellerResponse: 'Ofrecimos compensación parcial por el daño estético informado.',
+    sellerEvidence: ['https://picsum.photos/seed/qa-dispute-partial/600/400'],
+    respondedAt: daysAgo(11),
+    resolution: 'Se reconoce daño parcial. Corresponde refund parcial al comprador.',
+    refundAmount: 620,
+    sellerAmount: 620,
+    adminNotes: 'Fixture QA de disputa parcial.',
+    resolvedAt: daysAgo(10),
+  });
+
+  await upsertPayout({
+    raffleId: IDS.raffleDisputeResolvedSeller,
+    sellerId: sellerPro.id,
+    grossAmount: 1180,
+    platformFee: 47.2,
+    processingFee: 59,
+    netAmount: 1073.8,
+    status: PayoutStatus.COMPLETED,
+    scheduledFor: daysAgo(14),
+    processedAt: daysAgo(13),
+  });
+
+  await upsertPriceHistory({
+    id: priceHistoryId(IDS.rafflePriceDropActive, 1),
+    raffleId: IDS.rafflePriceDropActive,
+    previousPrice: 2500,
+    newPrice: 2200,
+    changedAt: daysAgo(9),
+  });
+  await upsertPriceHistory({
+    id: priceHistoryId(IDS.rafflePriceDropActive, 2),
+    raffleId: IDS.rafflePriceDropActive,
+    previousPrice: 2200,
+    newPrice: 1800,
+    changedAt: hoursAgo(18),
+  });
+  await upsertPriceHistory({
+    id: priceHistoryId(IDS.raffleCancelledRelaunch, 1),
+    raffleId: IDS.raffleCancelledRelaunch,
+    previousPrice: 1200,
+    newPrice: 1000,
+    changedAt: daysAgo(12),
+  });
+
+  await Promise.all([
+    upsertFavorite(buyer.id, IDS.raffleActive, daysAgo(1)),
+    upsertFavorite(buyer.id, IDS.rafflePriceDropActive, daysAgo(1)),
+    upsertFavorite(buyerNew.id, IDS.raffleAlmostSold, hoursAgo(8)),
+    upsertFavorite(buyerNew.id, IDS.rafflePriceDropActive, hoursAgo(6)),
+    upsertFavorite(buyerPromo.id, IDS.raffleFashionActive, daysAgo(2)),
+    upsertFavorite(buyerPromo.id, IDS.raffleSportsActive, daysAgo(2)),
+    upsertFavorite(buyerHeavy.id, IDS.raffleEntertainmentActive, daysAgo(3)),
+    upsertFavorite(buyerHeavy.id, IDS.raffleFinalizedReviewed, daysAgo(10)),
+    upsertFavorite(buyerPack.id, IDS.rafflePackFive, hoursAgo(3)),
+    upsertFavorite(googleOnly.id, IDS.raffleNewLaunch, hoursAgo(2)),
+  ]);
+
+  await upsertQuestionThread({
+    raffleId: IDS.raffleActive,
+    index: 1,
+    askerId: buyer.id,
+    question: '¿Tiene garantía oficial y caja sellada?',
+    questionCreatedAt: daysAgo(1),
+    sellerId: seller.id,
+    answer: 'Sí, viene sellado y con garantía oficial de 12 meses.',
+    answerCreatedAt: hoursAgo(20),
+  });
+  await upsertQuestionThread({
+    raffleId: IDS.raffleChooseNumbers,
+    index: 1,
+    askerId: buyerNew.id,
+    question: '¿Puedo elegir números separados o tienen que ser consecutivos?',
+    questionCreatedAt: hoursAgo(18),
+    sellerId: sellerPro.id,
+    answer:
+      'Podés elegir cualquier combinación disponible; no hace falta que sean consecutivos.',
+    answerCreatedAt: hoursAgo(16),
+  });
+  await upsertQuestionThread({
+    raffleId: IDS.rafflePriceDropActive,
+    index: 1,
+    askerId: buyerPromo.id,
+    question: '¿El precio bajó porque cambió algo del premio?',
+    questionCreatedAt: hoursAgo(22),
+    sellerId: sellerGrowth.id,
+    answer:
+      'No, es el mismo premio. Bajamos el ticket para acelerar la liquidación.',
+    answerCreatedAt: hoursAgo(18),
+  });
+  await upsertQuestionThread({
+    raffleId: IDS.rafflePackTen,
+    index: 1,
+    askerId: buyerPack.id,
+    question: '¿El pack de 10 aplica siempre o sólo si queda stock suficiente?',
+    questionCreatedAt: hoursAgo(4),
+  });
+
+  await upsertConversationThread({
+    raffleId: IDS.raffleShipped,
+    user1Id: buyer.id,
+    user2Id: seller.id,
+    messages: [
+      {
+        index: 1,
+        senderId: seller.id,
+        content: 'Ya despaché el premio. Te comparto el tracking por acá también.',
+        isRead: true,
+        createdAt: hoursAgo(20),
+      },
+      {
+        index: 2,
+        senderId: buyer.id,
+        content: 'Perfecto, gracias. Apenas llegue confirmo la entrega.',
+        isRead: true,
+        createdAt: hoursAgo(18),
+      },
+      {
+        index: 3,
+        senderId: seller.id,
+        content: 'Cualquier cosa escribime por este chat.',
+        isRead: false,
+        createdAt: hoursAgo(17),
+      },
+    ],
+  });
+
+  await upsertConversationThread({
+    raffleId: IDS.raffleFinalizedReviewed,
+    user1Id: buyerWinner.id,
+    user2Id: sellerPro.id,
+    messages: [
+      {
+        index: 1,
+        senderId: buyerWinner.id,
+        content: 'Llegó impecable. Gracias por el seguimiento.',
+        isRead: true,
+        createdAt: daysAgo(16),
+      },
+      {
+        index: 2,
+        senderId: sellerPro.id,
+        content: 'Buenísimo. Si podés dejar review me ayuda un montón.',
+        isRead: true,
+        createdAt: daysAgo(16),
+      },
+    ],
+  });
+
+  await upsertReview({
+    raffleId: IDS.raffleFinalizedReviewed,
+    reviewerId: buyerWinner.id,
+    sellerId: sellerPro.id,
+    rating: 5,
+    comentario: 'Todo llegó impecable y el vendedor respondió siempre rápido.',
+    createdAt: daysAgo(15),
+  });
+
+  await Promise.all([
+    upsertTransaction({
+      id: transactionId('pack_five_purchase'),
+      tipo: TransactionType.COMPRA_TICKET,
+      userId: buyerPack.id,
+      raffleId: IDS.rafflePackFive,
+      monto: 12600,
+      grossAmount: 12600,
+      cashChargedAmount: 10500,
+      comisionPlataforma: 504,
+      feeProcesamiento: 630,
+      montoNeto: 11466,
+      mpPaymentId: 'qa_mp_tx_pack_five',
+      metadata: {
+        packApplied: true,
+        baseQuantity: 5,
+        bonusQuantity: 1,
+        grantedQuantity: 6,
+      },
+    }),
+    upsertTransaction({
+      id: transactionId('pack_five_subsidy'),
+      tipo: TransactionType.SUBSIDIO_PACK_PLATAFORMA,
+      userId: buyerPack.id,
+      raffleId: IDS.rafflePackFive,
+      monto: 2100,
+      grossAmount: 12600,
+      cashChargedAmount: 10500,
+      mpPaymentId: 'qa_mp_tx_pack_five',
+      metadata: {
+        baseQuantity: 5,
+        bonusQuantity: 1,
+        grantedQuantity: 6,
+      },
+    }),
+    upsertTransaction({
+      id: transactionId('cancelled_refund_purchase'),
+      tipo: TransactionType.COMPRA_TICKET,
+      userId: buyerRefund.id,
+      raffleId: IDS.raffleCancelledRefunded,
+      monto: 1680,
+      grossAmount: 1680,
+      cashChargedAmount: 1680,
+      mpPaymentId: 'qa_mp_cancelled_refund_group',
+      estado: TransactionStatus.REEMBOLSADO,
+      metadata: {
+        refundedTicketNumbers: [1, 2],
+      },
+    }),
+    upsertTransaction({
+      id: transactionId('cancelled_refund_refund'),
+      tipo: TransactionType.REEMBOLSO,
+      userId: buyerRefund.id,
+      raffleId: IDS.raffleCancelledRefunded,
+      monto: 1680,
+      grossAmount: 1680,
+      cashChargedAmount: 1680,
+      mpPaymentId: 'qa_mp_cancelled_refund_group',
+      estado: TransactionStatus.REEMBOLSADO,
+      metadata: {
+        refundedTicketNumbers: [1, 2],
+      },
+    }),
+    upsertTransaction({
+      id: transactionId('final_review_purchase'),
+      tipo: TransactionType.COMPRA_TICKET,
+      userId: buyerWinner.id,
+      raffleId: IDS.raffleFinalizedReviewed,
+      monto: 1320,
+      grossAmount: 1320,
+      cashChargedAmount: 1320,
+      comisionPlataforma: 52.8,
+      feeProcesamiento: 66,
+      montoNeto: 1201.2,
+      mpPaymentId: 'qa_mp_final_review_1',
+      metadata: {
+        purchaseMode: 'RANDOM',
+      },
+    }),
+    upsertTransaction({
+      id: transactionId('final_review_payout'),
+      tipo: TransactionType.PAGO_VENDEDOR,
+      userId: sellerPro.id,
+      raffleId: IDS.raffleFinalizedReviewed,
+      monto: 6006,
+      grossAmount: 6600,
+      cashChargedAmount: 6600,
+      montoNeto: 6006,
+      estado: TransactionStatus.COMPLETADO,
+      metadata: {
+        payoutStatus: 'COMPLETED',
+      },
+    }),
+  ]);
+
+  await Promise.all([
+    upsertNotification({
+      id: notificationId('price_drop_active_buyer'),
+      userId: buyer.id,
+      type: 'PRICE_DROP',
+      title: 'Bajó el precio de una rifa guardada',
+      message:
+        'La rifa con precio rebajado ahora tiene tickets más baratos. Revisala antes de que se liquide.',
+      actionUrl: `/raffle/${IDS.rafflePriceDropActive}`,
+      createdAt: hoursAgo(16),
+    }),
+    upsertNotification({
+      id: notificationId('new_winner_review'),
+      userId: buyerWinner.id,
+      type: 'INFO',
+      title: 'Ya podés dejar tu review',
+      message: 'Confirmaste la entrega. Si querés, dejá una review del vendedor.',
+      actionUrl: `/raffle/${IDS.raffleFinalizedReviewed}`,
+      createdAt: daysAgo(15),
+      read: true,
+    }),
+    upsertNotification({
+      id: notificationId('pack_banner_hint'),
+      userId: buyerPack.id,
+      type: 'INFO',
+      title: 'Probá los packs simples',
+      message:
+        'En compras aleatorias de ciertas cantidades podés recibir tickets bonus subsidiados por LUK.',
+      actionUrl: `/raffle/${IDS.rafflePackFive}`,
+      createdAt: hoursAgo(2),
+    }),
+  ]);
+
+  await Promise.all([
+    upsertActivityLog({
+      id: activityLogId('buyer_pack_purchase'),
+      userId: buyerPack.id,
+      action: ActivityType.TICKETS_PURCHASED,
+      targetType: 'Raffle',
+      targetId: IDS.rafflePackFive,
+      metadata: {
+        baseQuantity: 5,
+        bonusQuantity: 1,
+        grantedQuantity: 6,
+      },
+      createdAt: hoursAgo(2),
+    }),
+    upsertActivityLog({
+      id: activityLogId('seller_pro_payout'),
+      userId: sellerPro.id,
+      action: ActivityType.PAYOUT_RELEASED,
+      targetType: 'Raffle',
+      targetId: IDS.raffleFinalizedReviewed,
+      metadata: {
+        netAmount: 6006,
+      },
+      createdAt: daysAgo(15),
+    }),
+    upsertActivityLog({
+      id: activityLogId('buyer_dispute_open'),
+      userId: buyerDispute.id,
+      action: ActivityType.DISPUTE_OPENED,
+      targetType: 'Raffle',
+      targetId: IDS.raffleDisputeResolvedPartial,
+      metadata: {
+        disputeStatus: DisputeStatus.RESUELTA_PARCIAL,
+      },
+      createdAt: daysAgo(12),
+    }),
+  ]);
+
+  await upsertEmailVerificationCode({
+    id: emailVerificationCodeId('unverified_email'),
+    userId: unverifiedEmailUser.id,
+    code: '334455',
+    expiresAt: daysFromNow(2),
+    createdAt: hoursAgo(1),
+  });
+
   await upsertSampleReport(IDS.raffleActive, buyer.id);
+  await upsertSampleReport(IDS.rafflePriceDropActive, buyerNew.id);
+  await upsertSampleReport(IDS.raffleFashionActive, buyerPromo.id);
 
   await upsertSocialPromotionFixture({
     sellerId: seller.id,
@@ -1549,10 +3366,35 @@ async function main() {
   console.log(`- KYC none:  ${USERS.unverifiedKyc} / ${DEFAULT_PASSWORD}`);
   console.log(`- KYC wait:  ${USERS.pendingKyc} / ${DEFAULT_PASSWORD}`);
   console.log(`- KYC reject:${USERS.rejectedKyc} / ${DEFAULT_PASSWORD}`);
+  console.log(`- Seller Pro: ${USERS.sellerPro} / ${DEFAULT_PASSWORD}`);
+  console.log(`- Seller Grw: ${USERS.sellerGrowth} / ${DEFAULT_PASSWORD}`);
+  console.log(`- No MP:      ${USERS.sellerNoMp} / ${DEFAULT_PASSWORD}`);
+  console.log(`- No address: ${USERS.sellerNoAddress} / ${DEFAULT_PASSWORD}`);
+  console.log(`- MP pending: ${USERS.sellerPendingMp} / ${DEFAULT_PASSWORD}`);
+  console.log(`- Buyer heavy:${USERS.buyerHeavy} / ${DEFAULT_PASSWORD}`);
+  console.log(`- Buyer win:  ${USERS.buyerWinner} / ${DEFAULT_PASSWORD}`);
+  console.log(`- Buyer refund:${USERS.buyerRefund} / ${DEFAULT_PASSWORD}`);
+  console.log(`- Buyer disp: ${USERS.buyerDispute} / ${DEFAULT_PASSWORD}`);
+  console.log(`- Buyer new:  ${USERS.buyerNew} / ${DEFAULT_PASSWORD}`);
+  console.log(`- Buyer promo:${USERS.buyerPromo} / ${DEFAULT_PASSWORD}`);
+  console.log(`- Buyer pack: ${USERS.buyerPack} / ${DEFAULT_PASSWORD}`);
+  console.log(`- Google only:${USERS.googleOnly} / Google OAuth only`);
+  console.log(`- Email unverified: ${USERS.unverifiedEmail} / ${DEFAULT_PASSWORD} (code 334455)`);
+  console.log(`- Banned:     ${USERS.banned} / ${DEFAULT_PASSWORD}`);
+  console.log(`- Admin Ops:  ${USERS.adminOps} / ${DEFAULT_ADMIN_PASSWORD}`);
   console.log('');
   console.log('Suggested manual QA routes:');
   console.log(`- /raffle/${IDS.raffleActive}`);
   console.log(`- /raffle/${IDS.raffleBonusTargetOther}`);
+  console.log(`- /raffle/${IDS.rafflePackFive}`);
+  console.log(`- /raffle/${IDS.rafflePackTen}`);
+  console.log(`- /raffle/${IDS.rafflePackLowStock}`);
+  console.log(`- /raffle/${IDS.rafflePackBuyerLimit}`);
+  console.log(`- /raffle/${IDS.raffleChooseNumbers}`);
+  console.log(`- /raffle/${IDS.rafflePriceDropActive}`);
+  console.log(`- /raffle/${IDS.raffleAlmostSold}`);
+  console.log(`- /raffle/${IDS.raffleCancelledRefunded}`);
+  console.log(`- /raffle/${IDS.raffleFinalizedReviewed}`);
   console.log('- /dashboard/sales');
   console.log('- /dashboard/tickets');
   console.log('- /dashboard/disputes');

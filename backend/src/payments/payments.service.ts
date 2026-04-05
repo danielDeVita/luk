@@ -11,7 +11,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { MockPaymentStatus, Prisma } from '@prisma/client';
 import type { PaymentResponse } from 'mercadopago/dist/clients/payment/commonTypes';
 import { MP_FEE_ESTIMATE_RATE } from '../common/constants/fees.constants';
-import { TicketPurchaseMode } from '../common/enums';
+import { PackIneligibilityReason, TicketPurchaseMode } from '../common/enums';
 import { getPlatformFeeRate } from '../common/config/platform-fee.util';
 import { EncryptionService } from '../common/services/encryption.service';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -52,10 +52,17 @@ interface ExternalReferenceData {
   raffleId: string;
   buyerId: string;
   cantidad: number;
+  baseQuantity?: number;
+  bonusQuantity?: number;
+  grantedQuantity?: number;
+  packApplied?: boolean;
+  packIneligibilityReason?: PackIneligibilityReason | null;
   reservationId?: string;
   bonusGrantId?: string | null;
   grossSubtotal?: number;
   discountApplied?: number;
+  promotionDiscountApplied?: number;
+  packDiscountApplied?: number;
   mpChargeAmount?: number;
   promotionToken?: string | null;
   purchaseMode?: TicketPurchaseMode;
@@ -128,8 +135,15 @@ export class PaymentsService {
     precioPorTicket: number;
     tituloRifa: string;
     reservationId: string;
+    baseQuantity: number;
+    bonusQuantity: number;
+    grantedQuantity: number;
+    packApplied: boolean;
+    packIneligibilityReason?: PackIneligibilityReason | null;
     grossSubtotal?: number;
     discountApplied?: number;
+    promotionDiscountApplied?: number;
+    packDiscountApplied?: number;
     mpChargeAmount?: number;
     bonusGrantId?: string | null;
     promotionBonusRedemptionId?: string | null;
@@ -162,8 +176,15 @@ export class PaymentsService {
       precioPorTicket: data.precioPorTicket,
       tituloRifa: data.tituloRifa,
       reservationId: data.reservationId,
+      baseQuantity: data.baseQuantity,
+      bonusQuantity: data.bonusQuantity,
+      grantedQuantity: data.grantedQuantity,
+      packApplied: data.packApplied,
+      packIneligibilityReason: data.packIneligibilityReason ?? null,
       grossSubtotal,
       discountApplied,
+      promotionDiscountApplied: data.promotionDiscountApplied ?? 0,
+      packDiscountApplied: data.packDiscountApplied ?? 0,
       cashChargedAmount,
       bonusGrantId: data.bonusGrantId ?? null,
       promotionBonusRedemptionId: data.promotionBonusRedemptionId ?? null,
@@ -784,6 +805,13 @@ export class PaymentsService {
     const promotionToken = refData.promotionToken ?? undefined;
     const purchaseMode = refData.purchaseMode ?? TicketPurchaseMode.RANDOM;
     const selectedNumbers = refData.selectedNumbers ?? null;
+    const baseQuantity = Number(refData.baseQuantity ?? refData.cantidad ?? 0);
+    const bonusQuantity = Number(refData.bonusQuantity ?? 0);
+    const grantedQuantity = Number(
+      refData.grantedQuantity ?? refData.cantidad ?? baseQuantity,
+    );
+    const packApplied = refData.packApplied === true;
+    const packIneligibilityReason = refData.packIneligibilityReason ?? null;
     const selectionPremiumPercent = Number(
       refData.selectionPremiumPercent ?? 0,
     );
@@ -835,7 +863,12 @@ export class PaymentsService {
 
     const totalAmount = Number(paymentData.transaction_amount ?? 0);
     const grossAmount = Number(refData.grossSubtotal ?? totalAmount);
-    const promotionDiscountAmount = Number(refData.discountApplied ?? 0);
+    const totalDiscountApplied = Number(refData.discountApplied ?? 0);
+    const packDiscountAmount = Number(refData.packDiscountApplied ?? 0);
+    const promotionDiscountAmount = Number(
+      refData.promotionDiscountApplied ??
+        Math.max(totalDiscountApplied - packDiscountAmount, 0),
+    );
     const cashChargedAmount = Number(refData.mpChargeAmount ?? totalAmount);
     const platformFee = cashChargedAmount * this.platformFeeRate;
     const mpFee = Number(paymentData.fee_details?.[0]?.amount ?? 0);
@@ -846,6 +879,14 @@ export class PaymentsService {
       reservationId: reservationId ?? null,
       bonusGrantId,
       promotionToken: promotionToken ?? null,
+      baseQuantity,
+      bonusQuantity,
+      grantedQuantity,
+      packApplied,
+      packIneligibilityReason,
+      packDiscountApplied: packDiscountAmount,
+      promotionDiscountApplied: promotionDiscountAmount,
+      discountApplied: totalDiscountApplied,
       purchaseMode,
       selectedNumbers,
       selectionPremiumPercent,
@@ -871,6 +912,25 @@ export class PaymentsService {
         metadata: transactionMetadata,
       },
     });
+
+    if (packDiscountAmount > 0) {
+      await this.prisma.transaction.create({
+        data: {
+          tipo: 'SUBSIDIO_PACK_PLATAFORMA',
+          userId: buyerId,
+          raffleId,
+          monto: packDiscountAmount,
+          grossAmount,
+          promotionDiscountAmount: packDiscountAmount,
+          cashChargedAmount,
+          comisionPlataforma: 0,
+          feeProcesamiento: 0,
+          montoNeto: packDiscountAmount,
+          estado: 'COMPLETADO',
+          metadata: transactionMetadata,
+        },
+      });
+    }
 
     if (promotionDiscountAmount > 0) {
       await this.prisma.transaction.create({
@@ -966,7 +1026,7 @@ export class PaymentsService {
               sellerName,
               raffleName: raffle.titulo,
               ticketCount: ticketNumbers.length,
-              amount: cashChargedAmount,
+              amount: grossAmount,
               soldTickets,
               totalTickets: raffle.totalTickets,
               raffleId: raffle.id,
@@ -978,7 +1038,7 @@ export class PaymentsService {
             raffle.seller.id,
             'INFO',
             '¡Nueva venta!',
-            `Vendiste ${ticketNumbers.length} ticket(s) en "${raffle.titulo}" por $${cashChargedAmount.toFixed(2)}. Progreso: ${soldTickets}/${raffle.totalTickets}`,
+            `Vendiste ${ticketNumbers.length} ticket(s) en "${raffle.titulo}" por $${grossAmount.toFixed(2)}. Progreso: ${soldTickets}/${raffle.totalTickets}`,
           );
         }
 
@@ -995,7 +1055,7 @@ export class PaymentsService {
           await this.activityService.logPaymentReceived(
             raffle.seller.id,
             raffleId,
-            cashChargedAmount,
+            grossAmount,
           );
         }
 
@@ -1006,7 +1066,7 @@ export class PaymentsService {
             raffleId,
             buyerId,
             ticketNumbers.length,
-            cashChargedAmount,
+            grossAmount,
             mpPaymentId,
           ),
         );

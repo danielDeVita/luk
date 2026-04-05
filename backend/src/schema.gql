@@ -128,12 +128,17 @@ type BulkResolveResult {
 }
 
 type BuyTicketsResult {
+  baseQuantity: Int!
   bonusGrantId: String
+  bonusQuantity: Int!
   cantidadComprada: Int!
   discountApplied: Float!
+  grantedQuantity: Int!
   grossSubtotal: Float!
   initPoint: String!
   mpChargeAmount: Float!
+  packApplied: Boolean!
+  packIneligibilityReason: PackIneligibilityReason
   preferenceId: String!
   purchaseMode: TicketPurchaseMode!
   selectionPremiumAmount: Float!
@@ -481,6 +486,11 @@ input OpenDisputeInput {
   titulo: String!
 }
 
+enum PackIneligibilityReason {
+  BUYER_LIMIT
+  INSUFFICIENT_STOCK
+}
+
 type PaginatedRaffles {
   items: [Raffle!]!
   meta: PaginationMeta!
@@ -680,6 +690,7 @@ type Query {
   myRafflesAsSeller: [Raffle!]!
   myShippingAddresses: [ShippingAddress!]!
   mySocialPromotionPosts(raffleId: String): [SocialPromotionPost!]!
+  myTicketCountInRaffle(raffleId: String!): Int!
   myTickets: [Ticket!]!
 
   """Debug payment by MP payment ID"""

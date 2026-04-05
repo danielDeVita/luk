@@ -113,10 +113,17 @@ export class MercadoPagoProvider {
         raffleId: data.raffleId,
         buyerId: data.buyerId,
         cantidad: data.cantidad,
+        baseQuantity: data.baseQuantity,
+        bonusQuantity: data.bonusQuantity,
+        grantedQuantity: data.grantedQuantity,
+        packApplied: data.packApplied,
+        packIneligibilityReason: data.packIneligibilityReason ?? null,
         reservationId: data.reservationId,
         bonusGrantId: data.bonusGrantId ?? null,
         grossSubtotal: data.grossSubtotal,
         discountApplied: data.discountApplied,
+        promotionDiscountApplied: data.promotionDiscountApplied,
+        packDiscountApplied: data.packDiscountApplied,
         mpChargeAmount: data.cashChargedAmount,
         promotionToken: data.promotionToken ?? null,
         purchaseMode: data.purchaseMode,
@@ -242,6 +249,10 @@ export class MercadoPagoProvider {
       data.selectedNumbers.length > 0
     ) {
       return `Compra de ${data.cantidad} ticket(s) elegidos (${data.selectedNumbers.join(', ')}) para la rifa "${data.tituloRifa}"`;
+    }
+
+    if (data.packApplied && data.bonusQuantity > 0) {
+      return `Compra de ${data.baseQuantity} ticket(s) con pack simple (+${data.bonusQuantity} bonus, recibís ${data.grantedQuantity}) para la rifa "${data.tituloRifa}"`;
     }
 
     return `Compra de ${data.cantidad} ticket(s) para la rifa "${data.tituloRifa}"`;

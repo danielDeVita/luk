@@ -48,7 +48,7 @@ npm run dev
 |-------|-------------|------|
 | `/` | Home with featured raffles | Public |
 | `/search` | Search and filter raffles | Public |
-| `/raffle/[id]` | Raffle details + ticket purchase + public Q&A | Public |
+| `/raffle/[id]` | Raffle details + ticket purchase + random pack incentive + public Q&A | Public |
 | `/checkout/mock/[mockPaymentId]` | Local QA checkout used when `PAYMENTS_PROVIDER=mock` | Public |
 | `/checkout/status` | Payment result handler | Public |
 | `/auth/login` | Login (email + Google) with inline email verification and 2FA continuation | Public |
@@ -198,6 +198,21 @@ Sellers must connect their Mercado Pago account before creating raffles:
 3. User redirected to Mercado Pago
 4. After payment, redirected to `/checkout/status`
 5. Page auto-syncs payment status with backend
+
+### Random Pack Incentive
+
+The raffle detail page applies a global incentive for random purchases:
+
+- buy `5`, receive `6`;
+- buy `10`, receive `12`.
+
+UI behavior:
+
+- only applies in `RANDOM` mode;
+- the summary shows paid tickets, bonus tickets, gross subtotal, Luk subsidy, and total charged;
+- the seller still gets paid on the gross emitted-ticket value;
+- it does not stack with the social-promotion bonus selector;
+- if the pack cannot be completed because of remaining stock or the buyer cap, the UI falls back to a normal purchase summary and explains why.
 
 ### Search & Filters
 - Category filter with backend categories

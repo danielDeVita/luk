@@ -1,6 +1,9 @@
 import { ObjectType, Field, Float, Int } from '@nestjs/graphql';
 import { Ticket } from './ticket.entity';
-import { TicketPurchaseMode } from '../../common/enums';
+import {
+  PackIneligibilityReason,
+  TicketPurchaseMode,
+} from '../../common/enums';
 
 @ObjectType()
 export class BuyTicketsResult {
@@ -30,6 +33,21 @@ export class BuyTicketsResult {
 
   @Field(() => Int)
   cantidadComprada!: number;
+
+  @Field(() => Int)
+  baseQuantity!: number;
+
+  @Field(() => Int)
+  bonusQuantity!: number;
+
+  @Field(() => Int)
+  grantedQuantity!: number;
+
+  @Field()
+  packApplied!: boolean;
+
+  @Field(() => PackIneligibilityReason, { nullable: true })
+  packIneligibilityReason?: PackIneligibilityReason;
 
   @Field(() => Int)
   ticketsRestantesQuePuedeComprar!: number;

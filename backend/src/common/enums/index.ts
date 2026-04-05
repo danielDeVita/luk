@@ -51,6 +51,11 @@ export enum TicketPurchaseMode {
   CHOOSE_NUMBERS = 'CHOOSE_NUMBERS',
 }
 
+export enum PackIneligibilityReason {
+  INSUFFICIENT_STOCK = 'INSUFFICIENT_STOCK',
+  BUYER_LIMIT = 'BUYER_LIMIT',
+}
+
 registerEnumType(UserRole, { name: 'UserRole' });
 registerEnumType(RaffleStatus, { name: 'RaffleStatus' });
 registerEnumType(DeliveryStatus, { name: 'DeliveryStatus' });
@@ -69,3 +74,6 @@ registerEnumType(RaffleSort, { name: 'RaffleSort' });
 registerEnumType(DocumentType, { name: 'DocumentType' });
 registerEnumType(KycStatus, { name: 'KycStatus' });
 registerEnumType(TicketPurchaseMode, { name: 'TicketPurchaseMode' });
+registerEnumType(PackIneligibilityReason, {
+  name: 'PackIneligibilityReason',
+});

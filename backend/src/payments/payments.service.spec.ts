@@ -188,6 +188,35 @@ describe('PaymentsService', () => {
       api_response: { status: 200, headers: [] },
     } as unknown as PaymentResponse;
 
+    const mockPackPaymentData = {
+      id: 'pack-123456',
+      status: 'approved',
+      status_detail: 'accredited',
+      transaction_amount: 2500,
+      external_reference: JSON.stringify({
+        raffleId: 'raffle-123',
+        buyerId: 'buyer-456',
+        cantidad: 6,
+        baseQuantity: 5,
+        bonusQuantity: 1,
+        grantedQuantity: 6,
+        packApplied: true,
+        reservationId: 'res-pack-789',
+        grossSubtotal: 3000,
+        discountApplied: 500,
+        promotionDiscountApplied: 0,
+        packDiscountApplied: 500,
+        mpChargeAmount: 2500,
+        promotionToken: null,
+        purchaseMode: 'RANDOM',
+        selectedNumbers: null,
+        selectionPremiumPercent: 0,
+        selectionPremiumAmount: 0,
+      }),
+      fee_details: [{ amount: 100 }],
+      api_response: { status: 200, headers: [] },
+    } as unknown as PaymentResponse;
+
     it('should update tickets to PAGADO on first call', async () => {
       mockPrismaService.ticket.updateMany.mockResolvedValue({ count: 2 });
       mockPrismaService.transaction.findFirst.mockResolvedValue(null);
@@ -254,6 +283,65 @@ describe('PaymentsService', () => {
           cashChargedAmount: 1000,
           mpPaymentId: '12345678',
           estado: 'COMPLETADO',
+        }),
+      });
+    });
+
+    it('should create a separate platform subsidy transaction for pack discounts', async () => {
+      mockPrismaService.ticket.updateMany.mockResolvedValue({ count: 6 });
+      mockPrismaService.transaction.findFirst.mockResolvedValue(null);
+      mockPrismaService.transaction.create.mockResolvedValue({
+        id: 'tx-pack-1',
+      });
+      mockPrismaService.raffle.findUnique.mockResolvedValue({
+        id: 'raffle-123',
+        totalTickets: 10,
+        tickets: [],
+      });
+
+      await service.handlePaymentApproved(mockPackPaymentData);
+
+      expect(mockPrismaService.transaction.create).toHaveBeenNthCalledWith(1, {
+        data: expect.objectContaining({
+          tipo: 'COMPRA_TICKET',
+          userId: 'buyer-456',
+          raffleId: 'raffle-123',
+          monto: 2500,
+          grossAmount: 3000,
+          promotionDiscountAmount: 0,
+          cashChargedAmount: 2500,
+          mpPaymentId: 'pack-123456',
+          estado: 'COMPLETADO',
+          metadata: expect.objectContaining({
+            discountApplied: 500,
+            packApplied: true,
+            baseQuantity: 5,
+            bonusQuantity: 1,
+            grantedQuantity: 6,
+            packDiscountApplied: 500,
+            promotionDiscountApplied: 0,
+          }),
+        }),
+      });
+      expect(mockPrismaService.transaction.create).toHaveBeenNthCalledWith(2, {
+        data: expect.objectContaining({
+          tipo: 'SUBSIDIO_PACK_PLATAFORMA',
+          userId: 'buyer-456',
+          raffleId: 'raffle-123',
+          monto: 500,
+          grossAmount: 3000,
+          promotionDiscountAmount: 500,
+          cashChargedAmount: 2500,
+          montoNeto: 500,
+          estado: 'COMPLETADO',
+          metadata: expect.objectContaining({
+            packApplied: true,
+            baseQuantity: 5,
+            bonusQuantity: 1,
+            grantedQuantity: 6,
+            packDiscountApplied: 500,
+            promotionDiscountApplied: 0,
+          }),
         }),
       });
     });
@@ -655,6 +743,10 @@ describe('PaymentsService', () => {
       const result = await mockModeService.createPreference({
         raffleId: 'raffle-1',
         cantidad: 2,
+        baseQuantity: 2,
+        bonusQuantity: 0,
+        grantedQuantity: 2,
+        packApplied: false,
         buyerId: 'buyer-1',
         precioPorTicket: 500,
         tituloRifa: 'QA raffle',
@@ -726,6 +818,10 @@ describe('PaymentsService', () => {
       await mockModeService.createPreference({
         raffleId: 'raffle-1',
         cantidad: 2,
+        baseQuantity: 2,
+        bonusQuantity: 0,
+        grantedQuantity: 2,
+        packApplied: false,
         buyerId: 'buyer-1',
         precioPorTicket: 500,
         tituloRifa: 'QA raffle',
@@ -814,6 +910,10 @@ describe('PaymentsService', () => {
       await service.createPreference({
         raffleId: 'raffle-1',
         cantidad: 2,
+        baseQuantity: 2,
+        bonusQuantity: 0,
+        grantedQuantity: 2,
+        packApplied: false,
         buyerId: 'buyer-1',
         precioPorTicket: 1500,
         tituloRifa: 'Rifa QA',
@@ -880,6 +980,10 @@ describe('PaymentsService', () => {
       await service.createPreference({
         raffleId: 'raffle-1',
         cantidad: 1,
+        baseQuantity: 1,
+        bonusQuantity: 0,
+        grantedQuantity: 1,
+        packApplied: false,
         buyerId: 'buyer-2',
         precioPorTicket: 500,
         tituloRifa: 'Rifa QA',

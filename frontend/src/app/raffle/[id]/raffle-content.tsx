@@ -27,6 +27,10 @@ import { ComplianceNotice } from '@/components/legal/compliance-notice';
 import { PromotionBonusSelector } from '@/components/social-promotions/promotion-bonus-selector';
 import { SocialPromotionManager } from '@/components/social-promotions/social-promotion-manager';
 import {
+  evaluateSimpleRandomPack,
+  type PackIneligibilityReason,
+} from '@/lib/tickets/pack-simple';
+import {
   getStoredSocialPromotionToken,
   persistSocialPromotionToken,
 } from '@/lib/social-promotions';
@@ -82,6 +86,11 @@ const BUY_TICKETS = gql`
       mpChargeAmount
       bonusGrantId
       cantidadComprada
+      baseQuantity
+      bonusQuantity
+      grantedQuantity
+      packApplied
+      packIneligibilityReason
     }
   }
 `;
@@ -107,6 +116,11 @@ const BUY_SELECTED_TICKETS = gql`
       mpChargeAmount
       bonusGrantId
       cantidadComprada
+      baseQuantity
+      bonusQuantity
+      grantedQuantity
+      packApplied
+      packIneligibilityReason
       purchaseMode
       selectionPremiumPercent
       selectionPremiumAmount
@@ -156,6 +170,12 @@ const GET_PRICE_HISTORY = gql`
       newPrice
       changedAt
     }
+  }
+`;
+
+const MY_TICKET_COUNT_IN_RAFFLE = gql`
+  query MyTicketCountInRaffle($raffleId: String!) {
+    myTicketCountInRaffle(raffleId: $raffleId)
   }
 `;
 
@@ -220,6 +240,11 @@ interface BuyTicketsResult {
     mpChargeAmount: number;
     bonusGrantId?: string;
     cantidadComprada: number;
+    baseQuantity: number;
+    bonusQuantity: number;
+    grantedQuantity: number;
+    packApplied: boolean;
+    packIneligibilityReason?: PackIneligibilityReason;
   };
 }
 
@@ -233,10 +258,19 @@ interface BuySelectedTicketsResult {
     mpChargeAmount: number;
     bonusGrantId?: string;
     cantidadComprada: number;
+    baseQuantity: number;
+    bonusQuantity: number;
+    grantedQuantity: number;
+    packApplied: boolean;
+    packIneligibilityReason?: PackIneligibilityReason;
     purchaseMode: 'CHOOSE_NUMBERS';
     selectionPremiumPercent: number;
     selectionPremiumAmount: number;
   };
+}
+
+interface MyTicketCountInRaffleResult {
+  myTicketCountInRaffle: number;
 }
 
 interface TicketNumberAvailabilityItem {
@@ -388,6 +422,13 @@ export function RaffleContent({ id }: RaffleContentProps) {
     variables: { raffleId: id },
     skip: !isAuthenticated,
   });
+  const { data: myTicketCountData } = useQuery<MyTicketCountInRaffleResult>(
+    MY_TICKET_COUNT_IN_RAFFLE,
+    {
+      variables: { raffleId: id },
+      skip: !isAuthenticated || !data?.raffle || isSellerOwner,
+    },
+  );
 
   useEffect(() => {
     if (favoriteData?.isFavorite !== undefined) {
@@ -610,7 +651,6 @@ export function RaffleContent({ id }: RaffleContentProps) {
   const images = raffle.product?.imagenes || [];
   const soldTickets = raffle.tickets?.filter((t) => t.estado !== 'REEMBOLSADO').length || 0;
   const progress = (soldTickets / raffle.totalTickets) * 100;
-  const grossSubtotal = Number((quantity * raffle.precioPorTicket).toFixed(2));
   const ticketAvailability = ticketAvailabilityData?.ticketNumberAvailability;
   const searchedTicket = ticketSearchData?.ticketNumberAvailability.items[0];
   const selectedNumbersSorted = [...selectedNumbers].sort((a, b) => a - b);
@@ -632,12 +672,46 @@ export function RaffleContent({ id }: RaffleContentProps) {
   const selectedModeTotalToCharge = Number(
     (selectedModeChargedBase + selectedModePremiumAmount).toFixed(2),
   );
+  const maxSelectable =
+    ticketAvailability?.maxSelectable ?? Math.floor(raffle.totalTickets * 0.5);
+  const currentUserTicketCount = myTicketCountData?.myTicketCountInRaffle ?? 0;
+  const availableRandomTickets = raffle.totalTickets - soldTickets;
+  const remainingRandomPurchaseCapacity = Math.max(
+    0,
+    maxSelectable - currentUserTicketCount,
+  );
+  const randomPackEvaluation = evaluateSimpleRandomPack({
+    requestedQuantity: quantity,
+    availableTickets: availableRandomTickets,
+    remainingAllowed: remainingRandomPurchaseCapacity,
+  });
+  const randomGrossSubtotal = Number(
+    (randomPackEvaluation.grantedQuantity * raffle.precioPorTicket).toFixed(2),
+  );
+  const randomPackDiscount = Number(
+    (randomPackEvaluation.bonusQuantity * raffle.precioPorTicket).toFixed(2),
+  );
+  const randomPromotionDiscount = randomPackEvaluation.packApplied
+    ? 0
+    : (bonusPreview?.discountApplied ?? 0);
+  const randomDiscountApplied = Number(
+    (randomPackDiscount + randomPromotionDiscount).toFixed(2),
+  );
+  const randomChargedSubtotal = randomPackEvaluation.packApplied
+    ? Number((randomGrossSubtotal - randomPackDiscount).toFixed(2))
+    : (bonusPreview?.mpChargeAmount ?? randomGrossSubtotal);
   const totalToCharge =
     purchaseMode === 'CHOOSE_NUMBERS'
       ? selectedModeTotalToCharge
-      : bonusPreview?.mpChargeAmount ?? grossSubtotal;
-  const maxSelectable =
-    ticketAvailability?.maxSelectable ?? Math.floor(raffle.totalTickets * 0.5);
+      : randomChargedSubtotal;
+  const shouldHidePromotionBonusForRandom =
+    purchaseMode === 'RANDOM' && randomPackEvaluation.packApplied;
+  const randomPackNotice =
+    randomPackEvaluation.packIneligibilityReason === 'INSUFFICIENT_STOCK'
+      ? 'Quedan pocos tickets, el pack ya no aplica.'
+      : randomPackEvaluation.packIneligibilityReason === 'BUYER_LIMIT'
+        ? 'El pack no aplica porque superarías el máximo permitido para esta rifa.'
+        : null;
   const buying = buyingRandom || buyingSelected;
 
   const handleBuy = () => {
@@ -649,7 +723,9 @@ export function RaffleContent({ id }: RaffleContentProps) {
       variables: {
         raffleId: id,
         cantidad: quantity,
-        bonusGrantId: selectedBonusGrantId,
+        bonusGrantId: shouldHidePromotionBonusForRandom
+          ? null
+          : selectedBonusGrantId,
         promotionToken,
       },
     });
@@ -924,6 +1000,26 @@ export function RaffleContent({ id }: RaffleContentProps) {
                   </TabsList>
 
                   <TabsContent value="RANDOM" className="space-y-4">
+                    <div className="rounded-[1.35rem] border border-primary/15 bg-primary/6 p-4">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="rounded-full bg-primary px-2.5 py-1 text-xs font-bold uppercase tracking-[0.14em] text-primary-foreground">
+                          Pack simple
+                        </span>
+                      </div>
+                      <div className="mt-3 space-y-1.5 text-sm">
+                        <p className="font-medium text-foreground">
+                          Si comprás 5 tickets, te regalamos 1 más.
+                        </p>
+                        <p className="font-medium text-foreground">
+                          Si pagás 10 tickets, recibís 12 en total.
+                        </p>
+                        <p className="text-muted-foreground">
+                          Los tickets extra los subsidia LUK. El vendedor cobra por todos
+                          los tickets emitidos.
+                        </p>
+                      </div>
+                    </div>
+
                     <div className="space-y-2">
                       <Label>Cantidad</Label>
                       <div className="flex items-stretch gap-2">
@@ -939,42 +1035,82 @@ export function RaffleContent({ id }: RaffleContentProps) {
                           min={1}
                           value={quantity}
                           onChange={(e) =>
-                            setQuantity(Math.max(1, parseInt(e.target.value, 10) || 1))
+                            setQuantity(
+                              Math.min(
+                                raffle.totalTickets,
+                                Math.max(1, parseInt(e.target.value, 10) || 1),
+                              ),
+                            )
                           }
                           className="h-12 min-w-0 flex-1 text-center text-lg font-semibold"
                         />
                         <Button
                           variant="outline"
                           className="h-12 w-12 shrink-0 text-xl font-bold"
-                          onClick={() => setQuantity(quantity + 1)}
+                          onClick={() =>
+                            setQuantity(Math.min(raffle.totalTickets, quantity + 1))
+                          }
                         >
                           +
                         </Button>
                       </div>
                     </div>
 
-                    <PromotionBonusSelector
-                      raffleId={id}
-                      quantity={quantity}
-                      sellerId={user?.id !== raffle.seller?.id ? raffle.seller?.id : undefined}
-                      selectedBonusGrantId={selectedBonusGrantId}
-                      onSelectedBonusGrantIdChange={setSelectedBonusGrantId}
-                      onPreviewChange={setBonusPreview}
-                    />
+                    {randomPackEvaluation.packApplied ? (
+                      <div className="rounded-[1.35rem] border border-success/25 bg-success/10 p-4 text-sm">
+                        <p className="font-medium text-success">
+                          Pack activo: pagás {randomPackEvaluation.baseQuantity} y recibís {randomPackEvaluation.grantedQuantity} tickets.
+                        </p>
+                        <p className="mt-1 text-muted-foreground">
+                          Esta compra no se acumula con bonificaciones promocionales.
+                        </p>
+                      </div>
+                    ) : randomPackNotice ? (
+                      <div className="rounded-[1.35rem] border border-amber-400/35 bg-amber-50 p-4 text-sm text-amber-950">
+                        <p className="font-medium">{randomPackNotice}</p>
+                      </div>
+                    ) : null}
+
+                    {!shouldHidePromotionBonusForRandom ? (
+                      <PromotionBonusSelector
+                        raffleId={id}
+                        quantity={quantity}
+                        sellerId={user?.id !== raffle.seller?.id ? raffle.seller?.id : undefined}
+                        selectedBonusGrantId={selectedBonusGrantId}
+                        onSelectedBonusGrantIdChange={setSelectedBonusGrantId}
+                        onPreviewChange={setBonusPreview}
+                      />
+                    ) : null}
 
                     <div className="rounded-[1.35rem] bg-muted/50 p-4">
                       <div className="mb-2 flex justify-between">
-                        <span>Subtotal</span>
-                        <span>${grossSubtotal.toFixed(2)}</span>
+                        <span>Tickets pagados</span>
+                        <span>{randomPackEvaluation.baseQuantity}</span>
                       </div>
-                      {bonusPreview && (
+                      {randomPackEvaluation.bonusQuantity > 0 ? (
+                        <>
+                          <div className="mb-2 flex justify-between">
+                            <span>Tickets bonus</span>
+                            <span>+{randomPackEvaluation.bonusQuantity}</span>
+                          </div>
+                          <div className="mb-2 flex justify-between">
+                            <span>Total de tickets</span>
+                            <span>{randomPackEvaluation.grantedQuantity}</span>
+                          </div>
+                        </>
+                      ) : null}
+                      <div className="mb-2 flex justify-between">
+                        <span>Subtotal bruto</span>
+                        <span>${randomGrossSubtotal.toFixed(2)}</span>
+                      </div>
+                      {randomDiscountApplied > 0 && (
                         <div className="mb-2 flex justify-between text-success">
-                          <span>Bonificación aplicada</span>
-                          <span>-${bonusPreview.discountApplied.toFixed(2)}</span>
+                          <span>Subsidio LUK</span>
+                          <span>-${randomDiscountApplied.toFixed(2)}</span>
                         </div>
                       )}
                       <div className="flex justify-between text-lg font-bold">
-                        <span>Total</span>
+                        <span>Total a pagar</span>
                         <span className="text-primary">${totalToCharge.toFixed(2)}</span>
                       </div>
                     </div>
@@ -988,7 +1124,9 @@ export function RaffleContent({ id }: RaffleContentProps) {
                       ) : (
                         <>
                           <Ticket className="mr-2 h-4 w-4" />
-                          Comprar {quantity} Ticket{quantity > 1 ? 's' : ''}
+                          {randomPackEvaluation.packApplied
+                            ? `Comprar ${randomPackEvaluation.baseQuantity} y recibir ${randomPackEvaluation.grantedQuantity}`
+                            : `Comprar ${quantity} Ticket${quantity > 1 ? 's' : ''}`}
                         </>
                       )}
                     </Button>

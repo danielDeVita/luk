@@ -61,7 +61,9 @@ export class PayoutsService {
     const subsidyAggregate = await this.prisma.transaction.aggregate({
       where: {
         raffleId,
-        tipo: 'SUBSIDIO_PROMOCIONAL_PLATAFORMA',
+        tipo: {
+          in: ['SUBSIDIO_PROMOCIONAL_PLATAFORMA', 'SUBSIDIO_PACK_PLATAFORMA'],
+        },
         estado: 'COMPLETADO',
         isDeleted: false,
       },
