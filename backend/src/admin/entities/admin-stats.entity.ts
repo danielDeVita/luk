@@ -1,6 +1,7 @@
 import { ObjectType, Field, Int, Float, ID } from '@nestjs/graphql';
 import { GraphQLJSON } from 'graphql-type-json';
 import { UserRole, MpConnectStatus } from '../../common/enums';
+import { AdminSellerReview } from '../../users/entities/review.entity';
 
 // ==================== User Management Entities ====================
 
@@ -41,12 +42,36 @@ export class AdminUser {
 
   @Field(() => Int)
   rafflesWon!: number;
+
+  @Field(() => Int)
+  totalTicketsComprados!: number;
+
+  @Field(() => Int)
+  totalRifasGanadas!: number;
+
+  @Field(() => Int)
+  totalComprasCompletadas!: number;
+
+  @Field(() => Int)
+  disputasComoCompradorAbiertas!: number;
+
+  @Field(() => [String])
+  buyerRiskFlags!: string[];
 }
 
 @ObjectType()
 export class AdminUserList {
   @Field(() => [AdminUser])
   users!: AdminUser[];
+
+  @Field(() => Int)
+  total!: number;
+}
+
+@ObjectType()
+export class AdminReviewList {
+  @Field(() => [AdminSellerReview])
+  reviews!: AdminSellerReview[];
 
   @Field(() => Int)
   total!: number;

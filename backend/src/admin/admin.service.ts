@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException, Logger } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+  Logger,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { UserRole } from '@prisma/client';
 import { EncryptionService } from '../common/services/encryption.service';
@@ -8,6 +13,12 @@ interface UserFilters {
   role?: UserRole;
   search?: string;
   includeDeleted?: boolean;
+  limit?: number;
+  offset?: number;
+}
+
+interface AdminReviewFilters {
+  includeHidden?: boolean;
   limit?: number;
   offset?: number;
 }
@@ -263,6 +274,7 @@ export class AdminService {
         take: filters.limit ?? 50,
         skip: filters.offset ?? 0,
         include: {
+          reputation: true,
           _count: {
             select: {
               rafflesCreated: true,
@@ -289,8 +301,144 @@ export class AdminService {
         rafflesCreated: u._count.rafflesCreated,
         ticketsPurchased: u._count.ticketsPurchased,
         rafflesWon: u._count.rafflesWon,
+        totalTicketsComprados:
+          u.reputation?.totalTicketsComprados ?? u._count.ticketsPurchased,
+        totalRifasGanadas:
+          u.reputation?.totalRifasGanadas ?? u._count.rafflesWon,
+        totalComprasCompletadas: u.reputation?.totalComprasCompletadas ?? 0,
+        disputasComoCompradorAbiertas:
+          u.reputation?.disputasComoCompradorAbiertas ?? 0,
+        buyerRiskFlags: this.buildBuyerRiskFlags({
+          createdAt: u.createdAt,
+          totalTicketsComprados:
+            u.reputation?.totalTicketsComprados ?? u._count.ticketsPurchased,
+          totalRifasGanadas:
+            u.reputation?.totalRifasGanadas ?? u._count.rafflesWon,
+          totalComprasCompletadas: u.reputation?.totalComprasCompletadas ?? 0,
+          disputasComoCompradorAbiertas:
+            u.reputation?.disputasComoCompradorAbiertas ?? 0,
+        }),
       })),
       total,
+    };
+  }
+
+  async getReviews(filters: AdminReviewFilters = {}) {
+    const where = filters.includeHidden ? {} : { commentHidden: false };
+    const [reviews, total] = await Promise.all([
+      this.prisma.review.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        take: filters.limit ?? 50,
+        skip: filters.offset ?? 0,
+        include: {
+          seller: { select: { nombre: true, apellido: true, email: true } },
+          reviewer: { select: { nombre: true, apellido: true, email: true } },
+          raffle: { select: { titulo: true } },
+        },
+      }),
+      this.prisma.review.count({ where }),
+    ]);
+
+    return {
+      reviews: reviews.map((review) => this.toAdminReview(review)),
+      total,
+    };
+  }
+
+  async hideReviewComment(reviewId: string, adminId: string, reason: string) {
+    const normalizedReason = reason.trim();
+    if (!normalizedReason) {
+      throw new BadRequestException('Moderation reason is required');
+    }
+
+    const review = await this.prisma.review.findUnique({
+      where: { id: reviewId },
+      select: { id: true },
+    });
+    if (!review) {
+      throw new NotFoundException('Review not found');
+    }
+
+    const updatedReview = await this.prisma.review.update({
+      where: { id: reviewId },
+      data: {
+        commentHidden: true,
+        commentHiddenReason: normalizedReason,
+        commentHiddenAt: new Date(),
+        commentHiddenById: adminId,
+      },
+      include: {
+        seller: { select: { nombre: true, apellido: true, email: true } },
+        reviewer: { select: { nombre: true, apellido: true, email: true } },
+        raffle: { select: { titulo: true } },
+      },
+    });
+
+    return this.toAdminReview(updatedReview);
+  }
+
+  private buildBuyerRiskFlags(input: {
+    createdAt: Date;
+    totalTicketsComprados: number;
+    totalRifasGanadas: number;
+    totalComprasCompletadas: number;
+    disputasComoCompradorAbiertas: number;
+  }): string[] {
+    const flags: string[] = [];
+    const accountAgeDays =
+      (Date.now() - input.createdAt.getTime()) / (1000 * 60 * 60 * 24);
+    const disputeRatio =
+      input.disputasComoCompradorAbiertas /
+      Math.max(input.totalComprasCompletadas, 1);
+
+    if (input.disputasComoCompradorAbiertas >= 2 && disputeRatio >= 0.5) {
+      flags.push('HIGH_DISPUTE_RATE');
+    }
+    if (accountAgeDays <= 30 && input.disputasComoCompradorAbiertas > 0) {
+      flags.push('NEW_WITH_DISPUTE');
+    }
+    if (input.totalTicketsComprados >= 50) {
+      flags.push('HEAVY_BUYER');
+    }
+    if (
+      input.totalRifasGanadas > 0 &&
+      input.totalComprasCompletadas > 0 &&
+      input.disputasComoCompradorAbiertas === 0
+    ) {
+      flags.push('WINNER_WITH_HISTORY');
+    }
+
+    return flags;
+  }
+
+  private toAdminReview(review: {
+    id: string;
+    rating: number;
+    comentario: string | null;
+    createdAt: Date;
+    commentHidden: boolean;
+    commentHiddenReason: string | null;
+    seller: { nombre: string; apellido: string; email: string };
+    reviewer: { nombre: string; apellido: string; email: string };
+    raffle: { titulo: string };
+  }) {
+    return {
+      id: review.id,
+      rating: review.rating,
+      comentario: review.commentHidden ? null : review.comentario,
+      createdAt: review.createdAt,
+      reviewerName: [review.reviewer.nombre, review.reviewer.apellido]
+        .filter(Boolean)
+        .join(' '),
+      raffleTitle: review.raffle.titulo,
+      sellerName: [review.seller.nombre, review.seller.apellido]
+        .filter(Boolean)
+        .join(' '),
+      sellerEmail: review.seller.email,
+      reviewerEmail: review.reviewer.email,
+      commentHidden: review.commentHidden,
+      commentHiddenReason: review.commentHiddenReason,
     };
   }
 

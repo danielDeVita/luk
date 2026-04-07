@@ -96,6 +96,7 @@ const IDS = {
   raffleSportsActive: 'qa_raffle_sports_active',
   raffleEntertainmentActive: 'qa_raffle_entertainment_active',
   raffleCancelledRefunded: 'qa_raffle_cancelled_refunded',
+  raffleFinalizedGrowthReviewed: 'qa_raffle_finalized_growth_reviewed',
   raffleFinalizedReviewed: 'qa_raffle_finalized_reviewed',
   raffleDisputeResolvedSeller: 'qa_raffle_dispute_resolved_seller',
   raffleDisputeResolvedPartial: 'qa_raffle_dispute_resolved_partial',
@@ -244,6 +245,7 @@ async function upsertUser(params: {
   documentNumber?: string | null;
   googleId?: string | null;
   avatarUrl?: string | null;
+  createdAt?: Date;
 }) {
   const {
     email,
@@ -254,7 +256,7 @@ async function upsertUser(params: {
     emailVerified = true,
     kycStatus = KycStatus.NOT_SUBMITTED,
     kycSubmittedAt = null,
-    kycVerifiedAt = kycStatus === KycStatus.VERIFIED ? new Date() : null,
+    kycVerifiedAt = null,
     kycRejectedReason = null,
     mpConnectStatus = MpConnectStatus.NOT_CONNECTED,
     mpUserId = null,
@@ -263,7 +265,11 @@ async function upsertUser(params: {
     documentNumber = null,
     googleId = null,
     avatarUrl = null,
+    createdAt = new Date(),
   } = params;
+  const emailVerifiedAt = emailVerified ? createdAt : null;
+  const resolvedKycVerifiedAt =
+    kycVerifiedAt ?? (kycStatus === KycStatus.VERIFIED ? createdAt : null);
 
   return prisma.user.upsert({
     where: { email },
@@ -273,12 +279,12 @@ async function upsertUser(params: {
       passwordHash,
       role,
       emailVerified,
-      emailVerifiedAt: emailVerified ? new Date() : null,
-      termsAcceptedAt: new Date(),
+      emailVerifiedAt,
+      termsAcceptedAt: createdAt,
       termsVersion: '1.0',
       kycStatus,
       kycSubmittedAt,
-      kycVerifiedAt,
+      kycVerifiedAt: resolvedKycVerifiedAt,
       kycRejectedReason,
       mpConnectStatus,
       mpUserId,
@@ -287,6 +293,7 @@ async function upsertUser(params: {
       documentNumber,
       googleId,
       avatarUrl,
+      createdAt,
       isDeleted: false,
       deletedAt: null,
     },
@@ -297,12 +304,12 @@ async function upsertUser(params: {
       passwordHash,
       role,
       emailVerified,
-      emailVerifiedAt: emailVerified ? new Date() : null,
-      termsAcceptedAt: new Date(),
+      emailVerifiedAt,
+      termsAcceptedAt: createdAt,
       termsVersion: '1.0',
       kycStatus,
       kycSubmittedAt,
-      kycVerifiedAt,
+      kycVerifiedAt: resolvedKycVerifiedAt,
       kycRejectedReason,
       mpConnectStatus,
       mpUserId,
@@ -311,6 +318,7 @@ async function upsertUser(params: {
       documentNumber,
       googleId,
       avatarUrl,
+      createdAt,
     },
   });
 }
@@ -729,6 +737,7 @@ async function upsertDispute(params: {
   title: string;
   description: string;
   createdAt?: Date;
+  buyerEvidence?: string[];
   sellerResponse?: string | null;
   sellerEvidence?: string[];
   respondedAt?: Date | null;
@@ -746,6 +755,7 @@ async function upsertDispute(params: {
     title,
     description,
     createdAt = new Date(),
+    buyerEvidence = ['https://picsum.photos/seed/canonical-dispute/600/400'],
     sellerResponse = null,
     sellerEvidence = [],
     respondedAt = null,
@@ -764,7 +774,7 @@ async function upsertDispute(params: {
       estado: status,
       titulo: title,
       descripcion: description,
-      evidencias: ['https://picsum.photos/seed/canonical-dispute/600/400'],
+      evidencias: buyerEvidence,
       evidenciasVendedor: sellerEvidence,
       respuestaVendedor: sellerResponse,
       fechaRespuestaVendedor: respondedAt,
@@ -785,7 +795,7 @@ async function upsertDispute(params: {
       estado: status,
       titulo: title,
       descripcion: description,
-      evidencias: ['https://picsum.photos/seed/canonical-dispute/600/400'],
+      evidencias: buyerEvidence,
       evidenciasVendedor: sellerEvidence,
       respuestaVendedor: sellerResponse,
       fechaRespuestaVendedor: respondedAt,
@@ -799,7 +809,11 @@ async function upsertDispute(params: {
   });
 }
 
-async function upsertFavorite(userId: string, raffleId: string, createdAt = new Date()) {
+async function upsertFavorite(
+  userId: string,
+  raffleId: string,
+  createdAt = new Date(),
+) {
   await prisma.favorite.upsert({
     where: {
       userId_raffleId: {
@@ -852,6 +866,10 @@ async function upsertReview(params: {
   rating: number;
   comentario: string;
   createdAt?: Date;
+  commentHidden?: boolean;
+  commentHiddenReason?: string | null;
+  commentHiddenAt?: Date | null;
+  commentHiddenById?: string | null;
 }) {
   const {
     raffleId,
@@ -860,6 +878,10 @@ async function upsertReview(params: {
     rating,
     comentario,
     createdAt = new Date(),
+    commentHidden = false,
+    commentHiddenReason = null,
+    commentHiddenAt = null,
+    commentHiddenById = null,
   } = params;
 
   await prisma.review.upsert({
@@ -869,6 +891,10 @@ async function upsertReview(params: {
       sellerId,
       rating,
       comentario,
+      commentHidden,
+      commentHiddenReason,
+      commentHiddenAt,
+      commentHiddenById,
       createdAt,
     },
     create: {
@@ -878,6 +904,10 @@ async function upsertReview(params: {
       sellerId,
       rating,
       comentario,
+      commentHidden,
+      commentHiddenReason,
+      commentHiddenAt,
+      commentHiddenById,
       createdAt,
     },
   });
@@ -1223,8 +1253,7 @@ async function upsertSampleReport(raffleId: string, reporterId: string) {
       },
     },
     update: {
-      reason:
-        'Fixture QA para validar listado y review de reportes en admin.',
+      reason: 'Fixture QA para validar listado y review de reportes en admin.',
       reviewed: false,
       reviewedAt: null,
       adminNotes: null,
@@ -1233,8 +1262,7 @@ async function upsertSampleReport(raffleId: string, reporterId: string) {
       id: reportId(raffleId, reporterId),
       raffleId,
       reporterId,
-      reason:
-        'Fixture QA para validar listado y review de reportes en admin.',
+      reason: 'Fixture QA para validar listado y review de reportes en admin.',
       reviewed: false,
     },
   });
@@ -1482,8 +1510,7 @@ async function upsertSocialPromotionFixture(params: {
       userId: sellerId,
       type: 'SOCIAL_PROMOTION_GRANT_ISSUED',
       title: 'Ganaste una bonificación promocional',
-      message:
-        `Hola ${sellerName}. Tu post promocional de ${sellerEmail} generó un grant del 10% off hasta $10000. Revisalo en Tus tickets.`,
+      message: `Hola ${sellerName}. Tu post promocional de ${sellerEmail} generó un grant del 10% off hasta $10000. Revisalo en Tus tickets.`,
       actionUrl: '/dashboard/tickets',
     },
   });
@@ -1509,6 +1536,7 @@ async function main() {
     mpAccessToken: 'qa_mock_access_token_seller',
     documentType: DocumentType.DNI,
     documentNumber: '30111222',
+    createdAt: daysAgo(70),
   });
 
   const buyer = await upsertUser({
@@ -1520,6 +1548,7 @@ async function main() {
     kycVerifiedAt: daysAgo(35),
     documentType: DocumentType.DNI,
     documentNumber: '33444555',
+    createdAt: daysAgo(45),
   });
 
   const other = await upsertUser({
@@ -1534,6 +1563,7 @@ async function main() {
     mpAccessToken: 'qa_mock_access_token_other',
     documentType: DocumentType.DNI,
     documentNumber: '32111999',
+    createdAt: daysAgo(50),
   });
 
   await upsertUser({
@@ -1544,6 +1574,7 @@ async function main() {
     role: UserRole.ADMIN,
     kycStatus: KycStatus.VERIFIED,
     kycVerifiedAt: daysAgo(60),
+    createdAt: daysAgo(90),
   });
 
   await upsertUser({
@@ -1590,6 +1621,7 @@ async function main() {
     mpAccessToken: 'qa_mock_access_token_seller_pro',
     documentType: DocumentType.DNI,
     documentNumber: '28888001',
+    createdAt: daysAgo(160),
   });
 
   const sellerGrowth = await upsertUser({
@@ -1604,6 +1636,7 @@ async function main() {
     mpAccessToken: 'qa_mock_access_token_seller_growth',
     documentType: DocumentType.DNI,
     documentNumber: '29999002',
+    createdAt: daysAgo(110),
   });
 
   const sellerNoMp = await upsertUser({
@@ -1615,6 +1648,7 @@ async function main() {
     kycVerifiedAt: daysAgo(28),
     documentType: DocumentType.DNI,
     documentNumber: '27777003',
+    createdAt: daysAgo(35),
   });
 
   const sellerNoAddress = await upsertUser({
@@ -1629,6 +1663,7 @@ async function main() {
     mpAccessToken: 'qa_mock_access_token_seller_no_addr',
     documentType: DocumentType.DNI,
     documentNumber: '26666004',
+    createdAt: daysAgo(55),
   });
 
   const sellerPendingMp = await upsertUser({
@@ -1641,6 +1676,7 @@ async function main() {
     mpConnectStatus: MpConnectStatus.PENDING,
     documentType: DocumentType.DNI,
     documentNumber: '25555005',
+    createdAt: daysAgo(30),
   });
 
   const buyerHeavy = await upsertUser({
@@ -1652,6 +1688,7 @@ async function main() {
     kycVerifiedAt: daysAgo(90),
     documentType: DocumentType.DNI,
     documentNumber: '34444006',
+    createdAt: daysAgo(120),
   });
 
   const buyerWinner = await upsertUser({
@@ -1663,6 +1700,7 @@ async function main() {
     kycVerifiedAt: daysAgo(55),
     documentType: DocumentType.DNI,
     documentNumber: '33333007',
+    createdAt: daysAgo(75),
   });
 
   const buyerRefund = await upsertUser({
@@ -1674,6 +1712,7 @@ async function main() {
     kycVerifiedAt: daysAgo(30),
     documentType: DocumentType.DNI,
     documentNumber: '32222008',
+    createdAt: daysAgo(45),
   });
 
   const buyerDispute = await upsertUser({
@@ -1685,6 +1724,7 @@ async function main() {
     kycVerifiedAt: daysAgo(44),
     documentType: DocumentType.DNI,
     documentNumber: '31111009',
+    createdAt: daysAgo(65),
   });
 
   const buyerNew = await upsertUser({
@@ -1696,6 +1736,7 @@ async function main() {
     kycVerifiedAt: daysAgo(3),
     documentType: DocumentType.DNI,
     documentNumber: '30000010',
+    createdAt: daysAgo(25),
   });
 
   const buyerPromo = await upsertUser({
@@ -1707,6 +1748,7 @@ async function main() {
     kycVerifiedAt: daysAgo(22),
     documentType: DocumentType.DNI,
     documentNumber: '39999011',
+    createdAt: daysAgo(36),
   });
 
   const buyerPack = await upsertUser({
@@ -1718,6 +1760,7 @@ async function main() {
     kycVerifiedAt: daysAgo(14),
     documentType: DocumentType.DNI,
     documentNumber: '38888012',
+    createdAt: daysAgo(28),
   });
 
   const googleOnly = await upsertUser({
@@ -1728,6 +1771,7 @@ async function main() {
     emailVerified: true,
     googleId: 'qa_google_only_001',
     avatarUrl: 'https://picsum.photos/seed/qa-google-only/200/200',
+    createdAt: daysAgo(40),
   });
 
   const unverifiedEmailUser = await upsertUser({
@@ -1737,6 +1781,7 @@ async function main() {
     passwordHash: userHash,
     emailVerified: false,
     kycStatus: KycStatus.NOT_SUBMITTED,
+    createdAt: daysAgo(1),
   });
 
   const bannedUser = await upsertUser({
@@ -1747,9 +1792,10 @@ async function main() {
     role: UserRole.BANNED,
     kycStatus: KycStatus.VERIFIED,
     kycVerifiedAt: daysAgo(12),
+    createdAt: daysAgo(30),
   });
 
-  await upsertUser({
+  const adminOps = await upsertUser({
     email: USERS.adminOps,
     nombre: 'Admin',
     apellido: 'Operaciones',
@@ -1757,6 +1803,7 @@ async function main() {
     role: UserRole.ADMIN,
     kycStatus: KycStatus.VERIFIED,
     kycVerifiedAt: daysAgo(90),
+    createdAt: daysAgo(120),
   });
 
   await upsertAddress({
@@ -1985,7 +2032,15 @@ async function main() {
   });
 
   await Promise.all([
-    upsertUserReputation({ userId: seller.id }),
+    upsertUserReputation({
+      userId: seller.id,
+      maxRifasSimultaneas: 3,
+      nivelVendedor: SellerLevel.NUEVO,
+      totalVentasCompletadas: 2,
+      disputasComoVendedorGanadas: 0,
+      disputasComoVendedorPerdidas: 2,
+      ratingPromedioVendedor: 3.2,
+    }),
     upsertUserReputation({
       userId: buyer.id,
       totalComprasCompletadas: 6,
@@ -1999,18 +2054,18 @@ async function main() {
     }),
     upsertUserReputation({
       userId: sellerPro.id,
-      maxRifasSimultaneas: 8,
+      maxRifasSimultaneas: 10,
       nivelVendedor: SellerLevel.ORO,
-      totalVentasCompletadas: 42,
+      totalVentasCompletadas: 58,
       disputasComoVendedorGanadas: 5,
       disputasComoVendedorPerdidas: 1,
       ratingPromedioVendedor: 4.9,
     }),
     upsertUserReputation({
       userId: sellerGrowth.id,
-      maxRifasSimultaneas: 5,
+      maxRifasSimultaneas: 7,
       nivelVendedor: SellerLevel.PLATA,
-      totalVentasCompletadas: 16,
+      totalVentasCompletadas: 24,
       disputasComoVendedorGanadas: 2,
       ratingPromedioVendedor: 4.6,
     }),
@@ -2030,10 +2085,10 @@ async function main() {
     }),
     upsertUserReputation({
       userId: sellerPendingMp.id,
-      maxRifasSimultaneas: 4,
-      nivelVendedor: SellerLevel.BRONCE,
-      totalVentasCompletadas: 5,
-      ratingPromedioVendedor: 4.2,
+      maxRifasSimultaneas: 3,
+      nivelVendedor: SellerLevel.NUEVO,
+      totalVentasCompletadas: 1,
+      ratingPromedioVendedor: 3.8,
     }),
     upsertUserReputation({
       userId: buyerHeavy.id,
@@ -2053,14 +2108,15 @@ async function main() {
     }),
     upsertUserReputation({
       userId: buyerDispute.id,
-      totalComprasCompletadas: 11,
+      totalComprasCompletadas: 3,
       totalTicketsComprados: 26,
       disputasComoCompradorAbiertas: 2,
     }),
     upsertUserReputation({
       userId: buyerNew.id,
       totalComprasCompletadas: 0,
-      totalTicketsComprados: 0,
+      totalTicketsComprados: 1,
+      disputasComoCompradorAbiertas: 1,
     }),
     upsertUserReputation({
       userId: buyerPromo.id,
@@ -2070,7 +2126,7 @@ async function main() {
     upsertUserReputation({
       userId: buyerPack.id,
       totalComprasCompletadas: 5,
-      totalTicketsComprados: 14,
+      totalTicketsComprados: 24,
     }),
     upsertUserReputation({
       userId: googleOnly.id,
@@ -2091,7 +2147,8 @@ async function main() {
     sellerId: seller.id,
     categoryId: electronicsCategoryId,
     title: `${QA_PREFIX} iPhone 15 Pro - Activa`,
-    description: 'Rifa activa visible para pruebas de búsqueda, compra y favoritos.',
+    description:
+      'Rifa activa visible para pruebas de búsqueda, compra y favoritos.',
     totalTickets: 20,
     price: 1500,
     deadline: daysFromNow(10),
@@ -2152,7 +2209,8 @@ async function main() {
     sellerId: seller.id,
     categoryId: electronicsCategoryId,
     title: `${QA_PREFIX} Completa sin sorteo`,
-    description: 'Rifa vendida al 100% en COMPLETADA sin winner para probar auto-draw.',
+    description:
+      'Rifa vendida al 100% en COMPLETADA sin winner para probar auto-draw.',
     totalTickets: 5,
     price: 700,
     deadline: daysAgo(1),
@@ -2176,7 +2234,8 @@ async function main() {
     sellerId: seller.id,
     categoryId: electronicsCategoryId,
     title: `${QA_PREFIX} Sorteada pendiente envío`,
-    description: 'Ganador definido, sin envío para probar bloqueo de confirmación.',
+    description:
+      'Ganador definido, sin envío para probar bloqueo de confirmación.',
     totalTickets: 6,
     price: 1200,
     deadline: daysAgo(3),
@@ -2333,7 +2392,8 @@ async function main() {
     sellerId: seller.id,
     categoryId: electronicsCategoryId,
     title: `${QA_PREFIX} Expirada bajo 70%`,
-    description: 'Escenario para cancelación y reembolso por bajo porcentaje vendido.',
+    description:
+      'Escenario para cancelación y reembolso por bajo porcentaje vendido.',
     totalTickets: 10,
     price: 500,
     deadline: daysAgo(2),
@@ -2357,7 +2417,8 @@ async function main() {
     sellerId: other.id,
     categoryId: electronicsCategoryId,
     title: `${QA_PREFIX} Destino para bonus grant`,
-    description: 'Rifa activa de otro seller para probar redención del grant promocional.',
+    description:
+      'Rifa activa de otro seller para probar redención del grant promocional.',
     totalTickets: 25,
     price: 1250,
     deadline: daysFromNow(12),
@@ -2402,6 +2463,7 @@ async function main() {
     title: `${QA_PREFIX} No llegó el premio`,
     description:
       'Disputa abierta de QA para validar paneles de comprador, vendedor y admin.',
+    buyerEvidence: ['https://picsum.photos/seed/qa-dispute-open-buyer/600/400'],
     createdAt: daysAgo(2),
   });
 
@@ -2442,6 +2504,9 @@ async function main() {
     title: `${QA_PREFIX} Producto diferente`,
     description:
       'Disputa en mediación de QA con respuesta del vendedor para probar resolución parcial.',
+    buyerEvidence: [
+      'https://picsum.photos/seed/qa-dispute-mediated-buyer/600/400',
+    ],
     createdAt: daysAgo(5),
     sellerResponse: 'Respondimos con pruebas de envío y detalles del producto.',
     sellerEvidence: ['https://picsum.photos/seed/canonical-seller/600/400'],
@@ -2453,19 +2518,20 @@ async function main() {
     sellerId: seller.id,
     categoryId: electronicsCategoryId,
     title: `${QA_PREFIX} Disputa antigua`,
-    description: 'Rifa con disputa antigua para cron de auto-resolución.',
+    description:
+      'Rifa con disputa antigua de comprador nuevo para cron de auto-resolución.',
     totalTickets: 5,
     price: 1000,
     deadline: daysAgo(25),
     status: RaffleStatus.SORTEADA,
     deliveryStatus: DeliveryStatus.DISPUTED,
-    winnerId: buyer.id,
+    winnerId: buyerNew.id,
     drawDate: daysAgo(24),
   });
   await upsertTicket({
     raffleId: IDS.raffleDisputeOld,
     number: 1,
-    buyerId: buyer.id,
+    buyerId: buyerNew.id,
     status: TicketStatus.PAGADO,
     price: 1000,
     mpPaymentId: 'qa_mp_dispute_old_1',
@@ -2474,17 +2540,18 @@ async function main() {
   await upsertDrawResult({
     raffleId: IDS.raffleDisputeOld,
     winningTicketId: ticketId(IDS.raffleDisputeOld, 1),
-    winnerId: buyer.id,
+    winnerId: buyerNew.id,
     participants: 1,
   });
   await upsertDispute({
     raffleId: IDS.raffleDisputeOld,
-    reporterId: buyer.id,
+    reporterId: buyerNew.id,
     type: DisputeType.VENDEDOR_NO_RESPONDE,
     status: DisputeStatus.ESPERANDO_RESPUESTA_VENDEDOR,
     title: `${QA_PREFIX} Sin respuesta vendedor`,
     description:
-      'Disputa antigua para verificar auto-refund por cron si supera 15 días.',
+      'Comprador nuevo abrió una disputa antigua para verificar auto-refund por cron si supera 15 días.',
+    buyerEvidence: ['https://picsum.photos/seed/qa-dispute-new-buyer/600/400'],
     createdAt: daysAgo(20),
   });
 
@@ -2525,10 +2592,15 @@ async function main() {
     title: `${QA_PREFIX} Resuelta a favor del comprador`,
     description:
       'Caso resuelto para probar vistas históricas y estados finales de disputa.',
+    buyerEvidence: [
+      'https://picsum.photos/seed/qa-dispute-resolved-buyer/600/400',
+    ],
     createdAt: daysAgo(9),
     sellerResponse:
       'El paquete salió del depósito pero no tenemos tracking válido para presentarlo.',
-    sellerEvidence: ['https://picsum.photos/seed/canonical-seller-final/600/400'],
+    sellerEvidence: [
+      'https://picsum.photos/seed/canonical-seller-final/600/400',
+    ],
     respondedAt: daysAgo(8),
     resolution:
       'Se verificó falta de evidencia suficiente del envío. Corresponde reembolso total.',
@@ -2600,7 +2672,8 @@ async function main() {
     sellerId: sellerGrowth.id,
     categoryId: electronicsCategoryId,
     title: `${QA_PREFIX} Pack fallback por stock`,
-    description: 'Caso para validar que el pack degrade a compra normal cuando quedan pocos tickets.',
+    description:
+      'Caso para validar que el pack degrade a compra normal cuando quedan pocos tickets.',
     totalTickets: 10,
     price: 1750,
     deadline: daysFromNow(5),
@@ -2651,7 +2724,8 @@ async function main() {
     sellerId: sellerPro.id,
     categoryId: electronicsCategoryId,
     title: `${QA_PREFIX} Elegir números premium`,
-    description: 'Rifa activa para QA del flujo elegir números con premium y números ya ocupados.',
+    description:
+      'Rifa activa para QA del flujo elegir números con premium y números ya ocupados.',
     totalTickets: 50,
     price: 700,
     deadline: daysFromNow(16),
@@ -2685,7 +2759,8 @@ async function main() {
     sellerId: sellerGrowth.id,
     categoryId: electronicsCategoryId,
     title: `${QA_PREFIX} Precio rebajado activa`,
-    description: 'Rifa activa con historial de precio y favoritos para QA de alertas.',
+    description:
+      'Rifa activa con historial de precio y favoritos para QA de alertas.',
     totalTickets: 40,
     price: 1800,
     deadline: daysFromNow(6),
@@ -2698,7 +2773,8 @@ async function main() {
     await upsertTicket({
       raffleId: IDS.rafflePriceDropActive,
       number,
-      buyerId: number <= 4 ? buyerHeavy.id : number <= 7 ? buyerPromo.id : buyer.id,
+      buyerId:
+        number <= 4 ? buyerHeavy.id : number <= 7 ? buyerPromo.id : buyer.id,
       status: TicketStatus.PAGADO,
       price: 1800,
       mpPaymentId: `qa_mp_price_drop_${number}`,
@@ -2711,7 +2787,8 @@ async function main() {
     sellerId: sellerPro.id,
     categoryId: entertainmentCategoryId,
     title: `${QA_PREFIX} Casi agotada`,
-    description: 'Rifa activa casi agotada para QA de urgencia visual y stock restante.',
+    description:
+      'Rifa activa casi agotada para QA de urgencia visual y stock restante.',
     totalTickets: 15,
     price: 560,
     deadline: daysFromNow(2),
@@ -2723,7 +2800,12 @@ async function main() {
     await upsertTicket({
       raffleId: IDS.raffleAlmostSold,
       number,
-      buyerId: number <= 5 ? buyerHeavy.id : number <= 9 ? buyerPromo.id : buyerPack.id,
+      buyerId:
+        number <= 5
+          ? buyerHeavy.id
+          : number <= 9
+            ? buyerPromo.id
+            : buyerPack.id,
       status: TicketStatus.PAGADO,
       price: 560,
       mpPaymentId: `qa_mp_almost_sold_${number}`,
@@ -2763,7 +2845,8 @@ async function main() {
     await upsertTicket({
       raffleId: IDS.raffleHomeActive,
       number,
-      buyerId: number <= 2 ? buyerNew.id : number <= 4 ? buyerWinner.id : buyer.id,
+      buyerId:
+        number <= 2 ? buyerNew.id : number <= 4 ? buyerWinner.id : buyer.id,
       status: TicketStatus.PAGADO,
       price: 980,
       mpPaymentId: `qa_mp_home_active_${number}`,
@@ -2790,7 +2873,12 @@ async function main() {
     await upsertTicket({
       raffleId: IDS.raffleFashionActive,
       number,
-      buyerId: number <= 2 ? buyerPromo.id : number <= 4 ? buyerNew.id : buyerWinner.id,
+      buyerId:
+        number <= 2
+          ? buyerPromo.id
+          : number <= 4
+            ? buyerNew.id
+            : buyerWinner.id,
       status: TicketStatus.PAGADO,
       price: 890,
       mpPaymentId: `qa_mp_fashion_active_${number}`,
@@ -2803,7 +2891,8 @@ async function main() {
     sellerId: sellerGrowth.id,
     categoryId: sportsCategoryId,
     title: `${QA_PREFIX} Bicicleta gravel`,
-    description: 'Rifa activa de deportes para poblar búsqueda y seller profile.',
+    description:
+      'Rifa activa de deportes para poblar búsqueda y seller profile.',
     totalTickets: 32,
     price: 1150,
     deadline: daysFromNow(13),
@@ -2816,7 +2905,8 @@ async function main() {
     await upsertTicket({
       raffleId: IDS.raffleSportsActive,
       number,
-      buyerId: number <= 3 ? buyerHeavy.id : number <= 5 ? buyerPack.id : buyer.id,
+      buyerId:
+        number <= 3 ? buyerHeavy.id : number <= 5 ? buyerPack.id : buyer.id,
       status: TicketStatus.PAGADO,
       price: 1150,
       mpPaymentId: `qa_mp_sports_active_${number}`,
@@ -2829,7 +2919,8 @@ async function main() {
     sellerId: sellerPro.id,
     categoryId: entertainmentCategoryId,
     title: `${QA_PREFIX} PlayStation 5`,
-    description: 'Rifa activa de entretenimiento para QA general de home y search.',
+    description:
+      'Rifa activa de entretenimiento para QA general de home y search.',
     totalTickets: 45,
     price: 990,
     deadline: daysFromNow(18),
@@ -2843,7 +2934,11 @@ async function main() {
       raffleId: IDS.raffleEntertainmentActive,
       number,
       buyerId:
-        number <= 4 ? buyerHeavy.id : number <= 8 ? buyerPromo.id : buyerPack.id,
+        number <= 4
+          ? buyerHeavy.id
+          : number <= 8
+            ? buyerPromo.id
+            : buyerPack.id,
       status: TicketStatus.PAGADO,
       price: 990,
       mpPaymentId: `qa_mp_entertainment_active_${number}`,
@@ -2856,7 +2951,8 @@ async function main() {
     sellerId: sellerGrowth.id,
     categoryId: homeCategoryId,
     title: `${QA_PREFIX} Cancelada con refund`,
-    description: 'Rifa cancelada con tickets ya reembolsados para QA de historial.',
+    description:
+      'Rifa cancelada con tickets ya reembolsados para QA de historial.',
     totalTickets: 12,
     price: 840,
     deadline: daysAgo(6),
@@ -2878,11 +2974,67 @@ async function main() {
   }
 
   await upsertRaffle({
+    id: IDS.raffleFinalizedGrowthReviewed,
+    sellerId: sellerGrowth.id,
+    categoryId: sportsCategoryId,
+    title: `${QA_PREFIX} Finalizada seller growth`,
+    description:
+      'Rifa finalizada con review para poblar reputación pública de seller PLATA.',
+    totalTickets: 6,
+    price: 1110,
+    deadline: daysAgo(17),
+    status: RaffleStatus.FINALIZADA,
+    deliveryStatus: DeliveryStatus.CONFIRMED,
+    winnerId: buyerPromo.id,
+    drawDate: daysAgo(16),
+    trackingNumber: 'QA-GROWTH-REVIEW-77',
+    shippedAt: daysAgo(15),
+    confirmedAt: daysAgo(13),
+    paymentReleasedAt: daysAgo(12),
+    viewCount: 96,
+    productCategory: 'Deportes',
+  });
+  for (let number = 1; number <= 4; number++) {
+    await upsertTicket({
+      raffleId: IDS.raffleFinalizedGrowthReviewed,
+      number,
+      buyerId:
+        number === 1
+          ? buyerPromo.id
+          : number <= 3
+            ? buyerHeavy.id
+            : buyerPack.id,
+      status: TicketStatus.PAGADO,
+      price: 1110,
+      mpPaymentId: `qa_mp_growth_review_${number}`,
+      purchasedAt: daysAgo(17),
+    });
+  }
+  await upsertDrawResult({
+    raffleId: IDS.raffleFinalizedGrowthReviewed,
+    winningTicketId: ticketId(IDS.raffleFinalizedGrowthReviewed, 1),
+    winnerId: buyerPromo.id,
+    participants: 4,
+  });
+  await upsertPayout({
+    raffleId: IDS.raffleFinalizedGrowthReviewed,
+    sellerId: sellerGrowth.id,
+    grossAmount: 4440,
+    platformFee: 177.6,
+    processingFee: 222,
+    netAmount: 4040.4,
+    status: PayoutStatus.COMPLETED,
+    scheduledFor: daysAgo(13),
+    processedAt: daysAgo(12),
+  });
+
+  await upsertRaffle({
     id: IDS.raffleFinalizedReviewed,
     sellerId: sellerPro.id,
     categoryId: electronicsCategoryId,
     title: `${QA_PREFIX} Finalizada con review`,
-    description: 'Rifa finalizada con payout, review y mensajería post entrega.',
+    description:
+      'Rifa finalizada con payout, review y mensajería post entrega.',
     totalTickets: 8,
     price: 1320,
     deadline: daysAgo(20),
@@ -2900,7 +3052,8 @@ async function main() {
     await upsertTicket({
       raffleId: IDS.raffleFinalizedReviewed,
       number,
-      buyerId: number === 1 ? buyerWinner.id : number <= 3 ? buyer.id : buyerHeavy.id,
+      buyerId:
+        number === 1 ? buyerWinner.id : number <= 3 ? buyer.id : buyerHeavy.id,
       status: TicketStatus.PAGADO,
       price: 1320,
       mpPaymentId: `qa_mp_final_review_${number}`,
@@ -2965,11 +3118,15 @@ async function main() {
     status: DisputeStatus.RESUELTA_VENDEDOR,
     title: `${QA_PREFIX} Resuelta a favor del vendedor`,
     description: 'Fixture para QA de disputa cerrada a favor del vendedor.',
+    buyerEvidence: [
+      'https://picsum.photos/seed/qa-dispute-seller-buyer/600/400',
+    ],
     createdAt: daysAgo(15),
     sellerResponse: 'Adjuntamos pruebas de publicación y guía de entrega.',
     sellerEvidence: ['https://picsum.photos/seed/qa-dispute-seller/600/400'],
     respondedAt: daysAgo(14),
-    resolution: 'La evidencia del vendedor fue suficiente. No corresponde refund.',
+    resolution:
+      'La evidencia del vendedor fue suficiente. No corresponde refund.',
     refundAmount: 0,
     sellerAmount: 1180,
     adminNotes: 'Caso QA resuelto a favor del vendedor.',
@@ -2981,7 +3138,8 @@ async function main() {
     sellerId: sellerGrowth.id,
     categoryId: electronicsCategoryId,
     title: `${QA_PREFIX} Disputa resuelta parcial`,
-    description: 'Fixture para QA de resolución parcial con reparto entre buyer y seller.',
+    description:
+      'Fixture para QA de resolución parcial con reparto entre buyer y seller.',
     totalTickets: 6,
     price: 1240,
     deadline: daysAgo(16),
@@ -3014,11 +3172,16 @@ async function main() {
     status: DisputeStatus.RESUELTA_PARCIAL,
     title: `${QA_PREFIX} Resuelta parcialmente`,
     description: 'Caso para QA de refund parcial y payout parcial al vendedor.',
+    buyerEvidence: [
+      'https://picsum.photos/seed/qa-dispute-partial-buyer/600/400',
+    ],
     createdAt: daysAgo(12),
-    sellerResponse: 'Ofrecimos compensación parcial por el daño estético informado.',
+    sellerResponse:
+      'Ofrecimos compensación parcial por el daño estético informado.',
     sellerEvidence: ['https://picsum.photos/seed/qa-dispute-partial/600/400'],
     respondedAt: daysAgo(11),
-    resolution: 'Se reconoce daño parcial. Corresponde refund parcial al comprador.',
+    resolution:
+      'Se reconoce daño parcial. Corresponde refund parcial al comprador.',
     refundAmount: 620,
     sellerAmount: 620,
     adminNotes: 'Fixture QA de disputa parcial.',
@@ -3111,6 +3274,119 @@ async function main() {
     question: '¿El pack de 10 aplica siempre o sólo si queda stock suficiente?',
     questionCreatedAt: hoursAgo(4),
   });
+  await upsertQuestionThread({
+    raffleId: IDS.raffleActive,
+    index: 2,
+    askerId: buyerHeavy.id,
+    question: '¿Incluye cargador original y factura de compra?',
+    questionCreatedAt: hoursAgo(9),
+  });
+  await upsertQuestionThread({
+    raffleId: IDS.rafflePackFive,
+    index: 1,
+    askerId: buyerPack.id,
+    question:
+      'Si compro 5 tickets, ¿el ticket extra aparece con número propio?',
+    questionCreatedAt: hoursAgo(7),
+    sellerId: sellerGrowth.id,
+    answer:
+      'Sí, el bonus se emite como ticket real y lo vas a ver junto al resto de tus números.',
+    answerCreatedAt: hoursAgo(6),
+  });
+  await upsertQuestionThread({
+    raffleId: IDS.rafflePackTen,
+    index: 2,
+    askerId: buyerHeavy.id,
+    question: 'Si quedan pocos tickets, ¿se bloquea la compra de 10?',
+    questionCreatedAt: hoursAgo(3),
+    sellerId: sellerPro.id,
+    answer:
+      'No se bloquea si la cantidad base entra. Si el bonus no entra por stock, comprás normal.',
+    answerCreatedAt: hoursAgo(2),
+  });
+  await upsertQuestionThread({
+    raffleId: IDS.raffleNewLaunch,
+    index: 1,
+    askerId: googleOnly.id,
+    question: '¿Podés subir una foto del producto encendido?',
+    questionCreatedAt: hoursAgo(5),
+  });
+  await upsertQuestionThread({
+    raffleId: IDS.raffleHomeActive,
+    index: 1,
+    askerId: buyerWinner.id,
+    question: '¿La cafetera viene con accesorios y manual?',
+    questionCreatedAt: daysAgo(1),
+    sellerId: sellerPro.id,
+    answer: 'Sí, incluye manual, accesorios originales y caja completa.',
+    answerCreatedAt: hoursAgo(19),
+  });
+  await upsertQuestionThread({
+    raffleId: IDS.raffleFashionActive,
+    index: 1,
+    askerId: buyerPromo.id,
+    question: '¿Qué talle son y tenés foto de la etiqueta interna?',
+    questionCreatedAt: hoursAgo(15),
+    sellerId: other.id,
+    answer:
+      'Son talle 42 AR. La etiqueta se ve en la tercera foto de la publicación.',
+    answerCreatedAt: hoursAgo(12),
+  });
+  await upsertQuestionThread({
+    raffleId: IDS.raffleFashionActive,
+    index: 2,
+    askerId: buyerNew.id,
+    question: '¿La caja está en buen estado?',
+    questionCreatedAt: hoursAgo(4),
+  });
+  await upsertQuestionThread({
+    raffleId: IDS.raffleSportsActive,
+    index: 1,
+    askerId: buyerHeavy.id,
+    question: '¿Para qué altura recomendás el talle de la bicicleta?',
+    questionCreatedAt: daysAgo(2),
+    sellerId: sellerGrowth.id,
+    answer: 'Va bien para personas entre 1,70 m y 1,82 m aproximadamente.',
+    answerCreatedAt: daysAgo(1),
+  });
+  await upsertQuestionThread({
+    raffleId: IDS.raffleEntertainmentActive,
+    index: 1,
+    askerId: buyerPack.id,
+    question: '¿La PlayStation tiene garantía vigente?',
+    questionCreatedAt: daysAgo(1),
+    sellerId: sellerPro.id,
+    answer: 'Sí, tiene garantía vigente hasta fin de año.',
+    answerCreatedAt: hoursAgo(20),
+  });
+  await upsertQuestionThread({
+    raffleId: IDS.raffleEntertainmentActive,
+    index: 2,
+    askerId: buyerRefund.id,
+    question: '¿Incluye joystick adicional?',
+    questionCreatedAt: hoursAgo(11),
+  });
+  await upsertQuestionThread({
+    raffleId: IDS.raffleAlmostSold,
+    index: 1,
+    askerId: buyerNew.id,
+    question: 'Si se agota hoy, ¿el sorteo se hace automáticamente?',
+    questionCreatedAt: hoursAgo(10),
+    sellerId: sellerPro.id,
+    answer:
+      'Sí, cuando llega al 100% el sistema intenta sortear automáticamente.',
+    answerCreatedAt: hoursAgo(8),
+  });
+  await upsertQuestionThread({
+    raffleId: IDS.raffleBonusTargetOther,
+    index: 1,
+    askerId: buyerPromo.id,
+    question: '¿Puedo usar una bonificación promocional en esta rifa?',
+    questionCreatedAt: hoursAgo(14),
+    sellerId: other.id,
+    answer: 'Sí, si tenés un bonus disponible y la compra cumple las reglas.',
+    answerCreatedAt: hoursAgo(13),
+  });
 
   await upsertConversationThread({
     raffleId: IDS.raffleShipped,
@@ -3120,7 +3396,8 @@ async function main() {
       {
         index: 1,
         senderId: seller.id,
-        content: 'Ya despaché el premio. Te comparto el tracking por acá también.',
+        content:
+          'Ya despaché el premio. Te comparto el tracking por acá también.',
         isRead: true,
         createdAt: hoursAgo(20),
       },
@@ -3163,14 +3440,49 @@ async function main() {
     ],
   });
 
-  await upsertReview({
-    raffleId: IDS.raffleFinalizedReviewed,
-    reviewerId: buyerWinner.id,
-    sellerId: sellerPro.id,
-    rating: 5,
-    comentario: 'Todo llegó impecable y el vendedor respondió siempre rápido.',
-    createdAt: daysAgo(15),
-  });
+  await Promise.all([
+    upsertReview({
+      raffleId: IDS.raffleFinalizedPayout,
+      reviewerId: buyer.id,
+      sellerId: seller.id,
+      rating: 4,
+      comentario:
+        'El premio llegó bien. El vendedor tardó un poco en responder, pero cumplió.',
+      createdAt: daysAgo(9),
+    }),
+    upsertReview({
+      raffleId: IDS.raffleFinalizedGrowthReviewed,
+      reviewerId: buyerPromo.id,
+      sellerId: sellerGrowth.id,
+      rating: 5,
+      comentario:
+        'Excelente seguimiento del envío y el producto llegó igual a las fotos.',
+      createdAt: daysAgo(12),
+    }),
+    upsertReview({
+      raffleId: IDS.raffleFinalizedReviewed,
+      reviewerId: buyerWinner.id,
+      sellerId: sellerPro.id,
+      rating: 5,
+      comentario:
+        'Todo llegó impecable y el vendedor respondió siempre rápido.',
+      createdAt: daysAgo(15),
+    }),
+    upsertReview({
+      raffleId: IDS.raffleDisputeResolvedSeller,
+      reviewerId: buyerDispute.id,
+      sellerId: sellerPro.id,
+      rating: 2,
+      comentario:
+        'Comentario oculto para QA: tono agresivo que admin debería moderar.',
+      createdAt: daysAgo(12),
+      commentHidden: true,
+      commentHiddenReason:
+        'Fixture QA: comentario agresivo oculto por moderación.',
+      commentHiddenAt: daysAgo(11),
+      commentHiddenById: adminOps.id,
+    }),
+  ]);
 
   await Promise.all([
     upsertTransaction({
@@ -3283,7 +3595,8 @@ async function main() {
       userId: buyerWinner.id,
       type: 'INFO',
       title: 'Ya podés dejar tu review',
-      message: 'Confirmaste la entrega. Si querés, dejá una review del vendedor.',
+      message:
+        'Confirmaste la entrega. Si querés, dejá una review del vendedor.',
       actionUrl: `/raffle/${IDS.raffleFinalizedReviewed}`,
       createdAt: daysAgo(15),
       read: true,
@@ -3379,7 +3692,9 @@ async function main() {
   console.log(`- Buyer promo:${USERS.buyerPromo} / ${DEFAULT_PASSWORD}`);
   console.log(`- Buyer pack: ${USERS.buyerPack} / ${DEFAULT_PASSWORD}`);
   console.log(`- Google only:${USERS.googleOnly} / Google OAuth only`);
-  console.log(`- Email unverified: ${USERS.unverifiedEmail} / ${DEFAULT_PASSWORD} (code 334455)`);
+  console.log(
+    `- Email unverified: ${USERS.unverifiedEmail} / ${DEFAULT_PASSWORD} (code 334455)`,
+  );
   console.log(`- Banned:     ${USERS.banned} / ${DEFAULT_PASSWORD}`);
   console.log(`- Admin Ops:  ${USERS.adminOps} / ${DEFAULT_ADMIN_PASSWORD}`);
   console.log('');
@@ -3394,6 +3709,7 @@ async function main() {
   console.log(`- /raffle/${IDS.rafflePriceDropActive}`);
   console.log(`- /raffle/${IDS.raffleAlmostSold}`);
   console.log(`- /raffle/${IDS.raffleCancelledRefunded}`);
+  console.log(`- /raffle/${IDS.raffleFinalizedGrowthReviewed}`);
   console.log(`- /raffle/${IDS.raffleFinalizedReviewed}`);
   console.log('- /dashboard/sales');
   console.log('- /dashboard/tickets');

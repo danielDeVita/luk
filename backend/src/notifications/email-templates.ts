@@ -37,6 +37,14 @@ const formatAmountEsAr = (value: number): string =>
     maximumFractionDigits: 2,
   }).format(value);
 
+const escapeHtml = (value: string): string =>
+  value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#039;');
+
 export const wrapEmailTemplate = (
   content: string,
   configService: ConfigService,
@@ -1096,6 +1104,57 @@ export const getQuestionAnsweredNotificationContent = (
     showButton: true,
     buttonText: 'Ver Rifa',
     buttonUrl: `${frontendUrl}/raffle/${data.raffleId}`,
+  });
+};
+
+export const getSellerReviewReceivedContent = (
+  data: {
+    sellerName: string;
+    sellerId: string;
+    reviewerName: string;
+    raffleName: string;
+    rating: number;
+    comentario?: string | null;
+  },
+  configService: ConfigService,
+) => {
+  const frontendUrl = getFrontendUrl(configService);
+  const safeRating = Math.max(1, Math.min(5, data.rating));
+  const stars = '★'.repeat(safeRating) + '☆'.repeat(5 - safeRating);
+  const sellerName = escapeHtml(data.sellerName);
+  const reviewerName = escapeHtml(data.reviewerName);
+  const raffleName = escapeHtml(data.raffleName);
+  const comment = data.comentario ? escapeHtml(data.comentario) : null;
+  const commentHtml = data.comentario
+    ? `
+      <div style="background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 12px; padding: 20px; margin: 20px 0;">
+        <p style="color: #64748B; font-size: 12px; text-transform: uppercase; margin: 0 0 8px 0;">Comentario</p>
+        <p style="color: #1F2937; font-size: 15px; line-height: 1.6; margin: 0;">"${comment}"</p>
+      </div>
+    `
+    : '';
+
+  const content = `
+    <h2 style="color: #0F766E; font-family: 'Fraunces', serif; font-size: 24px; font-weight: 700; margin: 0 0 16px 0;">
+      Recibiste una nueva reseña
+    </h2>
+    <p style="color: #4B5563; font-size: 15px; line-height: 1.6; margin: 0 0 20px 0;">
+      Hola ${sellerName}, ${reviewerName} dejó una reseña sobre la rifa "<strong>${raffleName}</strong>".
+    </p>
+    <div style="background: #FFFBEB; border: 1px solid #FEF3C7; border-radius: 12px; padding: 20px; margin: 24px 0; text-align: center;">
+      <p style="color: #92400E; font-size: 28px; letter-spacing: 3px; margin: 0 0 8px 0;">${stars}</p>
+      <p style="color: #92400E; font-size: 14px; margin: 0;">${safeRating} de 5 estrellas</p>
+    </div>
+    ${commentHtml}
+    <p style="color: #6B7280; font-size: 14px; line-height: 1.6; margin: 0;">
+      Esta reseña ayuda a construir tu reputación como vendedor en ${BRAND_NAME}.
+    </p>
+  `;
+
+  return wrapEmailTemplate(content, configService, {
+    showButton: true,
+    buttonText: 'Ver mi perfil público',
+    buttonUrl: `${frontendUrl}/seller/${encodeURIComponent(data.sellerId)}`,
   });
 };
 

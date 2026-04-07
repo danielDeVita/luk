@@ -8,6 +8,16 @@ export const GET_SELLER_PROFILE_QUERY = `
       totalVentas
       nivelVendedor
       isVerified
+      reputation
+      reviewCount
+      reviews {
+        id
+        rating
+        comentario
+        createdAt
+        reviewerName
+        raffleTitle
+      }
       raffles {
         id
         titulo
@@ -61,6 +71,16 @@ export interface PublicSellerProfile {
   totalVentas: number;
   nivelVendedor: string;
   isVerified: boolean;
+  reputation?: number | null;
+  reviewCount: number;
+  reviews: Array<{
+    id: string;
+    rating: number;
+    comentario?: string | null;
+    createdAt: string;
+    reviewerName: string;
+    raffleTitle: string;
+  }>;
   raffles: SellerRaffle[];
 }
 

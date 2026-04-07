@@ -90,29 +90,44 @@ export class ReputationService {
    * Recalculate reputation for a buyer
    */
   async recalculateBuyerReputation(buyerId: string) {
-    // Count completed purchases (won raffles with confirmed delivery)
-    const completedPurchases = await this.prisma.raffle.count({
-      where: {
-        winnerId: buyerId,
-        estado: 'FINALIZADA',
-        deliveryStatus: 'CONFIRMED',
-      },
-    });
-
-    // Count opened disputes
-    const disputesOpened = await this.prisma.dispute.count({
-      where: { reporterId: buyerId },
-    });
+    const [completedPurchases, rafflesWon, ticketsPurchased, disputesOpened] =
+      await Promise.all([
+        this.prisma.raffle.count({
+          where: {
+            winnerId: buyerId,
+            estado: 'FINALIZADA',
+            deliveryStatus: 'CONFIRMED',
+          },
+        }),
+        this.prisma.raffle.count({
+          where: {
+            winnerId: buyerId,
+          },
+        }),
+        this.prisma.ticket.count({
+          where: {
+            buyerId,
+            estado: 'PAGADO',
+          },
+        }),
+        this.prisma.dispute.count({
+          where: { reporterId: buyerId },
+        }),
+      ]);
 
     await this.prisma.userReputation.upsert({
       where: { userId: buyerId },
       create: {
         userId: buyerId,
         totalComprasCompletadas: completedPurchases,
+        totalRifasGanadas: rafflesWon,
+        totalTicketsComprados: ticketsPurchased,
         disputasComoCompradorAbiertas: disputesOpened,
       },
       update: {
         totalComprasCompletadas: completedPurchases,
+        totalRifasGanadas: rafflesWon,
+        totalTicketsComprados: ticketsPurchased,
         disputasComoCompradorAbiertas: disputesOpened,
       },
     });

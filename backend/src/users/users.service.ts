@@ -2,14 +2,21 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  ForbiddenException,
   Logger,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { UserRole, KycStatus } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
-import { UpdateKycInput, AcceptTermsInput } from './dto/update-user.input';
+import {
+  UpdateKycInput,
+  AcceptTermsInput,
+  CreateSellerReviewInput,
+} from './dto/update-user.input';
 import { EncryptionService } from '../common/services/encryption.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { ReputationService } from './reputation.service';
+import { PublicSellerReview } from './entities/review.entity';
 
 @Injectable()
 export class UsersService {
@@ -19,6 +26,7 @@ export class UsersService {
     private prisma: PrismaService,
     private encryptionService: EncryptionService,
     private notificationsService: NotificationsService,
+    private reputationService: ReputationService,
   ) {}
 
   async findOne(id: string) {
@@ -258,6 +266,16 @@ export class UsersService {
           orderBy: { createdAt: 'desc' },
         },
         reputation: true,
+        reviewsReceived: {
+          where: { commentHidden: false },
+          orderBy: { createdAt: 'desc' },
+          take: 5,
+          include: {
+            reviewer: { select: { nombre: true, apellido: true } },
+            raffle: { select: { titulo: true } },
+          },
+        },
+        _count: { select: { reviewsReceived: true } },
       },
     });
 
@@ -279,6 +297,142 @@ export class UsersService {
       totalVentas: reputation.totalVentasCompletadas,
       nivelVendedor: reputation.nivelVendedor,
       isVerified: user.kycStatus === 'VERIFIED',
+      reviewCount: user._count.reviewsReceived,
+      reviews: user.reviewsReceived.map((review) =>
+        this.toPublicSellerReview(review),
+      ),
+    };
+  }
+
+  async createSellerReview(
+    reviewerId: string,
+    input: CreateSellerReviewInput,
+  ): Promise<PublicSellerReview> {
+    if (
+      !Number.isInteger(input.rating) ||
+      input.rating < 1 ||
+      input.rating > 5
+    ) {
+      throw new BadRequestException('El puntaje debe estar entre 1 y 5');
+    }
+
+    const comentario = input.comentario?.trim() || null;
+    if (comentario && comentario.length > 1000) {
+      throw new BadRequestException(
+        'El comentario no puede superar 1000 caracteres',
+      );
+    }
+
+    const raffle = await this.prisma.raffle.findUnique({
+      where: { id: input.raffleId },
+      include: {
+        review: true,
+        seller: {
+          select: { id: true, email: true, nombre: true, apellido: true },
+        },
+      },
+    });
+
+    if (!raffle) {
+      throw new NotFoundException('Rifa no encontrada');
+    }
+
+    if (raffle.winnerId !== reviewerId) {
+      throw new ForbiddenException('Solo el ganador puede reseñar al vendedor');
+    }
+
+    if (raffle.deliveryStatus !== 'CONFIRMED') {
+      throw new BadRequestException(
+        'Solo podés dejar una reseña después de confirmar la entrega',
+      );
+    }
+
+    if (raffle.review) {
+      throw new BadRequestException('Ya dejaste una reseña para esta rifa');
+    }
+
+    const review = await this.prisma.review.create({
+      data: {
+        raffleId: raffle.id,
+        reviewerId,
+        sellerId: raffle.sellerId,
+        rating: input.rating,
+        comentario,
+      },
+      include: {
+        reviewer: { select: { nombre: true, apellido: true } },
+        raffle: { select: { titulo: true } },
+      },
+    });
+
+    await this.reputationService.recalculateSellerReputation(raffle.sellerId);
+
+    this.notifySellerAboutReview(raffle.seller, review).catch(
+      (error: unknown) => {
+        const message =
+          error instanceof Error ? error.message : 'Unknown error';
+        this.logger.error(`Failed to notify seller about review: ${message}`);
+      },
+    );
+
+    return this.toPublicSellerReview(review);
+  }
+
+  private async notifySellerAboutReview(
+    seller: { id: string; email: string; nombre: string; apellido: string },
+    review: {
+      rating: number;
+      comentario: string | null;
+      reviewer: { nombre: string; apellido: string };
+      raffle: { titulo: string };
+    },
+  ) {
+    const sellerName = [seller.nombre, seller.apellido]
+      .filter(Boolean)
+      .join(' ');
+    const reviewerName = [review.reviewer.nombre, review.reviewer.apellido]
+      .filter(Boolean)
+      .join(' ');
+
+    await Promise.all([
+      this.notificationsService.sendSellerReviewReceivedNotification(
+        seller.email,
+        {
+          sellerName,
+          sellerId: seller.id,
+          reviewerName,
+          raffleName: review.raffle.titulo,
+          rating: review.rating,
+          comentario: review.comentario,
+        },
+      ),
+      this.notificationsService.create(
+        seller.id,
+        'INFO',
+        'Nueva reseña recibida',
+        `${reviewerName} dejó una reseña de ${review.rating}/5 para "${review.raffle.titulo}".`,
+        `/seller/${seller.id}`,
+      ),
+    ]);
+  }
+
+  private toPublicSellerReview(review: {
+    id: string;
+    rating: number;
+    comentario: string | null;
+    createdAt: Date;
+    reviewer: { nombre: string; apellido: string };
+    raffle: { titulo: string };
+  }): PublicSellerReview {
+    return {
+      id: review.id,
+      rating: review.rating,
+      comentario: review.comentario,
+      createdAt: review.createdAt,
+      reviewerName: [review.reviewer.nombre, review.reviewer.apellido]
+        .filter(Boolean)
+        .join(' '),
+      raffleTitle: review.raffle.titulo,
     };
   }
 

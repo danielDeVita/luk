@@ -4,6 +4,7 @@ import { User } from '../../users/entities/user.entity';
 import { Product } from './product.entity';
 
 import { Ticket } from '../../tickets/entities/ticket.entity';
+import { RaffleReviewStatus } from '../../users/entities/review.entity';
 
 @ObjectType()
 export class Raffle {
@@ -68,6 +69,9 @@ export class Raffle {
 
   @Field(() => Product, { nullable: true })
   product?: Product;
+
+  @Field(() => RaffleReviewStatus, { nullable: true })
+  review?: RaffleReviewStatus | null;
 
   @Field(() => Int)
   ticketsVendidos?: number;

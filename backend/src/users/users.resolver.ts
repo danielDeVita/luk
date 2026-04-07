@@ -10,8 +10,10 @@ import {
   UpdateKycInput,
   AcceptTermsInput,
   UpdateAvatarInput,
+  CreateSellerReviewInput,
 } from './dto/update-user.input';
 import { PublicSellerProfile } from './entities/public-seller-profile.entity';
+import { PublicSellerReview } from './entities/review.entity';
 import { Public } from '../auth/decorators/public.decorator';
 
 @Resolver(() => User)
@@ -62,6 +64,15 @@ export class UsersResolver {
     @Args('input') input: AcceptTermsInput,
   ) {
     return this.usersService.acceptTerms(user.id, input);
+  }
+
+  @Mutation(() => PublicSellerReview)
+  @UseGuards(GqlAuthGuard)
+  async createSellerReview(
+    @CurrentUser() user: User,
+    @Args('input') input: CreateSellerReviewInput,
+  ) {
+    return this.usersService.createSellerReview(user.id, input);
   }
 
   // ==================== AVATAR MANAGEMENT ====================

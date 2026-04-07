@@ -290,7 +290,34 @@ Un cron puede auto-confirmar y liberar fondos si:
 - la rifa sigue sin confirmación final;
 - no hay disputa activa que lo bloquee.
 
-## 6. Social promotions
+## 6. Reseñas y reputación
+
+### Reseñas públicas de vendedores
+
+La reputación pública productizada es del seller, no del buyer:
+
+1. sólo el ganador de una rifa puede dejar reseña;
+2. la entrega debe estar confirmada (`deliveryStatus = CONFIRMED`);
+3. existe una sola reseña por rifa;
+4. la reseña contiene `rating` de 1 a 5 y comentario opcional;
+5. al crearse, se recalcula la reputación del seller;
+6. el seller recibe email y notificación in-app en modo best effort.
+
+El perfil público del seller muestra promedio, cantidad de reseñas y últimas reseñas públicas. Si admin modera una reseña, se oculta sólo el comentario; el rating se mantiene y sigue contando para el promedio.
+
+### Señales internas de compradores
+
+La reputación de compradores queda limitada al admin:
+
+- tickets comprados;
+- rifas ganadas;
+- compras completadas;
+- disputas abiertas como comprador;
+- flags internos determinísticos como `HIGH_DISPUTE_RATE`, `NEW_WITH_DISPUTE`, `HEAVY_BUYER` y `WINNER_WITH_HISTORY`.
+
+Estas señales no se exponen en perfiles públicos ni a sellers. Sirven para soporte, moderación y riesgo operativo.
+
+## 7. Social promotions
 
 La feature de social promotions no da “saldo libre”; genera bonificaciones puntuales que luego pueden usarse en compras.
 
@@ -400,7 +427,7 @@ Con esto:
 - el descuento promocional no reduce el valor nominal del seller;
 - el subsidio queda registrado como transacción de plataforma.
 
-## 7. Invariantes importantes
+## 8. Invariantes importantes
 
 - Un seller no puede crear rifas sin KYC verificado, MP Connect y dirección.
 - Un buyer no puede comprar tickets de su propia rifa.
@@ -408,9 +435,16 @@ Con esto:
 - La DB no permite duplicar un mismo número dentro de una rifa.
 - El payout no debe liberarse si la entrega no está confirmada o si hay disputa activa incompatible.
 - La bonificación de social promotion no es un wallet general: es un grant con ciclo propio.
+- La reputación pública se expone para sellers; las señales de comprador son admin-only.
 - `ENCRYPTION_KEY` debe mantenerse estable entre entornos porque protege PII y tokens sensibles.
 
-## 8. Cómo usar este documento
+## 9. Seed canónico QA/dev
+
+El seed de desarrollo (`backend/prisma/seed.ts`) está pensado para QA manual determinístico. Incluye sellers con niveles reputacionales distintos, señales internas de compradores para admin, reseñas públicas y moderadas, preguntas/respuestas de rifas, disputas en los estados principales, compras mock, refunds, payouts, social promotion fixtures y escenarios de pack simple.
+
+No expone reputación de compradores al público ni a sellers; esas señales quedan limitadas al admin.
+
+## 10. Cómo usar este documento
 
 Usalo cuando necesites responder preguntas como:
 

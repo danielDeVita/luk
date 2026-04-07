@@ -7,6 +7,7 @@ import {
   AdminTransactionList,
   PaymentDebugInfo,
   AdminUserList,
+  AdminReviewList,
   UserActivity,
   BulkResolveResult,
   KycSubmissionList,
@@ -17,6 +18,7 @@ import { RolesGuard } from '../auth/guards/roles/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { User } from '../users/entities/user.entity';
+import { AdminSellerReview } from '../users/entities/review.entity';
 import { AuditService } from '../audit/audit.service';
 import { DisputesService } from '../disputes/disputes.service';
 import { UserRole, AuditAction, TransactionType } from '@prisma/client';
@@ -190,6 +192,32 @@ export class AdminResolver {
       ipAddress: a.ipAddress ?? undefined,
       createdAt: a.createdAt,
     }));
+  }
+
+  @Query(() => AdminReviewList, {
+    description: 'List seller reviews for moderation',
+  })
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  async adminReviews(
+    @Args('includeHidden', { nullable: true }) includeHidden?: boolean,
+    @Args('limit', { nullable: true, type: () => Int }) limit?: number,
+    @Args('offset', { nullable: true, type: () => Int }) offset?: number,
+  ): Promise<AdminReviewList> {
+    return this.adminService.getReviews({ includeHidden, limit, offset });
+  }
+
+  @Mutation(() => AdminSellerReview, {
+    description: 'Hide a seller review comment while keeping its rating',
+  })
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  async hideReviewComment(
+    @CurrentUser() admin: User,
+    @Args('reviewId') reviewId: string,
+    @Args('reason') reason: string,
+  ): Promise<AdminSellerReview> {
+    return this.adminService.hideReviewComment(reviewId, admin.id, reason);
   }
 
   @Mutation(() => User, { description: 'Ban a user' })

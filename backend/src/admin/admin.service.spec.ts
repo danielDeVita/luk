@@ -35,6 +35,12 @@ type MockPrismaService = {
   dispute: {
     count: jest.Mock;
   };
+  review: {
+    findMany: jest.Mock;
+    count: jest.Mock;
+    findUnique: jest.Mock;
+    update: jest.Mock;
+  };
   activityLog: {
     findMany: jest.Mock;
   };
@@ -76,6 +82,12 @@ describe('AdminService', () => {
     },
     dispute: {
       count: jest.fn(),
+    },
+    review: {
+      findMany: jest.fn(),
+      count: jest.fn(),
+      findUnique: jest.fn(),
+      update: jest.fn(),
     },
     activityLog: {
       findMany: jest.fn(),
@@ -400,6 +412,7 @@ describe('AdminService', () => {
         {
           ...createTestUser(),
           _count: { rafflesCreated: 5, ticketsPurchased: 10, rafflesWon: 1 },
+          reputation: null,
         },
       ];
 
@@ -416,6 +429,41 @@ describe('AdminService', () => {
           rafflesCreated: 5,
           ticketsPurchased: 10,
           rafflesWon: 1,
+        }),
+      );
+    });
+
+    it('should include internal buyer metrics and risk flags', async () => {
+      const recentDate = new Date();
+      const users = [
+        {
+          ...createTestUser({ createdAt: recentDate }),
+          _count: { rafflesCreated: 1, ticketsPurchased: 12, rafflesWon: 0 },
+          reputation: {
+            totalTicketsComprados: 60,
+            totalRifasGanadas: 1,
+            totalComprasCompletadas: 2,
+            disputasComoCompradorAbiertas: 2,
+          },
+        },
+      ];
+
+      prisma.user.findMany.mockResolvedValue(users);
+      prisma.user.count.mockResolvedValue(1);
+
+      const result = await service.getUsers({});
+
+      expect(result.users[0]).toEqual(
+        expect.objectContaining({
+          totalTicketsComprados: 60,
+          totalRifasGanadas: 1,
+          totalComprasCompletadas: 2,
+          disputasComoCompradorAbiertas: 2,
+          buyerRiskFlags: expect.arrayContaining([
+            'HIGH_DISPUTE_RATE',
+            'NEW_WITH_DISPUTE',
+            'HEAVY_BUYER',
+          ]),
         }),
       );
     });
@@ -504,6 +552,152 @@ describe('AdminService', () => {
       await expect(service.getUserById('user-1')).rejects.toThrow(
         'User not found',
       );
+    });
+  });
+
+  describe('getReviews', () => {
+    it('should return visible reviews with public comments', async () => {
+      const review = {
+        id: 'review-1',
+        rating: 5,
+        comentario: 'Excelente vendedor',
+        createdAt: new Date('2026-04-01T12:00:00.000Z'),
+        commentHidden: false,
+        commentHiddenReason: null,
+        seller: {
+          nombre: 'Seller',
+          apellido: 'Pro',
+          email: 'seller@test.com',
+        },
+        reviewer: {
+          nombre: 'Buyer',
+          apellido: 'Winner',
+          email: 'buyer@test.com',
+        },
+        raffle: { titulo: 'MacBook QA' },
+      };
+
+      prisma.review.findMany.mockResolvedValue([review]);
+      prisma.review.count.mockResolvedValue(1);
+
+      const result = await service.getReviews({});
+
+      expect(prisma.review.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { commentHidden: false },
+        }),
+      );
+      expect(result).toEqual({
+        reviews: [
+          expect.objectContaining({
+            id: 'review-1',
+            comentario: 'Excelente vendedor',
+            reviewerName: 'Buyer Winner',
+            sellerName: 'Seller Pro',
+            raffleTitle: 'MacBook QA',
+            commentHidden: false,
+          }),
+        ],
+        total: 1,
+      });
+    });
+
+    it('should hide moderated comments in admin review mapping', async () => {
+      prisma.review.findMany.mockResolvedValue([
+        {
+          id: 'review-1',
+          rating: 2,
+          comentario: 'Comentario ofensivo',
+          createdAt: new Date('2026-04-01T12:00:00.000Z'),
+          commentHidden: true,
+          commentHiddenReason: 'Contenido ofensivo',
+          seller: {
+            nombre: 'Seller',
+            apellido: 'Pro',
+            email: 'seller@test.com',
+          },
+          reviewer: {
+            nombre: 'Buyer',
+            apellido: 'Winner',
+            email: 'buyer@test.com',
+          },
+          raffle: { titulo: 'MacBook QA' },
+        },
+      ]);
+      prisma.review.count.mockResolvedValue(1);
+
+      const result = await service.getReviews({ includeHidden: true });
+
+      expect(result.reviews[0]).toEqual(
+        expect.objectContaining({
+          comentario: null,
+          commentHidden: true,
+          commentHiddenReason: 'Contenido ofensivo',
+        }),
+      );
+    });
+  });
+
+  describe('hideReviewComment', () => {
+    it('should hide the review comment while keeping the review available', async () => {
+      const updatedReview = {
+        id: 'review-1',
+        rating: 4,
+        comentario: 'Texto original',
+        createdAt: new Date('2026-04-01T12:00:00.000Z'),
+        commentHidden: true,
+        commentHiddenReason: 'Motivo de moderación',
+        seller: {
+          nombre: 'Seller',
+          apellido: 'Pro',
+          email: 'seller@test.com',
+        },
+        reviewer: {
+          nombre: 'Buyer',
+          apellido: 'Winner',
+          email: 'buyer@test.com',
+        },
+        raffle: { titulo: 'MacBook QA' },
+      };
+
+      prisma.review.findUnique.mockResolvedValue({ id: 'review-1' });
+      prisma.review.update.mockResolvedValue(updatedReview);
+
+      const result = await service.hideReviewComment(
+        'review-1',
+        'admin-1',
+        ' Motivo de moderación ',
+      );
+
+      expect(prisma.review.update).toHaveBeenCalledWith({
+        where: { id: 'review-1' },
+        data: {
+          commentHidden: true,
+          commentHiddenReason: 'Motivo de moderación',
+          commentHiddenAt: expect.any(Date),
+          commentHiddenById: 'admin-1',
+        },
+        include: {
+          seller: { select: { nombre: true, apellido: true, email: true } },
+          reviewer: { select: { nombre: true, apellido: true, email: true } },
+          raffle: { select: { titulo: true } },
+        },
+      });
+      expect(result).toEqual(
+        expect.objectContaining({
+          comentario: null,
+          commentHidden: true,
+          rating: 4,
+        }),
+      );
+    });
+
+    it('should reject moderation when review does not exist', async () => {
+      prisma.review.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.hideReviewComment('missing-review', 'admin-1', 'Motivo válido'),
+      ).rejects.toThrow(NotFoundException);
     });
   });
 

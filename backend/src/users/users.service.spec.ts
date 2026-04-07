@@ -3,9 +3,14 @@ import { UsersService } from './users.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { EncryptionService } from '../common/services/encryption.service';
 import { NotificationsService } from '../notifications/notifications.service';
-import { NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  NotFoundException,
+  BadRequestException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { UserRole, KycStatus, DocumentType } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
+import { ReputationService } from './reputation.service';
 
 jest.mock('bcrypt');
 
@@ -17,6 +22,10 @@ type MockPrismaService = {
   };
   raffle: {
     count: jest.Mock;
+    findUnique: jest.Mock;
+  };
+  review: {
+    create: jest.Mock;
   };
   ticket: {
     count: jest.Mock;
@@ -34,7 +43,12 @@ type MockEncryptionService = {
 
 type MockNotificationsService = {
   sendAdminNewKycSubmission: jest.Mock;
+  sendSellerReviewReceivedNotification: jest.Mock;
   create: jest.Mock;
+};
+
+type MockReputationService = {
+  recalculateSellerReputation: jest.Mock;
 };
 
 describe('UsersService', () => {
@@ -42,6 +56,7 @@ describe('UsersService', () => {
   let prisma: MockPrismaService;
   let encryptionService: MockEncryptionService;
   let _notificationsService: MockNotificationsService;
+  let reputationService: MockReputationService;
 
   const mockPrismaService = (): MockPrismaService => ({
     user: {
@@ -51,6 +66,10 @@ describe('UsersService', () => {
     },
     raffle: {
       count: jest.fn(),
+      findUnique: jest.fn(),
+    },
+    review: {
+      create: jest.fn(),
     },
     ticket: {
       count: jest.fn(),
@@ -68,7 +87,12 @@ describe('UsersService', () => {
 
   const mockNotificationsService = (): MockNotificationsService => ({
     sendAdminNewKycSubmission: jest.fn(),
+    sendSellerReviewReceivedNotification: jest.fn().mockResolvedValue(true),
     create: jest.fn(),
+  });
+
+  const mockReputationService = (): MockReputationService => ({
+    recalculateSellerReputation: jest.fn().mockResolvedValue(undefined),
   });
 
   beforeEach(async () => {
@@ -83,6 +107,7 @@ describe('UsersService', () => {
           provide: NotificationsService,
           useValue: mockNotificationsService(),
         },
+        { provide: ReputationService, useValue: mockReputationService() },
       ],
     }).compile();
 
@@ -94,6 +119,10 @@ describe('UsersService', () => {
     _notificationsService = module.get(
       NotificationsService,
     ) as unknown as MockNotificationsService;
+    reputationService = module.get(
+      ReputationService,
+    ) as unknown as MockReputationService;
+    prisma.user.findMany.mockResolvedValue([]);
   });
 
   describe('findOne', () => {
@@ -498,6 +527,17 @@ describe('UsersService', () => {
           totalVentasCompletadas: 10,
           nivelVendedor: 'BRONCE',
         },
+        reviewsReceived: [
+          {
+            id: 'review-1',
+            rating: 5,
+            comentario: 'Excelente vendedor',
+            createdAt: new Date('2026-04-01T12:00:00.000Z'),
+            reviewer: { nombre: 'Ana', apellido: 'Buyer' },
+            raffle: { titulo: 'Rifa 1' },
+          },
+        ],
+        _count: { reviewsReceived: 1 },
       };
 
       prisma.user.findUnique.mockResolvedValue(mockUser);
@@ -513,6 +553,16 @@ describe('UsersService', () => {
             orderBy: { createdAt: 'desc' },
           },
           reputation: true,
+          reviewsReceived: {
+            where: { commentHidden: false },
+            orderBy: { createdAt: 'desc' },
+            take: 5,
+            include: {
+              reviewer: { select: { nombre: true, apellido: true } },
+              raffle: { select: { titulo: true } },
+            },
+          },
+          _count: { select: { reviewsReceived: true } },
         },
       });
       expect(result).toEqual({
@@ -525,6 +575,17 @@ describe('UsersService', () => {
         totalVentas: 10,
         nivelVendedor: 'BRONCE',
         isVerified: true,
+        reviewCount: 1,
+        reviews: [
+          {
+            id: 'review-1',
+            rating: 5,
+            comentario: 'Excelente vendedor',
+            createdAt: mockUser.reviewsReceived[0].createdAt,
+            reviewerName: 'Ana Buyer',
+            raffleTitle: 'Rifa 1',
+          },
+        ],
       });
     });
 
@@ -537,6 +598,8 @@ describe('UsersService', () => {
         kycStatus: KycStatus.VERIFIED,
         rafflesCreated: [],
         reputation: null,
+        reviewsReceived: [],
+        _count: { reviewsReceived: 0 },
       };
 
       const newReputation = {
@@ -557,6 +620,8 @@ describe('UsersService', () => {
       });
       expect(result.reputation).toBe(null);
       expect(result.nivelVendedor).toBe('NUEVO');
+      expect(result.reviewCount).toBe(0);
+      expect(result.reviews).toEqual([]);
     });
 
     it('should throw NotFoundException if seller not found', async () => {
@@ -565,6 +630,116 @@ describe('UsersService', () => {
       await expect(service.getSellerProfile('invalid-id')).rejects.toThrow(
         NotFoundException,
       );
+    });
+  });
+
+  describe('createSellerReview', () => {
+    const confirmedRaffle = {
+      id: 'raffle-1',
+      sellerId: 'seller-1',
+      winnerId: 'winner-1',
+      deliveryStatus: 'CONFIRMED',
+      review: null,
+      seller: {
+        id: 'seller-1',
+        email: 'seller@test.com',
+        nombre: 'Seller',
+        apellido: 'Pro',
+      },
+    };
+
+    it('should let the confirmed winner review the seller', async () => {
+      const review = {
+        id: 'review-1',
+        rating: 5,
+        comentario: 'Excelente entrega',
+        createdAt: new Date('2026-04-01T12:00:00.000Z'),
+        reviewer: { nombre: 'Winner', apellido: 'Buyer' },
+        raffle: { titulo: 'MacBook QA' },
+      };
+
+      prisma.raffle.findUnique.mockResolvedValue(confirmedRaffle);
+      prisma.review.create.mockResolvedValue(review);
+
+      const result = await service.createSellerReview('winner-1', {
+        raffleId: 'raffle-1',
+        rating: 5,
+        comentario: ' Excelente entrega ',
+      });
+
+      expect(prisma.review.create).toHaveBeenCalledWith({
+        data: {
+          raffleId: 'raffle-1',
+          reviewerId: 'winner-1',
+          sellerId: 'seller-1',
+          rating: 5,
+          comentario: 'Excelente entrega',
+        },
+        include: {
+          reviewer: { select: { nombre: true, apellido: true } },
+          raffle: { select: { titulo: true } },
+        },
+      });
+      expect(result).toEqual({
+        id: 'review-1',
+        rating: 5,
+        comentario: 'Excelente entrega',
+        createdAt: review.createdAt,
+        reviewerName: 'Winner Buyer',
+        raffleTitle: 'MacBook QA',
+      });
+      expect(
+        reputationService.recalculateSellerReputation,
+      ).toHaveBeenCalledWith('seller-1');
+    });
+
+    it('should reject reviews from users who did not win the raffle', async () => {
+      prisma.raffle.findUnique.mockResolvedValue(confirmedRaffle);
+
+      await expect(
+        service.createSellerReview('other-user', {
+          raffleId: 'raffle-1',
+          rating: 5,
+        }),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('should reject reviews before delivery is confirmed', async () => {
+      prisma.raffle.findUnique.mockResolvedValue({
+        ...confirmedRaffle,
+        deliveryStatus: 'IN_TRANSIT',
+      });
+
+      await expect(
+        service.createSellerReview('winner-1', {
+          raffleId: 'raffle-1',
+          rating: 4,
+        }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should reject duplicate reviews for the same raffle', async () => {
+      prisma.raffle.findUnique.mockResolvedValue({
+        ...confirmedRaffle,
+        review: { id: 'existing-review' },
+      });
+
+      await expect(
+        service.createSellerReview('winner-1', {
+          raffleId: 'raffle-1',
+          rating: 4,
+        }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should reject ratings outside the valid range', async () => {
+      await expect(
+        service.createSellerReview('winner-1', {
+          raffleId: 'raffle-1',
+          rating: 6,
+        }),
+      ).rejects.toThrow(BadRequestException);
+      expect(prisma.raffle.findUnique).not.toHaveBeenCalled();
     });
   });
 

@@ -43,11 +43,11 @@ ALLOW_MOCK_PAYMENTS="true"
 MP_ACCESS_TOKEN=""
 ```
 
-| Command | Description |
-|---------|-------------|
-| `npm run start:dev` | Dev server (watch mode) |
-| `npx prisma studio` | Database GUI |
-| `npx prisma db push --force-reset` | Reset DB |
+| Command                            | Description             |
+| ---------------------------------- | ----------------------- |
+| `npm run start:dev`                | Dev server (watch mode) |
+| `npx prisma studio`                | Database GUI            |
+| `npx prisma db push --force-reset` | Reset DB                |
 
 ## Architecture
 
@@ -60,24 +60,24 @@ MP_ACCESS_TOKEN=""
 
 ## Modules
 
-| Module | Purpose |
-|--------|---------|
-| `auth/` | JWT authentication, Google OAuth, email verification, 2FA, guards |
-| `users/` | User management, profiles |
-| `raffles/` | Raffle CRUD, state management, seller dashboard, buyer experience, analytics |
-| `tickets/` | Ticket reservation and purchase |
-| `payments/` | Mercado Pago integration, mock checkout provider for QA, and MP Connect OAuth |
-| `disputes/` | Buyer protection system |
-| `notifications/` | Email (Brevo) + in-app notifications |
-| `uploads/` | Cloudinary upload signatures |
-| `admin/` | Admin panel, user management, bulk dispute resolution, stats |
-| `categories/` | Raffle categories management |
-| `reports/` | Raffle reporting/flagging system |
+| Module               | Purpose                                                                       |
+| -------------------- | ----------------------------------------------------------------------------- |
+| `auth/`              | JWT authentication, Google OAuth, email verification, 2FA, guards             |
+| `users/`             | User management, profiles, seller reviews, reputation metrics                 |
+| `raffles/`           | Raffle CRUD, state management, seller dashboard, buyer experience, analytics  |
+| `tickets/`           | Ticket reservation and purchase                                               |
+| `payments/`          | Mercado Pago integration, mock checkout provider for QA, and MP Connect OAuth |
+| `disputes/`          | Buyer protection system                                                       |
+| `notifications/`     | Email (Brevo) + in-app notifications                                          |
+| `uploads/`           | Cloudinary upload signatures                                                  |
+| `admin/`             | Admin panel, user management, bulk dispute resolution, stats                  |
+| `categories/`        | Raffle categories management                                                  |
+| `reports/`           | Raffle reporting/flagging system                                              |
 | `social-promotions/` | Verifiable seller promotion flow, parsers, scoring, promotion bonus lifecycle |
-| `tasks/` | Scheduled jobs (cron) |
-| `health/` | Health check endpoints |
-| `questions/` | Q&A system for raffle pages |
-| `activity/` | Activity logging |
+| `tasks/`             | Scheduled jobs (cron)                                                         |
+| `health/`            | Health check endpoints                                                        |
+| `questions/`         | Q&A system for raffle pages                                                   |
+| `activity/`          | Activity logging                                                              |
 
 ### Social Promotions
 
@@ -142,6 +142,10 @@ In that mode:
 - full and partial refunds can be simulated from the mock page;
 - `GET /mp/payment-status` continues to work for both real MP ids and `mock_pay_*` ids.
 
+### Canonical QA/dev seed
+
+`prisma/seed.ts` is the canonical manual-QA dataset. It includes deterministic users, seller reputation tiers, admin-only buyer reputation flags, public seller reviews, raffle Q&A threads, disputes in every major status, mock purchases, refunds, payouts, social promotion fixtures, and simple-pack scenarios.
+
 ### Random purchase packs
 
 Random purchases include a global pack incentive:
@@ -158,9 +162,21 @@ The pack:
 - falls back to a normal purchase when the full pack cannot be honored because of stock or buyer-limit constraints.
 - enriches the existing buyer/seller purchase notifications so both sides can see paid quantity, bonus tickets, total emitted tickets, and LUK subsidy when applicable.
 
+### Seller reviews and buyer reputation signals
+
+Seller reputation is public-facing and buyer reputation is internal:
+
+- winners can create one seller review per raffle after `deliveryStatus = CONFIRMED`;
+- reviews carry a `1..5` rating and optional comment;
+- creating a review recalculates seller reputation and sends the seller email + in-app notifications in best-effort mode;
+- admin moderation can hide only the public comment while keeping the rating in reputation averages;
+- buyer metrics (`totalTicketsComprados`, `totalRifasGanadas`, completed purchases, buyer disputes) feed admin-only flags such as `HIGH_DISPUTE_RATE`, `NEW_WITH_DISPUTE`, `HEAVY_BUYER`, and `WINNER_WITH_HISTORY`;
+- buyer reputation is not exposed publicly and is not visible to sellers.
+
 ### Google OAuth Setup
 
 To enable Google login:
+
 1. Go to [Google Cloud Console](https://console.cloud.google.com) → APIs & Services → Credentials
 2. Create OAuth 2.0 Client ID (Web application)
 3. Add redirect URI: `http://localhost:3001/auth/google/callback` (or production URL)
@@ -168,28 +184,33 @@ To enable Google login:
 5. In OAuth consent screen, add your email as Test user (required while app is in Testing mode)
 
 On startup, check logs for:
+
 - `✅ Google OAuth configured` - Success
 - `⚠️ Google OAuth NOT configured` - Missing credentials
 
 ## API Endpoints
 
 ### GraphQL
+
 - `POST /graphql` - Main API
 - `WS /graphql` - Subscriptions
 
 ### REST (Webhooks & Sync)
+
 - `POST /mp/webhook` - Mercado Pago webhooks
 - `GET /mp/sync-payment/:paymentId` - Manual payment sync
 - `GET /mp/payment-status?payment_id=X` - Payment status check
 - `GET /social-promotions/track/:token` - Promotion click attribution redirect
 
 ### REST (MP Connect OAuth)
+
 - `GET /mp/connect` - Start OAuth flow (requires auth)
 - `GET /mp/connect/callback` - OAuth callback (public)
 - `GET /mp/connect/status` - Get connection status (requires auth)
 - `POST /mp/connect/disconnect` - Disconnect MP account (requires auth)
 
 ### Health Check
+
 - `GET /health` - Full health check (database, version, uptime)
 - `GET /health/ready` - Readiness probe for k8s
 - `GET /health/live` - Liveness probe
@@ -215,6 +236,7 @@ docker compose -f docker-compose.dev.yml logs -f social-worker
 ## Mercado Pago Integration
 
 ### Checkout Preference Enrichment
+
 The Checkout Pro preference sent to Mercado Pago includes additional buyer and industry context to improve approval quality for raffle-style purchases:
 
 - `payer` data when available:
@@ -234,6 +256,7 @@ The checkout still goes to Mercado Pago as a single bundle item so the charged a
 For random pack purchases, the backend still calculates seller economics on the gross value of all emitted tickets and records a separate `SUBSIDIO_PACK_PLATAFORMA` transaction for the Luk-funded bonus portion.
 
 ### Webhook Processing
+
 1. Receives webhook at `POST /mp/webhook`
 2. Parses payload (supports `type`, `topic`, `action` formats)
 3. Records `MpEvent` for idempotency
@@ -245,6 +268,7 @@ For random pack purchases, the backend still calculates seller economics on the 
    - Triggers notifications
 
 ### Self-Healing Sync
+
 When webhooks fail (no tunnel), the frontend calls `/mp/sync-payment/:paymentId` to manually sync payment status.
 
 ## Email Notifications
@@ -252,6 +276,7 @@ When webhooks fail (no tunnel), the frontend calls `/mp/sync-payment/:paymentId`
 Emails are sent using [Brevo](https://brevo.com) via HTTP API (works on cloud platforms like Render).
 
 ### Styling
+
 - **Source**: Email styles are defined inline within `src/notifications/notifications.service.ts`.
 - **Palette**: Colors match the frontend `globals.css` (Teal/Amber/Warm White).
 - **Fonts**: Emails use `DM Sans` (Body) and `Fraunces` (Headings) loaded via Google Fonts.
@@ -259,39 +284,102 @@ Emails are sent using [Brevo](https://brevo.com) via HTTP API (works on cloud pl
 ## Seller Dashboard & Buyer Experience
 
 ### Seller Dashboard Queries/Mutations
+
 ```graphql
 # Get seller statistics (revenue, tickets sold, views, conversion rate, monthly chart data)
-query { sellerDashboardStats { totalRevenue totalTicketsSold activeRaffles completedRaffles totalViews conversionRate monthlyRevenue { year month revenue ticketsSold } } }
+query {
+  sellerDashboardStats {
+    totalRevenue
+    totalTicketsSold
+    activeRaffles
+    completedRaffles
+    totalViews
+    conversionRate
+    monthlyRevenue {
+      year
+      month
+      revenue
+      ticketsSold
+    }
+  }
+}
 
 # Cancel multiple raffles at once
-mutation { bulkCancelRaffles(raffleIds: ["id1", "id2"]) { successCount failedCount errors } }
+mutation {
+  bulkCancelRaffles(raffleIds: ["id1", "id2"]) {
+    successCount
+    failedCount
+    errors
+  }
+}
 
 # Extend deadline for multiple raffles
-mutation { bulkExtendRaffles(raffleIds: ["id1"], newDeadline: "2025-02-01T00:00:00Z") { successCount failedCount } }
+mutation {
+  bulkExtendRaffles(raffleIds: ["id1"], newDeadline: "2025-02-01T00:00:00Z") {
+    successCount
+    failedCount
+  }
+}
 
 # Increment view count (called when viewing raffle page)
-mutation { incrementRaffleViews(raffleId: "...") }
+mutation {
+  incrementRaffleViews(raffleId: "...")
+}
 ```
 
 ### Buyer Experience Queries
+
 ```graphql
 # Get buyer statistics (tickets, wins, win rate, total spent)
-query { buyerStats { totalTicketsPurchased totalRafflesWon winRate totalSpent activeTickets favoritesCount } }
+query {
+  buyerStats {
+    totalTicketsPurchased
+    totalRafflesWon
+    winRate
+    totalSpent
+    activeTickets
+    favoritesCount
+  }
+}
 
 # Get personalized recommendations based on purchase history
-query { recommendedRaffles(limit: 6) { id titulo precioPorTicket product { imagenes categoria } } }
+query {
+  recommendedRaffles(limit: 6) {
+    id
+    titulo
+    precioPorTicket
+    product {
+      imagenes
+      categoria
+    }
+  }
+}
 
 # Get favorites that are ending soon (within 48 hours by default)
-query { favoritesEndingSoon(hoursThreshold: 48) { id titulo fechaLimiteSorteo } }
+query {
+  favoritesEndingSoon(hoursThreshold: 48) {
+    id
+    titulo
+    fechaLimiteSorteo
+  }
+}
 ```
 
 ### Price Alerts
+
 ```graphql
 # Seller updates raffle price (triggers notifications if price dropped)
-mutation { updateRafflePrice(raffleId: "...", newPrice: 100.00) { id precioPorTicket lastPriceDropAt } }
+mutation {
+  updateRafflePrice(raffleId: "...", newPrice: 100.00) {
+    id
+    precioPorTicket
+    lastPriceDropAt
+  }
+}
 ```
 
 ### Email Verification
+
 ```graphql
 # Register returns user without tokens (requires verification)
 mutation { register(input: {...}) { user { id } requiresVerification message } }
@@ -304,6 +392,7 @@ mutation { resendVerificationCode(userId: "...") }
 ```
 
 ### Login Continuation and 2FA
+
 ```graphql
 # Login may return tokens directly, or require an extra step
 mutation {
@@ -320,18 +409,22 @@ mutation {
 # Complete the second factor with TOTP or a recovery code
 mutation {
   completeTwoFactorLogin(
-    challengeToken: "...",
-    code: "123456",
+    challengeToken: "..."
+    code: "123456"
     recoveryCode: null
   ) {
     token
     refreshToken
-    user { id email }
+    user {
+      id
+      email
+    }
   }
 }
 ```
 
 Behavior summary:
+
 - `requiresVerification = true` means the client must finish email verification before tokens are issued.
 - `requiresTwoFactor = true` means the client must continue with the 2FA challenge using `twoFactorChallengeToken`.
 - 2FA uses authenticator-app TOTP codes and supports one-time recovery codes.
@@ -340,27 +433,58 @@ Behavior summary:
 - Expected 4xx auth rejects remain out of Sentry; only infrastructure/code failures should be captured there.
 
 ### Price History
+
 ```graphql
 # Get price change history for a raffle
-query { priceHistory(raffleId: "...") { id previousPrice newPrice changedAt percentChange } }
+query {
+  priceHistory(raffleId: "...") {
+    id
+    previousPrice
+    newPrice
+    changedAt
+    percentChange
+  }
+}
 ```
 
 ### KYC Verification
+
 ```graphql
 # Submit/update KYC data (sellers must do this before creating raffles)
 mutation { updateKyc(input: { documentType: DNI, documentNumber: "12345678", cuitCuil: "20-12345678-5", street: "Av. Corrientes", ... }) { id kycStatus } }
 ```
 
 ### Raffle Relaunch
+
 ```graphql
 # Relaunch cancelled raffle with suggested price
-mutation { relaunchRaffleWithSuggestedPrice(input: { originalRaffleId: "...", priceReductionId: "..." }) { id titulo precioPorTicket estado } }
+mutation {
+  relaunchRaffleWithSuggestedPrice(
+    input: { originalRaffleId: "...", priceReductionId: "..." }
+  ) {
+    id
+    titulo
+    precioPorTicket
+    estado
+  }
+}
 
 # Optional: override suggested price
-mutation { relaunchRaffleWithSuggestedPrice(input: { originalRaffleId: "...", priceReductionId: "...", customPrice: 150.00 }) { id } }
+mutation {
+  relaunchRaffleWithSuggestedPrice(
+    input: {
+      originalRaffleId: "..."
+      priceReductionId: "..."
+      customPrice: 150.00
+    }
+  ) {
+    id
+  }
+}
 ```
 
 When a raffle is cancelled (<70% sold):
+
 1. System calculates optimal price reduction
 2. Creates `PriceReduction` record with `precioSugerido`
 3. Sends email to seller with one-click relaunch button
@@ -426,12 +550,14 @@ npm run test:e2e         # E2E tests (from root)
 The project uses **Jest** for unit/integration testing with pre-built utilities:
 
 **Test Utilities** (`test/integration/setup.ts` and `test/integration/factories.ts`):
+
 - `createTestApp()` - Complete NestJS application bootstrap for tests
 - `cleanupTestApp()` - DB cleanup that respects model dependencies
 - `generateTestToken(userId)` - JWT token generation for authenticated requests
 - Factories: `createTestUser()`, `createTestSeller()`, `createTestRaffle()`, `createTestTicket()`, etc.
 
 **Example Test Structure:**
+
 ```typescript
 describe('AuthService', () => {
   let app: INestApplication;
@@ -459,6 +585,7 @@ describe('AuthService', () => {
 - **Key modules tested:** auth, payments, raffles, tickets, disputes, notifications, users, and more
 
 Run coverage report:
+
 ```bash
 npm run test:cov
 # Open coverage/lcov-report/index.html for detailed report
@@ -477,57 +604,94 @@ See existing tests in `src/payments/` for examples.
 
 ```graphql
 # Get users with filters
-query { adminUsers(filters: { role: USER, search: "email", onlyBanned: false }) { id email role isBanned deletedAt } }
+query {
+  adminUsers(filters: { role: USER, search: "email", onlyBanned: false }) {
+    id
+    email
+    role
+    isBanned
+    deletedAt
+  }
+}
 
 # Get user activity log
-query { adminUserActivity(userId: "...") { id action entityType entityId createdAt } }
+query {
+  adminUserActivity(userId: "...") {
+    id
+    action
+    entityType
+    entityId
+    createdAt
+  }
+}
 
 # Ban/unban users
-mutation { banUser(userId: "...", reason: "TOS violation") { id isBanned } }
-mutation { unbanUser(userId: "...") { id isBanned } }
+mutation {
+  banUser(userId: "...", reason: "TOS violation") {
+    id
+    isBanned
+  }
+}
+mutation {
+  unbanUser(userId: "...") {
+    id
+    isBanned
+  }
+}
 
 # Bulk resolve disputes
-mutation { bulkResolveDisputes(disputeIds: ["..."], resolution: RESUELTA_COMPRADOR, justification: "...") { successCount failedCount } }
+mutation {
+  bulkResolveDisputes(
+    disputeIds: ["..."]
+    resolution: RESUELTA_COMPRADOR
+    justification: "..."
+  ) {
+    successCount
+    failedCount
+  }
+}
 ```
 
 ## Key Services
 
-| Service | File | Purpose |
-|---------|------|---------|
-| AuthService | `src/auth/auth.service.ts` | Registration, login, email verification |
-| RafflesService | `src/raffles/raffles.service.ts` | Core raffle CRUD, seller dashboard, buyer experience, price history |
-| PaymentsService | `src/payments/payments.service.ts` | MP Checkout Pro, webhooks, payment sync |
-| MpConnectService | `src/payments/mp-connect.service.ts` | OAuth flow with PKCE for seller onboarding |
-| NotificationsService | `src/notifications/notifications.service.ts` | Email (Brevo) + in-app notifications + verification emails |
-| ActivityService | `src/activity/activity.service.ts` | Audit logging for all actions |
-| AdminService | `src/admin/admin.service.ts` | Admin-only operations |
-| DisputesService | `src/disputes/disputes.service.ts` | Buyer protection workflow |
+| Service              | File                                         | Purpose                                                             |
+| -------------------- | -------------------------------------------- | ------------------------------------------------------------------- |
+| AuthService          | `src/auth/auth.service.ts`                   | Registration, login, email verification                             |
+| RafflesService       | `src/raffles/raffles.service.ts`             | Core raffle CRUD, seller dashboard, buyer experience, price history |
+| PaymentsService      | `src/payments/payments.service.ts`           | MP Checkout Pro, webhooks, payment sync                             |
+| MpConnectService     | `src/payments/mp-connect.service.ts`         | OAuth flow with PKCE for seller onboarding                          |
+| NotificationsService | `src/notifications/notifications.service.ts` | Email (Brevo) + in-app notifications + verification emails          |
+| ActivityService      | `src/activity/activity.service.ts`           | Audit logging for all actions                                       |
+| AdminService         | `src/admin/admin.service.ts`                 | Admin-only operations                                               |
+| DisputesService      | `src/disputes/disputes.service.ts`           | Buyer protection workflow                                           |
+
 ## Database Schema
 
 The Prisma schema is at `prisma/schema.prisma`. Key models:
 
-| Model | Purpose |
-|-------|---------|
-| User | Users with roles, MP connection status, email verification |
-| Raffle | Raffles with state machine |
-| Ticket | Ticket purchases with payment status |
-| Product | Product details for raffles |
-| Transaction | Payment records |
-| Dispute | Buyer protection disputes |
-| Notification | In-app notifications |
-| ActivityLog | Audit trail |
-| Category | Raffle categories |
-| MpEvent | Webhook idempotency |
-| RaffleQuestion | Questions asked by users on raffles |
-| RaffleAnswer | Seller answers to questions |
-| EmailVerificationCode | 6-digit codes for email verification (15 min expiry) |
-| PriceHistory | Track price changes on raffles |
+| Model                 | Purpose                                                    |
+| --------------------- | ---------------------------------------------------------- |
+| User                  | Users with roles, MP connection status, email verification |
+| Raffle                | Raffles with state machine                                 |
+| Ticket                | Ticket purchases with payment status                       |
+| Product               | Product details for raffles                                |
+| Transaction           | Payment records                                            |
+| Dispute               | Buyer protection disputes                                  |
+| Notification          | In-app notifications                                       |
+| ActivityLog           | Audit trail                                                |
+| Category              | Raffle categories                                          |
+| MpEvent               | Webhook idempotency                                        |
+| RaffleQuestion        | Questions asked by users on raffles                        |
+| RaffleAnswer          | Seller answers to questions                                |
+| EmailVerificationCode | 6-digit codes for email verification (15 min expiry)       |
+| PriceHistory          | Track price changes on raffles                             |
 
 ## PII Encryption
 
 All personally identifiable information (KYC data) is encrypted at rest using AES-256-GCM:
 
 **Encrypted fields:**
+
 - Document number (DNI, Passport, etc)
 - CUIT/CUIL (tax ID)
 - Street address
@@ -538,12 +702,14 @@ All personally identifiable information (KYC data) is encrypted at rest using AE
 **Encryption Service:** `src/common/services/encryption.service.ts`
 
 **How it works:**
+
 1. When KYC data is submitted, all PII fields are encrypted before saving to database
 2. When admin reviews KYC, data is decrypted on-the-fly for display
 3. Data stored in DB is unreadable without the `ENCRYPTION_KEY`
 4. Encryption auto-disables if `ENCRYPTION_KEY` is not set (development only)
 
 **Important:**
+
 - Use same `ENCRYPTION_KEY` across all deployments
 - If key is lost, existing encrypted data cannot be recovered
 - Generate with: `openssl rand -hex 32`
@@ -559,29 +725,29 @@ const preference = await this.mercadopago.preferences.create({
     // ...
     marketplace_fee: platformFee,
     money_release_days: 30, // Buyer protection
-  }
+  },
 });
 ```
 
 ## Environment Variables
 
-| Variable | Description |
-|----------|-------------|
-| `DATABASE_URL` | PostgreSQL connection string |
-| `JWT_SECRET` | Secret for JWT tokens (min 32 chars) |
-| `PLATFORM_FEE_PERCENT` | Luk platform fee percentage applied to ticket sales |
-| `MP_ACCESS_TOKEN` | Mercado Pago access token |
-| `MP_CLIENT_ID` | MP OAuth Client ID (for MP Connect) |
-| `MP_CLIENT_SECRET` | MP OAuth Client Secret |
-| `BREVO_API_KEY` | Brevo email API key (must be REST API key `xkeysib-...`, not SMTP key) |
-| `CLOUDINARY_*` | Cloudinary credentials |
-| `FRONTEND_URL` | Frontend URL for redirects |
-| `BACKEND_URL` | Backend URL for webhooks |
-| `TURNSTILE_ENABLED` | Enables Cloudflare Turnstile validation for email/password login and register |
-| `TURNSTILE_SECRET_KEY` | Cloudflare Turnstile secret key (backend only) |
-| `SENTRY_DSN` | Backend/worker Sentry DSN (optional) |
-| `SENTRY_RELEASE` | Backend/worker release identifier (optional, recommended in prod/staging) |
-| `ENCRYPTION_KEY` | **64 hex chars** - Encrypts PII: KYC data (DNI, CUIT, addresses, phone) + MP tokens using AES-256-GCM. Generate with: `openssl rand -hex 32` |
+| Variable               | Description                                                                                                                                  |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`         | PostgreSQL connection string                                                                                                                 |
+| `JWT_SECRET`           | Secret for JWT tokens (min 32 chars)                                                                                                         |
+| `PLATFORM_FEE_PERCENT` | Luk platform fee percentage applied to ticket sales                                                                                          |
+| `MP_ACCESS_TOKEN`      | Mercado Pago access token                                                                                                                    |
+| `MP_CLIENT_ID`         | MP OAuth Client ID (for MP Connect)                                                                                                          |
+| `MP_CLIENT_SECRET`     | MP OAuth Client Secret                                                                                                                       |
+| `BREVO_API_KEY`        | Brevo email API key (must be REST API key `xkeysib-...`, not SMTP key)                                                                       |
+| `CLOUDINARY_*`         | Cloudinary credentials                                                                                                                       |
+| `FRONTEND_URL`         | Frontend URL for redirects                                                                                                                   |
+| `BACKEND_URL`          | Backend URL for webhooks                                                                                                                     |
+| `TURNSTILE_ENABLED`    | Enables Cloudflare Turnstile validation for email/password login and register                                                                |
+| `TURNSTILE_SECRET_KEY` | Cloudflare Turnstile secret key (backend only)                                                                                               |
+| `SENTRY_DSN`           | Backend/worker Sentry DSN (optional)                                                                                                         |
+| `SENTRY_RELEASE`       | Backend/worker release identifier (optional, recommended in prod/staging)                                                                    |
+| `ENCRYPTION_KEY`       | **64 hex chars** - Encrypts PII: KYC data (DNI, CUIT, addresses, phone) + MP tokens using AES-256-GCM. Generate with: `openssl rand -hex 32` |
 
 ## Troubleshooting
 
@@ -597,7 +763,9 @@ npx prisma db push --force-reset
 ```
 
 ### Google OAuth 401 invalid_client
+
 This error means OAuth credentials are misconfigured in Google Cloud Console:
+
 1. Verify redirect URI matches `GOOGLE_CALLBACK_URL` exactly (including http vs https)
 2. Ensure Client ID and Secret are correct
 3. If app is in "Testing" mode, add your email as a Test user

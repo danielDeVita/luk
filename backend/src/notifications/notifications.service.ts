@@ -37,6 +37,7 @@ import {
   getRaffleParticipantNotificationContent,
   getRefundDueToDisputeNotificationContent,
   getRefundNotificationContent,
+  getSellerReviewReceivedContent,
   getTwoFactorDisabledContent,
   getTwoFactorEnabledContent,
   getTwoFactorRecoveryCodeUsedContent,
@@ -675,6 +676,25 @@ export class NotificationsService {
     return this.sendEmail({
       to: email,
       subject: `✅ Tu pregunta en "${data.raffleName}" fue respondida`,
+      html,
+    });
+  }
+
+  async sendSellerReviewReceivedNotification(
+    email: string,
+    data: {
+      sellerName: string;
+      sellerId: string;
+      reviewerName: string;
+      raffleName: string;
+      rating: number;
+      comentario?: string | null;
+    },
+  ) {
+    const html = getSellerReviewReceivedContent(data, this.configService);
+    return this.sendEmail({
+      to: email,
+      subject: `Nueva reseña recibida - ${data.raffleName}`,
       html,
     });
   }

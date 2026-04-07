@@ -843,6 +843,19 @@ export class PaymentsService {
       `Updated ${updatedTickets.count} tickets to PAGADO for raffle ${raffleId}`,
     );
 
+    if (updatedTickets.count > 0) {
+      await this.prisma.userReputation.upsert({
+        where: { userId: buyerId },
+        create: {
+          userId: buyerId,
+          totalTicketsComprados: updatedTickets.count,
+        },
+        update: {
+          totalTicketsComprados: { increment: updatedTickets.count },
+        },
+      });
+    }
+
     // Create transaction record
     const existingTx = await this.prisma.transaction.findFirst({
       where: {

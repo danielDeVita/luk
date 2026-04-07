@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogFooter,
@@ -37,6 +38,7 @@ import {
   UserX,
   UserCheck,
   History,
+  Star,
 } from 'lucide-react';
 import { SocialPromotionAnalytics } from '@/components/admin/social-promotion-analytics';
 import { SocialPromotionReview } from '@/components/admin/social-promotion-review';
@@ -105,6 +107,32 @@ const GET_ADMIN_USERS = gql`
         rafflesCreated
         ticketsPurchased
         rafflesWon
+        totalTicketsComprados
+        totalRifasGanadas
+        totalComprasCompletadas
+        disputasComoCompradorAbiertas
+        buyerRiskFlags
+      }
+      total
+    }
+  }
+`;
+
+const GET_ADMIN_REVIEWS = gql`
+  query GetAdminReviews($includeHidden: Boolean, $limit: Int) {
+    adminReviews(includeHidden: $includeHidden, limit: $limit) {
+      reviews {
+        id
+        rating
+        comentario
+        createdAt
+        reviewerName
+        reviewerEmail
+        sellerName
+        sellerEmail
+        raffleTitle
+        commentHidden
+        commentHiddenReason
       }
       total
     }
@@ -151,6 +179,16 @@ const UNBAN_USER = gql`
     unbanUser(userId: $userId, reason: $reason) {
       id
       role
+    }
+  }
+`;
+
+const HIDE_REVIEW_COMMENT = gql`
+  mutation HideReviewComment($reviewId: String!, $reason: String!) {
+    hideReviewComment(reviewId: $reviewId, reason: $reason) {
+      id
+      commentHidden
+      commentHiddenReason
     }
   }
 `;
@@ -218,6 +256,25 @@ interface AdminUser {
   rafflesCreated: number;
   ticketsPurchased: number;
   rafflesWon: number;
+  totalTicketsComprados: number;
+  totalRifasGanadas: number;
+  totalComprasCompletadas: number;
+  disputasComoCompradorAbiertas: number;
+  buyerRiskFlags: string[];
+}
+
+interface AdminReview {
+  id: string;
+  rating: number;
+  comentario?: string | null;
+  createdAt: string;
+  reviewerName: string;
+  reviewerEmail: string;
+  sellerName: string;
+  sellerEmail: string;
+  raffleTitle: string;
+  commentHidden: boolean;
+  commentHiddenReason?: string | null;
 }
 
 interface KycSubmission {
@@ -309,6 +366,13 @@ interface UserActivityData {
   adminUserActivity: UserActivity[];
 }
 
+interface AdminReviewsData {
+  adminReviews: {
+    reviews: AdminReview[];
+    total: number;
+  };
+}
+
 function formatCompact(n: number | undefined | null, prefix = ''): string {
   if (n == null) return `${prefix}0`;
   if (n >= 1_000_000) return `${prefix}${(n / 1_000_000).toFixed(1)}M`;
@@ -338,6 +402,9 @@ export default function AdminPage() {
   const [activityDialogOpen, setActivityDialogOpen] = useState(false);
   const [banDialogOpen, setBanDialogOpen] = useState(false);
   const [banReason, setBanReason] = useState('');
+  const [selectedReview, setSelectedReview] = useState<AdminReview | null>(null);
+  const [hideReviewDialogOpen, setHideReviewDialogOpen] = useState(false);
+  const [hideReviewReason, setHideReviewReason] = useState('');
 
   // KYC state
   const [selectedKyc, setSelectedKyc] = useState<KycSubmission | null>(null);
@@ -387,6 +454,11 @@ export default function AdminPage() {
     },
   });
 
+  const { data: reviewsData, loading: reviewsLoading, refetch: refetchReviews } = useQuery<AdminReviewsData>(GET_ADMIN_REVIEWS, {
+    skip: !hasHydrated || !isAuthenticated || user?.role !== 'ADMIN',
+    variables: { includeHidden: true, limit: 50 },
+  });
+
   const { data: kycData, loading: kycLoading, refetch: refetchKyc } = useQuery<KycPendingData>(GET_PENDING_KYC, {
     skip: !hasHydrated || !isAuthenticated || user?.role !== 'ADMIN',
     variables: { limit: 50 },
@@ -427,6 +499,17 @@ export default function AdminPage() {
     onCompleted: () => {
       toast.success('Usuario desbaneado correctamente');
       refetchUsers();
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  const [hideReviewComment, { loading: hidingReview }] = useMutation(HIDE_REVIEW_COMMENT, {
+    onCompleted: () => {
+      toast.success('Comentario ocultado');
+      setHideReviewDialogOpen(false);
+      setSelectedReview(null);
+      setHideReviewReason('');
+      refetchReviews();
     },
     onError: (err) => toast.error(err.message),
   });
@@ -506,6 +589,22 @@ export default function AdminPage() {
   const handleBanUser = () => {
     if (!selectedUser || !banReason.trim()) return;
     banUser({ variables: { userId: selectedUser.id, reason: banReason } });
+  };
+
+  const handleHideReviewClick = (review: AdminReview) => {
+    setSelectedReview(review);
+    setHideReviewReason('');
+    setHideReviewDialogOpen(true);
+  };
+
+  const handleHideReviewConfirm = () => {
+    if (!selectedReview || !hideReviewReason.trim()) return;
+    hideReviewComment({
+      variables: {
+        reviewId: selectedReview.id,
+        reason: hideReviewReason.trim(),
+      },
+    });
   };
 
   const handleUnbanUser = async (u: AdminUser) => {
@@ -592,6 +691,8 @@ export default function AdminPage() {
 
   const hiddenRaffles = raffles.filter((r) => r.isHidden);
   const activities: UserActivity[] = activityData?.adminUserActivity || [];
+  const reviews: AdminReview[] = reviewsData?.adminReviews?.reviews || [];
+  const totalReviews = reviewsData?.adminReviews?.total || 0;
 
   return (
     <div className="container mx-auto px-4 py-10">
@@ -732,6 +833,7 @@ export default function AdminPage() {
           <TabsTrigger value="reports">Reportes ({reports.length})</TabsTrigger>
           <TabsTrigger value="disputes">Disputas ({statsData?.adminStats?.pendingDisputes || 0})</TabsTrigger>
           <TabsTrigger value="users">Usuarios ({totalUsers})</TabsTrigger>
+          <TabsTrigger value="reviews">Reseñas ({totalReviews})</TabsTrigger>
           <TabsTrigger value="social-promotions">Promoción Social</TabsTrigger>
         </TabsList>
 
@@ -996,8 +1098,17 @@ export default function AdminPage() {
                           <span className="text-muted-foreground">{u.nombre} {u.apellido}</span>
                         </div>
                         <div className="text-xs text-muted-foreground">
-                          Rifas: {u.rafflesCreated} | Tickets: {u.ticketsPurchased} | Ganadas: {u.rafflesWon}
+                          Rifas: {u.rafflesCreated} | Tickets: {u.totalTicketsComprados} | Ganadas: {u.totalRifasGanadas} | Disputas: {u.disputasComoCompradorAbiertas}
                         </div>
+                        {u.buyerRiskFlags.length > 0 && (
+                          <div className="flex flex-wrap gap-1">
+                            {u.buyerRiskFlags.map((flag) => (
+                              <span key={flag} className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] text-amber-700">
+                                {flag}
+                              </span>
+                            ))}
+                          </div>
+                        )}
                         <div className="flex gap-2 pt-2">
                           <Button size="sm" variant="outline" onClick={() => handleViewActivity(u)}>
                             <History className="h-3 w-3 mr-1" />
@@ -1028,7 +1139,7 @@ export default function AdminPage() {
                           <th className="text-left p-2">Nombre</th>
                           <th className="text-left p-2">Rol</th>
                           <th className="text-left p-2">MP</th>
-                          <th className="text-left p-2">Stats</th>
+                          <th className="text-left p-2">Comprador</th>
                           <th className="text-left p-2">Registro</th>
                           <th className="text-left p-2">Acciones</th>
                         </tr>
@@ -1059,7 +1170,18 @@ export default function AdminPage() {
                               </span>
                             </td>
                             <td className="p-2 text-xs text-muted-foreground">
-                              R:{u.rafflesCreated} T:{u.ticketsPurchased} W:{u.rafflesWon}
+                              <div>
+                                T:{u.totalTicketsComprados} W:{u.totalRifasGanadas} C:{u.totalComprasCompletadas} D:{u.disputasComoCompradorAbiertas}
+                              </div>
+                              {u.buyerRiskFlags.length > 0 && (
+                                <div className="mt-1 flex flex-wrap gap-1">
+                                  {u.buyerRiskFlags.map((flag) => (
+                                    <span key={flag} className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] text-amber-700">
+                                      {flag}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
                             </td>
                             <td className="p-2 text-muted-foreground">
                               {new Date(u.createdAt).toLocaleDateString()}
@@ -1090,6 +1212,72 @@ export default function AdminPage() {
                     Mostrando {users.length} de {totalUsers} usuarios
                   </p>
                 </>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="reviews">
+          <Card>
+            <CardHeader>
+              <CardTitle>Moderación de reseñas</CardTitle>
+              <CardDescription>
+                Revisá comentarios públicos sin modificar el rating que impacta la reputación.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {reviewsLoading ? (
+                <div className="flex justify-center py-8">
+                  <Loader2 className="h-8 w-8 animate-spin" />
+                </div>
+              ) : reviews.length === 0 ? (
+                <p className="text-center text-muted-foreground py-8">
+                  No hay reseñas para mostrar.
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  {reviews.map((review) => (
+                    <div key={review.id} className="rounded-2xl border p-4">
+                      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                        <div className="space-y-2">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="font-medium">{review.raffleTitle}</span>
+                            <span className="flex items-center gap-1 text-amber-500 text-sm">
+                              <Star className="h-4 w-4 fill-current" />
+                              {review.rating}/5
+                            </span>
+                            {review.commentHidden && (
+                              <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+                                Comentario oculto
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-sm text-muted-foreground">
+                            Comprador: {review.reviewerName} ({review.reviewerEmail}) · Vendedor: {review.sellerName} ({review.sellerEmail})
+                          </p>
+                          <p className="text-sm">
+                            {review.commentHidden
+                              ? `Motivo: ${review.commentHiddenReason || 'Sin motivo registrado'}`
+                              : review.comentario || 'Sin comentario escrito.'}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {new Date(review.createdAt).toLocaleString('es-AR')}
+                          </p>
+                        </div>
+                        {!review.commentHidden && review.comentario && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleHideReviewClick(review)}
+                          >
+                            <EyeOff className="h-4 w-4 mr-2" />
+                            Ocultar comentario
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
               )}
             </CardContent>
           </Card>
@@ -1160,6 +1348,40 @@ export default function AdminPage() {
               )}
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Review Moderation Dialog */}
+      <Dialog open={hideReviewDialogOpen} onOpenChange={setHideReviewDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Ocultar comentario de reseña</DialogTitle>
+            <DialogDescription>
+              Sólo se oculta el texto público; el rating se mantiene en la reputación.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <p className="text-sm text-muted-foreground">
+              El rating de {selectedReview?.rating}/5 se mantiene para la reputación. Sólo se oculta el texto público.
+            </p>
+            <Input
+              placeholder="Motivo de moderación..."
+              value={hideReviewReason}
+              onChange={(event) => setHideReviewReason(event.target.value)}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setHideReviewDialogOpen(false)}>
+              Cancelar
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleHideReviewConfirm}
+              disabled={hidingReview || !hideReviewReason.trim()}
+            >
+              {hidingReview ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Ocultar comentario'}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

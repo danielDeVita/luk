@@ -6,6 +6,25 @@ input AcceptTermsInput {
   termsVersion: String!
 }
 
+type AdminReviewList {
+  reviews: [AdminSellerReview!]!
+  total: Int!
+}
+
+type AdminSellerReview {
+  comentario: String
+  commentHidden: Boolean!
+  commentHiddenReason: String
+  createdAt: DateTime!
+  id: ID!
+  raffleTitle: String!
+  rating: Int!
+  reviewerEmail: String!
+  reviewerName: String!
+  sellerEmail: String!
+  sellerName: String!
+}
+
 type AdminStats {
   activeRaffles: Int!
   completedRaffles: Int!
@@ -50,7 +69,9 @@ type AdminTransactionUser {
 
 type AdminUser {
   apellido: String!
+  buyerRiskFlags: [String!]!
   createdAt: DateTime!
+  disputasComoCompradorAbiertas: Int!
   email: String!
   id: ID!
   isDeleted: Boolean!
@@ -61,6 +82,9 @@ type AdminUser {
   rafflesWon: Int!
   role: UserRole!
   ticketsPurchased: Int!
+  totalComprasCompletadas: Int!
+  totalRifasGanadas: Int!
+  totalTicketsComprados: Int!
 }
 
 type AdminUserList {
@@ -201,6 +225,12 @@ input CreateRaffleInput {
   productData: ProductInput!
   titulo: String!
   totalTickets: Int!
+}
+
+input CreateSellerReviewInput {
+  comentario: String
+  raffleId: String!
+  rating: Int!
 }
 
 input CreateShippingAddressInput {
@@ -418,6 +448,7 @@ type Mutation {
   confirmDelivery(raffleId: String!): Raffle!
   createCategory(input: CreateCategoryInput!): Category!
   createRaffle(input: CreateRaffleInput!): Raffle!
+  createSellerReview(input: CreateSellerReviewInput!): PublicSellerReview!
   createShippingAddress(input: CreateShippingAddressInput!): ShippingAddress!
   deleteAvatar: User!
   deleteCategory(id: String!): Boolean!
@@ -426,6 +457,9 @@ type Mutation {
   disableTwoFactor(code: String, currentPassword: String!, recoveryCode: String): Boolean!
   enableTwoFactor(code: String!, setupToken: String!): EnableTwoFactorPayload!
   extendRaffleDeadline(newDeadline: String!, raffleId: String!): Raffle!
+
+  """Hide a seller review comment while keeping its rating"""
+  hideReviewComment(reason: String!, reviewId: String!): AdminSellerReview!
   incrementRaffleViews(raffleId: String!): Boolean!
   login(input: LoginInput!): LoginPayload!
   markAllNotificationsRead: Boolean!
@@ -649,10 +683,24 @@ type PublicSellerProfile {
   nombre: String!
   raffles: [Raffle]!
   reputation: Float
+  reviewCount: Int!
+  reviews: [PublicSellerReview!]!
   totalVentas: Int!
 }
 
+type PublicSellerReview {
+  comentario: String
+  createdAt: DateTime!
+  id: ID!
+  raffleTitle: String!
+  rating: Int!
+  reviewerName: String!
+}
+
 type Query {
+  """List seller reviews for moderation"""
+  adminReviews(includeHidden: Boolean, limit: Int, offset: Int): AdminReviewList!
+
   """Get admin dashboard statistics"""
   adminStats: AdminStats!
 
@@ -736,6 +784,7 @@ type Raffle {
   precioPorTicket: Float!
   precioTotal: Float!
   product: Product
+  review: RaffleReviewStatus
   seller: User
   sellerId: String!
   shippedAt: DateTime
@@ -784,6 +833,10 @@ type RaffleQuestion {
   createdAt: DateTime!
   id: ID!
   raffleId: String!
+}
+
+type RaffleReviewStatus {
+  id: ID!
 }
 
 enum RaffleSort {

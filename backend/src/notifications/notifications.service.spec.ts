@@ -507,6 +507,70 @@ describe('NotificationsService', () => {
       });
     });
 
+    describe('sendSellerReviewReceivedNotification', () => {
+      it('should send seller review notification with rating and comment', async () => {
+        const sendEmailSpy = getSendEmailSpy().mockResolvedValue(true);
+
+        const result = await service.sendSellerReviewReceivedNotification(
+          'seller@example.com',
+          {
+            sellerName: 'Seller Pro',
+            sellerId: 'seller-1',
+            reviewerName: 'Buyer Winner',
+            raffleName: 'MacBook QA',
+            rating: 5,
+            comentario: 'Excelente entrega',
+          },
+        );
+
+        expect(result).toBe(true);
+        expect(sendEmailSpy).toHaveBeenCalledWith(
+          expect.objectContaining({
+            to: 'seller@example.com',
+            subject: 'Nueva reseña recibida - MacBook QA',
+            html: expect.stringContaining('Recibiste una nueva reseña'),
+          }),
+        );
+        expect(sendEmailSpy).toHaveBeenCalledWith(
+          expect.objectContaining({
+            html: expect.stringContaining('Excelente entrega'),
+          }),
+        );
+        expect(sendEmailSpy).toHaveBeenCalledWith(
+          expect.objectContaining({
+            html: expect.stringContaining('/seller/seller-1'),
+          }),
+        );
+      });
+
+      it('should escape user-generated review comments in email HTML', async () => {
+        const sendEmailSpy = getSendEmailSpy().mockResolvedValue(true);
+
+        await service.sendSellerReviewReceivedNotification(
+          'seller@example.com',
+          {
+            sellerName: 'Seller Pro',
+            sellerId: 'seller-1',
+            reviewerName: 'Buyer Winner',
+            raffleName: 'MacBook QA',
+            rating: 5,
+            comentario: '<b>bad</b>',
+          },
+        );
+
+        expect(sendEmailSpy).toHaveBeenCalledWith(
+          expect.objectContaining({
+            html: expect.stringContaining('&lt;b&gt;bad&lt;/b&gt;'),
+          }),
+        );
+        expect(sendEmailSpy).toHaveBeenCalledWith(
+          expect.objectContaining({
+            html: expect.not.stringContaining('"<b>bad</b>"'),
+          }),
+        );
+      });
+    });
+
     describe('sendSellerTicketPurchasedNotification', () => {
       it('should render pack details for seller notifications when LUK subsidizes bonus tickets', async () => {
         const sendEmailSpy = getSendEmailSpy().mockResolvedValue(true);

@@ -544,6 +544,10 @@ model Review {
   sellerId    String   @map("seller_id")
   rating      Int      @db.SmallInt
   comentario  String?  @db.Text
+  commentHidden       Boolean   @default(false) @map("comment_hidden")
+  commentHiddenReason String?   @map("comment_hidden_reason") @db.Text
+  commentHiddenAt     DateTime? @map("comment_hidden_at")
+  commentHiddenById   String?   @map("comment_hidden_by_id")
   createdAt   DateTime @default(now()) @map("created_at")
 
   // Relations

@@ -7,6 +7,9 @@ type MockPrismaService = {
   raffle: {
     count: jest.Mock;
   };
+  ticket: {
+    count: jest.Mock;
+  };
   review: {
     findMany: jest.Mock;
   };
@@ -25,6 +28,9 @@ describe('ReputationService', () => {
 
   const mockPrismaService = (): MockPrismaService => ({
     raffle: {
+      count: jest.fn(),
+    },
+    ticket: {
       count: jest.fn(),
     },
     review: {
@@ -208,7 +214,8 @@ describe('ReputationService', () => {
 
   describe('recalculateBuyerReputation', () => {
     it('should calculate buyer reputation with completed purchases', async () => {
-      prisma.raffle.count.mockResolvedValue(5);
+      prisma.raffle.count.mockResolvedValueOnce(5).mockResolvedValueOnce(2);
+      prisma.ticket.count.mockResolvedValue(25);
       prisma.dispute.count.mockResolvedValue(1);
       prisma.userReputation.upsert.mockResolvedValue({});
 
@@ -219,10 +226,14 @@ describe('ReputationService', () => {
         create: {
           userId: 'buyer-1',
           totalComprasCompletadas: 5,
+          totalRifasGanadas: 2,
+          totalTicketsComprados: 25,
           disputasComoCompradorAbiertas: 1,
         },
         update: {
           totalComprasCompletadas: 5,
+          totalRifasGanadas: 2,
+          totalTicketsComprados: 25,
           disputasComoCompradorAbiertas: 1,
         },
       });
@@ -230,6 +241,7 @@ describe('ReputationService', () => {
 
     it('should handle buyer with no purchases', async () => {
       prisma.raffle.count.mockResolvedValue(0);
+      prisma.ticket.count.mockResolvedValue(0);
       prisma.dispute.count.mockResolvedValue(0);
       prisma.userReputation.upsert.mockResolvedValue({});
 
@@ -239,6 +251,8 @@ describe('ReputationService', () => {
         expect.objectContaining({
           create: expect.objectContaining({
             totalComprasCompletadas: 0,
+            totalRifasGanadas: 0,
+            totalTicketsComprados: 0,
             disputasComoCompradorAbiertas: 0,
           }),
         }),

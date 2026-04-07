@@ -52,6 +52,9 @@ describe('PaymentsService', () => {
     user: {
       findUnique: jest.fn(),
     },
+    userReputation: {
+      upsert: jest.fn(),
+    },
   };
 
   const mockConfigService = {
@@ -130,6 +133,7 @@ describe('PaymentsService', () => {
     mockPrismaService.user.findUnique.mockResolvedValue(null);
     mockPrismaService.transaction.findFirst.mockResolvedValue(null);
     mockEncryptionService.decryptUserPII.mockImplementation((value) => value);
+    mockPrismaService.userReputation.upsert.mockResolvedValue({});
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [

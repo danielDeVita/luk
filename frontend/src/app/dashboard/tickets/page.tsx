@@ -6,6 +6,7 @@ import { useAuthStore } from '@/store/auth';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import {
   Ticket,
   Loader2,
@@ -50,6 +51,9 @@ const MY_TICKETS = gql`
         paymentReleasedAt
         winnerId
         fechaLimiteSorteo
+        review {
+          id
+        }
         product {
           imagenes
         }
@@ -112,6 +116,16 @@ const CONFIRM_DELIVERY = gql`
   }
 `;
 
+const CREATE_SELLER_REVIEW = gql`
+  mutation CreateSellerReview($input: CreateSellerReviewInput!) {
+    createSellerReview(input: $input) {
+      id
+      rating
+      comentario
+    }
+  }
+`;
+
 interface TicketData {
   id: string;
   numeroTicket: number;
@@ -127,6 +141,7 @@ interface TicketData {
     paymentReleasedAt?: string;
     winnerId?: string;
     fechaLimiteSorteo: string;
+    review?: { id: string } | null;
     product?: { imagenes?: string[] };
   };
 }
@@ -182,6 +197,9 @@ export default function MyTicketsPage() {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [showFilters, setShowFilters] = useState(false);
+  const [reviewingRaffleId, setReviewingRaffleId] = useState<string | null>(null);
+  const [reviewRating, setReviewRating] = useState(5);
+  const [reviewComment, setReviewComment] = useState('');
 
   const { data, loading, refetch } = useQuery<MyTicketsResult>(MY_TICKETS, {
     skip: !isAuthenticated,
@@ -204,6 +222,19 @@ export default function MyTicketsPage() {
   const [confirmDelivery, { loading: confirming }] = useMutation(CONFIRM_DELIVERY, {
     onCompleted: () => {
       toast.success('Entrega confirmada y pago liberado al vendedor');
+      refetch();
+    },
+    onError: (err) => {
+      toast.error(err.message);
+    },
+  });
+
+  const [createSellerReview, { loading: creatingReview }] = useMutation(CREATE_SELLER_REVIEW, {
+    onCompleted: () => {
+      toast.success('Reseña enviada. Gracias por compartir tu experiencia.');
+      setReviewingRaffleId(null);
+      setReviewRating(5);
+      setReviewComment('');
       refetch();
     },
     onError: (err) => {
@@ -259,6 +290,18 @@ export default function MyTicketsPage() {
     if (confirmed) {
       confirmDelivery({ variables: { raffleId } });
     }
+  };
+
+  const handleSubmitReview = (raffleId: string) => {
+    createSellerReview({
+      variables: {
+        input: {
+          raffleId,
+          rating: reviewRating,
+          comentario: reviewComment.trim() || undefined,
+        },
+      },
+    });
   };
 
   if (!hasHydrated || !isAuthenticated) return null;
@@ -613,6 +656,10 @@ export default function MyTicketsPage() {
         <div className="space-y-6">
           {Object.values(groupedTickets).map((group) => {
             const isWinner = group.raffle.winnerId === user?.id;
+            const canReviewSeller =
+              isWinner &&
+              group.raffle.deliveryStatus === 'CONFIRMED' &&
+              !group.raffle.review;
 
             return (
               <Card key={group.raffle.id} className={isWinner ? 'border-yellow-500 border-2' : ''}>
@@ -696,9 +743,94 @@ export default function MyTicketsPage() {
                         En Disputa
                       </Button>
                     )}
+
+                    {canReviewSeller && (
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        className="w-full"
+                        onClick={() => setReviewingRaffleId(group.raffle.id)}
+                      >
+                        <Star className="w-4 h-4 mr-2" />
+                        Dejar reseña
+                      </Button>
+                    )}
+
+                    {isWinner && group.raffle.review && (
+                      <Button variant="outline" size="sm" disabled className="w-full opacity-100">
+                        <Star className="w-4 h-4 mr-2" />
+                        Reseña enviada
+                      </Button>
+                    )}
                   </div>
                 </CardHeader>
                 <CardContent>
+                  {reviewingRaffleId === group.raffle.id && (
+                    <div className="mb-6 rounded-2xl border bg-amber-500/5 p-4">
+                      <div className="flex items-center justify-between gap-4 mb-4">
+                        <div>
+                          <h3 className="font-semibold">Reseñá al vendedor</h3>
+                          <p className="text-sm text-muted-foreground">
+                            Tu reseña ayuda a otros compradores a decidir con más confianza.
+                          </p>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setReviewingRaffleId(null)}
+                        >
+                          Cerrar
+                        </Button>
+                      </div>
+                      <div className="space-y-4">
+                        <div>
+                          <label className="text-sm font-medium">Puntaje</label>
+                          <div className="flex gap-2 mt-2">
+                            {Array.from({ length: 5 }).map((_, index) => {
+                              const ratingValue = index + 1;
+                              return (
+                                <button
+                                  key={ratingValue}
+                                  type="button"
+                                  aria-label={`${ratingValue} estrellas`}
+                                  className="text-amber-500"
+                                  onClick={() => setReviewRating(ratingValue)}
+                                >
+                                  <Star
+                                    className={`h-6 w-6 ${ratingValue <= reviewRating ? 'fill-current' : ''}`}
+                                  />
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                        <div>
+                          <label className="text-sm font-medium" htmlFor={`review-${group.raffle.id}`}>
+                            Comentario opcional
+                          </label>
+                          <Textarea
+                            id={`review-${group.raffle.id}`}
+                            value={reviewComment}
+                            onChange={(event) => setReviewComment(event.target.value)}
+                            maxLength={1000}
+                            placeholder="Contá cómo fue la entrega y la experiencia con el vendedor."
+                            className="mt-2"
+                          />
+                        </div>
+                        <Button
+                          onClick={() => handleSubmitReview(group.raffle.id)}
+                          disabled={creatingReview}
+                        >
+                          {creatingReview ? (
+                            <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                          ) : (
+                            <Star className="w-4 h-4 mr-2" />
+                          )}
+                          Enviar reseña
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                   <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2">
                     {group.tickets.map((ticket) => (
                       <div

@@ -954,6 +954,17 @@ export class RafflesService {
       },
     });
 
+    await this.prisma.userReputation.upsert({
+      where: { userId },
+      create: {
+        userId,
+        totalComprasCompletadas: 1,
+      },
+      update: {
+        totalComprasCompletadas: { increment: 1 },
+      },
+    });
+
     // 3. Update Raffle Status
     const updatedRaffle = await this.prisma.raffle.update({
       where: { id: raffleId },
@@ -1164,6 +1175,17 @@ export class RafflesService {
         fechaSorteoReal: new Date(),
       },
       include: { product: true, seller: true, winner: true },
+    });
+
+    await this.prisma.userReputation.upsert({
+      where: { userId: winningTicket.buyerId },
+      create: {
+        userId: winningTicket.buyerId,
+        totalRifasGanadas: 1,
+      },
+      update: {
+        totalRifasGanadas: { increment: 1 },
+      },
     });
 
     // Emit raffle drawn event for cross-cutting concerns

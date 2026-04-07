@@ -1,4 +1,4 @@
-import { InputType, Field } from '@nestjs/graphql';
+import { InputType, Field, Int } from '@nestjs/graphql';
 import {
   IsOptional,
   IsString,
@@ -7,6 +7,9 @@ import {
   IsEnum,
   MaxLength,
   IsNotEmpty,
+  IsInt,
+  Min,
+  Max,
 } from 'class-validator';
 import { DocumentType } from '../../common/enums';
 
@@ -126,4 +129,24 @@ export class UpdateAvatarInput {
   @IsString()
   @IsNotEmpty({ message: 'La URL del avatar es requerida' })
   avatarUrl!: string;
+}
+
+@InputType()
+export class CreateSellerReviewInput {
+  @Field()
+  @IsString()
+  @IsNotEmpty()
+  raffleId!: string;
+
+  @Field(() => Int)
+  @IsInt()
+  @Min(1)
+  @Max(5)
+  rating!: number;
+
+  @Field({ nullable: true })
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
+  comentario?: string;
 }

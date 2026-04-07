@@ -54,12 +54,12 @@ npm run dev
 | `/auth/login` | Login (email + Google) with inline email verification and 2FA continuation | Public |
 | `/auth/register` | Registration with email verification (two-step flow) | Public |
 | `/dashboard/create` | Create new raffle | User |
-| `/dashboard/tickets` | Buyer dashboard (stats, recommendations, favorites ending soon, tickets) | User |
+| `/dashboard/tickets` | Buyer dashboard (stats, recommendations, favorites ending soon, tickets, seller review CTA for confirmed wins) | User |
 | `/dashboard/sales` | Seller dashboard (revenue chart, analytics, bulk actions, CSV export) | User |
 | `/dashboard/favorites` | Saved raffles wishlist (with price drop alerts) | User |
 | `/dashboard/settings` | Profile (Avatar), Payments (MP Connect), Security, and 2FA management | User |
-| `/seller/[id]` | Public seller profile | Public |
-| `/admin` | Admin panel (stats, raffles, reports, user management) | Admin |
+| `/seller/[id]` | Public seller profile with seller reputation and latest public reviews | Public |
+| `/admin` | Admin panel (stats, raffles, reports, user management, buyer risk flags, review moderation) | Admin |
 | `/admin/disputes` | Dispute management with bulk resolution | Admin |
 
 ## Environment
@@ -254,6 +254,13 @@ Enhanced buyer panel at `/dashboard/tickets`:
 - **Personalized Recommendations** - Based on purchase history and favorites
 - **Favorites Ending Soon** - Alert for favorited raffles ending within 48 hours
 - **Advanced Filtering** - Filter by ticket status, raffle status, date range, wins only
+- **Seller Review CTA** - Winners can review the seller after confirming delivery, one review per raffle
+
+### Seller Reputation and Admin-Only Buyer Signals
+- Public seller profiles show average rating, review count, and latest public reviews.
+- Reviews can only be created by the confirmed winner after delivery confirmation.
+- Admin can hide a review comment from public display while preserving the rating in seller reputation.
+- Buyer reputation signals stay admin-only in `/admin` as deterministic flags and metrics; they are not shown to sellers or public profiles.
 
 ### Profile Avatar
 Users can upload, update, and remove their profile avatar via `/dashboard/settings`.

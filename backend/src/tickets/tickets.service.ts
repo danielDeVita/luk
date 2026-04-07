@@ -372,7 +372,7 @@ export class TicketsService {
   async findByUser(userId: string) {
     return this.prisma.ticket.findMany({
       where: { buyerId: userId },
-      include: { raffle: { include: { product: true } } },
+      include: { raffle: { include: { product: true, review: true } } },
       orderBy: { createdAt: 'desc' },
     });
   }
