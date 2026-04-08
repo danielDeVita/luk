@@ -19,6 +19,17 @@ Current repo-shared settings:
 
 These are safe to version because they do not require project secrets in the repo config.
 
+## Tooling choices in this repo
+
+- Use `MCP_DOCKER` for browser-style validation when Docker Desktop is running.
+- Use the local `sentry` skill for Sentry read-only work. In practice this has been more reliable than the remote Sentry MCP for this repo setup.
+- Keep Sentry secrets out of the repo:
+  - do not store `SENTRY_AUTH_TOKEN` in `.env`, `backend/.env`, `frontend/.env.local`, or repo `.codex/config.toml`
+  - keep token-backed config in `~/.codex/config.toml` or user shell environment only
+- Current Sentry project slugs used in this repo:
+  - `luk-backend`
+  - `luk-frontend`
+
 ## Personal config
 
 Keep secret-backed or machine-specific MCP servers in `~/.codex/config.toml`.
@@ -27,6 +38,7 @@ Recommended examples:
 
 - `postgres` with a real connection string
 - any MCP server that needs API tokens, private headers, internal URLs, or local filesystem paths outside the repo
+- Sentry auth tokens and user-scoped Sentry defaults (`SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, `SENTRY_PROJECT`)
 
 Do not commit database URLs, bearer tokens, private headers, or local-only paths to `.codex/config.toml`.
 
@@ -49,13 +61,25 @@ In this repo:
 
 - use `context7` for library and framework documentation
 - use browser MCPs for real UI behavior, rendering, and browser debugging
+- prefer `MCP_DOCKER` for browser automation when available
 - use Postgres MCP before assuming schema or live data details
+- prefer the `sentry` skill for Sentry issue/event inspection
 - reserve `memory` and `sequential-thinking` for cases where they add clear value
+
+## Local requirements
+
+- `MCP_DOCKER` requires Docker Desktop to be running.
+- The `sentry` skill requires these user-level environment variables:
+  - `SENTRY_AUTH_TOKEN`
+  - `SENTRY_ORG`
+  - `SENTRY_PROJECT`
+- If you want to switch quickly between projects for the `sentry` skill, use project slugs, not numeric IDs.
 
 ## Verification
 
 Useful checks:
 
 - `codex mcp list`
+- `docker mcp gateway run --dry-run --verbose`
 
 `codex mcp list` shows the merged active servers, including personal ones from `~/.codex/config.toml`. Do not paste its raw output into tickets, PRs, or chat if any personal server embeds credentials in `args`.

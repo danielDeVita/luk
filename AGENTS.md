@@ -91,7 +91,9 @@ This file is the repo-wide source of truth for OpenAI/Codex-style agents working
 - Prefer MCP over guesswork when an enabled MCP server is authoritative for the question.
 - Use `context7` for library and framework documentation before relying on memory.
 - Use browser MCPs such as Chrome DevTools or Playwright when validating real frontend behavior, rendering, navigation, or browser-only failures.
+- Prefer `MCP_DOCKER` for browser automation in this repo when it is available and Docker Desktop is running.
 - Use Postgres MCP to inspect schema or live data shape before assuming database details, but keep connection secrets out of repo config.
+- Prefer the local `sentry` skill for Sentry issue and event inspection in this repo; keep Sentry secrets out of repo files.
 - Use `memory` only when persistent cross-task context is genuinely useful.
 - Use `sequential-thinking` only for complex planning, debugging, or multi-step reasoning, not for routine edits.
 - Repo-shared skills belong in `.agents/skills/`.
