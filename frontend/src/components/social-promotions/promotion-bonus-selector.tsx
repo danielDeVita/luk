@@ -29,7 +29,7 @@ const PREVIEW_PROMOTION_BONUS = gql`
       bonusGrantId
       grossSubtotal
       discountApplied
-      mpChargeAmount
+      chargedAmount
     }
   }
 `;
@@ -45,7 +45,7 @@ interface PromotionBonusPreview {
   bonusGrantId: string;
   grossSubtotal: number;
   discountApplied: number;
-  mpChargeAmount: number;
+  chargedAmount: number;
 }
 
 interface Props {

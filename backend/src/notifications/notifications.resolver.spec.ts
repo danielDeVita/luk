@@ -1,7 +1,11 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { NotificationsResolver } from './notifications.resolver';
 import { NotificationsService } from './notifications.service';
-import { UserRole, MpConnectStatus, KycStatus } from '@prisma/client';
+import {
+  UserRole,
+  SellerPaymentAccountStatus,
+  KycStatus,
+} from '@prisma/client';
 
 describe('NotificationsResolver', () => {
   let resolver: NotificationsResolver;
@@ -28,7 +32,7 @@ describe('NotificationsResolver', () => {
     emailVerified: true,
     twoFactorEnabled: false,
     twoFactorEnabledAt: null,
-    mpConnectStatus: MpConnectStatus.NOT_CONNECTED,
+    sellerPaymentAccountStatus: SellerPaymentAccountStatus.NOT_CONNECTED,
     kycStatus: KycStatus.NOT_SUBMITTED,
     createdAt: new Date(),
     updatedAt: new Date(),

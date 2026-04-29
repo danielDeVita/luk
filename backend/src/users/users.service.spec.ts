@@ -20,6 +20,10 @@ type MockPrismaService = {
     findMany: jest.Mock;
     update: jest.Mock;
   };
+  sellerPaymentAccount: {
+    upsert: jest.Mock;
+    deleteMany: jest.Mock;
+  };
   raffle: {
     count: jest.Mock;
     findUnique: jest.Mock;
@@ -39,6 +43,7 @@ type MockPrismaService = {
 type MockEncryptionService = {
   decryptUserPII: jest.Mock;
   encryptUserPII: jest.Mock;
+  encrypt: jest.Mock;
 };
 
 type MockNotificationsService = {
@@ -64,6 +69,10 @@ describe('UsersService', () => {
       findMany: jest.fn(),
       update: jest.fn(),
     },
+    sellerPaymentAccount: {
+      upsert: jest.fn(),
+      deleteMany: jest.fn(),
+    },
     raffle: {
       count: jest.fn(),
       findUnique: jest.fn(),
@@ -83,6 +92,7 @@ describe('UsersService', () => {
   const mockEncryptionService = (): MockEncryptionService => ({
     decryptUserPII: jest.fn(),
     encryptUserPII: jest.fn(),
+    encrypt: jest.fn((value: string) => `enc:${value}`),
   });
 
   const mockNotificationsService = (): MockNotificationsService => ({
@@ -198,9 +208,14 @@ describe('UsersService', () => {
 
       expect(prisma.user.findUnique).toHaveBeenCalledWith({
         where: { id: 'user-1' },
+        include: { sellerPaymentAccount: true },
       });
       expect(encryptionService.decryptUserPII).toHaveBeenCalledWith(mockUser);
-      expect(result).toEqual({ ...mockUser, ...decryptedPII });
+      expect(result).toEqual({
+        ...mockUser,
+        sellerPaymentAccount: null,
+        ...decryptedPII,
+      });
     });
 
     it('should throw NotFoundException if user not found', async () => {
@@ -509,6 +524,131 @@ describe('UsersService', () => {
       await expect(
         service.changePassword('invalid-id', 'oldPass', 'newPass'),
       ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('upsertSellerPaymentAccount', () => {
+    it('should create a CONNECTED seller payment account when readiness requirements are met', async () => {
+      prisma.user.findUnique.mockResolvedValue({
+        id: 'seller-1',
+        kycStatus: KycStatus.VERIFIED,
+        cuitCuil: '20-12345678-9',
+        defaultSenderAddressId: 'address-1',
+        shippingAddresses: [],
+      });
+      encryptionService.encrypt.mockReturnValue('encrypted-account-id');
+      prisma.sellerPaymentAccount.upsert.mockResolvedValue({
+        id: 'spa-1',
+        userId: 'seller-1',
+        status: 'CONNECTED',
+        accountHolderName: 'Juan Perez',
+        accountIdentifierType: 'CBU',
+        accountIdentifierEncrypted: 'encrypted-account-id',
+      });
+      prisma.user.update.mockResolvedValue({
+        id: 'seller-1',
+        sellerPaymentAccountStatus: 'CONNECTED',
+        sellerPaymentAccountId: null,
+      });
+
+      const result = await service.upsertSellerPaymentAccount('seller-1', {
+        accountHolderName: 'Juan Perez',
+        accountIdentifierType: 'CBU',
+        accountIdentifier: '2850590940090418135201',
+      });
+
+      expect(encryptionService.encrypt).toHaveBeenCalledWith(
+        '2850590940090418135201',
+      );
+      expect(prisma.sellerPaymentAccount.upsert).toHaveBeenCalledWith({
+        where: { userId: 'seller-1' },
+        create: expect.objectContaining({
+          userId: 'seller-1',
+          status: 'CONNECTED',
+          accountHolderName: 'Juan Perez',
+          accountIdentifierType: 'CBU',
+          accountIdentifierEncrypted: 'encrypted-account-id',
+        }),
+        update: expect.objectContaining({
+          status: 'CONNECTED',
+          accountHolderName: 'Juan Perez',
+          accountIdentifierType: 'CBU',
+          accountIdentifierEncrypted: 'encrypted-account-id',
+        }),
+      });
+      expect(prisma.user.update).toHaveBeenCalledWith({
+        where: { id: 'seller-1' },
+        data: {
+          sellerPaymentAccountStatus: 'CONNECTED',
+          sellerPaymentAccountId: 'spa-1',
+        },
+        include: { sellerPaymentAccount: true },
+      });
+      expect(result.sellerPaymentAccountStatus).toBe('CONNECTED');
+    });
+
+    it('should keep seller payment account in PENDING when readiness requirements are missing', async () => {
+      prisma.user.findUnique.mockResolvedValue({
+        id: 'seller-1',
+        kycStatus: KycStatus.PENDING_REVIEW,
+        cuitCuil: null,
+        defaultSenderAddressId: null,
+        shippingAddresses: [],
+      });
+      encryptionService.encrypt.mockReturnValue('encrypted-alias');
+      prisma.sellerPaymentAccount.upsert.mockResolvedValue({
+        id: 'spa-1',
+        userId: 'seller-1',
+        status: 'PENDING',
+      });
+      prisma.user.update.mockResolvedValue({
+        id: 'seller-1',
+        sellerPaymentAccountStatus: 'PENDING',
+        sellerPaymentAccountId: null,
+      });
+
+      const result = await service.upsertSellerPaymentAccount('seller-1', {
+        accountHolderName: 'Juan Perez',
+        accountIdentifierType: 'ALIAS',
+        accountIdentifier: 'juan.alias',
+      });
+
+      expect(prisma.sellerPaymentAccount.upsert).toHaveBeenCalledWith({
+        where: { userId: 'seller-1' },
+        create: expect.objectContaining({
+          status: 'PENDING',
+        }),
+        update: expect.objectContaining({
+          status: 'PENDING',
+        }),
+      });
+      expect(result.sellerPaymentAccountStatus).toBe('PENDING');
+    });
+  });
+
+  describe('disconnectSellerPaymentAccount', () => {
+    it('should clear the seller payment account and reset summary status', async () => {
+      prisma.sellerPaymentAccount.deleteMany.mockResolvedValue({ count: 1 });
+      prisma.user.update.mockResolvedValue({
+        id: 'seller-1',
+        sellerPaymentAccountStatus: 'NOT_CONNECTED',
+        sellerPaymentAccountId: null,
+      });
+
+      const result = await service.disconnectSellerPaymentAccount('seller-1');
+
+      expect(prisma.sellerPaymentAccount.deleteMany).toHaveBeenCalledWith({
+        where: { userId: 'seller-1' },
+      });
+      expect(prisma.user.update).toHaveBeenCalledWith({
+        where: { id: 'seller-1' },
+        data: {
+          sellerPaymentAccountStatus: 'NOT_CONNECTED',
+          sellerPaymentAccountId: null,
+        },
+        include: { sellerPaymentAccount: true },
+      });
+      expect(result.sellerPaymentAccountStatus).toBe('NOT_CONNECTED');
     });
   });
 

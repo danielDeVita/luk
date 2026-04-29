@@ -101,14 +101,14 @@ describe('QuestionsResolver', () => {
 
       const input = {
         raffleId: 'raffle-1',
-        content: '¿Aceptás Mercado Pago?',
+        content: '¿Aceptás transferencias bancarias?',
       };
 
       const mockQuestion = {
         id: 'q-new',
         raffleId: 'raffle-1',
         askerId: 'user-1',
-        content: '¿Aceptás Mercado Pago?',
+        content: '¿Aceptás transferencias bancarias?',
         asker: {
           id: 'user-1',
           nombre: 'Juan',

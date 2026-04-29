@@ -1,10 +1,11 @@
 import { ObjectType, Field, ID } from '@nestjs/graphql';
 import {
   UserRole,
-  MpConnectStatus,
+  SellerPaymentAccountStatus,
   DocumentType,
   KycStatus,
 } from '../../common/enums';
+import { SellerPaymentAccount } from './seller-payment-account.entity';
 
 @ObjectType()
 export class User {
@@ -55,15 +56,18 @@ export class User {
   @Field(() => Date, { nullable: true })
   twoFactorEnabledAt?: Date | null;
 
-  // Mercado Pago connection status (not exposing tokens)
-  @Field(() => MpConnectStatus)
-  mpConnectStatus!: MpConnectStatus;
+  // Seller payment account status (not exposing provider tokens)
+  @Field(() => SellerPaymentAccountStatus)
+  sellerPaymentAccountStatus!: SellerPaymentAccountStatus;
 
   @Field(() => String, {
     nullable: true,
-    description: 'MP user ID (public identifier)',
+    description: 'Seller payment account public identifier',
   })
-  mpUserId?: string | null;
+  sellerPaymentAccountId?: string | null;
+
+  @Field(() => SellerPaymentAccount, { nullable: true })
+  sellerPaymentAccount?: SellerPaymentAccount | null;
 
   // Legal & Terms
   @Field(() => Date, { nullable: true })

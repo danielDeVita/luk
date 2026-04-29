@@ -1,32 +1,27 @@
 import { Module, forwardRef } from '@nestjs/common';
+import { AuthModule } from '../auth/auth.module';
 import { PaymentsService } from './payments.service';
-import { MpController } from './mp.controller';
+import { PaymentsController } from './mp.controller';
 import { MockPaymentsController } from './mock-payments.controller';
-import { MpConnectController } from './mp-connect.controller';
-import { MpConnectService } from './mp-connect.service';
 import { PrismaModule } from '../prisma/prisma.module';
 import { NotificationsModule } from '../notifications/notifications.module';
-import { AuthModule } from '../auth/auth.module';
 import { PayoutsModule } from '../payouts/payouts.module';
 import { SocialPromotionsModule } from '../social-promotions/social-promotions.module';
-import { MercadoPagoProvider } from './providers/mercado-pago.provider';
+import { WalletModule } from '../wallet/wallet.module';
+import { MercadoPagoTopUpProvider } from './providers/mercado-pago-topup.provider';
 import { MockPaymentProvider } from './providers/mock-payment.provider';
 
 @Module({
   imports: [
+    AuthModule,
     PrismaModule,
     NotificationsModule,
+    forwardRef(() => WalletModule),
     forwardRef(() => PayoutsModule),
     forwardRef(() => SocialPromotionsModule),
-    AuthModule, // For JwtService in MP Connect
   ],
-  controllers: [MpController, MockPaymentsController, MpConnectController],
-  providers: [
-    PaymentsService,
-    MpConnectService,
-    MercadoPagoProvider,
-    MockPaymentProvider,
-  ],
-  exports: [PaymentsService, MpConnectService],
+  controllers: [PaymentsController, MockPaymentsController],
+  providers: [PaymentsService, MercadoPagoTopUpProvider, MockPaymentProvider],
+  exports: [PaymentsService],
 })
 export class PaymentsModule {}

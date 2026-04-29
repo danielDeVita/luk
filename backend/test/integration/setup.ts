@@ -56,7 +56,7 @@ export async function cleanupTestApp(ctx: TestContext): Promise<void> {
   await ctx.prisma.shippingAddress.deleteMany({});
   await ctx.prisma.notification.deleteMany({});
   await ctx.prisma.report.deleteMany({});
-  await ctx.prisma.mpEvent.deleteMany({});
+  await ctx.prisma.paymentProviderEvent.deleteMany({});
   await ctx.prisma.drawResult.deleteMany({});
   await ctx.prisma.review.deleteMany({});
   await ctx.prisma.dispute.deleteMany({});

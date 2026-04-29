@@ -1,7 +1,12 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { PrismaService } from '../../prisma/prisma.service';
 import { UsersRepository } from './users.repository';
-import { User, UserRole, KycStatus, MpConnectStatus } from '@prisma/client';
+import {
+  User,
+  UserRole,
+  KycStatus,
+  SellerPaymentAccountStatus,
+} from '@prisma/client';
 
 describe('UsersRepository', () => {
   let repository: UsersRepository;
@@ -17,16 +22,14 @@ describe('UsersRepository', () => {
       apellido: 'User',
       role: UserRole.USER,
       kycStatus: KycStatus.NOT_SUBMITTED,
-      mpConnectStatus: MpConnectStatus.NOT_CONNECTED,
+      sellerPaymentAccountStatus: SellerPaymentAccountStatus.NOT_CONNECTED,
       emailVerified: false,
       isDeleted: false,
       createdAt: new Date('2024-01-01'),
       updatedAt: new Date('2024-01-01'),
       // Nullable fields
       googleId: null,
-      mpUserId: null,
-      mpAccessToken: null,
-      mpRefreshToken: null,
+      sellerPaymentAccountId: null,
       avatarUrl: null,
       fechaNacimiento: null,
       documentType: null,
@@ -275,29 +278,35 @@ describe('UsersRepository', () => {
     });
   });
 
-  describe('findByMpUserId', () => {
+  describe('findBySellerPaymentAccountId', () => {
     it('should find user by MP User ID without includes', async () => {
-      const mpUser = createMockUser({ mpUserId: 'mp-123' });
+      const mpUser = createMockUser({ sellerPaymentAccountId: 'mp-123' });
       mockPrismaService.user.findUnique.mockResolvedValue(mpUser);
 
-      const result = await repository.findByMpUserId('mp-123');
+      const result = await repository.findBySellerPaymentAccountId('mp-123');
 
       expect(result).toEqual(mpUser);
       expect(mockPrismaService.user.findUnique).toHaveBeenCalledWith({
-        where: { mpUserId: 'mp-123' },
+        where: { sellerPaymentAccountId: 'mp-123' },
       });
     });
 
     it('should find user by MP User ID with includes', async () => {
-      const mpUser = { ...mockUserWithReputation, mpUserId: 'mp-123' };
+      const mpUser = {
+        ...mockUserWithReputation,
+        sellerPaymentAccountId: 'mp-123',
+      };
       mockPrismaService.user.findUnique.mockResolvedValue(mpUser);
       const include = { reputation: true };
 
-      const result = await repository.findByMpUserId('mp-123', include);
+      const result = await repository.findBySellerPaymentAccountId(
+        'mp-123',
+        include,
+      );
 
       expect(result).toEqual(mpUser);
       expect(mockPrismaService.user.findUnique).toHaveBeenCalledWith({
-        where: { mpUserId: 'mp-123' },
+        where: { sellerPaymentAccountId: 'mp-123' },
         include,
       });
     });
@@ -305,99 +314,89 @@ describe('UsersRepository', () => {
     it('should return null when MP User ID not found', async () => {
       mockPrismaService.user.findUnique.mockResolvedValue(null);
 
-      const result = await repository.findByMpUserId('nonexistent-mp-id');
+      const result =
+        await repository.findBySellerPaymentAccountId('nonexistent-mp-id');
 
       expect(result).toBeNull();
     });
   });
 
-  describe('updateMpCredentials', () => {
-    it('should update MP credentials successfully', async () => {
-      const mpConnectedUser = createMockUser({
-        mpUserId: 'mp-123',
-        mpAccessToken: 'access-token',
-        mpRefreshToken: 'refresh-token',
-        mpConnectStatus: MpConnectStatus.CONNECTED,
+  describe('updateSellerPaymentAccountCredentials', () => {
+    it('should update seller payment account status successfully', async () => {
+      const connectedUser = createMockUser({
+        sellerPaymentAccountId: 'spa-123',
+        sellerPaymentAccountStatus: SellerPaymentAccountStatus.CONNECTED,
       });
-      mockPrismaService.user.update.mockResolvedValue(mpConnectedUser);
+      mockPrismaService.user.update.mockResolvedValue(connectedUser);
 
-      const mpData = {
-        mpUserId: 'mp-123',
-        mpAccessToken: 'access-token',
-        mpRefreshToken: 'refresh-token',
-        mpConnectStatus: MpConnectStatus.CONNECTED,
+      const accountData = {
+        sellerPaymentAccountId: 'spa-123',
+        sellerPaymentAccountStatus: SellerPaymentAccountStatus.CONNECTED,
       };
 
-      const result = await repository.updateMpCredentials(
+      const result = await repository.updateSellerPaymentAccountCredentials(
         'user-id-123',
-        mpData,
+        accountData,
       );
 
-      expect(result).toEqual(mpConnectedUser);
+      expect(result).toEqual(connectedUser);
       expect(mockPrismaService.user.update).toHaveBeenCalledWith({
         where: { id: 'user-id-123' },
-        data: mpData,
+        data: accountData,
       });
     });
 
     it('should handle PENDING status', async () => {
-      const mpPendingUser = createMockUser({
-        mpUserId: 'mp-123',
-        mpAccessToken: 'access-token',
-        mpRefreshToken: 'refresh-token',
-        mpConnectStatus: MpConnectStatus.PENDING,
+      const pendingUser = createMockUser({
+        sellerPaymentAccountId: 'spa-123',
+        sellerPaymentAccountStatus: SellerPaymentAccountStatus.PENDING,
       });
-      mockPrismaService.user.update.mockResolvedValue(mpPendingUser);
+      mockPrismaService.user.update.mockResolvedValue(pendingUser);
 
-      const mpData = {
-        mpUserId: 'mp-123',
-        mpAccessToken: 'access-token',
-        mpRefreshToken: 'refresh-token',
-        mpConnectStatus: MpConnectStatus.PENDING,
+      const accountData = {
+        sellerPaymentAccountId: 'spa-123',
+        sellerPaymentAccountStatus: SellerPaymentAccountStatus.PENDING,
       };
 
-      const result = await repository.updateMpCredentials(
+      const result = await repository.updateSellerPaymentAccountCredentials(
         'user-id-123',
-        mpData,
+        accountData,
       );
 
-      expect(result.mpConnectStatus).toBe(MpConnectStatus.PENDING);
+      expect(result.sellerPaymentAccountStatus).toBe(
+        SellerPaymentAccountStatus.PENDING,
+      );
     });
   });
 
-  describe('disconnectMpAccount', () => {
-    it('should disconnect MP account and clear credentials', async () => {
+  describe('disconnectSellerPaymentAccount', () => {
+    it('should disconnect seller payment account and clear summary fields', async () => {
       const disconnectedUser = createMockUser({
-        mpUserId: null,
-        mpAccessToken: null,
-        mpRefreshToken: null,
-        mpConnectStatus: MpConnectStatus.NOT_CONNECTED,
+        sellerPaymentAccountId: null,
+        sellerPaymentAccountStatus: SellerPaymentAccountStatus.NOT_CONNECTED,
       });
       mockPrismaService.user.update.mockResolvedValue(disconnectedUser);
 
-      const result = await repository.disconnectMpAccount('user-id-123');
+      const result =
+        await repository.disconnectSellerPaymentAccount('user-id-123');
 
       expect(result).toEqual(disconnectedUser);
       expect(mockPrismaService.user.update).toHaveBeenCalledWith({
         where: { id: 'user-id-123' },
         data: {
-          mpUserId: null,
-          mpAccessToken: null,
-          mpRefreshToken: null,
-          mpConnectStatus: 'NOT_CONNECTED',
+          sellerPaymentAccountId: null,
+          sellerPaymentAccountStatus: 'NOT_CONNECTED',
         },
       });
     });
 
-    it('should set all MP fields to null', async () => {
+    it('should set seller payment account id to null', async () => {
       mockPrismaService.user.update.mockResolvedValue(mockUser);
 
-      await repository.disconnectMpAccount('user-id-123');
+      await repository.disconnectSellerPaymentAccount('user-id-123');
 
       const updateCall = mockPrismaService.user.update.mock.calls[0];
-      expect(updateCall[0].data.mpUserId).toBeNull();
-      expect(updateCall[0].data.mpAccessToken).toBeNull();
-      expect(updateCall[0].data.mpRefreshToken).toBeNull();
+      expect(updateCall[0].data.sellerPaymentAccountId).toBeNull();
     });
   });
 

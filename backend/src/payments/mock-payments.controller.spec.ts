@@ -39,7 +39,7 @@ describe('MockPaymentsController', () => {
       cashChargedAmount: 900,
       status: 'initiated',
       statusDetail: 'Checkout mock iniciado',
-      merchantOrderId: 'mock_order_1',
+      providerOrderId: 'mock_order_1',
       createdAt: new Date().toISOString(),
     });
 
@@ -56,7 +56,7 @@ describe('MockPaymentsController', () => {
     mockPaymentsService.processMockPaymentAction.mockResolvedValue({
       paymentId: 'mock_pay_1',
       status: 'approved',
-      merchantOrderId: 'mock_order_1',
+      providerOrderId: 'mock_order_1',
       redirectUrl:
         'http://localhost:3000/checkout/status?payment_id=mock_pay_1',
       mockToken: 'token-1',

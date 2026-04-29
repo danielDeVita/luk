@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
-import { PaymentsService } from '../payments/payments.service';
+import { TicketsService } from '../tickets/tickets.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PayoutsService } from '../payouts/payouts.service';
 import { captureException } from '../sentry';
@@ -22,7 +22,7 @@ export class RaffleTasksService {
 
   constructor(
     private prisma: PrismaService,
-    private paymentsService: PaymentsService,
+    private ticketsService: TicketsService,
     private notificationsService: NotificationsService,
     private payoutsService: PayoutsService,
     private configService: ConfigService,
@@ -153,7 +153,7 @@ export class RaffleTasksService {
   private async executeRaffleDraw(raffleId: string) {
     this.logger.log(`Executing draw for raffle ${raffleId}`);
 
-    const wasDrawn = await this.paymentsService.drawRaffleIfEligible(raffleId);
+    const wasDrawn = await this.ticketsService.drawRaffleIfEligible(raffleId);
 
     if (!wasDrawn) {
       this.logger.warn(`Raffle ${raffleId} was not eligible for draw`);
@@ -177,78 +177,17 @@ export class RaffleTasksService {
 
     if (!raffle) return;
 
-    // Refund all paid tickets
-    const successfulRefundIds: string[] = [];
-    const failedRefundIds: string[] = [];
-
+    const refundResult = await this.ticketsService.refundTickets(raffleId);
     for (const ticket of raffle.tickets) {
-      if (!ticket.mpPaymentId) {
-        failedRefundIds.push(ticket.id);
-        this.logger.error(`Ticket ${ticket.id} has no mpPaymentId for refund`);
-        continue;
-      }
-
-      try {
-        const success = await this.paymentsService.refundPayment(
-          ticket.mpPaymentId,
-        );
-
-        if (!success) {
-          failedRefundIds.push(ticket.id);
-          continue;
-        }
-
-        successfulRefundIds.push(ticket.id);
-        await this.notificationsService.sendRefundNotification(
-          ticket.buyer.email,
-          {
-            raffleName: raffle.titulo,
-            amount: Number(ticket.precioPagado),
-            reason: 'La rifa no alcanzó el mínimo de ventas requerido (70%)',
-          },
-        );
-      } catch (error) {
-        const message =
-          error instanceof Error ? error.message : 'Unknown error';
-        failedRefundIds.push(ticket.id);
-        this.logger.error(`Failed to refund ticket ${ticket.id}:`, message);
-        captureException(
-          error instanceof Error ? error : new Error('Ticket refund failed'),
-          {
-            user: ticket.buyerId ? { id: ticket.buyerId } : undefined,
-            tags: {
-              service: 'luk-backend',
-              domain: 'raffles',
-              stage: 'refund',
-            },
-            extra: {
-              raffleId,
-              ticketId: ticket.id,
-              paymentId: ticket.mpPaymentId,
-            },
-          },
-        );
-      }
-    }
-
-    if (failedRefundIds.length > 0) {
-      this.logger.warn(
-        `Raffle ${raffleId} cancellation paused: ${failedRefundIds.length} refund(s) failed`,
+      await this.notificationsService.sendRefundNotification(
+        ticket.buyer.email,
+        {
+          raffleName: raffle.titulo,
+          amount: Number(ticket.precioPagado),
+          reason:
+            'La rifa no alcanzó el mínimo de ventas requerido (70%). El reembolso fue acreditado a tu Saldo LUK.',
+        },
       );
-      if (successfulRefundIds.length > 0) {
-        await this.prisma.ticket.updateMany({
-          where: { id: { in: successfulRefundIds }, estado: 'PAGADO' },
-          data: { estado: 'REEMBOLSADO' },
-        });
-      }
-      return;
-    }
-
-    if (successfulRefundIds.length > 0) {
-      await this.prisma.ticket.updateMany({
-        where: { id: { in: successfulRefundIds }, estado: 'PAGADO' },
-        data: { estado: 'REEMBOLSADO' },
-      });
     }
 
     // Update raffle status
@@ -270,7 +209,7 @@ export class RaffleTasksService {
         precioAnterior: currentPrice,
         precioSugerido: suggestedPrice,
         porcentajeReduccion: reductionFactor * 100,
-        ticketsVendidosAlMomento: raffle.tickets.length,
+        ticketsVendidosAlMomento: refundResult.count,
       },
     });
 
@@ -301,12 +240,71 @@ export class RaffleTasksService {
         },
         isDeleted: false,
       },
-      include: { seller: true },
+      include: {
+        seller: true,
+        tickets: {
+          where: { estado: 'PAGADO' },
+          select: { id: true },
+        },
+      },
     });
 
     for (const raffle of raffles) {
-      this.logger.log(`Sending expiration reminder for raffle ${raffle.id}`);
-      // Notification would be sent here
+      try {
+        this.logger.log(`Sending expiration reminder for raffle ${raffle.id}`);
+        const actionUrl = `/raffle/${raffle.id}`;
+        const existingReminder = await this.prisma.notification.findFirst({
+          where: {
+            userId: raffle.sellerId,
+            type: 'INFO',
+            title: 'Rifa por vencer',
+            actionUrl,
+          },
+        });
+
+        if (existingReminder) {
+          continue;
+        }
+
+        await this.notificationsService.create(
+          raffle.sellerId,
+          'INFO',
+          'Rifa por vencer',
+          `Tu rifa "${raffle.titulo}" vence pronto. Revisá el avance de ventas.`,
+          actionUrl,
+        );
+        await this.notificationsService.sendRaffleExpirationReminder(
+          raffle.seller.email,
+          {
+            raffleName: raffle.titulo,
+            deadline: raffle.fechaLimiteSorteo,
+            soldTickets: raffle.tickets.length,
+            totalTickets: raffle.totalTickets,
+          },
+        );
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : 'Unknown error';
+        this.logger.error(
+          `Failed to send expiration reminder for raffle ${raffle.id}: ${message}`,
+        );
+        captureException(
+          error instanceof Error
+            ? error
+            : new Error('Failed to send raffle expiration reminder'),
+          {
+            tags: {
+              service: 'luk-backend',
+              domain: 'raffles',
+              stage: 'expiration-reminder',
+            },
+            extra: {
+              raffleId: raffle.id,
+              sellerId: raffle.sellerId,
+            },
+          },
+        );
+      }
     }
   }
 

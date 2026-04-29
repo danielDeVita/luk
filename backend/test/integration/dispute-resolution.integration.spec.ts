@@ -6,7 +6,6 @@ import {
   UserRole,
 } from '@prisma/client';
 import { DisputesService } from '../../src/disputes/disputes.service';
-import { PaymentsService } from '../../src/payments/payments.service';
 import { cleanupTestApp, createTestApp, TestContext } from './setup';
 import {
   createTestRaffle,
@@ -18,12 +17,10 @@ import {
 describe('Dispute Resolution Flow (Integration)', () => {
   let ctx: TestContext;
   let disputesService: DisputesService;
-  let paymentsService: PaymentsService;
 
   beforeAll(async () => {
     ctx = await createTestApp();
     disputesService = ctx.app.get<DisputesService>(DisputesService);
-    paymentsService = ctx.app.get<PaymentsService>(PaymentsService);
   });
 
   beforeEach(() => {
@@ -40,6 +37,13 @@ describe('Dispute Resolution Flow (Integration)', () => {
     const otherBuyer = await createTestUser(ctx.prisma);
     const admin = await createTestUser(ctx.prisma, { role: UserRole.ADMIN });
 
+    await ctx.prisma.walletAccount.create({
+      data: { userId: seller.id, sellerPayableBalance: 400 },
+    });
+    await ctx.prisma.walletAccount.create({
+      data: { userId: winner.id, creditBalance: 0 },
+    });
+
     const raffle = await createTestRaffle(ctx.prisma, seller.id, {
       totalTickets: 20,
       precioPorTicket: 100,
@@ -49,17 +53,17 @@ describe('Dispute Resolution Flow (Integration)', () => {
     await createTestTickets(ctx.prisma, raffle.id, winner.id, 1, {
       estado: 'PAGADO',
       precioPagado: 100,
-      mpPaymentId: 'winner-pay-1',
+      purchaseReference: 'winner-purchase-1',
     });
     await createTestTickets(ctx.prisma, raffle.id, winner.id, 1, {
       estado: 'PAGADO',
       precioPagado: 100,
-      mpPaymentId: 'winner-pay-2',
+      purchaseReference: 'winner-purchase-2',
     });
     await createTestTickets(ctx.prisma, raffle.id, otherBuyer.id, 2, {
       estado: 'PAGADO',
       precioPagado: 100,
-      mpPaymentId: 'other-pay-1',
+      purchaseReference: 'other-purchase-1',
     });
 
     await ctx.prisma.raffle.update({
@@ -79,10 +83,6 @@ describe('Dispute Resolution Flow (Integration)', () => {
       evidencias: ['https://example.com/evidence-1.jpg'],
     });
 
-    const refundSpy = jest
-      .spyOn(paymentsService, 'refundPayment')
-      .mockResolvedValue(true);
-
     const resolved = await disputesService.resolveDispute(
       admin.id,
       dispute.id,
@@ -97,8 +97,6 @@ describe('Dispute Resolution Flow (Integration)', () => {
     );
 
     expect(resolved.estado).toBe(DisputeStatus.RESUELTA_PARCIAL);
-    expect(refundSpy).toHaveBeenCalledTimes(1);
-    expect(refundSpy).toHaveBeenCalledWith('winner-pay-1', undefined);
 
     const winnerTickets = await ctx.prisma.ticket.findMany({
       where: { raffleId: raffle.id, buyerId: winner.id },
@@ -113,6 +111,10 @@ describe('Dispute Resolution Flow (Integration)', () => {
       'PAGADO',
     ]);
     expect(otherBuyerTickets.every((t) => t.estado === 'PAGADO')).toBe(true);
+    const winnerWallet = await ctx.prisma.walletAccount.findUnique({
+      where: { userId: winner.id },
+    });
+    expect(Number(winnerWallet?.creditBalance ?? 0)).toBe(100);
   });
 
   it('blocks ID-based dispute access for unrelated users', async () => {
@@ -129,7 +131,7 @@ describe('Dispute Resolution Flow (Integration)', () => {
     await createTestTickets(ctx.prisma, raffle.id, winner.id, 1, {
       estado: 'PAGADO',
       precioPagado: 100,
-      mpPaymentId: 'winner-only-pay',
+      purchaseReference: 'winner-only-purchase',
     });
 
     await ctx.prisma.raffle.update({

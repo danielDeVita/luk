@@ -8,7 +8,7 @@ import { UserRole } from '@prisma/client';
 
 // Type for our mock PrismaService
 type MockPrismaService = {
-  mpEvent: {
+  paymentProviderEvent: {
     findMany: jest.Mock;
     findFirst: jest.Mock;
     findUnique: jest.Mock;
@@ -56,7 +56,7 @@ describe('AdminService', () => {
   let encryptionService: MockEncryptionService;
 
   const mockPrismaService = (): MockPrismaService => ({
-    mpEvent: {
+    paymentProviderEvent: {
       findMany: jest.fn(),
       findFirst: jest.fn(),
       findUnique: jest.fn(),
@@ -120,7 +120,7 @@ describe('AdminService', () => {
     nombre: 'Test',
     apellido: 'User',
     role: UserRole.USER,
-    mpConnectStatus: 'NOT_CONNECTED',
+    sellerPaymentAccountStatus: 'NOT_CONNECTED',
     kycStatus: 'NOT_SUBMITTED',
     createdAt: new Date(),
     isDeleted: false,
@@ -146,20 +146,23 @@ describe('AdminService', () => {
     ) as unknown as MockEncryptionService;
   });
 
-  describe('getMpEvents', () => {
-    it('should return filtered MP events with total count', async () => {
+  describe('getPaymentProviderEvents', () => {
+    it('should return filtered payment provider events with total count', async () => {
       const events = [
         { eventId: 'evt-1', eventType: 'payment', processedAt: new Date() },
         { eventId: 'evt-2', eventType: 'payment', processedAt: new Date() },
       ];
 
-      prisma.mpEvent.findMany.mockResolvedValue(events);
-      prisma.mpEvent.count.mockResolvedValue(2);
+      prisma.paymentProviderEvent.findMany.mockResolvedValue(events);
+      prisma.paymentProviderEvent.count.mockResolvedValue(2);
 
-      const result = await service.getMpEvents({ limit: 50, offset: 0 });
+      const result = await service.getPaymentProviderEvents({
+        limit: 50,
+        offset: 0,
+      });
 
       expect(result).toEqual({ events, total: 2 });
-      expect(prisma.mpEvent.findMany).toHaveBeenCalledWith({
+      expect(prisma.paymentProviderEvent.findMany).toHaveBeenCalledWith({
         where: {},
         orderBy: { processedAt: 'desc' },
         take: 50,
@@ -168,12 +171,12 @@ describe('AdminService', () => {
     });
 
     it('should filter by event type', async () => {
-      prisma.mpEvent.findMany.mockResolvedValue([]);
-      prisma.mpEvent.count.mockResolvedValue(0);
+      prisma.paymentProviderEvent.findMany.mockResolvedValue([]);
+      prisma.paymentProviderEvent.count.mockResolvedValue(0);
 
-      await service.getMpEvents({ eventType: 'payment' });
+      await service.getPaymentProviderEvents({ eventType: 'payment' });
 
-      expect(prisma.mpEvent.findMany).toHaveBeenCalledWith(
+      expect(prisma.paymentProviderEvent.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { eventType: { contains: 'payment' } },
         }),
@@ -184,12 +187,12 @@ describe('AdminService', () => {
       const startDate = new Date('2025-01-01');
       const endDate = new Date('2025-01-31');
 
-      prisma.mpEvent.findMany.mockResolvedValue([]);
-      prisma.mpEvent.count.mockResolvedValue(0);
+      prisma.paymentProviderEvent.findMany.mockResolvedValue([]);
+      prisma.paymentProviderEvent.count.mockResolvedValue(0);
 
-      await service.getMpEvents({ startDate, endDate });
+      await service.getPaymentProviderEvents({ startDate, endDate });
 
-      expect(prisma.mpEvent.findMany).toHaveBeenCalledWith(
+      expect(prisma.paymentProviderEvent.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: {
             processedAt: {
@@ -202,15 +205,15 @@ describe('AdminService', () => {
     });
   });
 
-  describe('getMpEventById', () => {
+  describe('getPaymentProviderEventById', () => {
     it('should return event by ID', async () => {
       const event = { eventId: 'evt-1', eventType: 'payment' };
-      prisma.mpEvent.findUnique.mockResolvedValue(event);
+      prisma.paymentProviderEvent.findUnique.mockResolvedValue(event);
 
-      const result = await service.getMpEventById('evt-1');
+      const result = await service.getPaymentProviderEventById('evt-1');
 
       expect(result).toEqual(event);
-      expect(prisma.mpEvent.findUnique).toHaveBeenCalledWith({
+      expect(prisma.paymentProviderEvent.findUnique).toHaveBeenCalledWith({
         where: { eventId: 'evt-1' },
       });
     });
@@ -254,15 +257,15 @@ describe('AdminService', () => {
       );
     });
 
-    it('should filter by mpPaymentId', async () => {
+    it('should filter by providerPaymentId', async () => {
       prisma.transaction.findMany.mockResolvedValue([]);
       prisma.transaction.count.mockResolvedValue(0);
 
-      await service.getTransactions({ mpPaymentId: 'mp-123' });
+      await service.getTransactions({ providerPaymentId: 'mp-123' });
 
       expect(prisma.transaction.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: expect.objectContaining({ mpPaymentId: 'mp-123' }),
+          where: expect.objectContaining({ providerPaymentId: 'mp-123' }),
         }),
       );
     });
@@ -270,73 +273,44 @@ describe('AdminService', () => {
 
   describe('getPaymentDebugInfo', () => {
     it('should return comprehensive payment debug information', async () => {
-      const mpEvent = {
+      const paymentProviderEvent = {
         eventId: 'mp-123',
         eventType: 'payment.updated',
         processedAt: new Date(),
       };
       const transaction = {
         id: 'tx-1',
-        mpPaymentId: 'mp-123',
+        providerPaymentId: 'mp-123',
         estado: 'COMPLETADO',
         monto: 500,
         user: { id: 'user-1', email: 'buyer@test.com', nombre: 'Buyer' },
         raffle: { id: 'raffle-1', titulo: 'Test Raffle', sellerId: 'seller-1' },
       };
-      const tickets = [
-        {
-          id: 'ticket-1',
-          numeroTicket: 1,
-          estado: 'PAGADO',
-          precioPagado: 250,
-          createdAt: new Date(),
-        },
-        {
-          id: 'ticket-2',
-          numeroTicket: 2,
-          estado: 'PAGADO',
-          precioPagado: 250,
-          createdAt: new Date(),
-        },
-      ];
-
-      prisma.mpEvent.findFirst.mockResolvedValue(mpEvent);
+      prisma.paymentProviderEvent.findFirst.mockResolvedValue(
+        paymentProviderEvent,
+      );
       prisma.transaction.findFirst.mockResolvedValue(transaction);
-      prisma.ticket.findMany.mockResolvedValue(tickets);
 
       const result = await service.getPaymentDebugInfo('mp-123');
 
       expect(result).toEqual({
-        mpPaymentId: 'mp-123',
+        providerPaymentId: 'mp-123',
         webhookReceived: true,
-        webhookProcessedAt: mpEvent.processedAt,
+        webhookProcessedAt: paymentProviderEvent.processedAt,
         webhookEventType: 'payment.updated',
         transactionCreated: true,
         transactionId: 'tx-1',
         transactionStatus: 'COMPLETADO',
         transactionAmount: 500,
-        ticketsCount: 2,
-        tickets: [
-          {
-            id: 'ticket-1',
-            numeroTicket: 1,
-            estado: 'PAGADO',
-            precioPagado: 250,
-          },
-          {
-            id: 'ticket-2',
-            numeroTicket: 2,
-            estado: 'PAGADO',
-            precioPagado: 250,
-          },
-        ],
+        ticketsCount: 0,
+        tickets: [],
         raffle: transaction.raffle,
         buyer: transaction.user,
       });
     });
 
     it('should handle missing webhook event', async () => {
-      prisma.mpEvent.findFirst.mockResolvedValue(null);
+      prisma.paymentProviderEvent.findFirst.mockResolvedValue(null);
       prisma.transaction.findFirst.mockResolvedValue(null);
       prisma.ticket.findMany.mockResolvedValue([]);
 
@@ -367,7 +341,7 @@ describe('AdminService', () => {
       prisma.dispute.count
         .mockResolvedValueOnce(10) // total disputes
         .mockResolvedValueOnce(3); // pending disputes
-      prisma.mpEvent.count.mockResolvedValue(150);
+      prisma.paymentProviderEvent.count.mockResolvedValue(150);
       prisma.ticket.aggregate.mockResolvedValue(ticketStats);
 
       const result = await service.getAdminStats();
@@ -382,7 +356,7 @@ describe('AdminService', () => {
         totalTicketsSold: 1000,
         totalDisputes: 10,
         pendingDisputes: 3,
-        recentMpEvents: 150,
+        recentPaymentEvents: 150,
         newUsersToday: 20,
         newRafflesToday: 5,
       });
@@ -393,7 +367,7 @@ describe('AdminService', () => {
       prisma.raffle.count.mockResolvedValue(0);
       prisma.transaction.count.mockResolvedValue(0);
       prisma.dispute.count.mockResolvedValue(0);
-      prisma.mpEvent.count.mockResolvedValue(0);
+      prisma.paymentProviderEvent.count.mockResolvedValue(0);
       prisma.ticket.aggregate.mockResolvedValue({
         _count: { id: 0 },
         _sum: { precioPagado: null },

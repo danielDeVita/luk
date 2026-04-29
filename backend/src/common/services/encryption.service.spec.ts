@@ -111,8 +111,7 @@ describe('EncryptionService', () => {
         const userData = {
           id: 'user-123',
           email: 'test@example.com',
-          mpAccessToken: 'mp-token-secret',
-          mpRefreshToken: 'mp-refresh-secret',
+          accountIdentifierEncrypted: '2850590940090418135201',
           documentNumber: '12345678',
           cuitCuil: '20-12345678-9',
           street: 'Av. Corrientes',
@@ -131,8 +130,9 @@ describe('EncryptionService', () => {
         expect(encrypted.email).toBe(userData.email);
 
         // PII fields should be encrypted
-        expect(encrypted.mpAccessToken).not.toBe(userData.mpAccessToken);
-        expect(encrypted.mpRefreshToken).not.toBe(userData.mpRefreshToken);
+        expect(encrypted.accountIdentifierEncrypted).not.toBe(
+          userData.accountIdentifierEncrypted,
+        );
         expect(encrypted.documentNumber).not.toBe(userData.documentNumber);
         expect(encrypted.cuitCuil).not.toBe(userData.cuitCuil);
         expect(encrypted.street).not.toBe(userData.street);
@@ -187,7 +187,7 @@ describe('EncryptionService', () => {
         const originalData = {
           id: 'user-123',
           email: 'test@example.com',
-          mpAccessToken: 'mp-token-secret',
+          accountIdentifierEncrypted: '2850590940090418135201',
           documentNumber: '12345678',
           phone: '+54 11 1234-5678',
         };
@@ -197,7 +197,9 @@ describe('EncryptionService', () => {
 
         expect(decrypted.id).toBe(originalData.id);
         expect(decrypted.email).toBe(originalData.email);
-        expect(decrypted.mpAccessToken).toBe(originalData.mpAccessToken);
+        expect(decrypted.accountIdentifierEncrypted).toBe(
+          originalData.accountIdentifierEncrypted,
+        );
         expect(decrypted.documentNumber).toBe(originalData.documentNumber);
         expect(decrypted.phone).toBe(originalData.phone);
       });
@@ -373,8 +375,7 @@ describe('EncryptionService', () => {
   describe('PII_FIELDS constant', () => {
     it('should contain all expected PII fields', () => {
       const expectedFields = [
-        'mpAccessToken',
-        'mpRefreshToken',
+        'accountIdentifierEncrypted',
         'documentNumber',
         'cuitCuil',
         'street',
@@ -389,8 +390,8 @@ describe('EncryptionService', () => {
       expect(PII_FIELDS).toEqual(expectedFields);
     });
 
-    it('should have 11 PII fields defined', () => {
-      expect(PII_FIELDS.length).toBe(11);
+    it('should have 10 PII fields defined', () => {
+      expect(PII_FIELDS.length).toBe(10);
     });
   });
 });

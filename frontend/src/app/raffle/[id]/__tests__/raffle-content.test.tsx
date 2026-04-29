@@ -40,6 +40,16 @@ function createQueryResult<TData>(data: TData) {
   } as ReturnType<typeof useQuery>;
 }
 
+function createLoadingQueryResult<TData>() {
+  return {
+    ...createQueryResult(undefined as TData),
+    data: undefined,
+    dataState: 'empty' as const,
+    loading: true,
+    networkStatus: 1 as const,
+  } as ReturnType<typeof useQuery>;
+}
+
 function getOperationName(query: unknown) {
   const document = query as {
     definitions?: Array<{ name?: { value?: string } }>;
@@ -164,6 +174,13 @@ describe('RaffleContent', () => {
       premiumPercent: 5,
     },
   };
+  const walletData = {
+    myWallet: {
+      id: 'wallet-1',
+      creditBalance: 100000,
+      sellerPayableBalance: 0,
+    },
+  };
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -183,6 +200,8 @@ describe('RaffleContent', () => {
           return createQueryResult(raffleData);
         case 'MyTicketCountInRaffle':
           return createQueryResult({ myTicketCountInRaffle: 0 });
+        case 'MyWallet':
+          return createQueryResult(walletData);
         case 'GetPriceHistory':
           return createQueryResult({ priceHistory: [] });
         case 'MySocialPromotionPosts':
@@ -302,14 +321,22 @@ describe('RaffleContent', () => {
     expect(
       screen.getByText('Elegí tus números favoritos'),
     ).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '#1' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: '#2' })).toBeEnabled();
+    expect(
+      screen.getByRole('button', { name: 'Número 1 ocupado' }),
+    ).toBeDisabled();
+    expect(
+      screen.getByRole('button', { name: 'Número 2 disponible' }),
+    ).toBeEnabled();
     expect(
       screen.getByRole('button', { name: /Comprar números elegidos/i }),
     ).toBeDisabled();
 
-    await user.click(screen.getByRole('button', { name: '#2' }));
-    await user.click(screen.getByRole('button', { name: '#3' }));
+    await user.click(
+      screen.getByRole('button', { name: 'Número 2 disponible' }),
+    );
+    await user.click(
+      screen.getByRole('button', { name: 'Número 3 disponible' }),
+    );
 
     expect(screen.getByText('2 números seleccionados')).toBeInTheDocument();
     expect(screen.getByText('Subtotal base')).toBeInTheDocument();
@@ -320,6 +347,66 @@ describe('RaffleContent', () => {
     expect(
       screen.getByRole('button', { name: /Comprar números elegidos/i }),
     ).toBeEnabled();
+  });
+
+  it('shows loading copy while searching a specific ticket number', async () => {
+    const user = userEvent.setup();
+    mockUseQuery.mockReset();
+    mockUseQuery.mockImplementation((query, options) => {
+      if ((options as { skip?: boolean } | undefined)?.skip) {
+        return createQueryResult(undefined as never);
+      }
+
+      switch (getOperationName(query)) {
+        case 'GetRaffle':
+          return createQueryResult(raffleData);
+        case 'MyTicketCountInRaffle':
+          return createQueryResult({ myTicketCountInRaffle: 0 });
+        case 'MyWallet':
+          return createQueryResult(walletData);
+        case 'GetPriceHistory':
+          return createQueryResult({ priceHistory: [] });
+        case 'MySocialPromotionPosts':
+          return createQueryResult({ mySocialPromotionPosts: [] });
+        case 'IsFavorite':
+          return createQueryResult({ isFavorite: false });
+        case 'TicketNumberAvailability': {
+          const variables = (
+            options as { variables?: { searchNumber?: number } } | undefined
+          )?.variables;
+          if (variables?.searchNumber !== undefined) {
+            return createLoadingQueryResult();
+          }
+          return createQueryResult(availabilityData);
+        }
+        default:
+          return createQueryResult(undefined as never);
+      }
+    });
+    mockUseAuthStore.mockReturnValue({
+      isAuthenticated: true,
+      hasHydrated: true,
+      user: {
+        id: 'buyer-1',
+        email: 'buyer@example.com',
+        nombre: 'Buyer',
+        apellido: 'User',
+        role: 'USER',
+      },
+      login: vi.fn(),
+      logout: vi.fn(),
+      setUser: vi.fn(),
+    });
+
+    render(<RaffleContent id="raffle-1" />);
+
+    await user.click(screen.getByRole('tab', { name: 'Elegir números' }));
+    await user.click(screen.getByRole('button', { name: 'Aumentar número' }));
+
+    expect(screen.getByText('Buscando número...')).toBeInTheDocument();
+    expect(
+      screen.queryByText(/no está disponible en esta página/i),
+    ).not.toBeInTheDocument();
   });
 
   it('shows the simple pack summary and hides promotion bonuses when a random pack applies', async () => {
@@ -385,6 +472,8 @@ describe('RaffleContent', () => {
           });
         case 'MyTicketCountInRaffle':
           return createQueryResult({ myTicketCountInRaffle: 0 });
+        case 'MyWallet':
+          return createQueryResult(walletData);
         case 'GetPriceHistory':
           return createQueryResult({ priceHistory: [] });
         case 'MySocialPromotionPosts':
@@ -445,6 +534,8 @@ describe('RaffleContent', () => {
           });
         case 'MyTicketCountInRaffle':
           return createQueryResult({ myTicketCountInRaffle: 0 });
+        case 'MyWallet':
+          return createQueryResult(walletData);
         case 'GetPriceHistory':
           return createQueryResult({ priceHistory: [] });
         case 'MySocialPromotionPosts':

@@ -233,7 +233,7 @@ export class ActivityService {
     raffleId: string,
     ticketNumbers: number[],
     amount: number,
-    mpPaymentId?: string,
+    purchaseReference?: string | null,
   ) {
     return this.log({
       userId,
@@ -243,7 +243,7 @@ export class ActivityService {
       metadata: {
         ticketNumbers,
         amount,
-        mpPaymentId,
+        purchaseReference,
         count: ticketNumbers.length,
       },
     });
@@ -342,6 +342,80 @@ export class ActivityService {
     });
   }
 
+  async logCreditTopUpCreated(
+    userId: string,
+    topUpSessionId: string,
+    amount: number,
+    metadata?: Record<string, unknown>,
+  ) {
+    return this.log({
+      userId,
+      action: ActivityType.CREDIT_TOP_UP_CREATED,
+      targetType: 'CreditTopUpSession',
+      targetId: topUpSessionId,
+      metadata: { amount, ...(metadata ?? {}) },
+    });
+  }
+
+  async logCreditTopUpApproved(
+    userId: string,
+    topUpSessionId: string,
+    amount: number,
+    metadata?: Record<string, unknown>,
+  ) {
+    return this.log({
+      userId,
+      action: ActivityType.CREDIT_TOP_UP_APPROVED,
+      targetType: 'CreditTopUpSession',
+      targetId: topUpSessionId,
+      metadata: { amount, ...(metadata ?? {}) },
+    });
+  }
+
+  async logCreditTopUpFailed(
+    userId: string,
+    topUpSessionId: string,
+    status: string,
+    metadata?: Record<string, unknown>,
+  ) {
+    return this.log({
+      userId,
+      action: ActivityType.CREDIT_TOP_UP_FAILED,
+      targetType: 'CreditTopUpSession',
+      targetId: topUpSessionId,
+      metadata: { status, ...(metadata ?? {}) },
+    });
+  }
+
+  async logCreditTopUpRefunded(
+    userId: string,
+    topUpSessionId: string,
+    amount: number,
+    metadata?: Record<string, unknown>,
+  ) {
+    return this.log({
+      userId,
+      action: ActivityType.CREDIT_TOP_UP_REFUNDED,
+      targetType: 'CreditTopUpSession',
+      targetId: topUpSessionId,
+      metadata: { amount, ...(metadata ?? {}) },
+    });
+  }
+
+  async logPayoutScheduled(
+    sellerId: string,
+    payoutId: string,
+    scheduledFor: Date,
+  ) {
+    return this.log({
+      userId: sellerId,
+      action: ActivityType.PAYOUT_SCHEDULED,
+      targetType: 'Payout',
+      targetId: payoutId,
+      metadata: { scheduledFor: scheduledFor.toISOString() },
+    });
+  }
+
   async logPayoutReleased(sellerId: string, payoutId: string, amount: number) {
     return this.log({
       userId: sellerId,
@@ -352,31 +426,46 @@ export class ActivityService {
     });
   }
 
-  async logMpConnectConnected(
+  async logPayoutFailed(
+    sellerId: string,
+    payoutId: string,
+    reason: string,
+    metadata?: Record<string, unknown>,
+  ) {
+    return this.log({
+      userId: sellerId,
+      action: ActivityType.PAYOUT_FAILED,
+      targetType: 'Payout',
+      targetId: payoutId,
+      metadata: { reason, ...(metadata ?? {}) },
+    });
+  }
+
+  async logSellerPaymentAccountConnected(
     userId: string,
-    mpUserId: string,
+    sellerPaymentAccountId: string,
     metadata?: Record<string, unknown>,
   ) {
     return this.log({
       userId,
-      action: ActivityType.MP_CONNECT_CONNECTED,
-      targetType: 'MpConnectAccount',
-      targetId: mpUserId,
+      action: ActivityType.SELLER_PAYMENT_ACCOUNT_CONNECTED,
+      targetType: 'SellerPaymentAccount',
+      targetId: sellerPaymentAccountId,
       metadata: {
-        mpUserId,
+        sellerPaymentAccountId,
         ...(metadata ?? {}),
       },
     });
   }
 
-  async logMpConnectDisconnected(
+  async logSellerPaymentAccountDisconnected(
     userId: string,
     metadata?: Record<string, unknown>,
   ) {
     return this.log({
       userId,
-      action: ActivityType.MP_CONNECT_DISCONNECTED,
-      targetType: 'MpConnectAccount',
+      action: ActivityType.SELLER_PAYMENT_ACCOUNT_DISCONNECTED,
+      targetType: 'SellerPaymentAccount',
       targetId: userId,
       metadata,
     });

@@ -3,8 +3,8 @@
  * Centralized to avoid duplication across services.
  */
 
-// Estimated Mercado Pago processing fee (~5%)
-export const MP_FEE_ESTIMATE_RATE = 0.05;
+// Estimated live payment-provider processing fee (~5%)
+export const PAYMENT_PROVIDER_FEE_ESTIMATE_RATE = 0.05;
 
 // Stripe fee rates (kept for reference, not currently used)
 export const STRIPE_FEE_RATE = 0.029; // 2.9%

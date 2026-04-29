@@ -51,7 +51,7 @@ MP_ACCESS_TOKEN=""
 
 ## Architecture
 
-- **API**: GraphQL (Apollo) + REST for webhooks/OAuth
+- **API**: GraphQL (Apollo) + REST for webhooks and payment status sync
 - **Database**: PostgreSQL + Prisma ORM
 - **Auth**: JWT + Google OAuth (Passport.js) + email verification + TOTP-based 2FA
 - **Real-time**: GraphQL Subscriptions
@@ -66,7 +66,8 @@ MP_ACCESS_TOKEN=""
 | `users/`             | User management, profiles, seller reviews, reputation metrics                 |
 | `raffles/`           | Raffle CRUD, state management, seller dashboard, buyer experience, analytics  |
 | `tickets/`           | Ticket reservation and purchase                                               |
-| `payments/`          | Mercado Pago integration, mock checkout provider for QA, and MP Connect OAuth |
+| `wallet/`            | Saldo LUK accounts, ledger entries, buyer credits, and seller payable balances |
+| `payments/`          | Mercado Pago/mock top-up orchestration for Saldo LUK loads |
 | `disputes/`          | Buyer protection system                                                       |
 | `notifications/`     | Email (Brevo) + in-app notifications                                          |
 | `uploads/`           | Cloudinary upload signatures                                                  |
@@ -101,11 +102,9 @@ DATABASE_URL="postgresql://..."
 JWT_SECRET="..."
 PLATFORM_FEE_PERCENT="4"
 MP_ACCESS_TOKEN="TEST-..."
-MP_CLIENT_ID="..."           # For MP Connect OAuth
-MP_CLIENT_SECRET="..."       # For MP Connect OAuth
 BACKEND_URL="http://localhost:3001"
 FRONTEND_URL="http://localhost:3000"
-PAYMENTS_PROVIDER="mercadopago"   # or "mock" for local QA
+PAYMENTS_PROVIDER="mercado_pago"  # or "mock" for local QA
 ALLOW_MOCK_PAYMENTS="false"
 TURNSTILE_ENABLED="false"
 TURNSTILE_SECRET_KEY=""           # Backend-only secret key
@@ -126,21 +125,21 @@ GOOGLE_CALLBACK_URL="http://localhost:3001/auth/google/callback"
 
 If Cloudflare Turnstile is enabled for auth, production should set both backend vars above and the matching frontend vars `NEXT_PUBLIC_TURNSTILE_ENABLED` + `NEXT_PUBLIC_TURNSTILE_SITE_KEY`. The site key is public; `TURNSTILE_SECRET_KEY` must stay backend-only.
 
-### Mock payments for local QA
+### Mock top-ups for local QA
 
-If you want to test ticket purchases, refunds, and promotion bonus reversals without Mercado Pago:
+If you want to test Saldo LUK loads and top-up refunds without Mercado Pago:
 
 ```bash
 PAYMENTS_PROVIDER="mock"
-MP_ACCESS_TOKEN=""
+ALLOW_MOCK_PAYMENTS="true"
 ```
 
 In that mode:
 
-- `buyTickets` returns a local `initPoint` under `/checkout/mock/...`;
-- the mock checkout page can approve/pending/reject the payment;
-- full and partial refunds can be simulated from the mock page;
-- `GET /mp/payment-status` continues to work for both real MP ids and `mock_pay_*` ids.
+- `createCreditTopUp` returns a local `redirectUrl` under `/checkout/mock/...`;
+- the mock checkout page can approve/pending/reject the top-up;
+- full and partial top-up refunds can be simulated from the mock page;
+- `GET /payments/status` works for top-up ids.
 
 ### Canonical QA/dev seed
 
@@ -197,17 +196,17 @@ On startup, check logs for:
 
 ### REST (Webhooks & Sync)
 
-- `POST /mp/webhook` - Mercado Pago webhooks
-- `GET /mp/sync-payment/:paymentId` - Manual payment sync
-- `GET /mp/payment-status?payment_id=X` - Payment status check
+- `POST /payments/webhook` - Payment-provider webhooks
+- `GET /payments/sync/:paymentId` - Manual payment sync
+- `GET /payments/status?payment_id=X` - Payment status check
 - `GET /social-promotions/track/:token` - Promotion click attribution redirect
 
-### REST (MP Connect OAuth)
+### REST (Seller Payment Account)
 
-- `GET /mp/connect` - Start OAuth flow (requires auth)
-- `GET /mp/connect/callback` - OAuth callback (public)
-- `GET /mp/connect/status` - Get connection status (requires auth)
-- `POST /mp/connect/disconnect` - Disconnect MP account (requires auth)
+- `GET /payments/account` - Start seller payment-account connection flow (requires auth token)
+- `GET /payments/account/callback` - Provider callback (public)
+- `GET /payments/account/status` - Get connection status (requires auth)
+- `POST /payments/account/disconnect` - Disconnect seller payment account (requires auth)
 
 ### Health Check
 
@@ -233,43 +232,40 @@ npm run docker:dev:build
 docker compose -f docker-compose.dev.yml logs -f social-worker
 ```
 
-## Mercado Pago Integration
+## Saldo LUK And Payment Provider Integration
 
-### Checkout Preference Enrichment
+Ticket purchases do not open an external checkout. Buyers first load Saldo LUK through Mercado Pago or the local mock provider, then buy tickets with internal balance.
 
-The Checkout Pro preference sent to Mercado Pago includes additional buyer and industry context to improve approval quality for raffle-style purchases:
+- `1 Saldo LUK = $1 ARS`.
+- Mercado Pago is used only for `CreditTopUpSession`.
+- Mercado Pago does not receive raffle, ticket-number, prize, seller, or raffle metadata.
+- Ticket refunds and dispute refunds credit Saldo LUK.
+- External Mercado Pago refunds apply only to loaded balance that has not been used.
+- Seller payable balance is internal and separate from buyer spendable balance.
 
-- `payer` data when available:
-  - email, first name, last name;
-  - identification type and number;
-  - phone;
-  - shipping address reference;
-  - registration date;
-  - authentication type (`Gmail` vs native web login);
-  - first-purchase flag and last completed ticket purchase date.
-- enriched item metadata:
-  - `category_id: "lottery"`;
-  - a checkout description that distinguishes random purchases from chosen-number purchases.
+REST routes under `/payments/*` now refer to top-ups:
 
-The checkout still goes to Mercado Pago as a single bundle item so the charged amount remains exactly aligned with the final LUK calculation, including discounts and chosen-number premium when applicable.
+- `POST /payments/webhook` - Mercado Pago top-up webhooks
+- `GET /payments/status?payment_id=X` - top-up status check
+- `GET /payments/sync/:id` - force top-up sync
+
+For local QA, set `PAYMENTS_PROVIDER="mock"` and use `/checkout/mock/:id` to approve, reject, expire, or refund a top-up without hitting Mercado Pago.
 
 For random pack purchases, the backend still calculates seller economics on the gross value of all emitted tickets and records a separate `SUBSIDIO_PACK_PLATAFORMA` transaction for the Luk-funded bonus portion.
 
-### Webhook Processing
+### Top-Up Webhook Processing
 
-1. Receives webhook at `POST /mp/webhook`
-2. Parses payload (supports `type`, `topic`, `action` formats)
-3. Records `MpEvent` for idempotency
-4. On `approved` payment:
-   - Updates tickets to `PAGADO`
-   - Creates `COMPRA_TICKET`
-   - Creates `SUBSIDIO_PACK_PLATAFORMA` when a random pack discount was applied
-   - Creates `SUBSIDIO_PROMOCIONAL_PLATAFORMA` when a promotion bonus was applied
-   - Triggers notifications
+1. Receives webhook at `POST /payments/webhook`
+2. Parses Mercado Pago top-up payloads
+3. Records `PaymentProviderEvent` for idempotency
+4. On `approved` top-up:
+   - credits Saldo LUK once
+   - creates `CARGA_SALDO`
+   - stores provider ids on `CreditTopUpSession`
 
 ### Self-Healing Sync
 
-When webhooks fail (no tunnel), the frontend calls `/mp/sync-payment/:paymentId` to manually sync payment status.
+When webhooks fail (no tunnel), the frontend calls `/payments/sync/:paymentId` to manually sync top-up status.
 
 ## Email Notifications
 
@@ -509,7 +505,8 @@ src/
 ├── users/                 # User management
 ├── raffles/               # Core raffle logic
 ├── tickets/               # Ticket management
-├── payments/              # MP integration
+├── wallet/                # Saldo LUK accounts and ledger
+├── payments/              # Mercado Pago/mock top-up orchestration
 ├── disputes/              # Dispute system
 ├── notifications/         # Email + in-app
 ├── uploads/               # Cloudinary
@@ -658,8 +655,8 @@ mutation {
 | -------------------- | -------------------------------------------- | ------------------------------------------------------------------- |
 | AuthService          | `src/auth/auth.service.ts`                   | Registration, login, email verification                             |
 | RafflesService       | `src/raffles/raffles.service.ts`             | Core raffle CRUD, seller dashboard, buyer experience, price history |
-| PaymentsService      | `src/payments/payments.service.ts`           | MP Checkout Pro, webhooks, payment sync                             |
-| MpConnectService     | `src/payments/mp-connect.service.ts`         | OAuth flow with PKCE for seller onboarding                          |
+| WalletService        | `src/wallet/wallet.service.ts`               | Saldo LUK balances, ledger entries, buyer debits/refunds, seller payable |
+| PaymentsService      | `src/payments/payments.service.ts`           | Credit top-up sessions, provider webhooks, top-up refunds, status sync |
 | NotificationsService | `src/notifications/notifications.service.ts` | Email (Brevo) + in-app notifications + verification emails          |
 | ActivityService      | `src/activity/activity.service.ts`           | Audit logging for all actions                                       |
 | AdminService         | `src/admin/admin.service.ts`                 | Admin-only operations                                               |
@@ -671,16 +668,19 @@ The Prisma schema is at `prisma/schema.prisma`. Key models:
 
 | Model                 | Purpose                                                    |
 | --------------------- | ---------------------------------------------------------- |
-| User                  | Users with roles, MP connection status, email verification |
+| User                  | Users with roles, seller payment-account status, email verification |
 | Raffle                | Raffles with state machine                                 |
-| Ticket                | Ticket purchases with payment status                       |
+| Ticket                | Paid/refunded ticket records                               |
 | Product               | Product details for raffles                                |
-| Transaction           | Payment records                                            |
+| WalletAccount         | Buyer spendable balance and seller payable balance         |
+| WalletLedgerEntry     | Immutable Saldo LUK/payable movements                      |
+| CreditTopUpSession    | Mercado Pago/mock loads of Saldo LUK                       |
+| Transaction           | Internal accounting records                                |
 | Dispute               | Buyer protection disputes                                  |
 | Notification          | In-app notifications                                       |
 | ActivityLog           | Audit trail                                                |
 | Category              | Raffle categories                                          |
-| MpEvent               | Webhook idempotency                                        |
+| PaymentProviderEvent  | Webhook idempotency                                        |
 | RaffleQuestion        | Questions asked by users on raffles                        |
 | RaffleAnswer          | Seller answers to questions                                |
 | EmailVerificationCode | 6-digit codes for email verification (15 min expiry)       |
@@ -697,7 +697,7 @@ All personally identifiable information (KYC data) is encrypted at rest using AE
 - Street address
 - City, province, postal code
 - Phone number
-- Mercado Pago tokens
+- seller payout account identifiers
 
 **Encryption Service:** `src/common/services/encryption.service.ts`
 
@@ -714,20 +714,15 @@ All personally identifiable information (KYC data) is encrypted at rest using AE
 - If key is lost, existing encrypted data cannot be recovered
 - Generate with: `openssl rand -hex 32`
 
-## Delayed Disbursement
+## Seller Payment Accounts And Payouts
 
-Payments are held for 30 days using MP's `money_release_days` parameter:
+Seller onboarding uses internal payout data, not payment-provider OAuth.
 
-```typescript
-// In payments.service.ts
-const preference = await this.mercadopago.preferences.create({
-  body: {
-    // ...
-    marketplace_fee: platformFee,
-    money_release_days: 30, // Buyer protection
-  },
-});
-```
+- sellers load payout data from `Configuración > Pagos`;
+- KYC verified, address, CUIT/CUIL, and payout data are required before `sellerPaymentAccountStatus` becomes `CONNECTED`;
+- ticket purchases credit an internal seller payable balance;
+- payout processing debits seller payable after delivery/dispute release rules pass;
+- external settlement to the seller is manual/provider-neutral in this phase.
 
 ## Environment Variables
 
@@ -736,9 +731,8 @@ const preference = await this.mercadopago.preferences.create({
 | `DATABASE_URL`         | PostgreSQL connection string                                                                                                                 |
 | `JWT_SECRET`           | Secret for JWT tokens (min 32 chars)                                                                                                         |
 | `PLATFORM_FEE_PERCENT` | Luk platform fee percentage applied to ticket sales                                                                                          |
-| `MP_ACCESS_TOKEN`      | Mercado Pago access token                                                                                                                    |
-| `MP_CLIENT_ID`         | MP OAuth Client ID (for MP Connect)                                                                                                          |
-| `MP_CLIENT_SECRET`     | MP OAuth Client Secret                                                                                                                       |
+| `MP_ACCESS_TOKEN`     | Mercado Pago access token used only for Saldo LUK top-ups                                                                                    |
+| `PAYMENTS_PROVIDER`   | `mercado_pago` for live top-ups or `mock` for local QA                                                                                       |
 | `BREVO_API_KEY`        | Brevo email API key (must be REST API key `xkeysib-...`, not SMTP key)                                                                       |
 | `CLOUDINARY_*`         | Cloudinary credentials                                                                                                                       |
 | `FRONTEND_URL`         | Frontend URL for redirects                                                                                                                   |
@@ -747,7 +741,7 @@ const preference = await this.mercadopago.preferences.create({
 | `TURNSTILE_SECRET_KEY` | Cloudflare Turnstile secret key (backend only)                                                                                               |
 | `SENTRY_DSN`           | Backend/worker Sentry DSN (optional)                                                                                                         |
 | `SENTRY_RELEASE`       | Backend/worker release identifier (optional, recommended in prod/staging)                                                                    |
-| `ENCRYPTION_KEY`       | **64 hex chars** - Encrypts PII: KYC data (DNI, CUIT, addresses, phone) + MP tokens using AES-256-GCM. Generate with: `openssl rand -hex 32` |
+| `ENCRYPTION_KEY`       | **64 hex chars** - Encrypts PII: KYC data (DNI, CUIT, addresses, phone) + seller payout account identifiers using AES-256-GCM. Generate with: `openssl rand -hex 32` |
 
 ## Troubleshooting
 

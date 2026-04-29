@@ -38,7 +38,7 @@ export class TicketsPurchasedEvent {
     public readonly buyerId: string,
     public readonly ticketCount: number,
     public readonly totalAmount: number,
-    public readonly mpPaymentId: string | null,
+    public readonly purchaseReference: string | null,
   ) {}
 }
 

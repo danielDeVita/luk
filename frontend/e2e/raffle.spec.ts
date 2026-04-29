@@ -246,28 +246,28 @@ test.describe('Seller Onboarding', () => {
   });
 });
 
-test.describe('MP Connect Flow', () => {
-  test('settings page shows MP Connect option', async ({ page }) => {
+test.describe('Seller Payment Account Flow', () => {
+  test('settings page shows payment-account option', async ({ page }) => {
     await apiLogin(page, TEST_SELLER);
     await page.goto('/dashboard/settings');
 
     // Navigate to payments tab (scoped to main to avoid nav items)
     const paymentsTab = page.locator('main')
       .getByRole('tab', { name: /pagos|payment/i })
-      .or(page.locator('main').getByText(/mercado pago|pagos/i))
+      .or(page.locator('main').getByText(/cuenta de cobros|pagos/i))
       .first();
 
     if (await paymentsTab.isVisible()) {
       await paymentsTab.click();
 
-      // Should show MP Connect button or status
+      // Should show connect button or status
       await expect(
-        page.getByText(/conectar|mercado pago|vincular/i).first(),
+        page.getByText(/conectar|cuenta de cobros|vincular/i).first(),
       ).toBeVisible({ timeout: 10000 });
     }
   });
 
-  test('MP Connect button initiates OAuth flow', async ({ page }) => {
+  test('connect button initiates payment-account OAuth flow', async ({ page }) => {
     await apiLogin(page, TEST_SELLER);
     await page.goto('/dashboard/settings');
 

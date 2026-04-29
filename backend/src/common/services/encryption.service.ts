@@ -7,8 +7,7 @@ import { encrypt, decrypt, isEncrypted } from '../utils/encryption.util';
  * These are the field names as they appear in Prisma models.
  */
 export const PII_FIELDS = [
-  'mpAccessToken',
-  'mpRefreshToken',
+  'accountIdentifierEncrypted',
   'documentNumber',
   'cuitCuil',
   'street',

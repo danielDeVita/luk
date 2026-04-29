@@ -91,11 +91,13 @@ export class TicketsRepository extends BaseRepository<
   }
 
   /**
-   * Find ticket by MP payment ID.
+   * Find a ticket by the internal wallet purchase reference.
    */
-  async findByMpPaymentId(mpPaymentId: string): Promise<Ticket | null> {
+  async findByPurchaseReference(
+    purchaseReference: string,
+  ): Promise<Ticket | null> {
     return this.prisma.ticket.findFirst({
-      where: { mpPaymentId },
+      where: { purchaseReference },
       include: { buyer: true, raffle: true },
     });
   }
@@ -140,7 +142,7 @@ export class TicketsRepository extends BaseRepository<
     buyerId: string,
     ticketNumbers: number[],
     precioPagado: number,
-    mpExternalReference?: string,
+    purchaseReference?: string,
   ): Promise<Ticket[]> {
     const createData = ticketNumbers.map((numero) => ({
       raffleId,
@@ -148,7 +150,7 @@ export class TicketsRepository extends BaseRepository<
       numeroTicket: numero,
       precioPagado,
       estado: 'RESERVADO' as TicketStatus,
-      mpExternalReference,
+      purchaseReference,
     }));
 
     await this.prisma.ticket.createMany({
@@ -165,18 +167,16 @@ export class TicketsRepository extends BaseRepository<
   }
 
   /**
-   * Update ticket status by external reference (batch).
+   * Update ticket status by internal purchase reference (batch).
    */
-  async updateStatusByExternalReference(
-    mpExternalReference: string,
+  async updateStatusByPurchaseReference(
+    purchaseReference: string,
     status: TicketStatus,
-    mpPaymentId?: string,
   ): Promise<number> {
     const result = await this.prisma.ticket.updateMany({
-      where: { mpExternalReference },
+      where: { purchaseReference },
       data: {
         estado: status,
-        mpPaymentId,
       },
     });
 

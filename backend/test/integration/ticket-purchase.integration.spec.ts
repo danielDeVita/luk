@@ -1,19 +1,17 @@
 import * as request from 'supertest';
 import { App } from 'supertest/types';
 import {
-  createTestApp,
   cleanupTestApp,
+  createTestApp,
   generateTestToken,
   TestContext,
 } from './setup';
 import {
-  createTestUser,
-  createTestSeller,
   createTestRaffle,
+  createTestSeller,
+  createTestUser,
 } from './factories';
-import { TicketStatus } from '@prisma/client';
 
-// GraphQL response types for type safety
 interface GraphQLError {
   message: string;
 }
@@ -23,34 +21,17 @@ interface GraphQLResponse<T> {
   errors?: GraphQLError[];
 }
 
-interface RaffleData {
-  raffle: {
-    id: string;
-    titulo: string;
-    totalTickets: number;
-    precioPorTicket: number;
-    estado: string;
-    ticketsDisponibles: number;
+interface BuyTicketsData {
+  buyTickets: {
+    paidWithCredit: boolean;
+    creditDebited: number;
+    creditBalanceAfter: number;
+    baseQuantity: number;
+    bonusQuantity: number;
+    grantedQuantity: number;
+    packApplied: boolean;
+    tickets: Array<{ id: string; numeroTicket: number; estado: string }>;
   };
-}
-
-interface CreateTicketPreferenceData {
-  createTicketPreference: {
-    preferenceId: string;
-    initPoint: string;
-  };
-}
-
-interface MyTicketsData {
-  myTickets: Array<{
-    id: string;
-    numeroTicket: number;
-    estado: string;
-  }>;
-}
-
-interface WebhookResponse {
-  received: boolean;
 }
 
 describe('Ticket Purchase Flow (Integration)', () => {
@@ -64,259 +45,121 @@ describe('Ticket Purchase Flow (Integration)', () => {
     await cleanupTestApp(ctx);
   }, 30000);
 
-  describe('Purchase → Payment → Confirmation', () => {
-    let seller: {
-      id: string;
-      email: string;
-      nombre: string;
-      apellido: string;
-      role: string;
-    };
-    let buyer: {
-      id: string;
-      email: string;
-      nombre: string;
-      apellido: string;
-      role: string;
-    };
-    let raffle: {
-      id: string;
-      titulo: string;
-      totalTickets: number;
-      precioPorTicket: number;
-    };
-    let buyerToken: string;
-
-    beforeAll(async () => {
-      // Create seller and buyer
-      seller = await createTestSeller(ctx.prisma);
-      buyer = await createTestUser(ctx.prisma);
-      buyerToken = generateTestToken(ctx, buyer);
-
-      // Create a raffle
-      raffle = await createTestRaffle(ctx.prisma, seller.id, {
-        totalTickets: 100,
-        precioPorTicket: 150,
-      });
+  it('buys tickets directly with Saldo LUK and applies the simple pack', async () => {
+    const seller = await createTestSeller(ctx.prisma);
+    const buyer = await createTestUser(ctx.prisma);
+    const buyerToken = generateTestToken(ctx, buyer);
+    const raffle = await createTestRaffle(ctx.prisma, seller.id, {
+      totalTickets: 100,
+      precioPorTicket: 150,
     });
 
-    it('should allow authenticated user to view raffle details', async () => {
-      const query = `
-        query GetRaffle($id: String!) {
-          raffle(id: $id) {
-            id
-            titulo
-            totalTickets
-            precioPorTicket
-            estado
-            ticketsDisponibles
-          }
-        }
-      `;
-
-      const response = await request(ctx.app.getHttpServer() as App)
-        .post('/graphql')
-        .set('Authorization', `Bearer ${buyerToken}`)
-        .send({
-          query,
-          variables: { id: raffle.id },
-        });
-
-      expect(response.status).toBe(200);
-      const result = response.body as GraphQLResponse<RaffleData>;
-      expect(result.data?.raffle).toBeDefined();
-      expect(result.data?.raffle.id).toBe(raffle.id);
-      expect(result.data?.raffle.ticketsDisponibles).toBe(100);
+    await ctx.prisma.shippingAddress.create({
+      data: {
+        userId: buyer.id,
+        recipientName: 'Buyer QA',
+        phone: '+541112345678',
+        street: 'Av. Test',
+        number: '123',
+        city: 'CABA',
+        province: 'CABA',
+        postalCode: '1000',
+      },
+    });
+    await ctx.prisma.walletAccount.create({
+      data: { userId: buyer.id, creditBalance: 1000 },
     });
 
-    it('should create preference for ticket purchase', async () => {
-      const mutation = `
-        mutation CreateTicketPreference($raffleId: String!, $quantity: Int!) {
-          createTicketPreference(raffleId: $raffleId, quantity: $quantity) {
-            preferenceId
-            initPoint
-          }
-        }
-      `;
-
-      const response = await request(ctx.app.getHttpServer() as App)
-        .post('/graphql')
-        .set('Authorization', `Bearer ${buyerToken}`)
-        .send({
-          query: mutation,
-          variables: {
-            raffleId: raffle.id,
-            quantity: 5,
-          },
-        });
-
-      // Note: This may fail if MP is not configured, but structure should be correct
-      expect(response.status).toBe(200);
-      const result =
-        response.body as GraphQLResponse<CreateTicketPreferenceData>;
-
-      // Either succeeds or returns an error about MP config
-      if (result.data?.createTicketPreference) {
-        expect(result.data.createTicketPreference.preferenceId).toBeDefined();
-        expect(result.data.createTicketPreference.initPoint).toBeDefined();
-      }
-    });
-
-    it('should process webhook payment and create tickets', async () => {
-      const paymentId = `test-payment-${Date.now()}`;
-
-      // First, reserve tickets manually (simulating what preference does)
-      const ticketNumbers: number[] = [];
-      for (let i = 1; i <= 3; i++) {
-        await ctx.prisma.ticket.create({
-          data: {
-            raffleId: raffle.id,
-            buyerId: buyer.id,
-            numeroTicket: i,
-            precioPagado: raffle.precioPorTicket,
-            estado: TicketStatus.RESERVADO,
-            mpPaymentId: paymentId,
-          },
-        });
-        ticketNumbers.push(i);
-      }
-
-      // Simulate MP webhook for approved payment
-      const webhookBody = {
-        type: 'payment',
-        data: { id: paymentId },
-      };
-
-      const webhookResponse = await request(ctx.app.getHttpServer() as App)
-        .post('/mp/webhook')
-        .send(webhookBody);
-
-      // Webhook should return 200 (MP requirement)
-      expect(webhookResponse.status).toBe(200);
-      const webhookResult = webhookResponse.body as WebhookResponse;
-      expect(webhookResult.received).toBe(true);
-    });
-
-    it('should show correct ticket count after purchases', async () => {
-      // Count tickets for this buyer in this raffle
-      const ticketCount = await ctx.prisma.ticket.count({
-        where: {
-          raffleId: raffle.id,
-          buyerId: buyer.id,
-          estado: { not: 'REEMBOLSADO' },
-        },
-      });
-
-      expect(ticketCount).toBeGreaterThan(0);
-
-      // Verify via GraphQL
-      const query = `
-        query GetMyTickets($raffleId: String!) {
-          myTickets(raffleId: $raffleId) {
+    const mutation = `
+      mutation BuyTickets($raffleId: String!, $cantidad: Int!) {
+        buyTickets(raffleId: $raffleId, cantidad: $cantidad) {
+          paidWithCredit
+          creditDebited
+          creditBalanceAfter
+          baseQuantity
+          bonusQuantity
+          grantedQuantity
+          packApplied
+          tickets {
             id
             numeroTicket
             estado
           }
         }
-      `;
-
-      const response = await request(ctx.app.getHttpServer() as App)
-        .post('/graphql')
-        .set('Authorization', `Bearer ${buyerToken}`)
-        .send({
-          query,
-          variables: { raffleId: raffle.id },
-        });
-
-      expect(response.status).toBe(200);
-      const result = response.body as GraphQLResponse<MyTicketsData>;
-      if (result.data?.myTickets) {
-        expect(result.data.myTickets.length).toBe(ticketCount);
       }
+    `;
+
+    const response = await request(ctx.app.getHttpServer() as App)
+      .post('/graphql')
+      .set('Authorization', `Bearer ${buyerToken}`)
+      .send({
+        query: mutation,
+        variables: { raffleId: raffle.id, cantidad: 5 },
+      });
+
+    expect(response.status).toBe(200);
+    const result = response.body as GraphQLResponse<BuyTicketsData>;
+    expect(result.errors).toBeUndefined();
+    expect(result.data?.buyTickets).toMatchObject({
+      paidWithCredit: true,
+      creditDebited: 750,
+      creditBalanceAfter: 250,
+      baseQuantity: 5,
+      bonusQuantity: 1,
+      grantedQuantity: 6,
+      packApplied: true,
     });
+    expect(result.data?.buyTickets.tickets).toHaveLength(6);
   });
 
-  describe('Edge Cases', () => {
-    it('should reject purchase without authentication', async () => {
-      const mutation = `
-        mutation CreateTicketPreference($raffleId: String!, $quantity: Int!) {
-          createTicketPreference(raffleId: $raffleId, quantity: $quantity) {
-            preferenceId
-          }
-        }
-      `;
-
-      const response = await request(ctx.app.getHttpServer() as App)
-        .post('/graphql')
-        .send({
-          query: mutation,
-          variables: {
-            raffleId: 'any-raffle-id',
-            quantity: 1,
-          },
-        });
-
-      expect(response.status).toBe(200);
-      const result =
-        response.body as GraphQLResponse<CreateTicketPreferenceData>;
-      expect(result.errors).toBeDefined();
-      expect(result.errors?.[0].message).toContain('Unauthorized');
+  it('fails before ticket emission when Saldo LUK is insufficient', async () => {
+    const seller = await createTestSeller(ctx.prisma);
+    const buyer = await createTestUser(ctx.prisma);
+    const buyerToken = generateTestToken(ctx, buyer);
+    const raffle = await createTestRaffle(ctx.prisma, seller.id, {
+      totalTickets: 100,
+      precioPorTicket: 150,
     });
 
-    it('should reject purchase for non-existent raffle', async () => {
-      const buyer = await createTestUser(ctx.prisma);
-      const token = generateTestToken(ctx, buyer);
-
-      const mutation = `
-        mutation CreateTicketPreference($raffleId: String!, $quantity: Int!) {
-          createTicketPreference(raffleId: $raffleId, quantity: $quantity) {
-            preferenceId
-          }
-        }
-      `;
-
-      const response = await request(ctx.app.getHttpServer() as App)
-        .post('/graphql')
-        .set('Authorization', `Bearer ${token}`)
-        .send({
-          query: mutation,
-          variables: {
-            raffleId: 'non-existent-raffle-id',
-            quantity: 1,
-          },
-        });
-
-      expect(response.status).toBe(200);
-      expect((response.body as GraphQLResponse<unknown>).errors).toBeDefined();
+    await ctx.prisma.shippingAddress.create({
+      data: {
+        userId: buyer.id,
+        recipientName: 'Buyer QA',
+        phone: '+541112345678',
+        street: 'Av. Test',
+        number: '123',
+        city: 'CABA',
+        province: 'CABA',
+        postalCode: '1000',
+      },
+    });
+    await ctx.prisma.walletAccount.create({
+      data: { userId: buyer.id, creditBalance: 100 },
     });
 
-    it('should reject seller buying own raffle tickets', async () => {
-      const seller = await createTestSeller(ctx.prisma);
-      const sellerToken = generateTestToken(ctx, seller);
-      const raffle = await createTestRaffle(ctx.prisma, seller.id);
-
-      const mutation = `
-        mutation CreateTicketPreference($raffleId: String!, $quantity: Int!) {
-          createTicketPreference(raffleId: $raffleId, quantity: $quantity) {
-            preferenceId
-          }
+    const mutation = `
+      mutation BuyTickets($raffleId: String!, $cantidad: Int!) {
+        buyTickets(raffleId: $raffleId, cantidad: $cantidad) {
+          tickets { id }
         }
-      `;
+      }
+    `;
 
-      const response = await request(ctx.app.getHttpServer() as App)
-        .post('/graphql')
-        .set('Authorization', `Bearer ${sellerToken}`)
-        .send({
-          query: mutation,
-          variables: {
-            raffleId: raffle.id,
-            quantity: 1,
-          },
-        });
+    const response = await request(ctx.app.getHttpServer() as App)
+      .post('/graphql')
+      .set('Authorization', `Bearer ${buyerToken}`)
+      .send({
+        query: mutation,
+        variables: { raffleId: raffle.id, cantidad: 5 },
+      });
 
-      expect(response.status).toBe(200);
-      // Should either error or succeed but not allow purchase
-      // The exact behavior depends on business logic
+    expect(response.status).toBe(200);
+    const result = response.body as GraphQLResponse<BuyTicketsData>;
+    expect(result.errors?.[0]?.message).toContain('Saldo LUK insuficiente');
+
+    const emittedTickets = await ctx.prisma.ticket.count({
+      where: { raffleId: raffle.id, buyerId: buyer.id },
     });
+    expect(emittedTickets).toBe(0);
   });
 });

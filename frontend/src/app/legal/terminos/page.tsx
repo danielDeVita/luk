@@ -62,7 +62,7 @@ export default function TerminosPage() {
         </p>
 
         <p>
-          Al acceder, registrarse o utilizar la plataforma web y/o aplicación móvil (en adelante, la &quot;Plataforma&quot;), que facilita la compra y venta de boletos para rifas y sorteos (similar a una pasarela de pagos como Mercado Pago, pero orientada a transacciones relacionadas con rifas), usted declara haber leído, comprendido y aceptado estos Términos en su totalidad, así como nuestra Política de Privacidad, que forma parte integral de estos Términos.
+          Al acceder, registrarse o utilizar la plataforma web y/o aplicación móvil (en adelante, la &quot;Plataforma&quot;), que facilita la compra y venta de boletos para rifas y sorteos con pagos integrados, usted declara haber leído, comprendido y aceptado estos Términos en su totalidad, así como nuestra Política de Privacidad, que forma parte integral de estos Términos.
         </p>
 
         <p>
@@ -158,7 +158,7 @@ export default function TerminosPage() {
         <h2>5. Pagos, Comisiones e Impuestos</h2>
 
         <ul>
-          <li>Los pagos se procesan a través de pasarelas integradas (ej. Mercado Pago). La Empresa cobra una comisión base del <strong>{PLATFORM_COMMISSION_PERCENT}%</strong> por transacción, salvo promociones o condiciones particulares informadas al momento de operar.</li>
+          <li>Los pagos se procesan a través de proveedores de pago integrados. La Empresa cobra una comisión base del <strong>{PLATFORM_COMMISSION_PERCENT}%</strong> por transacción, salvo promociones o condiciones particulares informadas al momento de operar.</li>
           <li>Los Usuarios son responsables de impuestos aplicables (por ejemplo, percepción impositiva sobre apuestas online según Resolución General ARCA 5791/2025). Para rifas, tasas como el 5-10% sobre premios (Resolución N° 17/2011 de Lotería Nacional).</li>
           <li>No hay reembolsos por boletos comprados, salvo excepciones legales.</li>
           <li>La Plataforma podrá otorgar <strong>bonificaciones promocionales internas</strong>, no transferibles y no canjeables por dinero, aplicables únicamente a compras futuras dentro de Luk y sujetas a condiciones de elegibilidad, vencimiento y uso en rifas de terceros.</li>

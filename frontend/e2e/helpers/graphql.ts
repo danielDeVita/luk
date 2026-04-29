@@ -109,7 +109,9 @@ export async function createTestTickets(
   const mutation = `
     mutation BuyTickets($raffleId: String!, $quantity: Int!) {
       buyTickets(raffleId: $raffleId, quantity: $quantity) {
-        mpPreferenceId
+        paidWithCredit
+        creditDebited
+        creditBalanceAfter
         tickets {
           id
           numero

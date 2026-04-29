@@ -7,7 +7,7 @@ import { PaymentsModule } from '../payments/payments.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { PayoutsModule } from '../payouts/payouts.module';
 import { DisputesModule } from '../disputes/disputes.module';
-import { SocialPromotionsModule } from '../social-promotions/social-promotions.module';
+import { TicketsModule } from '../tickets/tickets.module';
 
 @Module({
   imports: [
@@ -16,7 +16,7 @@ import { SocialPromotionsModule } from '../social-promotions/social-promotions.m
     NotificationsModule,
     PayoutsModule,
     DisputesModule,
-    SocialPromotionsModule,
+    TicketsModule,
   ],
   providers: [RaffleTasksService, DisputeTasksService, CleanupTasksService],
 })

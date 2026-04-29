@@ -11,6 +11,7 @@ import {
   AcceptTermsInput,
   UpdateAvatarInput,
   CreateSellerReviewInput,
+  UpsertSellerPaymentAccountInput,
 } from './dto/update-user.input';
 import { PublicSellerProfile } from './entities/public-seller-profile.entity';
 import { PublicSellerReview } from './entities/review.entity';
@@ -64,6 +65,21 @@ export class UsersResolver {
     @Args('input') input: AcceptTermsInput,
   ) {
     return this.usersService.acceptTerms(user.id, input);
+  }
+
+  @Mutation(() => User)
+  @UseGuards(GqlAuthGuard)
+  async upsertSellerPaymentAccount(
+    @CurrentUser() user: User,
+    @Args('input') input: UpsertSellerPaymentAccountInput,
+  ) {
+    return this.usersService.upsertSellerPaymentAccount(user.id, input);
+  }
+
+  @Mutation(() => User)
+  @UseGuards(GqlAuthGuard)
+  async disconnectSellerPaymentAccount(@CurrentUser() user: User) {
+    return this.usersService.disconnectSellerPaymentAccount(user.id);
   }
 
   @Mutation(() => PublicSellerReview)

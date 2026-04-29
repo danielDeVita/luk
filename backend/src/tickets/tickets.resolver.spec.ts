@@ -1,7 +1,12 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { TicketsResolver } from './tickets.resolver';
 import { TicketsService } from './tickets.service';
-import { UserRole, MpConnectStatus, KycStatus } from '@prisma/client';
+import {
+  UserRole,
+  SellerPaymentAccountStatus,
+  KycStatus,
+} from '@prisma/client';
+import { IS_PUBLIC_KEY } from '../auth/decorators/public.decorator';
 
 describe('TicketsResolver', () => {
   let resolver: TicketsResolver;
@@ -25,7 +30,7 @@ describe('TicketsResolver', () => {
     emailVerified: true,
     twoFactorEnabled: false,
     twoFactorEnabledAt: null,
-    mpConnectStatus: MpConnectStatus.NOT_CONNECTED,
+    sellerPaymentAccountStatus: SellerPaymentAccountStatus.NOT_CONNECTED,
     kycStatus: KycStatus.NOT_SUBMITTED,
     createdAt: new Date(),
     updatedAt: new Date(),
@@ -139,8 +144,19 @@ describe('TicketsResolver', () => {
 
       ticketsService.buyTickets.mockResolvedValue({
         tickets: [],
-        paymentUrl: 'https://example.com',
+        paidWithCredit: true,
+        creditDebited: 0,
+        creditBalanceAfter: 0,
         totalAmount: 0,
+        grossSubtotal: 0,
+        discountApplied: 0,
+        chargedAmount: 0,
+        cantidadComprada: 0,
+        baseQuantity: 0,
+        bonusQuantity: 0,
+        grantedQuantity: 0,
+        packApplied: false,
+        ticketsRestantesQuePuedeComprar: 0,
       });
 
       await resolver.buyTickets(user, 'raffle-1', 1);
@@ -163,12 +179,13 @@ describe('TicketsResolver', () => {
           createTestTicket({ numeroTicket: 7 }),
           createTestTicket({ numeroTicket: 11 }),
         ],
-        initPoint: 'https://mercadopago.com/checkout/v1/selected',
-        preferenceId: 'pref-selected-1',
+        paidWithCredit: true,
+        creditDebited: 210,
+        creditBalanceAfter: 790,
         totalAmount: 210,
         grossSubtotal: 200,
         discountApplied: 0,
-        mpChargeAmount: 210,
+        chargedAmount: 210,
         cantidadComprada: 2,
         baseQuantity: 2,
         bonusQuantity: 0,
@@ -229,6 +246,12 @@ describe('TicketsResolver', () => {
         2,
         undefined,
       );
+    });
+
+    it('should be publicly accessible for unauthenticated visitors', () => {
+      expect(
+        Reflect.getMetadata(IS_PUBLIC_KEY, resolver.ticketNumberAvailability),
+      ).toBe(true);
     });
   });
 

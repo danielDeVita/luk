@@ -21,7 +21,7 @@ export async function createTestUser(
     nombre?: string;
     apellido?: string;
     role?: UserRole;
-    mpConnectStatus?: 'NOT_CONNECTED' | 'PENDING' | 'CONNECTED';
+    sellerPaymentAccountStatus?: 'NOT_CONNECTED' | 'PENDING' | 'CONNECTED';
     fechaNacimiento?: Date;
   } = {},
 ): Promise<{
@@ -45,7 +45,8 @@ export async function createTestUser(
       nombre: overrides.nombre ?? `Test${userCounter}`,
       apellido: overrides.apellido ?? 'User',
       role: overrides.role ?? UserRole.USER,
-      mpConnectStatus: overrides.mpConnectStatus ?? 'NOT_CONNECTED',
+      sellerPaymentAccountStatus:
+        overrides.sellerPaymentAccountStatus ?? 'NOT_CONNECTED',
       fechaNacimiento: overrides.fechaNacimiento ?? new Date('1990-01-01'),
       termsAcceptedAt: new Date(),
       termsVersion: '2026-01',
@@ -65,7 +66,7 @@ export async function createTestUser(
 }
 
 /**
- * Create a test seller with MP Connect configured.
+ * Create a test seller with a configured payment account.
  */
 export async function createTestSeller(
   prisma: PrismaService,
@@ -83,7 +84,7 @@ export async function createTestSeller(
 }> {
   return createTestUser(prisma, {
     ...overrides,
-    mpConnectStatus: 'CONNECTED',
+    sellerPaymentAccountStatus: 'CONNECTED',
   });
 }
 
@@ -163,7 +164,7 @@ export async function createTestTickets(
   overrides: {
     precioPagado?: number;
     estado?: TicketStatus;
-    mpPaymentId?: string;
+    purchaseReference?: string;
   } = {},
 ): Promise<Array<{ id: string; numeroTicket: number; estado: TicketStatus }>> {
   const tickets: Array<{
@@ -187,7 +188,7 @@ export async function createTestTickets(
         numeroTicket: startNumber + i,
         precioPagado: overrides.precioPagado ?? 100,
         estado: overrides.estado ?? TicketStatus.PAGADO,
-        mpPaymentId: overrides.mpPaymentId,
+        purchaseReference: overrides.purchaseReference,
       },
       select: {
         id: true,
@@ -209,7 +210,7 @@ export async function createPaidTicketPurchase(
   raffleId: string,
   buyerId: string,
   ticketCount: number,
-  mpPaymentId: string,
+  purchaseReference: string,
 ): Promise<{
   tickets: Array<{ id: string; numeroTicket: number }>;
   transactionId: string;
@@ -221,7 +222,7 @@ export async function createPaidTicketPurchase(
     ticketCount,
     {
       estado: TicketStatus.PAGADO,
-      mpPaymentId,
+      purchaseReference,
     },
   );
 
@@ -231,8 +232,8 @@ export async function createPaidTicketPurchase(
       userId: buyerId,
       raffleId,
       monto: ticketCount * 100,
-      mpPaymentId,
       estado: 'COMPLETADO',
+      metadata: { purchaseReference },
     },
   });
 
@@ -276,7 +277,7 @@ export async function fillRaffleWithTickets(
         ticketCount,
         {
           estado: TicketStatus.PAGADO,
-          mpPaymentId: `test-payment-${i}`,
+          purchaseReference: `test-purchase-${i}`,
         },
       );
 

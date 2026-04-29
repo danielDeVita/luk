@@ -16,6 +16,9 @@ import {
 } from '../common/constants/brand.constants';
 import {
   getAdminNewKycSubmissionContent,
+  getCreditTopUpApprovedContent,
+  getCreditTopUpFailedContent,
+  getCreditTopUpRefundedContent,
   getDeliveryConfirmedToSellerContent,
   getDeliveryReminderToWinnerContent,
   getDisputeOpenedToBuyerContent,
@@ -26,14 +29,16 @@ import {
   getKycApprovedContent,
   getKycRejectedContent,
   getNewQuestionNotificationContent,
-  getPromotionBonusGrantIssuedContent,
   getPaymentWillBeReleasedNotificationContent,
+  getPayoutFailedNotificationContent,
+  getPromotionBonusGrantIssuedContent,
   getPriceDropAlertContent,
   getPrizeShippedContent,
   getPriceReductionSuggestionContent,
   getQuestionAnsweredNotificationContent,
   getRaffleCancelledNotificationContent,
   getRaffleCompletedNotificationContent,
+  getRaffleExpirationReminderContent,
   getRaffleParticipantNotificationContent,
   getRefundDueToDisputeNotificationContent,
   getRefundNotificationContent,
@@ -287,6 +292,44 @@ export class NotificationsService {
     });
   }
 
+  // ==================== Wallet Notifications ====================
+
+  async sendCreditTopUpApprovedNotification(
+    email: string,
+    data: { amount: number; topUpSessionId: string },
+  ) {
+    const html = getCreditTopUpApprovedContent(data, this.configService);
+    return this.sendEmail({
+      to: email,
+      subject: '✅ Saldo LUK acreditado',
+      html,
+    });
+  }
+
+  async sendCreditTopUpFailedNotification(
+    email: string,
+    data: { amount: number; status: string; statusDetail?: string | null },
+  ) {
+    const html = getCreditTopUpFailedContent(data, this.configService);
+    return this.sendEmail({
+      to: email,
+      subject: 'No pudimos acreditar tu Saldo LUK',
+      html,
+    });
+  }
+
+  async sendCreditTopUpRefundedNotification(
+    email: string,
+    data: { amount: number; fullRefund: boolean },
+  ) {
+    const html = getCreditTopUpRefundedContent(data, this.configService);
+    return this.sendEmail({
+      to: email,
+      subject: 'Reintegro de Saldo LUK procesado',
+      html,
+    });
+  }
+
   // ==================== Raffle Notifications ====================
 
   async sendTicketPurchaseConfirmation(
@@ -381,6 +424,18 @@ export class NotificationsService {
     });
   }
 
+  async sendPayoutFailedNotification(
+    email: string,
+    data: { raffleName: string; amount: number; reason: string },
+  ) {
+    const html = getPayoutFailedNotificationContent(data, this.configService);
+    return this.sendEmail({
+      to: email,
+      subject: `No pudimos procesar tu pago - ${data.raffleName}`,
+      html,
+    });
+  }
+
   async sendPriceReductionSuggestion(
     email: string,
     data: {
@@ -411,6 +466,23 @@ export class NotificationsService {
     return this.sendEmail({
       to: email,
       subject: `❌ Rifa cancelada - ${data.raffleName}`,
+      html,
+    });
+  }
+
+  async sendRaffleExpirationReminder(
+    email: string,
+    data: {
+      raffleName: string;
+      deadline: Date;
+      soldTickets: number;
+      totalTickets: number;
+    },
+  ) {
+    const html = getRaffleExpirationReminderContent(data, this.configService);
+    return this.sendEmail({
+      to: email,
+      subject: `Tu rifa está por vencer - ${data.raffleName}`,
       html,
     });
   }

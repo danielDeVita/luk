@@ -5,24 +5,22 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
-  MockPaymentEventType,
-  MockPaymentStatus,
+  CreditTopUpEventType,
+  CreditTopUpStatus,
+  PaymentsProvider,
   Prisma,
 } from '@prisma/client';
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
-import {
-  CreateCheckoutSessionInput,
-  CreateCheckoutSessionResult,
-  MockPaymentAction,
-  MockPaymentSummary,
-  PaymentStatusResult,
-  SyncStatusResult,
+import type {
+  CreateCreditTopUpInput,
+  CreateCreditTopUpResult,
+  MockTopUpAction,
+  MockTopUpSummary,
+  SyncTopUpStatusResult,
+  TopUpStatusResult,
 } from './payment-provider.types';
 
-/**
- * Provides a local payment backend that mimics checkout, status changes, and refunds for QA flows.
- */
 @Injectable()
 export class MockPaymentProvider {
   constructor(
@@ -30,37 +28,13 @@ export class MockPaymentProvider {
     private readonly configService: ConfigService,
   ) {}
 
-  private normalizeBaseUrl(
-    value: string | undefined | null,
-    fallback: string,
-  ): string {
-    const raw = (value || '').trim();
-    const base = raw.length ? raw : fallback;
-    const withScheme = /^https?:\/\//i.test(base) ? base : `http://${base}`;
-    return withScheme.replace(/\/$/, '');
-  }
-
-  /**
-   * Returns whether mock payments are enabled by environment configuration.
-   */
   isEnabled(): boolean {
     const provider = (
       this.configService.get<string>('PAYMENTS_PROVIDER') || ''
     ).trim();
-    const legacyMockMode = this.configService.get<boolean | string>(
-      'MP_MOCK_MODE',
-    );
-    const legacyEnabled =
-      legacyMockMode === true ||
-      (typeof legacyMockMode === 'string' &&
-        legacyMockMode.trim().toLowerCase() === 'true');
-
-    return provider.toLowerCase() === 'mock' || legacyEnabled;
+    return provider.toLowerCase() === 'mock';
   }
 
-  /**
-   * Guards mutating mock-payment operations when the feature is disabled.
-   */
   assertEnabled(): void {
     const isProduction = this.configService.get('NODE_ENV') === 'production';
     const allowInProduction =
@@ -77,257 +51,113 @@ export class MockPaymentProvider {
     }
   }
 
-  private buildExternalReference(data: CreateCheckoutSessionInput): string {
-    return JSON.stringify({
-      raffleId: data.raffleId,
-      buyerId: data.buyerId,
-      cantidad: data.cantidad,
-      baseQuantity: data.baseQuantity,
-      bonusQuantity: data.bonusQuantity,
-      grantedQuantity: data.grantedQuantity,
-      packApplied: data.packApplied,
-      packIneligibilityReason: data.packIneligibilityReason ?? null,
-      reservationId: data.reservationId,
-      bonusGrantId: data.bonusGrantId ?? null,
-      grossSubtotal: data.grossSubtotal,
-      discountApplied: data.discountApplied,
-      promotionDiscountApplied: data.promotionDiscountApplied,
-      packDiscountApplied: data.packDiscountApplied,
-      mpChargeAmount: data.cashChargedAmount,
-      promotionToken: data.promotionToken ?? null,
-      purchaseMode: data.purchaseMode,
-      selectedNumbers: data.selectedNumbers ?? null,
-      selectionPremiumPercent: data.selectionPremiumPercent,
-      selectionPremiumAmount: data.selectionPremiumAmount,
-    });
-  }
-
-  private mapStatus(status: MockPaymentStatus): string {
-    switch (status) {
-      case MockPaymentStatus.APPROVED:
-        return 'approved';
-      case MockPaymentStatus.PENDING:
-        return 'pending';
-      case MockPaymentStatus.REJECTED:
-        return 'rejected';
-      case MockPaymentStatus.EXPIRED:
-        return 'expired';
-      case MockPaymentStatus.REFUNDED_FULL:
-        return 'refunded';
-      case MockPaymentStatus.REFUNDED_PARTIAL:
-        return 'partially_refunded';
-      case MockPaymentStatus.INITIATED:
-      default:
-        return 'initiated';
-    }
-  }
-
-  /**
-   * Creates a local checkout session and persists the mock payment record.
-   */
-  async createCheckoutSession(
-    data: CreateCheckoutSessionInput,
-  ): Promise<CreateCheckoutSessionResult> {
+  async createCreditTopUp(
+    data: CreateCreditTopUpInput,
+  ): Promise<CreateCreditTopUpResult> {
     this.assertEnabled();
 
-    const frontendUrl = this.normalizeBaseUrl(
-      this.configService.get<string>('FRONTEND_URL'),
-      'http://localhost:3000',
-    );
-    const paymentId = `mock_pay_${randomUUID().replace(/-/g, '')}`;
+    const frontendUrl = (
+      this.configService.get<string>('FRONTEND_URL') || 'http://localhost:3000'
+    ).replace(/\/$/, '');
     const publicToken = randomUUID().replace(/-/g, '');
-    const merchantOrderId = `mock_order_${Date.now()}`;
+    const providerOrderId = `mock_order_${Date.now()}`;
 
-    await this.prisma.mockPayment.create({
+    await this.prisma.creditTopUpSession.update({
+      where: { id: data.topUpSessionId },
       data: {
-        id: paymentId,
+        provider: PaymentsProvider.MOCK,
         publicToken,
-        buyerId: data.buyerId,
-        raffleId: data.raffleId,
-        reservationId: data.reservationId,
-        grossSubtotal: data.grossSubtotal,
-        discountApplied: data.discountApplied,
-        cashChargedAmount: data.cashChargedAmount,
-        promotionBonusGrantId: data.bonusGrantId ?? null,
-        promotionBonusRedemptionId: data.promotionBonusRedemptionId ?? null,
-        providerReference: paymentId,
-        merchantOrderId,
-        externalReference: this.buildExternalReference(data),
-        status: MockPaymentStatus.INITIATED,
-        statusDetail: 'Checkout mock iniciado',
+        providerOrderId,
+        status: CreditTopUpStatus.INITIATED,
+        statusDetail: 'Carga mock iniciada',
         expiresAt: new Date(Date.now() + 30 * 60 * 1000),
       },
     });
 
     return {
-      initPoint: `${frontendUrl}/checkout/mock/${paymentId}?token=${publicToken}`,
-      preferenceId: paymentId,
+      redirectUrl: `${frontendUrl}/checkout/mock/${data.topUpSessionId}?token=${publicToken}`,
+      providerSessionId: data.topUpSessionId,
     };
   }
 
-  /**
-   * Returns normalized status data for a stored mock payment.
-   */
-  async getPaymentStatus(paymentId: string): Promise<PaymentStatusResult> {
-    const payment = await this.prisma.mockPayment.findUnique({
-      where: { id: paymentId },
-    });
-
-    if (!payment) {
-      throw new NotFoundException('Pago mock no encontrado');
-    }
-
+  async getTopUpStatus(topUpSessionId: string): Promise<TopUpStatusResult> {
+    const topUp = await this.getTopUp(topUpSessionId);
     return {
-      status: this.mapStatus(payment.status),
-      statusDetail: payment.statusDetail || '',
-      externalReference: payment.externalReference || null,
-      merchantOrderId: payment.merchantOrderId,
+      status: this.mapStatus(topUp.status),
+      statusDetail: topUp.statusDetail || '',
+      externalReference: topUp.providerReference,
+      providerOrderId: topUp.providerOrderId,
     };
   }
 
-  /**
-   * Returns the latest mock payment status plus whether ticket confirmation already happened.
-   */
-  async syncPaymentStatus(paymentId: string): Promise<SyncStatusResult> {
-    const payment = await this.prisma.mockPayment.findUnique({
-      where: { id: paymentId },
-    });
-
-    if (!payment) {
-      throw new NotFoundException('Pago mock no encontrado');
-    }
-
-    const ticketsUpdated =
-      payment.status === MockPaymentStatus.APPROVED
-        ? await this.prisma.ticket.count({
-            where: {
-              mpPaymentId: paymentId,
-            },
-          })
-        : 0;
-
+  async syncTopUpStatus(
+    topUpSessionId: string,
+  ): Promise<SyncTopUpStatusResult> {
+    const topUp = await this.getTopUp(topUpSessionId);
     return {
-      status: this.mapStatus(payment.status),
-      alreadyProcessed: Boolean(payment.processedAt),
-      ticketsUpdated,
+      status: this.mapStatus(topUp.status),
+      alreadyProcessed: Boolean(topUp.processedAt),
+      creditedAmount: Number(topUp.creditedAmount),
     };
   }
 
-  /**
-   * Loads the raw stored mock payment record.
-   */
-  async getPayment(paymentId: string) {
-    const payment = await this.prisma.mockPayment.findUnique({
-      where: { id: paymentId },
+  async getTopUp(topUpSessionId: string) {
+    const topUp = await this.prisma.creditTopUpSession.findUnique({
+      where: { id: topUpSessionId },
     });
 
-    if (!payment) {
-      throw new NotFoundException('Pago mock no encontrado');
+    if (!topUp) {
+      throw new NotFoundException('Carga mock no encontrada');
     }
 
-    return payment;
+    return topUp;
   }
 
-  /**
-   * Loads the mock payment summary exposed to the browser checkout screen.
-   */
-  async getPaymentForCheckout(
-    paymentId: string,
+  async getTopUpForCheckout(
+    topUpSessionId: string,
     publicToken: string,
-  ): Promise<MockPaymentSummary> {
+  ): Promise<MockTopUpSummary> {
     this.assertEnabled();
 
-    const payment = await this.prisma.mockPayment.findFirst({
+    const topUp = await this.prisma.creditTopUpSession.findFirst({
       where: {
-        id: paymentId,
+        id: topUpSessionId,
         publicToken,
+      },
+      include: {
+        user: { select: { email: true } },
       },
     });
 
-    if (!payment) {
-      throw new NotFoundException('Pago mock no encontrado');
+    if (!topUp) {
+      throw new NotFoundException('Carga mock no encontrada');
     }
 
-    const [raffle, buyer, quantity] = await Promise.all([
-      this.prisma.raffle.findUnique({
-        where: { id: payment.raffleId },
-        select: { titulo: true },
-      }),
-      this.prisma.user.findUnique({
-        where: { id: payment.buyerId },
-        select: { email: true },
-      }),
-      this.prisma.ticket.count({
-        where: { mpExternalReference: payment.reservationId },
-      }),
-    ]);
-
-    const externalReference = JSON.parse(payment.externalReference || '{}') as {
-      purchaseMode?: MockPaymentSummary['purchaseMode'];
-      selectedNumbers?: number[] | null;
-      selectionPremiumPercent?: number;
-      selectionPremiumAmount?: number;
-      baseQuantity?: number;
-      bonusQuantity?: number;
-      grantedQuantity?: number;
-      packApplied?: boolean;
-      packIneligibilityReason?: MockPaymentSummary['packIneligibilityReason'];
-      promotionDiscountApplied?: number;
-      packDiscountApplied?: number;
-    };
-
     return {
-      id: payment.id,
-      publicToken: payment.publicToken,
-      raffleId: payment.raffleId,
-      raffleTitle: raffle?.titulo ?? 'Rifa',
-      buyerId: payment.buyerId,
-      buyerEmail: buyer?.email ?? 'desconocido',
-      quantity,
-      baseQuantity: externalReference.baseQuantity ?? quantity,
-      bonusQuantity: externalReference.bonusQuantity ?? 0,
-      grantedQuantity: externalReference.grantedQuantity ?? quantity,
-      packApplied: externalReference.packApplied ?? false,
-      packIneligibilityReason:
-        externalReference.packIneligibilityReason ?? null,
-      grossSubtotal: Number(payment.grossSubtotal),
-      discountApplied: Number(payment.discountApplied),
-      promotionDiscountApplied: Number(
-        externalReference.promotionDiscountApplied ?? 0,
-      ),
-      packDiscountApplied: Number(externalReference.packDiscountApplied ?? 0),
-      cashChargedAmount: Number(payment.cashChargedAmount),
-      purchaseMode: (externalReference.purchaseMode ??
-        'RANDOM') as MockPaymentSummary['purchaseMode'],
-      selectedNumbers: externalReference.selectedNumbers,
-      selectionPremiumPercent: Number(
-        externalReference.selectionPremiumPercent ?? 0,
-      ),
-      selectionPremiumAmount: Number(
-        externalReference.selectionPremiumAmount ?? 0,
-      ),
-      status: this.mapStatus(payment.status),
-      statusDetail: payment.statusDetail || '',
-      merchantOrderId: payment.merchantOrderId,
-      promotionBonusGrantId: payment.promotionBonusGrantId,
-      promotionBonusRedemptionId: payment.promotionBonusRedemptionId,
-      createdAt: payment.createdAt.toISOString(),
-      approvedAt: payment.approvedAt?.toISOString() ?? null,
-      refundedAt: payment.refundedAt?.toISOString() ?? null,
+      id: topUp.id,
+      publicToken: topUp.publicToken || publicToken,
+      userId: topUp.userId,
+      userEmail: topUp.user.email,
+      amount: Number(topUp.amount),
+      creditedAmount: Number(topUp.creditedAmount),
+      refundedAmount: Number(topUp.refundedAmount),
+      status: this.mapStatus(topUp.status),
+      statusDetail: topUp.statusDetail || '',
+      providerOrderId: topUp.providerOrderId || topUp.id,
+      createdAt: topUp.createdAt.toISOString(),
+      approvedAt: topUp.approvedAt?.toISOString() ?? null,
+      refundedAt: topUp.refundedAt?.toISOString() ?? null,
     };
   }
 
-  /**
-   * Persists a new mock payment status and any related metadata changes.
-   */
-  async updatePaymentStatus(
-    paymentId: string,
-    status: MockPaymentStatus,
+  async updateTopUpStatus(
+    topUpSessionId: string,
+    status: CreditTopUpStatus,
     statusDetail: string,
-    data?: Prisma.MockPaymentUpdateInput,
+    data?: Prisma.CreditTopUpSessionUpdateInput,
   ) {
-    return this.prisma.mockPayment.update({
-      where: { id: paymentId },
+    return this.prisma.creditTopUpSession.update({
+      where: { id: topUpSessionId },
       data: {
         status,
         statusDetail,
@@ -336,45 +166,59 @@ export class MockPaymentProvider {
     });
   }
 
-  /**
-   * Persists an audit event for a mock payment action.
-   */
-  async recordEvent(params: {
-    paymentId: string;
-    eventType: MockPaymentEventType;
-    status: MockPaymentStatus;
+  async recordEvent(input: {
+    topUpSessionId: string;
+    eventType: CreditTopUpEventType;
+    status: CreditTopUpStatus;
     amount?: number;
     metadata?: Prisma.InputJsonValue;
-  }): Promise<void> {
-    await this.prisma.mockPaymentEvent.create({
+  }) {
+    await this.prisma.creditTopUpEvent.create({
       data: {
-        mockPaymentId: params.paymentId,
-        eventType: params.eventType,
-        status: params.status,
-        amount: params.amount,
-        metadata: params.metadata,
+        creditTopUpSessionId: input.topUpSessionId,
+        eventType: input.eventType,
+        status: input.status,
+        amount: input.amount,
+        metadata: input.metadata ?? Prisma.JsonNull,
       },
     });
   }
 
-  /**
-   * Maps a UI action to the corresponding mock payment event type.
-   */
-  getActionType(action: MockPaymentAction): MockPaymentEventType {
+  getActionType(action: MockTopUpAction): CreditTopUpEventType {
     switch (action) {
       case 'APPROVE':
-        return MockPaymentEventType.APPROVE;
+        return CreditTopUpEventType.APPROVE;
       case 'PEND':
-        return MockPaymentEventType.PEND;
+        return CreditTopUpEventType.PEND;
       case 'REJECT':
-        return MockPaymentEventType.REJECT;
+        return CreditTopUpEventType.REJECT;
       case 'REFUND_FULL':
-        return MockPaymentEventType.REFUND_FULL;
+        return CreditTopUpEventType.REFUND_FULL;
       case 'REFUND_PARTIAL':
-        return MockPaymentEventType.REFUND_PARTIAL;
+        return CreditTopUpEventType.REFUND_PARTIAL;
       case 'EXPIRE':
       default:
-        return MockPaymentEventType.EXPIRE;
+        return CreditTopUpEventType.EXPIRE;
+    }
+  }
+
+  private mapStatus(status: CreditTopUpStatus): string {
+    switch (status) {
+      case CreditTopUpStatus.APPROVED:
+        return 'approved';
+      case CreditTopUpStatus.PENDING:
+        return 'pending';
+      case CreditTopUpStatus.REJECTED:
+        return 'rejected';
+      case CreditTopUpStatus.EXPIRED:
+        return 'expired';
+      case CreditTopUpStatus.REFUNDED_FULL:
+        return 'refunded';
+      case CreditTopUpStatus.REFUNDED_PARTIAL:
+        return 'partially_refunded';
+      case CreditTopUpStatus.INITIATED:
+      default:
+        return 'initiated';
     }
   }
 }

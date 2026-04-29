@@ -11,10 +11,13 @@ export class BuyTicketsResult {
   tickets!: Ticket[];
 
   @Field()
-  initPoint!: string;
+  paidWithCredit!: boolean;
 
-  @Field()
-  preferenceId!: string;
+  @Field(() => Float)
+  creditDebited!: number;
+
+  @Field(() => Float)
+  creditBalanceAfter!: number;
 
   @Field(() => Float)
   totalAmount!: number;
@@ -26,7 +29,7 @@ export class BuyTicketsResult {
   discountApplied!: number;
 
   @Field(() => Float)
-  mpChargeAmount!: number;
+  chargedAmount!: number;
 
   @Field({ nullable: true })
   bonusGrantId?: string;

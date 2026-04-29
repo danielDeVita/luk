@@ -31,7 +31,7 @@ type AdminStats {
   newRafflesToday: Int!
   newUsersToday: Int!
   pendingDisputes: Int!
-  recentMpEvents: Int!
+  recentPaymentEvents: Int!
   totalDisputes: Int!
   totalRaffles: Int!
   totalRevenue: Float!
@@ -48,8 +48,8 @@ type AdminTransaction {
   id: ID!
   metadata: JSON
   monto: Float!
-  mpPaymentId: String
   promotionDiscountAmount: Float
+  providerPaymentId: String
   raffle: RaffleMinimal
   tipo: String!
   user: AdminTransactionUser
@@ -76,11 +76,11 @@ type AdminUser {
   id: ID!
   isDeleted: Boolean!
   kycStatus: String
-  mpConnectStatus: MpConnectStatus!
   nombre: String!
   rafflesCreated: Int!
   rafflesWon: Int!
   role: UserRole!
+  sellerPaymentAccountStatus: SellerPaymentAccountStatus!
   ticketsPurchased: Int!
   totalComprasCompletadas: Int!
   totalRifasGanadas: Int!
@@ -156,14 +156,15 @@ type BuyTicketsResult {
   bonusGrantId: String
   bonusQuantity: Int!
   cantidadComprada: Int!
+  chargedAmount: Float!
+  creditBalanceAfter: Float!
+  creditDebited: Float!
   discountApplied: Float!
   grantedQuantity: Int!
   grossSubtotal: Float!
-  initPoint: String!
-  mpChargeAmount: Float!
   packApplied: Boolean!
   packIneligibilityReason: PackIneligibilityReason
-  preferenceId: String!
+  paidWithCredit: Boolean!
   purchaseMode: TicketPurchaseMode!
   selectionPremiumAmount: Float!
   selectionPremiumPercent: Float!
@@ -218,6 +219,10 @@ input CreateCategoryInput {
   orden: Int! = 0
 }
 
+input CreateCreditTopUpInput {
+  amount: Float!
+}
+
 input CreateRaffleInput {
   descripcion: String!
   fechaLimite: String!
@@ -246,6 +251,13 @@ input CreateShippingAddressInput {
   province: String!
   recipientName: String!
   street: String!
+}
+
+type CreditTopUpResult {
+  amount: Float!
+  id: ID!
+  redirectUrl: String!
+  status: String!
 }
 
 """
@@ -401,25 +413,6 @@ type MonthlyRevenue {
   year: Int!
 }
 
-enum MpConnectStatus {
-  CONNECTED
-  NOT_CONNECTED
-  PENDING
-}
-
-type MpEvent {
-  eventId: String!
-  eventType: String!
-  id: ID!
-  metadata: JSON
-  processedAt: DateTime!
-}
-
-type MpEventList {
-  events: [MpEvent!]!
-  total: Float!
-}
-
 type Mutation {
   acceptTerms(input: AcceptTermsInput!): User!
   addFavorite(raffleId: String!): Favorite!
@@ -447,6 +440,7 @@ type Mutation {
   completeTwoFactorLogin(challengeToken: String!, code: String, recoveryCode: String): AuthPayload!
   confirmDelivery(raffleId: String!): Raffle!
   createCategory(input: CreateCategoryInput!): Category!
+  createCreditTopUp(input: CreateCreditTopUpInput!): CreditTopUpResult!
   createRaffle(input: CreateRaffleInput!): Raffle!
   createSellerReview(input: CreateSellerReviewInput!): PublicSellerReview!
   createShippingAddress(input: CreateShippingAddressInput!): ShippingAddress!
@@ -455,6 +449,7 @@ type Mutation {
   deleteQuestion(questionId: String!): Boolean!
   deleteShippingAddress(id: String!): Boolean!
   disableTwoFactor(code: String, currentPassword: String!, recoveryCode: String): Boolean!
+  disconnectSellerPaymentAccount: User!
   enableTwoFactor(code: String!, setupToken: String!): EnableTwoFactorPayload!
   extendRaffleDeadline(newDeadline: String!, raffleId: String!): Raffle!
 
@@ -499,6 +494,7 @@ type Mutation {
   updateRaffle(id: String!, input: UpdateRaffleInput!): Raffle!
   updateRafflePrice(newPrice: Float!, raffleId: String!): Raffle!
   updateShippingAddress(id: String!, input: UpdateShippingAddressInput!): ShippingAddress!
+  upsertSellerPaymentAccount(input: UpsertSellerPaymentAccountInput!): User!
   verifyEmail(code: String!, promotionToken: String, userId: String!): AuthPayload!
 }
 
@@ -546,7 +542,7 @@ type PaginationMeta {
 
 type PaymentDebugInfo {
   buyer: UserMinimal
-  mpPaymentId: String!
+  providerPaymentId: String!
   raffle: RaffleMinimal
   tickets: [TicketDebugInfo!]!
   ticketsCount: Int!
@@ -559,16 +555,29 @@ type PaymentDebugInfo {
   webhookReceived: Boolean!
 }
 
+type PaymentProviderEvent {
+  eventId: String!
+  eventType: String!
+  id: ID!
+  metadata: JSON
+  processedAt: DateTime!
+}
+
+type PaymentProviderEventList {
+  events: [PaymentProviderEvent!]!
+  total: Float!
+}
+
 type Payout {
   createdAt: DateTime!
   failureReason: String
   grossAmount: Float!
   id: ID!
-  mpPayoutId: String
   netAmount: Float!
   platformFee: Float!
   processedAt: DateTime
   processingFee: Float!
+  providerPayoutId: String
   raffleId: String!
   raffleTitulo: String
   scheduledFor: DateTime
@@ -656,9 +665,9 @@ enum PromotionBonusGrantStatus {
 
 type PromotionBonusPreview {
   bonusGrantId: String!
+  chargedAmount: Float!
   discountApplied: Float!
   grossSubtotal: Float!
-  mpChargeAmount: Float!
 }
 
 type PromotionScoreSettlement {
@@ -722,12 +731,6 @@ type Query {
   getReports(raffleId: String, reviewed: Boolean): String!
   isFavorite(raffleId: String!): Boolean!
   me: User!
-
-  """Get MP event by ID"""
-  mpEvent(eventId: String!): MpEvent
-
-  """List MP webhook events for debugging"""
-  mpEvents(eventType: String, limit: Int, offset: Int): MpEventList!
   myConversations: [Conversation!]!
   myDefaultShippingAddress: ShippingAddress
   myDisputes: [Dispute!]!
@@ -740,9 +743,16 @@ type Query {
   mySocialPromotionPosts(raffleId: String): [SocialPromotionPost!]!
   myTicketCountInRaffle(raffleId: String!): Int!
   myTickets: [Ticket!]!
+  myWallet: WalletAccountEntity!
 
   """Debug payment by MP payment ID"""
-  paymentDebug(mpPaymentId: String!): PaymentDebugInfo!
+  paymentDebug(providerPaymentId: String!): PaymentDebugInfo!
+
+  """Get payment-provider event by ID"""
+  paymentProviderEvent(eventId: String!): PaymentProviderEvent
+
+  """List payment-provider webhook events for debugging"""
+  paymentProviderEvents(eventType: String, limit: Int, offset: Int): PaymentProviderEventList!
   pendingDisputes: [Dispute!]!
 
   """List pending KYC submissions for review"""
@@ -766,6 +776,7 @@ type Query {
   socialPromotionReviewQueue: [SocialPromotionPost!]!
   ticket(id: String!): Ticket!
   ticketNumberAvailability(page: Int!, pageSize: Int!, raffleId: String!, searchNumber: Int): TicketNumberAvailabilityPage!
+  walletLedger(take: Int): [WalletLedgerEntryEntity!]!
 }
 
 type Raffle {
@@ -911,6 +922,27 @@ type SellerDashboardStats {
   totalViews: Int!
 }
 
+type SellerPaymentAccount {
+  accountHolderName: String
+  accountIdentifierType: SellerPaymentAccountIdentifierType
+  id: ID!
+  lastSyncedAt: DateTime
+  maskedAccountIdentifier: String
+  status: SellerPaymentAccountStatus!
+}
+
+enum SellerPaymentAccountIdentifierType {
+  ALIAS
+  CBU
+  CVU
+}
+
+enum SellerPaymentAccountStatus {
+  CONNECTED
+  NOT_CONNECTED
+  PENDING
+}
+
 input SendMessageInput {
   content: String!
   conversationId: String!
@@ -1045,9 +1077,9 @@ type Ticket {
   estado: TicketStatus!
   fechaCompra: DateTime!
   id: ID!
-  mpPaymentId: String
   numeroTicket: Int!
   precioPagado: Float!
+  purchaseReference: String
   raffle: Raffle
   raffleId: String!
   updatedAt: DateTime!
@@ -1148,6 +1180,12 @@ input UpdateShippingAddressInput {
   street: String
 }
 
+input UpsertSellerPaymentAccountInput {
+  accountHolderName: String!
+  accountIdentifier: String!
+  accountIdentifierType: SellerPaymentAccountIdentifierType!
+}
+
 type User {
   apartment: String
   apellido: String!
@@ -1173,15 +1211,16 @@ type User {
   kycStatus: KycStatus!
   kycSubmittedAt: DateTime
   kycVerifiedAt: DateTime
-  mpConnectStatus: MpConnectStatus!
-
-  """MP user ID (public identifier)"""
-  mpUserId: String
   nombre: String!
   phone: String
   postalCode: String
   province: String
   role: UserRole!
+  sellerPaymentAccount: SellerPaymentAccount
+
+  """Seller payment account public identifier"""
+  sellerPaymentAccountId: String
+  sellerPaymentAccountStatus: SellerPaymentAccountStatus!
   street: String
   streetNumber: String
   termsAcceptedAt: DateTime
@@ -1211,4 +1250,37 @@ enum UserRole {
   ADMIN
   BANNED
   USER
+}
+
+type WalletAccountEntity {
+  createdAt: DateTime!
+  creditBalance: Float!
+  id: ID!
+  sellerPayableBalance: Float!
+  updatedAt: DateTime!
+  userId: String!
+}
+
+type WalletLedgerEntryEntity {
+  amount: Float!
+  createdAt: DateTime!
+  creditBalanceAfter: Float
+  creditTopUpSessionId: String
+  id: ID!
+  raffleId: String
+  sellerPayableBalanceAfter: Float
+  type: WalletLedgerEntryType!
+  userId: String!
+}
+
+enum WalletLedgerEntryType {
+  ADMIN_ADJUSTMENT
+  CREDIT_TOP_UP
+  CREDIT_TOP_UP_REFUND
+  PACK_SUBSIDY_CREDIT
+  PROMOTION_SUBSIDY_CREDIT
+  SELLER_PAYABLE_CREDIT
+  SELLER_PAYABLE_DEBIT
+  TICKET_PURCHASE_DEBIT
+  TICKET_PURCHASE_REFUND
 }

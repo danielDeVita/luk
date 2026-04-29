@@ -57,7 +57,7 @@ const GET_ADMIN_STATS = gql`
       totalTicketsSold
       totalDisputes
       pendingDisputes
-      recentMpEvents
+      recentPaymentEvents
       newUsersToday
       newRafflesToday
     }
@@ -100,7 +100,7 @@ const GET_ADMIN_USERS = gql`
         nombre
         apellido
         role
-        mpConnectStatus
+        sellerPaymentAccountStatus
         kycStatus
         createdAt
         isDeleted
@@ -249,7 +249,7 @@ interface AdminUser {
   nombre: string;
   apellido: string;
   role: string;
-  mpConnectStatus: string;
+  sellerPaymentAccountStatus: string;
   kycStatus?: string;
   createdAt: string;
   isDeleted: boolean;
@@ -343,7 +343,7 @@ interface AdminStats {
   totalTicketsSold: number;
   totalDisputes: number;
   pendingDisputes: number;
-  recentMpEvents: number;
+  recentPaymentEvents: number;
   newUsersToday: number;
   newRafflesToday: number;
 }
@@ -815,10 +815,10 @@ export default function AdminPage() {
         <Card className="bg-muted/50">
           <CardContent className="flex min-h-[84px] items-center !p-4">
             <div className="flex w-full items-center justify-between gap-3">
-              <span className="text-sm text-muted-foreground">Eventos MP (24h)</span>
+              <span className="text-sm text-muted-foreground">Eventos de pagos (24h)</span>
               <span className="font-semibold flex items-center gap-1">
                 <Activity className="h-3 w-3" />
-                {stats?.recentMpEvents || 0}
+                {stats?.recentPaymentEvents || 0}
               </span>
             </div>
           </CardContent>
@@ -1138,7 +1138,7 @@ export default function AdminPage() {
                           <th className="text-left p-2">Email</th>
                           <th className="text-left p-2">Nombre</th>
                           <th className="text-left p-2">Rol</th>
-                          <th className="text-left p-2">MP</th>
+                          <th className="text-left p-2">Cobros</th>
                           <th className="text-left p-2">Comprador</th>
                           <th className="text-left p-2">Registro</th>
                           <th className="text-left p-2">Acciones</th>
@@ -1165,8 +1165,8 @@ export default function AdminPage() {
                               </span>
                             </td>
                             <td className="p-2">
-                              <span className={`text-xs ${u.mpConnectStatus === 'CONNECTED' ? 'text-success' : 'text-muted-foreground'}`}>
-                                {u.mpConnectStatus}
+                              <span className={`text-xs ${u.sellerPaymentAccountStatus === 'CONNECTED' ? 'text-success' : 'text-muted-foreground'}`}>
+                                {u.sellerPaymentAccountStatus}
                               </span>
                             </td>
                             <td className="p-2 text-xs text-muted-foreground">

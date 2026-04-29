@@ -162,7 +162,7 @@ export const getWelcomeEmailContent = (
       <p style="color: #0F766E; font-size: 14px; font-weight: 600; margin: 0 0 12px 0;">Ahora podés:</p>
       <ul style="color: #0F766E; font-size: 14px; margin: 0; padding-left: 20px; line-height: 1.8;">
         <li>Participar en rifas y ganar premios increíbles</li>
-        <li>Crear tus propias rifas (conectá Mercado Pago)</li>
+        <li>Crear tus propias rifas (configurá tu cuenta de cobros)</li>
         <li>Gestionar tus tickets y seguir tus premios</li>
       </ul>
     </div>
@@ -489,10 +489,83 @@ export const getRefundNotificationContent = (
       <p style="margin: 0; color: #4B5563; font-size: 14px;"><strong>Motivo:</strong> ${data.reason}</p>
     </div>
     <p style="color: #6B7280; font-size: 14px; line-height: 1.6;">
-      El dinero estará disponible en tu medio de pago original en los próximos días hábiles, dependiendo de tu entidad financiera.
+      El monto fue acreditado nuevamente en tu Saldo LUK.
     </p>
   `;
   return wrapEmailTemplate(content, configService);
+};
+
+export const getCreditTopUpApprovedContent = (
+  data: { amount: number; topUpSessionId: string },
+  configService: ConfigService,
+) => {
+  const frontendUrl = getFrontendUrl(configService);
+  const content = `
+    <h2 style="color: #10B981; font-family: 'Fraunces', serif; font-size: 24px; font-weight: 700; margin: 0 0 16px 0;">Saldo acreditado ✅</h2>
+    <p style="color: #4B5563; font-size: 15px; line-height: 1.6; margin: 0 0 20px 0;">
+      Tu carga de Saldo LUK fue aprobada y ya está disponible para comprar tickets.
+    </p>
+    <div style="background: #F0FDFA; border: 1px solid #99F6E4; border-radius: 12px; padding: 24px; margin: 24px 0;">
+      <p style="color: #0F766E; font-size: 14px; margin: 0 0 8px 0;"><strong>Monto acreditado:</strong></p>
+      <p style="color: #059669; font-size: 28px; font-weight: 800; margin: 0;">$${formatAmountEsAr(data.amount)}</p>
+      <p style="color: #64748B; font-size: 12px; margin: 12px 0 0 0;">Operación: ${escapeHtml(data.topUpSessionId)}</p>
+    </div>
+  `;
+
+  return wrapEmailTemplate(content, configService, {
+    showButton: true,
+    buttonText: 'Ver mi wallet',
+    buttonUrl: `${frontendUrl}/dashboard/wallet`,
+  });
+};
+
+export const getCreditTopUpFailedContent = (
+  data: { amount: number; status: string; statusDetail?: string | null },
+  configService: ConfigService,
+) => {
+  const frontendUrl = getFrontendUrl(configService);
+  const detail = data.statusDetail
+    ? `<p style="color: #B91C1C; font-size: 14px; margin: 8px 0 0 0;"><strong>Detalle:</strong> ${escapeHtml(data.statusDetail)}</p>`
+    : '';
+  const content = `
+    <h2 style="color: #EF4444; font-family: 'Fraunces', serif; font-size: 24px; font-weight: 700; margin: 0 0 16px 0;">No pudimos acreditar tu carga</h2>
+    <p style="color: #4B5563; font-size: 15px; line-height: 1.6; margin: 0 0 20px 0;">
+      La carga de Saldo LUK por <strong>$${formatAmountEsAr(data.amount)}</strong> quedó en estado <strong>${escapeHtml(data.status)}</strong>.
+    </p>
+    <div style="background: #FEF2F2; border: 1px solid #FECACA; border-radius: 12px; padding: 20px; margin: 24px 0;">
+      <p style="color: #B91C1C; font-size: 14px; margin: 0;">No se acreditó saldo en tu wallet.</p>
+      ${detail}
+    </div>
+  `;
+
+  return wrapEmailTemplate(content, configService, {
+    showButton: true,
+    buttonText: 'Volver a la wallet',
+    buttonUrl: `${frontendUrl}/dashboard/wallet`,
+  });
+};
+
+export const getCreditTopUpRefundedContent = (
+  data: { amount: number; fullRefund: boolean },
+  configService: ConfigService,
+) => {
+  const frontendUrl = getFrontendUrl(configService);
+  const content = `
+    <h2 style="color: #1F2937; font-family: 'Fraunces', serif; font-size: 24px; font-weight: 700; margin: 0 0 16px 0;">Reintegro de carga procesado</h2>
+    <p style="color: #4B5563; font-size: 15px; line-height: 1.6; margin: 0 0 20px 0;">
+      Procesamos un reintegro ${data.fullRefund ? 'total' : 'parcial'} de una carga de Saldo LUK.
+    </p>
+    <div style="background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 12px; padding: 24px; margin: 24px 0;">
+      <p style="color: #64748B; font-size: 14px; margin: 0 0 8px 0;"><strong>Monto reintegrado:</strong></p>
+      <p style="color: #1E293B; font-size: 28px; font-weight: 800; margin: 0;">$${formatAmountEsAr(data.amount)}</p>
+    </div>
+  `;
+
+  return wrapEmailTemplate(content, configService, {
+    showButton: true,
+    buttonText: 'Ver movimientos',
+    buttonUrl: `${frontendUrl}/dashboard/wallet`,
+  });
 };
 
 export const getSellerPaymentNotificationContent = (
@@ -525,6 +598,31 @@ export const getSellerPaymentNotificationContent = (
     </p>
   `;
   return wrapEmailTemplate(content, configService);
+};
+
+export const getPayoutFailedNotificationContent = (
+  data: { raffleName: string; amount: number; reason: string },
+  configService: ConfigService,
+) => {
+  const frontendUrl = getFrontendUrl(configService);
+  const content = `
+    <h2 style="color: #EF4444; font-family: 'Fraunces', serif; font-size: 24px; font-weight: 700; margin: 0 0 16px 0;">No pudimos procesar tu pago</h2>
+    <p style="color: #4B5563; font-size: 15px; line-height: 1.6; margin: 0 0 20px 0;">
+      Hubo un problema procesando el pago de la rifa "<strong>${escapeHtml(data.raffleName)}</strong>" por <strong>$${formatAmountEsAr(data.amount)}</strong>.
+    </p>
+    <div style="background: #FEF2F2; border: 1px solid #FECACA; border-radius: 12px; padding: 20px; margin: 24px 0;">
+      <p style="color: #B91C1C; font-size: 14px; margin: 0;"><strong>Motivo:</strong> ${escapeHtml(data.reason)}</p>
+    </div>
+    <p style="color: #4B5563; font-size: 15px; line-height: 1.6;">
+      Revisá tus datos de cobro o contactá soporte si el problema continúa.
+    </p>
+  `;
+
+  return wrapEmailTemplate(content, configService, {
+    showButton: true,
+    buttonText: 'Ver payouts',
+    buttonUrl: `${frontendUrl}/dashboard/payouts`,
+  });
 };
 
 export const getPriceReductionSuggestionContent = (
@@ -578,6 +676,35 @@ export const getPriceReductionSuggestionContent = (
     showButton: true,
     buttonText: '🚀 Relanzar con precio sugerido',
     buttonUrl: relaunchUrl,
+  });
+};
+
+export const getRaffleExpirationReminderContent = (
+  data: {
+    raffleName: string;
+    deadline: Date;
+    soldTickets: number;
+    totalTickets: number;
+  },
+  configService: ConfigService,
+) => {
+  const frontendUrl = getFrontendUrl(configService);
+  const content = `
+    <h2 style="color: #D97706; font-family: 'Fraunces', serif; font-size: 24px; font-weight: 700; margin: 0 0 16px 0;">Tu rifa está por vencer</h2>
+    <p style="color: #4B5563; font-size: 15px; line-height: 1.6; margin: 0 0 20px 0;">
+      La rifa "<strong>${escapeHtml(data.raffleName)}</strong>" vence el <strong>${formatDateEsAr(data.deadline)}</strong>.
+    </p>
+    <div style="background: #FFFBEB; border: 1px solid #FEF3C7; border-radius: 12px; padding: 20px; margin: 24px 0;">
+      <p style="color: #92400E; font-size: 14px; margin: 0;">
+        Tickets vendidos: <strong>${data.soldTickets}/${data.totalTickets}</strong>
+      </p>
+    </div>
+  `;
+
+  return wrapEmailTemplate(content, configService, {
+    showButton: true,
+    buttonText: 'Ver rifa',
+    buttonUrl: `${frontendUrl}/dashboard/sales`,
   });
 };
 
@@ -709,7 +836,7 @@ export const getDeliveryConfirmedToSellerContent = (
       El ganador ha confirmado la recepción del premio de tu rifa "<strong>${data.raffleName}</strong>".
     </p>
     <p style="color: #4B5563; font-size: 15px; line-height: 1.6;">
-      Los fondos serán liberados a tu cuenta de Mercado Pago próximamente.
+      Los fondos serán liberados a tu cuenta de cobros próximamente.
     </p>
   `;
   return wrapEmailTemplate(content, configService, {
@@ -997,7 +1124,7 @@ export const getKycApprovedContent = (
       </ul>
     </div>
     <p style="color: #6B7280; font-size: 14px; line-height: 1.6;">
-      Si aún no conectaste tu cuenta de Mercado Pago, hacelo desde la configuración para poder recibir tus pagos.
+      Si aún no conectaste tu cuenta de cobros, hacelo desde la configuración para poder recibir tus pagos.
     </p>
   `;
   return wrapEmailTemplate(content, configService, {

@@ -3,7 +3,11 @@ import { AuthResolver } from './auth.resolver';
 import { AuthService } from './auth.service';
 import { UsersService } from '../users/users.service';
 import { Response } from 'express';
-import { UserRole, MpConnectStatus, KycStatus } from '@prisma/client';
+import {
+  UserRole,
+  SellerPaymentAccountStatus,
+  KycStatus,
+} from '@prisma/client';
 import { LoginThrottlerGuard } from '@/common/guards';
 
 jest.mock('otplib', () => ({
@@ -53,7 +57,7 @@ describe('AuthResolver', () => {
     emailVerified: true,
     twoFactorEnabled: false,
     twoFactorEnabledAt: null,
-    mpConnectStatus: MpConnectStatus.NOT_CONNECTED,
+    sellerPaymentAccountStatus: SellerPaymentAccountStatus.NOT_CONNECTED,
     kycStatus: KycStatus.NOT_SUBMITTED,
     createdAt: new Date(),
     updatedAt: new Date(),

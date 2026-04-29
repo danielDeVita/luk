@@ -22,7 +22,7 @@ enum Environment {
 }
 
 enum PaymentsProvider {
-  MercadoPago = 'mercadopago',
+  MercadoPago = 'mercado_pago',
   Mock = 'mock',
 }
 
@@ -77,7 +77,7 @@ export class EnvironmentVariables {
   @IsOptional()
   TURNSTILE_SECRET_KEY: string = '';
 
-  // Mercado Pago
+  // Payment providers
   @IsString()
   @IsOptional()
   MP_ACCESS_TOKEN: string = '';
@@ -91,10 +91,6 @@ export class EnvironmentVariables {
   @Min(0)
   SELECTED_NUMBER_PREMIUM_PERCENT: number = 5;
 
-  @IsBoolean()
-  @IsOptional()
-  MP_MOCK_MODE: boolean = false;
-
   @IsEnum(PaymentsProvider)
   @IsOptional()
   PAYMENTS_PROVIDER: PaymentsProvider = PaymentsProvider.MercadoPago;
@@ -102,18 +98,6 @@ export class EnvironmentVariables {
   @IsBoolean()
   @IsOptional()
   ALLOW_MOCK_PAYMENTS: boolean = false;
-
-  @IsString()
-  @IsOptional()
-  MP_CLIENT_ID: string = '';
-
-  @IsString()
-  @IsOptional()
-  MP_CLIENT_SECRET: string = '';
-
-  @IsString()
-  @IsOptional()
-  MP_WEBHOOK_SECRET: string = '';
 
   // Cloudinary - Critical
   @IsString()
@@ -214,7 +198,7 @@ export class EnvironmentVariables {
   @IsNumber()
   @IsOptional()
   @Min(1)
-  SOCIAL_PROMOTION_MIN_MP_CHARGE: number = 1;
+  SOCIAL_PROMOTION_MIN_PROVIDER_CHARGE: number = 1;
 
   @IsNumber()
   @IsOptional()
@@ -232,7 +216,6 @@ export class EnvironmentVariables {
 
 const BOOLEAN_ENV_KEYS = [
   'TURNSTILE_ENABLED',
-  'MP_MOCK_MODE',
   'ALLOW_MOCK_PAYMENTS',
   'ENABLE_CRON_JOBS',
   'GRAPHQL_PLAYGROUND',

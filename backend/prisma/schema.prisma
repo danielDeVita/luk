@@ -60,10 +60,12 @@ enum TicketStatus {
 
 enum TransactionType {
   COMPRA_TICKET
+  CARGA_SALDO
+  REEMBOLSO_CARGA_SALDO
   REEMBOLSO
   PAGO_VENDEDOR
   COMISION_PLATAFORMA
-  FEE_MP
+  FEE_PROVEEDOR_PAGO
   SUBSIDIO_PROMOCIONAL_PLATAFORMA
   SUBSIDIO_PACK_PLATAFORMA
   REVERSION_BONIFICACION_PROMOCIONAL
@@ -100,10 +102,16 @@ enum SellerLevel {
   ORO
 }
 
-enum MpConnectStatus {
+enum SellerPaymentAccountStatus {
   NOT_CONNECTED
   PENDING
   CONNECTED
+}
+
+enum SellerPaymentAccountIdentifierType {
+  CBU
+  CVU
+  ALIAS
 }
 
 enum AuditAction {
@@ -159,11 +167,11 @@ enum PromotionBonusRedemptionStatus {
 }
 
 enum PaymentsProvider {
-  MERCADOPAGO
+  MERCADO_PAGO
   MOCK
 }
 
-enum MockPaymentStatus {
+enum CreditTopUpStatus {
   INITIATED
   PENDING
   APPROVED
@@ -173,13 +181,25 @@ enum MockPaymentStatus {
   REFUNDED_PARTIAL
 }
 
-enum MockPaymentEventType {
+enum CreditTopUpEventType {
   APPROVE
   PEND
   REJECT
   REFUND_FULL
   REFUND_PARTIAL
   EXPIRE
+}
+
+enum WalletLedgerEntryType {
+  CREDIT_TOP_UP
+  CREDIT_TOP_UP_REFUND
+  TICKET_PURCHASE_DEBIT
+  TICKET_PURCHASE_REFUND
+  SELLER_PAYABLE_CREDIT
+  SELLER_PAYABLE_DEBIT
+  PACK_SUBSIDY_CREDIT
+  PROMOTION_SUBSIDY_CREDIT
+  ADMIN_ADJUSTMENT
 }
 
 enum SocialPromotionAttributionEventType {
@@ -218,11 +238,9 @@ model User {
   twoFactorSecretEncrypted    String?   @map("two_factor_secret_encrypted")
   twoFactorRecoveryCodeHashes Json?     @map("two_factor_recovery_code_hashes")
 
-  // Mercado Pago (for sellers)
-  mpUserId             String?              @unique @map("mp_user_id")
-  mpAccessToken        String?              @map("mp_access_token")
-  mpRefreshToken       String?              @map("mp_refresh_token")
-  mpConnectStatus      MpConnectStatus      @default(NOT_CONNECTED) @map("mp_connect_status")
+  // Seller payment account
+  sellerPaymentAccountId       String?                    @unique @map("seller_payment_account_public_id")
+  sellerPaymentAccountStatus   SellerPaymentAccountStatus @default(NOT_CONNECTED) @map("seller_payment_account_status")
 
   // Legal & Terms
   termsAcceptedAt      DateTime?            @map("terms_accepted_at")
@@ -258,6 +276,10 @@ model User {
   defaultSenderAddressId String?            @map("default_sender_address_id")
 
   // Relations
+  sellerPaymentAccount SellerPaymentAccount?
+  walletAccount     WalletAccount?
+  walletLedgerEntries WalletLedgerEntry[]
+  creditTopUpSessions CreditTopUpSession[]
   rafflesCreated    Raffle[]      @relation("SellerRaffles")
   rafflesWon        Raffle[]      @relation("WinnerRaffles")
   ticketsPurchased  Ticket[]
@@ -288,6 +310,25 @@ model User {
 
   @@index([isDeleted, createdAt])
   @@map("users")
+}
+
+model SellerPaymentAccount {
+  id                       String                           @id @default(cuid())
+  userId                   String                           @unique @map("user_id")
+  status                   SellerPaymentAccountStatus       @default(NOT_CONNECTED)
+  providerAccountId        String?                          @map("provider_account_id")
+  accountHolderName        String?                          @map("account_holder_name")
+  accountIdentifierType    SellerPaymentAccountIdentifierType? @map("account_identifier_type")
+  accountIdentifierEncrypted String?                        @map("account_identifier_encrypted")
+  providerMetadata         Json?                            @map("provider_metadata")
+  lastSyncedAt             DateTime?                        @map("last_synced_at")
+  createdAt                DateTime                         @default(now()) @map("created_at")
+  updatedAt                DateTime                         @updatedAt @map("updated_at")
+
+  user                     User                             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+  @@map("seller_payment_accounts")
 }
 
 model Raffle {
@@ -384,8 +425,7 @@ model Ticket {
   numeroTicket    Int          @map("numero_ticket")
   buyerId         String       @map("buyer_id")
   precioPagado    Decimal      @map("precio_pagado") @db.Decimal(10, 2)
-  mpPaymentId     String?      @map("mp_payment_id")
-  mpExternalReference String?   @map("mp_external_reference")
+  purchaseReference String?    @map("purchase_reference")
   estado          TicketStatus @default(RESERVADO)
   fechaCompra     DateTime     @default(now()) @map("fecha_compra")
   
@@ -404,8 +444,8 @@ model Ticket {
   @@index([raffleId])
   @@index([buyerId])
   @@index([estado])
+  @@index([purchaseReference])
   @@index([isDeleted, createdAt])
-  @@index([mpPaymentId])
   @@index([raffleId, estado])  // Composite for ticket purchase queries
   @@map("tickets")
 }
@@ -414,7 +454,7 @@ model Transaction {
   id                  String            @id @default(cuid())
   tipo                TransactionType
   userId              String            @map("user_id")
-  raffleId            String            @map("raffle_id")
+  raffleId            String?           @map("raffle_id")
   monto               Decimal           @db.Decimal(10, 2)
   grossAmount         Decimal?          @map("gross_amount") @db.Decimal(10, 2)
   promotionDiscountAmount Decimal?      @map("promotion_discount_amount") @db.Decimal(10, 2)
@@ -422,8 +462,8 @@ model Transaction {
   comisionPlataforma  Decimal?          @map("comision_plataforma") @db.Decimal(10, 2)
   feeProcesamiento    Decimal?          @map("fee_procesamiento") @db.Decimal(10, 2)
   montoNeto           Decimal?          @map("monto_neto") @db.Decimal(10, 2)
-  mpPaymentId         String?           @map("mp_payment_id")
-  mpMerchantOrderId   String?           @map("mp_merchant_order_id")
+  providerPaymentId   String?           @map("provider_payment_id")
+  providerOrderId     String?           @map("provider_order_id")
   estado              TransactionStatus @default(PENDIENTE)
   metadata            Json?
   
@@ -435,13 +475,13 @@ model Transaction {
 
   // Relations
   user                User              @relation(fields: [userId], references: [id])
-  raffle              Raffle            @relation(fields: [raffleId], references: [id])
+  raffle              Raffle?           @relation(fields: [raffleId], references: [id])
 
   @@index([userId])
   @@index([raffleId])
   @@index([tipo])
   @@index([isDeleted, createdAt])
-  @@index([mpPaymentId])
+  @@index([providerPaymentId])
   @@index([estado, createdAt])  // Composite for admin queries
   @@map("transactions")
 }
@@ -575,15 +615,88 @@ model DrawResult {
   @@map("draw_results")
 }
 
-// Mercado Pago webhook event tracking for idempotency
-model MpEvent {
+// Provider webhook event tracking for idempotency
+model PaymentProviderEvent {
   id          String   @id @default(cuid())
   eventId     String   @unique @map("event_id")
   eventType   String   @map("event_type")
   processedAt DateTime @default(now()) @map("processed_at")
   metadata    Json?
 
-  @@map("mp_events")
+  @@map("payment_provider_events")
+}
+
+model WalletAccount {
+  id                   String   @id @default(cuid())
+  userId               String   @unique @map("user_id")
+  creditBalance        Decimal  @default(0) @map("credit_balance") @db.Decimal(10, 2)
+  sellerPayableBalance Decimal  @default(0) @map("seller_payable_balance") @db.Decimal(10, 2)
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ledgerEntries        WalletLedgerEntry[]
+
+  @@map("wallet_accounts")
+}
+
+model WalletLedgerEntry {
+  id                  String                @id @default(cuid())
+  walletAccountId     String                @map("wallet_account_id")
+  userId              String                @map("user_id")
+  type                WalletLedgerEntryType
+  amount              Decimal               @db.Decimal(10, 2)
+  creditBalanceAfter  Decimal?              @map("credit_balance_after") @db.Decimal(10, 2)
+  sellerPayableBalanceAfter Decimal?        @map("seller_payable_balance_after") @db.Decimal(10, 2)
+  raffleId            String?               @map("raffle_id")
+  creditTopUpSessionId String?              @map("credit_top_up_session_id")
+  payoutId            String?               @map("payout_id")
+  metadata            Json?
+  createdAt           DateTime              @default(now()) @map("created_at")
+
+  walletAccount       WalletAccount         @relation(fields: [walletAccountId], references: [id], onDelete: Cascade)
+  user                User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  creditTopUpSession  CreditTopUpSession?   @relation(fields: [creditTopUpSessionId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([walletAccountId, createdAt])
+  @@index([type, createdAt])
+  @@index([raffleId])
+  @@map("wallet_ledger_entries")
+}
+
+model CreditTopUpSession {
+  id                String            @id @default(cuid())
+  publicToken       String?           @unique @map("public_token")
+  userId            String            @map("user_id")
+  provider          PaymentsProvider
+  providerPaymentId String?           @map("provider_payment_id")
+  providerOrderId   String?           @map("provider_order_id")
+  providerReference String            @unique @map("provider_reference")
+  redirectUrl       String?           @map("redirect_url")
+  amount            Decimal           @db.Decimal(10, 2)
+  creditedAmount    Decimal           @default(0) @map("credited_amount") @db.Decimal(10, 2)
+  refundedAmount    Decimal           @default(0) @map("refunded_amount") @db.Decimal(10, 2)
+  feeAmount         Decimal           @default(0) @map("fee_amount") @db.Decimal(10, 2)
+  status            CreditTopUpStatus @default(INITIATED)
+  statusDetail      String?           @map("status_detail")
+  externalReference String?           @map("external_reference") @db.Text
+  metadata          Json?
+  approvedAt        DateTime?         @map("approved_at")
+  processedAt       DateTime?         @map("processed_at")
+  expiresAt         DateTime?         @map("expires_at")
+  refundedAt        DateTime?         @map("refunded_at")
+  createdAt         DateTime          @default(now()) @map("created_at")
+  updatedAt         DateTime          @updatedAt @map("updated_at")
+
+  user              User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  events            CreditTopUpEvent[]
+  ledgerEntries     WalletLedgerEntry[]
+
+  @@index([userId, createdAt])
+  @@index([providerPaymentId])
+  @@index([status, createdAt])
+  @@map("credit_top_up_sessions")
 }
 
 // Reports for moderation (flag potentially fraudulent raffles)
@@ -749,7 +862,7 @@ model Payout {
   processingFee       Decimal      @map("processing_fee") @db.Decimal(10, 2)
   netAmount           Decimal      @map("net_amount") @db.Decimal(10, 2)
   status              PayoutStatus @default(PENDING)
-  mpPayoutId          String?      @map("mp_payout_id")
+  providerPayoutId    String?      @map("mp_payout_id")
   scheduledFor        DateTime?    @map("scheduled_for")
   processedAt         DateTime?    @map("processed_at")
   failureReason       String?      @map("failure_reason")
@@ -933,8 +1046,8 @@ model PromotionBonusRedemption {
   reservationId        String                        @map("reservation_id")
   grossSubtotal        Decimal                       @map("gross_subtotal") @db.Decimal(10, 2)
   discountApplied      Decimal                       @map("discount_applied") @db.Decimal(10, 2)
-  mpChargeAmount       Decimal                       @map("mp_charge_amount") @db.Decimal(10, 2)
-  mpPaymentId          String?                       @map("mp_payment_id")
+  chargedAmount       Decimal                       @map("mp_charge_amount") @db.Decimal(10, 2)
+  purchaseReference          String?                       @map("purchase_reference")
   status               PromotionBonusRedemptionStatus @default(RESERVED)
   createdAt            DateTime                      @default(now()) @map("created_at")
   updatedAt            DateTime                      @updatedAt @map("updated_at")
@@ -968,51 +1081,19 @@ model SocialPromotionAttributionEvent {
   @@map("social_promotion_attribution_events")
 }
 
-model MockPayment {
-  id                        String            @id
-  publicToken               String            @unique @map("public_token")
-  buyerId                   String            @map("buyer_id")
-  raffleId                  String            @map("raffle_id")
-  reservationId             String            @map("reservation_id")
-  grossSubtotal             Decimal           @map("gross_subtotal") @db.Decimal(10, 2)
-  discountApplied           Decimal           @map("discount_applied") @db.Decimal(10, 2)
-  cashChargedAmount         Decimal           @map("cash_charged_amount") @db.Decimal(10, 2)
-  promotionBonusGrantId     String?           @map("promotion_bonus_grant_id")
-  promotionBonusRedemptionId String?          @map("promotion_bonus_redemption_id")
-  providerReference         String            @map("provider_reference")
-  merchantOrderId           String            @map("merchant_order_id")
-  externalReference         String?           @map("external_reference") @db.Text
-  status                    MockPaymentStatus @default(INITIATED)
-  statusDetail              String?           @map("status_detail")
-  approvedAt                DateTime?         @map("approved_at")
-  processedAt               DateTime?         @map("processed_at")
-  expiresAt                 DateTime?         @map("expires_at")
-  refundedAt                DateTime?         @map("refunded_at")
-  refundedAmount            Decimal?          @map("refunded_amount") @db.Decimal(10, 2)
-  createdAt                 DateTime          @default(now()) @map("created_at")
-  updatedAt                 DateTime          @updatedAt @map("updated_at")
+model CreditTopUpEvent {
+  id                   String               @id @default(cuid())
+  creditTopUpSessionId String               @map("credit_top_up_session_id")
+  eventType            CreditTopUpEventType @map("event_type")
+  status               CreditTopUpStatus?   @map("status")
+  amount               Decimal?             @db.Decimal(10, 2)
+  metadata             Json?
+  createdAt            DateTime             @default(now()) @map("created_at")
 
-  events                    MockPaymentEvent[]
+  creditTopUpSession   CreditTopUpSession   @relation(fields: [creditTopUpSessionId], references: [id], onDelete: Cascade)
 
-  @@index([buyerId, createdAt])
-  @@index([raffleId, status])
-  @@index([reservationId])
-  @@map("mock_payments")
-}
-
-model MockPaymentEvent {
-  id             String               @id @default(cuid())
-  mockPaymentId  String               @map("mock_payment_id")
-  eventType      MockPaymentEventType @map("event_type")
-  status         MockPaymentStatus?   @map("status")
-  amount         Decimal?             @db.Decimal(10, 2)
-  metadata       Json?
-  createdAt      DateTime             @default(now()) @map("created_at")
-
-  mockPayment    MockPayment          @relation(fields: [mockPaymentId], references: [id], onDelete: Cascade)
-
-  @@index([mockPaymentId, createdAt])
-  @@map("mock_payment_events")
+  @@index([creditTopUpSessionId, createdAt])
+  @@map("credit_top_up_events")
 }
 
 enum ActivityType {
@@ -1052,9 +1133,15 @@ enum ActivityType {
 
   // Payment events
   PAYMENT_RECEIVED
+  CREDIT_TOP_UP_CREATED
+  CREDIT_TOP_UP_APPROVED
+  CREDIT_TOP_UP_FAILED
+  CREDIT_TOP_UP_REFUNDED
+  PAYOUT_SCHEDULED
   PAYOUT_RELEASED
-  MP_CONNECT_CONNECTED
-  MP_CONNECT_DISCONNECTED
+  PAYOUT_FAILED
+  SELLER_PAYMENT_ACCOUNT_CONNECTED
+  SELLER_PAYMENT_ACCOUNT_DISCONNECTED
 
   // Social promotion events
   SOCIAL_PROMOTION_DRAFT_CREATED

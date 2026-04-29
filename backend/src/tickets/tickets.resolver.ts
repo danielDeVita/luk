@@ -7,6 +7,7 @@ import { TicketNumberAvailabilityPage } from './entities/ticket-number-availabil
 import { JwtAuthGuard } from '../auth/guards/jwt-auth/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { User } from '../users/entities/user.entity';
+import { Public } from '../auth/decorators/public.decorator';
 
 /**
  * GraphQL entrypoints for buying tickets and reading ticket ownership data.
@@ -64,6 +65,7 @@ export class TicketsResolver {
    * Returns paginated ticket-number availability for the raffle purchase picker.
    */
   @Query(() => TicketNumberAvailabilityPage)
+  @Public()
   async ticketNumberAvailability(
     @Args('raffleId') raffleId: string,
     @Args('page', { type: () => Int }) page: number,

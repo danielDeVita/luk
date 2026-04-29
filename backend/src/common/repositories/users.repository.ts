@@ -51,28 +51,26 @@ export class UsersRepository extends BaseRepository<
   }
 
   /**
-   * Find a user by Mercado Pago user ID.
+   * Find a user by seller payment account identifier.
    */
-  async findByMpUserId(
-    mpUserId: string,
+  async findBySellerPaymentAccountId(
+    sellerPaymentAccountId: string,
     include?: Prisma.UserInclude,
   ): Promise<User | null> {
     return this.prisma.user.findUnique({
-      where: { mpUserId },
+      where: { sellerPaymentAccountId },
       ...(include && { include }),
     });
   }
 
   /**
-   * Update a user's MP Connect credentials.
+   * Update a user's seller payment account credentials.
    */
-  async updateMpCredentials(
+  async updateSellerPaymentAccountCredentials(
     userId: string,
     data: {
-      mpUserId: string;
-      mpAccessToken: string;
-      mpRefreshToken: string;
-      mpConnectStatus: 'NOT_CONNECTED' | 'PENDING' | 'CONNECTED';
+      sellerPaymentAccountId: string;
+      sellerPaymentAccountStatus: 'NOT_CONNECTED' | 'PENDING' | 'CONNECTED';
     },
   ): Promise<User> {
     return this.prisma.user.update({
@@ -82,16 +80,14 @@ export class UsersRepository extends BaseRepository<
   }
 
   /**
-   * Disconnect MP account by clearing credentials.
+   * Disconnect the seller payment account by clearing credentials.
    */
-  async disconnectMpAccount(userId: string): Promise<User> {
+  async disconnectSellerPaymentAccount(userId: string): Promise<User> {
     return this.prisma.user.update({
       where: { id: userId },
       data: {
-        mpUserId: null,
-        mpAccessToken: null,
-        mpRefreshToken: null,
-        mpConnectStatus: 'NOT_CONNECTED',
+        sellerPaymentAccountId: null,
+        sellerPaymentAccountStatus: 'NOT_CONNECTED',
       },
     });
   }

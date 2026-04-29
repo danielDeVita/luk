@@ -225,7 +225,7 @@ export default function PayoutsPage() {
             <strong>Comisión de plataforma:</strong> 10% del monto bruto recaudado
           </p>
           <p>
-            <strong>Comisión de procesamiento:</strong> ~3% (varía según Mercado Pago)
+            <strong>Comisión de procesamiento:</strong> ~3% (varía según el proveedor de pagos)
           </p>
           <p>
             <strong>Pago neto:</strong> Lo que recibís después de comisiones

@@ -14,6 +14,7 @@ import { ActivityService } from '../activity/activity.service';
 import { PaymentsService } from '../payments/payments.service';
 import { PayoutStatus, UserRole } from '@prisma/client';
 import { captureException } from '../sentry';
+import { WalletService } from '../wallet/wallet.service';
 
 /**
  * Creates, schedules, and processes seller payouts once raffle delivery and release rules are satisfied.
@@ -30,6 +31,7 @@ export class PayoutsService {
     private activity: ActivityService,
     @Inject(forwardRef(() => PaymentsService))
     private paymentsService: PaymentsService,
+    private walletService: WalletService,
   ) {}
 
   /**
@@ -70,11 +72,8 @@ export class PayoutsService {
       _sum: { monto: true },
     });
     const platformSubsidyAmount = Number(subsidyAggregate._sum.monto ?? 0);
-    const {
-      platformFee,
-      mpFee: processingFee,
-      netAmount,
-    } = this.paymentsService.calculateCommissions(grossAmount);
+    const { platformFee, processingFee, netAmount } =
+      this.paymentsService.calculateCommissions(grossAmount);
 
     const payout = await this.prisma.payout.create({
       data: {
@@ -121,15 +120,25 @@ export class PayoutsService {
     // Notify seller
     const raffle = await this.prisma.raffle.findUnique({
       where: { id: raffleId },
-      select: { sellerId: true, titulo: true },
+      select: {
+        sellerId: true,
+        titulo: true,
+        seller: { select: { email: true } },
+      },
     });
 
     if (raffle) {
-      await this.notifications.create(
+      await this.notifyPayoutScheduled({
+        sellerId: raffle.sellerId,
+        sellerEmail: raffle.seller.email,
+        raffleTitle: raffle.titulo,
+        payoutId: updated.id,
+        scheduledFor,
+      });
+      await this.activity.logPayoutScheduled(
         raffle.sellerId,
-        'INFO',
-        'Pago programado',
-        `Tu pago por "${raffle.titulo}" sera procesado el ${scheduledFor.toLocaleDateString('es-AR')}`,
+        updated.id,
+        scheduledFor,
       );
     }
 
@@ -233,9 +242,13 @@ export class PayoutsService {
             seller: {
               select: {
                 id: true,
-                mpUserId: true,
-                mpAccessToken: true,
                 email: true,
+                sellerPaymentAccount: {
+                  select: {
+                    id: true,
+                    status: true,
+                  },
+                },
               },
             },
           },
@@ -267,35 +280,36 @@ export class PayoutsService {
     });
 
     try {
-      // Check if seller has MP connected
+      const sellerPaymentAccount = payout.raffle.seller.sellerPaymentAccount;
       if (
-        !payout.raffle.seller.mpUserId ||
-        !payout.raffle.seller.mpAccessToken
+        !sellerPaymentAccount ||
+        sellerPaymentAccount.status !== 'CONNECTED'
       ) {
-        throw new Error('Vendedor no tiene Mercado Pago conectado');
+        throw new Error('El vendedor no tiene datos de cobro activos');
       }
 
-      // Release held funds via MP API (delayed disbursement)
-      const releaseResult = await this.paymentsService.releaseFundsToSeller(
-        payout.raffleId,
+      await this.walletService.debitSellerPayable(
+        this.prisma,
+        payout.raffle.seller.id,
+        Number(payout.netAmount),
+        {
+          raffleId: payout.raffleId,
+          metadata: {
+            payoutId,
+            settlement: 'manual_internal',
+          },
+        },
       );
-
-      if (!releaseResult.success && releaseResult.releasedPayments === 0) {
-        throw new Error(
-          `No se pudieron liberar los fondos: ${releaseResult.errors.join(', ')}`,
-        );
-      }
 
       await this.prisma.payout.update({
         where: { id: payoutId },
         data: {
           status: PayoutStatus.COMPLETED,
           processedAt: new Date(),
-          mpPayoutId: `release_${Date.now()}`,
+          providerPayoutId: `internal_${payoutId}`,
         },
       });
 
-      // Update raffle
       await this.prisma.raffle.update({
         where: { id: payout.raffleId },
         data: {
@@ -304,20 +318,20 @@ export class PayoutsService {
         },
       });
 
-      // Notify seller
-      await this.notifications.create(
-        payout.raffle.seller.id,
-        'INFO',
-        'Pago completado',
-        `Tu pago de $${payout.netAmount} por "${payout.raffle.titulo}" ha sido procesado`,
-      );
+      await this.notifyPayoutCompleted({
+        sellerId: payout.raffle.seller.id,
+        sellerEmail: payout.raffle.seller.email,
+        raffleTitle: payout.raffle.titulo,
+        netAmount: Number(payout.netAmount),
+        fees: Number(payout.platformFee) + Number(payout.processingFee),
+      });
       await this.activity.logPayoutReleased(
         payout.raffle.seller.id,
         payoutId,
         Number(payout.netAmount),
       );
 
-      this.logger.log(`Payout ${payoutId} completed successfully`);
+      this.logger.log(`Payout ${payoutId} processed successfully`);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
 
@@ -329,12 +343,19 @@ export class PayoutsService {
         },
       });
 
-      // Notify seller of failure
-      await this.notifications.create(
+      await this.notifyPayoutFailed({
+        sellerId: payout.raffle.seller.id,
+        sellerEmail: payout.raffle.seller.email,
+        raffleTitle: payout.raffle.titulo,
+        payoutId,
+        netAmount: Number(payout.netAmount),
+        reason: message,
+      });
+      await this.activity.logPayoutFailed(
         payout.raffle.seller.id,
-        'SYSTEM',
-        'Error en pago',
-        `Hubo un problema procesando tu pago por "${payout.raffle.titulo}". Contacta soporte.`,
+        payoutId,
+        message,
+        { raffleId: payout.raffleId },
       );
 
       this.logger.error(`Payout ${payoutId} failed: ${message}`);
@@ -390,6 +411,108 @@ export class PayoutsService {
     });
 
     return true;
+  }
+
+  private async notifyPayoutScheduled(context: {
+    sellerId: string;
+    sellerEmail: string;
+    raffleTitle: string;
+    payoutId: string;
+    scheduledFor: Date;
+  }) {
+    await this.runPayoutSideEffect('payout-scheduled-notification', context, [
+      () =>
+        this.notifications.create(
+          context.sellerId,
+          'INFO',
+          'Pago programado',
+          `Tu pago por "${context.raffleTitle}" será procesado el ${context.scheduledFor.toLocaleDateString('es-AR')}.`,
+          '/dashboard/payouts',
+        ),
+      () =>
+        this.notifications.sendPaymentWillBeReleasedNotification(
+          context.sellerEmail,
+          {
+            raffleName: context.raffleTitle,
+            daysRemaining: this.PAYOUT_DELAY_DAYS,
+          },
+        ),
+    ]);
+  }
+
+  private async notifyPayoutCompleted(context: {
+    sellerId: string;
+    sellerEmail: string;
+    raffleTitle: string;
+    netAmount: number;
+    fees: number;
+  }) {
+    await this.runPayoutSideEffect('payout-completed-notification', context, [
+      () =>
+        this.notifications.create(
+          context.sellerId,
+          'INFO',
+          'Pago completado',
+          `Tu pago de $${context.netAmount.toFixed(2)} por "${context.raffleTitle}" fue procesado.`,
+          '/dashboard/payouts',
+        ),
+      () =>
+        this.notifications.sendSellerPaymentNotification(context.sellerEmail, {
+          raffleName: context.raffleTitle,
+          amount: context.netAmount,
+          fees: context.fees,
+        }),
+    ]);
+  }
+
+  private async notifyPayoutFailed(context: {
+    sellerId: string;
+    sellerEmail: string;
+    raffleTitle: string;
+    payoutId: string;
+    netAmount: number;
+    reason: string;
+  }) {
+    await this.runPayoutSideEffect('payout-failed-notification', context, [
+      () =>
+        this.notifications.create(
+          context.sellerId,
+          'SYSTEM',
+          'Error en pago',
+          `Hubo un problema procesando tu pago por "${context.raffleTitle}". Contactá soporte.`,
+          '/dashboard/payouts',
+        ),
+      () =>
+        this.notifications.sendPayoutFailedNotification(context.sellerEmail, {
+          raffleName: context.raffleTitle,
+          amount: context.netAmount,
+          reason: context.reason,
+        }),
+    ]);
+  }
+
+  private async runPayoutSideEffect(
+    stage: string,
+    context: Record<string, unknown>,
+    sideEffects: Array<() => Promise<unknown>>,
+  ) {
+    try {
+      await Promise.all(sideEffects.map((sideEffect) => sideEffect()));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Failed to run ${stage}: ${message}`);
+      captureException(
+        error instanceof Error ? error : new Error(`Failed to run ${stage}`),
+        {
+          tags: {
+            service: 'luk-backend',
+            domain: 'payments',
+            stage,
+          },
+          extra: context,
+        },
+      );
+    }
   }
 
   /**

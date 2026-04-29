@@ -6,12 +6,17 @@ import {
   Logger,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { UserRole, KycStatus } from '@prisma/client';
+import {
+  UserRole,
+  KycStatus,
+  SellerPaymentAccountStatus,
+} from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import {
   UpdateKycInput,
   AcceptTermsInput,
   CreateSellerReviewInput,
+  UpsertSellerPaymentAccountInput,
 } from './dto/update-user.input';
 import { EncryptionService } from '../common/services/encryption.service';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -55,6 +60,9 @@ export class UsersService {
   async getUserWithDecryptedPII(userId: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
+      include: {
+        sellerPaymentAccount: true,
+      },
     });
 
     if (!user) {
@@ -67,6 +75,19 @@ export class UsersService {
     return {
       ...user,
       ...decryptedPII,
+      sellerPaymentAccount: user.sellerPaymentAccount
+        ? {
+            ...user.sellerPaymentAccount,
+            maskedAccountIdentifier: user.sellerPaymentAccount
+              .accountIdentifierEncrypted
+              ? this.encryptionService.mask(
+                  this.encryptionService.decrypt(
+                    user.sellerPaymentAccount.accountIdentifierEncrypted,
+                  ),
+                )
+              : null,
+          }
+        : null,
     };
   }
 
@@ -178,6 +199,132 @@ export class UsersService {
       data: {
         termsAcceptedAt: new Date(),
         termsVersion: input.termsVersion,
+      },
+    });
+  }
+
+  private computeSellerPaymentAccountStatus(user: {
+    kycStatus: KycStatus;
+    cuitCuil?: string | null;
+    defaultSenderAddressId?: string | null;
+    shippingAddresses?: Array<{ id: string }> | null;
+    sellerPaymentAccount?: {
+      accountHolderName?: string | null;
+      accountIdentifierEncrypted?: string | null;
+    } | null;
+  }): SellerPaymentAccountStatus {
+    if (!user.sellerPaymentAccount) {
+      return SellerPaymentAccountStatus.NOT_CONNECTED;
+    }
+
+    const hasAddress =
+      Boolean(user.defaultSenderAddressId) ||
+      Boolean(user.shippingAddresses && user.shippingAddresses.length > 0);
+    const hasCuit = Boolean(user.cuitCuil);
+    const kycVerified = user.kycStatus === KycStatus.VERIFIED;
+    const hasPayoutData = Boolean(
+      user.sellerPaymentAccount.accountHolderName &&
+      user.sellerPaymentAccount.accountIdentifierEncrypted,
+    );
+
+    return hasAddress && hasCuit && kycVerified && hasPayoutData
+      ? SellerPaymentAccountStatus.CONNECTED
+      : SellerPaymentAccountStatus.PENDING;
+  }
+
+  async upsertSellerPaymentAccount(
+    userId: string,
+    input: UpsertSellerPaymentAccountInput,
+  ) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        kycStatus: true,
+        cuitCuil: true,
+        defaultSenderAddressId: true,
+        shippingAddresses: {
+          take: 1,
+          select: { id: true },
+        },
+        sellerPaymentAccount: {
+          select: {
+            id: true,
+            accountHolderName: true,
+            accountIdentifierEncrypted: true,
+          },
+        },
+      },
+    });
+
+    if (!user) {
+      throw new NotFoundException('Usuario no encontrado');
+    }
+
+    const normalizedAccountIdentifier = input.accountIdentifier.trim();
+    if (!normalizedAccountIdentifier) {
+      throw new BadRequestException(
+        'Debes ingresar un identificador de cuenta válido',
+      );
+    }
+
+    const encryptedAccountIdentifier = this.encryptionService.encrypt(
+      normalizedAccountIdentifier,
+    );
+    const status = this.computeSellerPaymentAccountStatus({
+      ...user,
+      sellerPaymentAccount: {
+        accountHolderName: input.accountHolderName.trim(),
+        accountIdentifierEncrypted: encryptedAccountIdentifier,
+      },
+    });
+
+    const account = await this.prisma.sellerPaymentAccount.upsert({
+      where: { userId },
+      create: {
+        userId,
+        status,
+        accountHolderName: input.accountHolderName.trim(),
+        accountIdentifierType: input.accountIdentifierType,
+        accountIdentifierEncrypted: encryptedAccountIdentifier,
+        providerMetadata: {
+          onboardingSource: 'settings_form',
+        },
+      },
+      update: {
+        status,
+        accountHolderName: input.accountHolderName.trim(),
+        accountIdentifierType: input.accountIdentifierType,
+        accountIdentifierEncrypted: encryptedAccountIdentifier,
+        lastSyncedAt: null,
+      },
+    });
+
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        sellerPaymentAccountStatus: status,
+        sellerPaymentAccountId: account.id,
+      },
+      include: {
+        sellerPaymentAccount: true,
+      },
+    });
+  }
+
+  async disconnectSellerPaymentAccount(userId: string) {
+    await this.prisma.sellerPaymentAccount.deleteMany({
+      where: { userId },
+    });
+
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        sellerPaymentAccountStatus: SellerPaymentAccountStatus.NOT_CONNECTED,
+        sellerPaymentAccountId: null,
+      },
+      include: {
+        sellerPaymentAccount: true,
       },
     });
   }

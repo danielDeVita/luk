@@ -1,12 +1,18 @@
-'use client';
+"use client";
 
-import { useQuery, useMutation } from '@apollo/client/react';
-import { gql } from '@apollo/client/core';
-import { useAuthStore } from '@/store/auth';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
+import { useQuery, useMutation } from "@apollo/client/react";
+import { gql } from "@apollo/client/core";
+import { useAuthStore } from "@/store/auth";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Ticket,
   Loader2,
@@ -22,17 +28,19 @@ import {
   TrendingUp,
   Clock,
   Star,
-} from 'lucide-react';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { useEffect, useState, useMemo } from 'react';
-import { toast } from 'sonner';
-import { DisputeDialog } from '@/components/disputes/dispute-dialog';
-import { Skeleton } from '@/components/ui/skeleton';
-import Image from 'next/image';
-import { useConfirmDialog } from '@/hooks/use-confirm-dialog';
-import { getOptimizedImageUrl, CLOUDINARY_PRESETS } from '@/lib/cloudinary';
-import { PromotionBonusGrantsCard } from '@/components/social-promotions/promotion-bonus-grants-card';
+  Wallet,
+  Search,
+} from "lucide-react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useEffect, useState, useMemo } from "react";
+import { toast } from "sonner";
+import { DisputeDialog } from "@/components/disputes/dispute-dialog";
+import { Skeleton } from "@/components/ui/skeleton";
+import Image from "next/image";
+import { useConfirmDialog } from "@/hooks/use-confirm-dialog";
+import { getOptimizedImageUrl, CLOUDINARY_PRESETS } from "@/lib/cloudinary";
+import { PromotionBonusGrantsCard } from "@/components/social-promotions/promotion-bonus-grants-card";
 
 const MY_TICKETS = gql`
   query MyTickets {
@@ -169,15 +177,15 @@ interface MyTicketsResult {
   myTickets: TicketData[];
 }
 
-type TicketStatus = 'ALL' | 'PAGADO' | 'RESERVADO' | 'REEMBOLSADO';
-type RaffleStatus = 'ALL' | 'ACTIVA' | 'SORTEADA' | 'FINALIZADA' | 'CANCELADA';
+type TicketStatus = "ALL" | "PAGADO" | "RESERVADO" | "REEMBOLSADO";
+type RaffleStatus = "ALL" | "ACTIVA" | "SORTEADA" | "FINALIZADA" | "CANCELADA";
 
 function formatTimeRemaining(deadline: string): string {
   const now = new Date();
   const end = new Date(deadline);
   const diff = end.getTime() - now.getTime();
 
-  if (diff <= 0) return 'Terminada';
+  if (diff <= 0) return "Terminada";
 
   const hours = Math.floor(diff / (1000 * 60 * 60));
   const days = Math.floor(hours / 24);
@@ -191,60 +199,75 @@ export default function MyTicketsPage() {
   const { isAuthenticated, hasHydrated, user } = useAuthStore();
 
   // Filter states
-  const [ticketStatus, setTicketStatus] = useState<TicketStatus>('ALL');
-  const [raffleStatus, setRaffleStatus] = useState<RaffleStatus>('ALL');
+  const [ticketStatus, setTicketStatus] = useState<TicketStatus>("ALL");
+  const [raffleStatus, setRaffleStatus] = useState<RaffleStatus>("ALL");
   const [showWinsOnly, setShowWinsOnly] = useState(false);
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [showFilters, setShowFilters] = useState(false);
-  const [reviewingRaffleId, setReviewingRaffleId] = useState<string | null>(null);
+  const [reviewingRaffleId, setReviewingRaffleId] = useState<string | null>(
+    null,
+  );
   const [reviewRating, setReviewRating] = useState(5);
-  const [reviewComment, setReviewComment] = useState('');
+  const [reviewComment, setReviewComment] = useState("");
 
   const { data, loading, refetch } = useQuery<MyTicketsResult>(MY_TICKETS, {
     skip: !isAuthenticated,
   });
 
-  const { data: statsData } = useQuery<{ buyerStats: BuyerStats }>(BUYER_STATS, {
-    skip: !isAuthenticated,
-  });
+  const { data: statsData } = useQuery<{ buyerStats: BuyerStats }>(
+    BUYER_STATS,
+    {
+      skip: !isAuthenticated,
+    },
+  );
 
-  const { data: recommendedData } = useQuery<{ recommendedRaffles: RafflePreview[] }>(RECOMMENDED_RAFFLES, {
+  const { data: recommendedData } = useQuery<{
+    recommendedRaffles: RafflePreview[];
+  }>(RECOMMENDED_RAFFLES, {
     skip: !isAuthenticated,
     variables: { limit: 4 },
   });
 
-  const { data: endingSoonData } = useQuery<{ favoritesEndingSoon: RafflePreview[] }>(FAVORITES_ENDING_SOON, {
+  const { data: endingSoonData } = useQuery<{
+    favoritesEndingSoon: RafflePreview[];
+  }>(FAVORITES_ENDING_SOON, {
     skip: !isAuthenticated,
     variables: { hoursThreshold: 48 },
   });
 
-  const [confirmDelivery, { loading: confirming }] = useMutation(CONFIRM_DELIVERY, {
-    onCompleted: () => {
-      toast.success('Entrega confirmada y pago liberado al vendedor');
-      refetch();
+  const [confirmDelivery, { loading: confirming }] = useMutation(
+    CONFIRM_DELIVERY,
+    {
+      onCompleted: () => {
+        toast.success("Entrega confirmada y pago liberado al vendedor");
+        refetch();
+      },
+      onError: (err) => {
+        toast.error(err.message);
+      },
     },
-    onError: (err) => {
-      toast.error(err.message);
-    },
-  });
+  );
 
-  const [createSellerReview, { loading: creatingReview }] = useMutation(CREATE_SELLER_REVIEW, {
-    onCompleted: () => {
-      toast.success('Reseña enviada. Gracias por compartir tu experiencia.');
-      setReviewingRaffleId(null);
-      setReviewRating(5);
-      setReviewComment('');
-      refetch();
+  const [createSellerReview, { loading: creatingReview }] = useMutation(
+    CREATE_SELLER_REVIEW,
+    {
+      onCompleted: () => {
+        toast.success("Reseña enviada. Gracias por compartir tu experiencia.");
+        setReviewingRaffleId(null);
+        setReviewRating(5);
+        setReviewComment("");
+        refetch();
+      },
+      onError: (err) => {
+        toast.error(err.message);
+      },
     },
-    onError: (err) => {
-      toast.error(err.message);
-    },
-  });
+  );
 
   useEffect(() => {
     if (hasHydrated && !isAuthenticated) {
-      router.push('/auth/login');
+      router.push("/auth/login");
     }
   }, [hasHydrated, isAuthenticated, router]);
 
@@ -257,8 +280,10 @@ export default function MyTicketsPage() {
   // Filter tickets (useMemo before early return)
   const filteredTickets = useMemo(() => {
     return tickets.filter((ticket) => {
-      if (ticketStatus !== 'ALL' && ticket.estado !== ticketStatus) return false;
-      if (raffleStatus !== 'ALL' && ticket.raffle.estado !== raffleStatus) return false;
+      if (ticketStatus !== "ALL" && ticket.estado !== ticketStatus)
+        return false;
+      if (raffleStatus !== "ALL" && ticket.raffle.estado !== raffleStatus)
+        return false;
       if (showWinsOnly && ticket.raffle.winnerId !== user?.id) return false;
 
       if (dateFrom) {
@@ -275,17 +300,26 @@ export default function MyTicketsPage() {
 
       return true;
     });
-  }, [tickets, ticketStatus, raffleStatus, showWinsOnly, dateFrom, dateTo, user?.id]);
+  }, [
+    tickets,
+    ticketStatus,
+    raffleStatus,
+    showWinsOnly,
+    dateFrom,
+    dateTo,
+    user?.id,
+  ]);
 
   const confirmDialog = useConfirmDialog();
 
   const handleConfirmDelivery = async (raffleId: string) => {
     const confirmed = await confirmDialog({
-      title: '¿Confirmar recepción del producto?',
-      description: 'Al confirmar, indicarás que recibiste el producto en buen estado y se liberará el pago al vendedor.',
-      confirmText: 'Confirmar Recepción',
-      cancelText: 'Cancelar',
-      variant: 'default',
+      title: "¿Confirmar recepción del producto?",
+      description:
+        "Al confirmar, indicarás que recibiste el producto en buen estado y se liberará el pago al vendedor.",
+      confirmText: "Confirmar Recepción",
+      cancelText: "Cancelar",
+      variant: "default",
     });
     if (confirmed) {
       confirmDelivery({ variables: { raffleId } });
@@ -306,28 +340,43 @@ export default function MyTicketsPage() {
 
   if (!hasHydrated || !isAuthenticated) return null;
 
-  const hasActiveFilters = ticketStatus !== 'ALL' || raffleStatus !== 'ALL' || showWinsOnly || dateFrom || dateTo;
+  const hasActiveFilters =
+    ticketStatus !== "ALL" ||
+    raffleStatus !== "ALL" ||
+    showWinsOnly ||
+    dateFrom ||
+    dateTo;
+  const shouldShowBuyerOnboarding = !loading && tickets.length === 0;
 
   const clearFilters = () => {
-    setTicketStatus('ALL');
-    setRaffleStatus('ALL');
+    setTicketStatus("ALL");
+    setRaffleStatus("ALL");
     setShowWinsOnly(false);
-    setDateFrom('');
-    setDateTo('');
+    setDateFrom("");
+    setDateTo("");
   };
 
   // Group by raffle
-  const groupedTickets = filteredTickets.reduce((acc: Record<string, { raffle: TicketData['raffle']; tickets: TicketData[] }>, ticket) => {
-    const raffleId = ticket.raffle.id;
-    if (!acc[raffleId]) {
-      acc[raffleId] = {
-        raffle: ticket.raffle,
-        tickets: [],
-      };
-    }
-    acc[raffleId].tickets.push(ticket);
-    return acc;
-  }, {});
+  const groupedTickets = filteredTickets.reduce(
+    (
+      acc: Record<
+        string,
+        { raffle: TicketData["raffle"]; tickets: TicketData[] }
+      >,
+      ticket,
+    ) => {
+      const raffleId = ticket.raffle.id;
+      if (!acc[raffleId]) {
+        acc[raffleId] = {
+          raffle: ticket.raffle,
+          tickets: [],
+        };
+      }
+      acc[raffleId].tickets.push(ticket);
+      return acc;
+    },
+    {},
+  );
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -335,82 +384,171 @@ export default function MyTicketsPage() {
 
       <PromotionBonusGrantsCard />
 
+      {shouldShowBuyerOnboarding && (
+        <Card className="mb-8 border-primary/20 bg-primary/5">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Wallet className="h-5 w-5 text-primary" />
+              Primeros pasos para participar
+            </CardTitle>
+            <CardDescription>
+              Ahora las compras usan Saldo LUK. Cargás saldo una vez y lo usás
+              en cualquier rifa sin pagar cada número directo con Mercado Pago.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              <div className="rounded-lg border bg-background/80 p-4">
+                <Wallet className="mb-3 h-5 w-5 text-primary" />
+                <h3 className="font-semibold">Cargá Saldo LUK</h3>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  Desde tu wallet, elegí el monto y confirmá la carga con
+                  Mercado Pago o el proveedor disponible.
+                </p>
+              </div>
+              <div className="rounded-lg border bg-background/80 p-4">
+                <Search className="mb-3 h-5 w-5 text-primary" />
+                <h3 className="font-semibold">Elegí una rifa</h3>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  Explorá rifas activas y revisá precio, vendedor, preguntas y
+                  números disponibles.
+                </p>
+              </div>
+              <div className="rounded-lg border bg-background/80 p-4">
+                <Ticket className="mb-3 h-5 w-5 text-primary" />
+                <h3 className="font-semibold">Comprar con saldo</h3>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  LUK descuenta el saldo disponible y emite tus tickets al
+                  confirmar la compra.
+                </p>
+              </div>
+              <div className="rounded-lg border bg-background/80 p-4">
+                <Trophy className="mb-3 h-5 w-5 text-primary" />
+                <h3 className="font-semibold">Seguimiento</h3>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  Volvé a este panel para ver tickets, resultados, envíos y
+                  disputas si correspondiera.
+                </p>
+              </div>
+            </div>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Link href="/dashboard/wallet">
+                <Button className="w-full sm:w-auto">
+                  <Wallet className="mr-2 h-4 w-4" />
+                  Cargar Saldo LUK
+                </Button>
+              </Link>
+              <Link href="/search">
+                <Button variant="outline" className="w-full sm:w-auto">
+                  <Search className="mr-2 h-4 w-4" />
+                  Explorar rifas
+                </Button>
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Buyer Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-full bg-blue-500/10">
+      <div className="grid grid-cols-2 gap-4 mb-8 md:grid-cols-3 lg:grid-cols-6">
+        <Card className="min-h-[6.75rem]">
+          <CardContent className="flex min-h-[6.75rem] items-center p-4 sm:p-5">
+            <div className="flex w-full items-center gap-3">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-blue-500/10">
                 <Ticket className="h-5 w-5 text-blue-500" />
               </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Tickets Comprados</p>
-                <p className="text-xl font-bold">{stats?.totalTicketsPurchased || 0}</p>
+              <div className="min-w-0">
+                <p className="text-xs leading-tight text-muted-foreground">
+                  Tickets Comprados
+                </p>
+                <p className="mt-1 text-xl font-bold leading-none">
+                  {stats?.totalTicketsPurchased || 0}
+                </p>
               </div>
             </div>
           </CardContent>
         </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-full bg-yellow-500/10">
+        <Card className="min-h-[6.75rem]">
+          <CardContent className="flex min-h-[6.75rem] items-center p-4 sm:p-5">
+            <div className="flex w-full items-center gap-3">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-yellow-500/10">
                 <Trophy className="h-5 w-5 text-yellow-500" />
               </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Rifas Ganadas</p>
-                <p className="text-xl font-bold">{stats?.totalRafflesWon || 0}</p>
+              <div className="min-w-0">
+                <p className="text-xs leading-tight text-muted-foreground">
+                  Rifas Ganadas
+                </p>
+                <p className="mt-1 text-xl font-bold leading-none">
+                  {stats?.totalRafflesWon || 0}
+                </p>
               </div>
             </div>
           </CardContent>
         </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-full bg-green-500/10">
+        <Card className="min-h-[6.75rem]">
+          <CardContent className="flex min-h-[6.75rem] items-center p-4 sm:p-5">
+            <div className="flex w-full items-center gap-3">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-green-500/10">
                 <TrendingUp className="h-5 w-5 text-green-500" />
               </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Tasa de Victoria</p>
-                <p className="text-xl font-bold">{stats?.winRate.toFixed(1) || 0}%</p>
+              <div className="min-w-0">
+                <p className="text-xs leading-tight text-muted-foreground">
+                  Tasa de Victoria
+                </p>
+                <p className="mt-1 text-xl font-bold leading-none">
+                  {stats?.winRate.toFixed(1) || 0}%
+                </p>
               </div>
             </div>
           </CardContent>
         </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-full bg-purple-500/10">
+        <Card className="min-h-[6.75rem]">
+          <CardContent className="flex min-h-[6.75rem] items-center p-4 sm:p-5">
+            <div className="flex w-full items-center gap-3">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-purple-500/10">
                 <DollarSign className="h-5 w-5 text-purple-500" />
               </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Total Gastado</p>
-                <p className="text-xl font-bold">${stats?.totalSpent.toFixed(2) || '0.00'}</p>
+              <div className="min-w-0">
+                <p className="text-xs leading-tight text-muted-foreground">
+                  Total Gastado
+                </p>
+                <p className="mt-1 break-words text-lg font-bold leading-none xl:text-xl">
+                  ${stats?.totalSpent.toFixed(2) || "0.00"}
+                </p>
               </div>
             </div>
           </CardContent>
         </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-full bg-orange-500/10">
+        <Card className="min-h-[6.75rem]">
+          <CardContent className="flex min-h-[6.75rem] items-center p-4 sm:p-5">
+            <div className="flex w-full items-center gap-3">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-orange-500/10">
                 <Clock className="h-5 w-5 text-orange-500" />
               </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Tickets Activos</p>
-                <p className="text-xl font-bold">{stats?.activeTickets || 0}</p>
+              <div className="min-w-0">
+                <p className="text-xs leading-tight text-muted-foreground">
+                  Tickets Activos
+                </p>
+                <p className="mt-1 text-xl font-bold leading-none">
+                  {stats?.activeTickets || 0}
+                </p>
               </div>
             </div>
           </CardContent>
         </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-full bg-pink-500/10">
+        <Card className="min-h-[6.75rem]">
+          <CardContent className="flex min-h-[6.75rem] items-center p-4 sm:p-5">
+            <div className="flex w-full items-center gap-3">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-pink-500/10">
                 <Heart className="h-5 w-5 text-pink-500" />
               </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Favoritos</p>
-                <p className="text-xl font-bold">{stats?.favoritesCount || 0}</p>
+              <div className="min-w-0">
+                <p className="text-xs leading-tight text-muted-foreground">
+                  Favoritos
+                </p>
+                <p className="mt-1 text-xl font-bold leading-none">
+                  {stats?.favoritesCount || 0}
+                </p>
               </div>
             </div>
           </CardContent>
@@ -425,7 +563,9 @@ export default function MyTicketsPage() {
               <AlertTriangle className="h-5 w-5" />
               Favoritos por terminar
             </CardTitle>
-            <CardDescription>Estas rifas de tu lista de favoritos terminan pronto</CardDescription>
+            <CardDescription>
+              Estas rifas de tu lista de favoritos terminan pronto
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -435,7 +575,10 @@ export default function MyTicketsPage() {
                     <div className="w-12 h-12 rounded-md overflow-hidden bg-muted flex-shrink-0">
                       {raffle.product?.imagenes?.[0] ? (
                         <Image
-                          src={getOptimizedImageUrl(raffle.product.imagenes[0], CLOUDINARY_PRESETS.dashboardThumb)}
+                          src={getOptimizedImageUrl(
+                            raffle.product.imagenes[0],
+                            CLOUDINARY_PRESETS.dashboardThumb,
+                          )}
                           alt=""
                           width={48}
                           height={48}
@@ -448,7 +591,9 @@ export default function MyTicketsPage() {
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="font-medium truncate text-sm">{raffle.titulo}</p>
+                      <p className="font-medium truncate text-sm">
+                        {raffle.titulo}
+                      </p>
                       <div className="flex items-center gap-2 text-xs text-muted-foreground">
                         <span>${raffle.precioPorTicket}</span>
                         <span className="text-orange-600 font-medium">
@@ -472,7 +617,9 @@ export default function MyTicketsPage() {
               <Star className="h-5 w-5 text-yellow-500" />
               Recomendados para vos
             </CardTitle>
-            <CardDescription>Basado en tus compras y favoritos anteriores</CardDescription>
+            <CardDescription>
+              Basado en tus compras y favoritos anteriores
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -482,7 +629,10 @@ export default function MyTicketsPage() {
                     <div className="aspect-video bg-muted relative overflow-hidden">
                       {raffle.product?.imagenes?.[0] ? (
                         <Image
-                          src={getOptimizedImageUrl(raffle.product.imagenes[0], CLOUDINARY_PRESETS.card)}
+                          src={getOptimizedImageUrl(
+                            raffle.product.imagenes[0],
+                            CLOUDINARY_PRESETS.card,
+                          )}
                           alt=""
                           fill
                           className="object-cover group-hover:scale-105 transition-transform"
@@ -499,11 +649,16 @@ export default function MyTicketsPage() {
                       )}
                     </div>
                     <div className="p-3">
-                      <p className="font-medium truncate text-sm">{raffle.titulo}</p>
+                      <p className="font-medium truncate text-sm">
+                        {raffle.titulo}
+                      </p>
                       <div className="flex items-center justify-between text-xs text-muted-foreground mt-1">
-                        <span className="font-semibold text-primary">${raffle.precioPorTicket}/ticket</span>
+                        <span className="font-semibold text-primary">
+                          ${raffle.precioPorTicket}/ticket
+                        </span>
                         <span>
-                          {raffle.ticketsVendidos || 0}/{raffle.totalTickets || 0} vendidos
+                          {raffle.ticketsVendidos || 0}/
+                          {raffle.totalTickets || 0} vendidos
                         </span>
                       </div>
                     </div>
@@ -520,7 +675,7 @@ export default function MyTicketsPage() {
         <h2 className="text-2xl font-bold">Mis Tickets</h2>
         <div className="flex items-center gap-2">
           <Button
-            variant={showFilters ? 'secondary' : 'outline'}
+            variant={showFilters ? "secondary" : "outline"}
             size="sm"
             onClick={() => setShowFilters(!showFilters)}
           >
@@ -528,7 +683,15 @@ export default function MyTicketsPage() {
             Filtros
             {hasActiveFilters && (
               <span className="ml-2 bg-primary text-primary-foreground text-xs px-1.5 py-0.5 rounded-full">
-                {[ticketStatus !== 'ALL', raffleStatus !== 'ALL', showWinsOnly, dateFrom, dateTo].filter(Boolean).length}
+                {
+                  [
+                    ticketStatus !== "ALL",
+                    raffleStatus !== "ALL",
+                    showWinsOnly,
+                    dateFrom,
+                    dateTo,
+                  ].filter(Boolean).length
+                }
               </span>
             )}
           </Button>
@@ -550,7 +713,9 @@ export default function MyTicketsPage() {
                 <label className="text-sm font-medium">Estado del Ticket</label>
                 <select
                   value={ticketStatus}
-                  onChange={(e) => setTicketStatus(e.target.value as TicketStatus)}
+                  onChange={(e) =>
+                    setTicketStatus(e.target.value as TicketStatus)
+                  }
                   className="w-full h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm"
                 >
                   <option value="ALL">Todos</option>
@@ -563,7 +728,9 @@ export default function MyTicketsPage() {
                 <label className="text-sm font-medium">Estado de la Rifa</label>
                 <select
                   value={raffleStatus}
-                  onChange={(e) => setRaffleStatus(e.target.value as RaffleStatus)}
+                  onChange={(e) =>
+                    setRaffleStatus(e.target.value as RaffleStatus)
+                  }
                   className="w-full h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm"
                 >
                   <option value="ALL">Todas</option>
@@ -638,16 +805,25 @@ export default function MyTicketsPage() {
         <div className="text-center py-20">
           <Ticket className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
           <h2 className="text-xl font-semibold mb-2">No tenés tickets</h2>
-          <p className="text-muted-foreground mb-4">Participá en rifas para comprar tickets</p>
-          <Link href="/search">
-            <Button>Explorar Rifas</Button>
-          </Link>
+          <p className="text-muted-foreground mb-4">
+            Cargá Saldo LUK y explorá rifas para comprar tus primeros tickets.
+          </p>
+          <div className="flex flex-col items-center justify-center gap-2 sm:flex-row">
+            <Link href="/dashboard/wallet">
+              <Button>Cargar Saldo LUK</Button>
+            </Link>
+            <Link href="/search">
+              <Button variant="outline">Explorar rifas</Button>
+            </Link>
+          </div>
         </div>
       ) : filteredTickets.length === 0 ? (
         <div className="text-center py-20">
           <Filter className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
           <h2 className="text-xl font-semibold mb-2">Sin resultados</h2>
-          <p className="text-muted-foreground mb-4">No hay tickets que coincidan con los filtros aplicados</p>
+          <p className="text-muted-foreground mb-4">
+            No hay tickets que coincidan con los filtros aplicados
+          </p>
           <Button variant="outline" onClick={clearFilters}>
             Limpiar Filtros
           </Button>
@@ -658,16 +834,22 @@ export default function MyTicketsPage() {
             const isWinner = group.raffle.winnerId === user?.id;
             const canReviewSeller =
               isWinner &&
-              group.raffle.deliveryStatus === 'CONFIRMED' &&
+              group.raffle.deliveryStatus === "CONFIRMED" &&
               !group.raffle.review;
 
             return (
-              <Card key={group.raffle.id} className={isWinner ? 'border-yellow-500 border-2' : ''}>
+              <Card
+                key={group.raffle.id}
+                className={isWinner ? "border-yellow-500 border-2" : ""}
+              >
                 <CardHeader className="flex flex-row items-center gap-4">
                   <div className="w-16 h-16 rounded-md overflow-hidden bg-muted flex-shrink-0">
                     {group.raffle.product?.imagenes?.[0] ? (
                       <Image
-                        src={getOptimizedImageUrl(group.raffle.product.imagenes[0], CLOUDINARY_PRESETS.dashboardThumb)}
+                        src={getOptimizedImageUrl(
+                          group.raffle.product.imagenes[0],
+                          CLOUDINARY_PRESETS.dashboardThumb,
+                        )}
                         alt=""
                         width={64}
                         height={64}
@@ -683,30 +865,41 @@ export default function MyTicketsPage() {
                     <CardTitle className="flex items-center gap-2">
                       {group.raffle.titulo}
                       {isWinner && (
-                        <span className="text-sm bg-yellow-500 text-black px-2 py-0.5 rounded">🏆 GANADOR</span>
+                        <span className="text-sm bg-yellow-500 text-black px-2 py-0.5 rounded">
+                          🏆 GANADOR
+                        </span>
                       )}
                     </CardTitle>
                     <div className="flex items-center gap-4 text-sm text-muted-foreground flex-wrap">
                       <p>
-                        Estado:{' '}
-                        <span className={group.raffle.estado === 'ACTIVA' ? 'text-green-600' : ''}>
+                        Estado:{" "}
+                        <span
+                          className={
+                            group.raffle.estado === "ACTIVA"
+                              ? "text-green-600"
+                              : ""
+                          }
+                        >
                           {group.raffle.estado}
                         </span>
                       </p>
 
-                      {isWinner && group.raffle.deliveryStatus === 'SHIPPED' && (
-                        <div className="flex items-center text-blue-600 font-medium">
-                          <Truck className="h-4 w-4 mr-1" />
-                          Enviado: {group.raffle.trackingNumber || 'Sin tracking'}
-                        </div>
-                      )}
+                      {isWinner &&
+                        group.raffle.deliveryStatus === "SHIPPED" && (
+                          <div className="flex items-center text-blue-600 font-medium">
+                            <Truck className="h-4 w-4 mr-1" />
+                            Enviado:{" "}
+                            {group.raffle.trackingNumber || "Sin tracking"}
+                          </div>
+                        )}
 
-                      {isWinner && group.raffle.deliveryStatus === 'CONFIRMED' && (
-                        <div className="flex items-center text-green-600 font-medium">
-                          <PackageCheck className="h-4 w-4 mr-1" />
-                          Entregado y Confirmado
-                        </div>
-                      )}
+                      {isWinner &&
+                        group.raffle.deliveryStatus === "CONFIRMED" && (
+                          <div className="flex items-center text-green-600 font-medium">
+                            <PackageCheck className="h-4 w-4 mr-1" />
+                            Entregado y Confirmado
+                          </div>
+                        )}
                     </div>
                   </div>
 
@@ -718,7 +911,7 @@ export default function MyTicketsPage() {
                       </Button>
                     </Link>
 
-                    {isWinner && group.raffle.deliveryStatus === 'SHIPPED' && (
+                    {isWinner && group.raffle.deliveryStatus === "SHIPPED" && (
                       <div className="flex gap-2">
                         <Button
                           size="sm"
@@ -727,7 +920,11 @@ export default function MyTicketsPage() {
                           onClick={() => handleConfirmDelivery(group.raffle.id)}
                           disabled={confirming}
                         >
-                          {confirming ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Confirmar Recepción'}
+                          {confirming ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            "Confirmar Recepción"
+                          )}
                         </Button>
                         <DisputeDialog
                           raffleId={group.raffle.id}
@@ -737,8 +934,13 @@ export default function MyTicketsPage() {
                       </div>
                     )}
 
-                    {isWinner && group.raffle.deliveryStatus === 'DISPUTED' && (
-                      <Button variant="destructive" size="sm" disabled className="w-full opacity-100">
+                    {isWinner && group.raffle.deliveryStatus === "DISPUTED" && (
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        disabled
+                        className="w-full opacity-100"
+                      >
                         <AlertTriangle className="w-4 h-4 mr-2" />
                         En Disputa
                       </Button>
@@ -757,7 +959,12 @@ export default function MyTicketsPage() {
                     )}
 
                     {isWinner && group.raffle.review && (
-                      <Button variant="outline" size="sm" disabled className="w-full opacity-100">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled
+                        className="w-full opacity-100"
+                      >
                         <Star className="w-4 h-4 mr-2" />
                         Reseña enviada
                       </Button>
@@ -771,7 +978,8 @@ export default function MyTicketsPage() {
                         <div>
                           <h3 className="font-semibold">Reseñá al vendedor</h3>
                           <p className="text-sm text-muted-foreground">
-                            Tu reseña ayuda a otros compradores a decidir con más confianza.
+                            Tu reseña ayuda a otros compradores a decidir con
+                            más confianza.
                           </p>
                         </div>
                         <Button
@@ -797,7 +1005,7 @@ export default function MyTicketsPage() {
                                   onClick={() => setReviewRating(ratingValue)}
                                 >
                                   <Star
-                                    className={`h-6 w-6 ${ratingValue <= reviewRating ? 'fill-current' : ''}`}
+                                    className={`h-6 w-6 ${ratingValue <= reviewRating ? "fill-current" : ""}`}
                                   />
                                 </button>
                               );
@@ -805,13 +1013,18 @@ export default function MyTicketsPage() {
                           </div>
                         </div>
                         <div>
-                          <label className="text-sm font-medium" htmlFor={`review-${group.raffle.id}`}>
+                          <label
+                            className="text-sm font-medium"
+                            htmlFor={`review-${group.raffle.id}`}
+                          >
                             Comentario opcional
                           </label>
                           <Textarea
                             id={`review-${group.raffle.id}`}
                             value={reviewComment}
-                            onChange={(event) => setReviewComment(event.target.value)}
+                            onChange={(event) =>
+                              setReviewComment(event.target.value)
+                            }
                             maxLength={1000}
                             placeholder="Contá cómo fue la entrega y la experiencia con el vendedor."
                             className="mt-2"
@@ -836,14 +1049,16 @@ export default function MyTicketsPage() {
                       <div
                         key={ticket.id}
                         className={`p-3 rounded-md text-center ${
-                          ticket.estado === 'PAGADO'
-                            ? 'bg-primary/10 text-primary'
-                            : ticket.estado === 'REEMBOLSADO'
-                            ? 'bg-muted text-muted-foreground'
-                            : 'bg-yellow-100 text-yellow-700'
+                          ticket.estado === "PAGADO"
+                            ? "bg-primary/10 text-primary"
+                            : ticket.estado === "REEMBOLSADO"
+                              ? "bg-muted text-muted-foreground"
+                              : "bg-yellow-100 text-yellow-700"
                         }`}
                       >
-                        <div className="text-2xl font-bold">#{ticket.numeroTicket}</div>
+                        <div className="text-2xl font-bold">
+                          #{ticket.numeroTicket}
+                        </div>
                         <div className="text-xs">{ticket.estado}</div>
                       </div>
                     ))}
