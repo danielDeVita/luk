@@ -1,9 +1,13 @@
 import { Resolver, Query, Mutation, Args, Int } from '@nestjs/graphql';
 import { UseGuards } from '@nestjs/common';
 import { AdminService } from './admin.service';
-import { MpEvent, MpEventList } from './entities/mp-event.entity';
+import {
+  PaymentProviderEvent,
+  PaymentProviderEventList,
+} from './entities/mp-event.entity';
 import {
   AdminStats,
+  AdminTransaction,
   AdminTransactionList,
   PaymentDebugInfo,
   AdminUserList,
@@ -32,19 +36,19 @@ export class AdminResolver {
     private disputesService: DisputesService,
   ) {}
 
-  // ==================== MpEvent Viewer ====================
+  // ==================== Payment Provider Event Viewer ====================
 
-  @Query(() => MpEventList, {
-    description: 'List MP webhook events for debugging',
+  @Query(() => PaymentProviderEventList, {
+    description: 'List payment-provider webhook events for debugging',
   })
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
-  async mpEvents(
+  async paymentProviderEvents(
     @Args('eventType', { nullable: true }) eventType?: string,
     @Args('limit', { nullable: true, type: () => Int }) limit?: number,
     @Args('offset', { nullable: true, type: () => Int }) offset?: number,
-  ): Promise<MpEventList> {
-    const result = await this.adminService.getMpEvents({
+  ): Promise<PaymentProviderEventList> {
+    const result = await this.adminService.getPaymentProviderEvents({
       eventType,
       limit,
       offset,
@@ -58,11 +62,16 @@ export class AdminResolver {
     };
   }
 
-  @Query(() => MpEvent, { nullable: true, description: 'Get MP event by ID' })
+  @Query(() => PaymentProviderEvent, {
+    nullable: true,
+    description: 'Get payment-provider event by ID',
+  })
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
-  async mpEvent(@Args('eventId') eventId: string): Promise<MpEvent | null> {
-    const event = await this.adminService.getMpEventById(eventId);
+  async paymentProviderEvent(
+    @Args('eventId') eventId: string,
+  ): Promise<PaymentProviderEvent | null> {
+    const event = await this.adminService.getPaymentProviderEventById(eventId);
     if (!event) return null;
     return {
       ...event,
@@ -78,18 +87,15 @@ export class AdminResolver {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
   async paymentDebug(
-    @Args('mpPaymentId') mpPaymentId: string,
+    @Args('providerPaymentId') providerPaymentId: string,
   ): Promise<PaymentDebugInfo> {
-    const info = await this.adminService.getPaymentDebugInfo(mpPaymentId);
+    const info = await this.adminService.getPaymentDebugInfo(providerPaymentId);
     return {
       ...info,
       transactionAmount: info.transactionAmount
         ? Number(info.transactionAmount)
         : undefined,
-      tickets: info.tickets.map((t) => ({
-        ...t,
-        precioPagado: Number(t.precioPagado),
-      })),
+      tickets: info.tickets,
     };
   }
 
@@ -107,33 +113,49 @@ export class AdminResolver {
       limit,
       offset,
     });
+    type TransactionRecord = {
+      id: string;
+      tipo: string;
+      monto: unknown;
+      grossAmount?: unknown;
+      promotionDiscountAmount?: unknown;
+      cashChargedAmount?: unknown;
+      estado?: string | null;
+      providerPaymentId?: string | null;
+      metadata?: Record<string, unknown> | null;
+      createdAt: Date;
+      user?: AdminTransaction['user'] | null;
+      raffle?: AdminTransaction['raffle'] | null;
+    };
+    const transactions: AdminTransaction[] = (
+      result.transactions as unknown as TransactionRecord[]
+    ).map((transaction) => ({
+      ...transaction,
+      monto: Number(transaction.monto),
+      estado: transaction.estado ?? undefined,
+      providerPaymentId: transaction.providerPaymentId ?? undefined,
+      grossAmount:
+        transaction.grossAmount !== null &&
+        transaction.grossAmount !== undefined
+          ? Number(transaction.grossAmount)
+          : undefined,
+      promotionDiscountAmount:
+        transaction.promotionDiscountAmount !== null &&
+        transaction.promotionDiscountAmount !== undefined
+          ? Number(transaction.promotionDiscountAmount)
+          : undefined,
+      cashChargedAmount:
+        transaction.cashChargedAmount !== null &&
+        transaction.cashChargedAmount !== undefined
+          ? Number(transaction.cashChargedAmount)
+          : undefined,
+      metadata: transaction.metadata ?? undefined,
+      user: transaction.user ?? undefined,
+      raffle: transaction.raffle ?? undefined,
+    }));
 
     return {
-      transactions: result.transactions.map((transaction) => ({
-        ...transaction,
-        monto: Number(transaction.monto),
-        mpPaymentId: transaction.mpPaymentId ?? undefined,
-        grossAmount:
-          transaction.grossAmount !== null &&
-          transaction.grossAmount !== undefined
-            ? Number(transaction.grossAmount)
-            : undefined,
-        promotionDiscountAmount:
-          transaction.promotionDiscountAmount !== null &&
-          transaction.promotionDiscountAmount !== undefined
-            ? Number(transaction.promotionDiscountAmount)
-            : undefined,
-        cashChargedAmount:
-          transaction.cashChargedAmount !== null &&
-          transaction.cashChargedAmount !== undefined
-            ? Number(transaction.cashChargedAmount)
-            : undefined,
-        metadata:
-          (transaction.metadata as Record<string, unknown> | undefined) ??
-          undefined,
-        user: transaction.user ?? undefined,
-        raffle: transaction.raffle ?? undefined,
-      })),
+      transactions,
       total: result.total,
     };
   }

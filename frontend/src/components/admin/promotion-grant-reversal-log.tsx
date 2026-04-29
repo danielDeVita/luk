@@ -19,7 +19,7 @@ const PROMOTION_GRANT_REVERSAL_LOGS = gql`
         promotionDiscountAmount
         cashChargedAmount
         estado
-        mpPaymentId
+        providerPaymentId
         createdAt
         metadata
         user {
@@ -52,7 +52,7 @@ interface ReversalTransaction {
   promotionDiscountAmount?: number | null;
   cashChargedAmount?: number | null;
   estado?: string | null;
-  mpPaymentId?: string | null;
+  providerPaymentId?: string | null;
   createdAt: string;
   metadata?: ReversalMetadata | null;
   user?: {
@@ -182,8 +182,8 @@ export function PromotionGrantReversalLog() {
 
                   <div className="grid gap-3 text-xs text-muted-foreground sm:grid-cols-2 xl:grid-cols-4">
                     <div>
-                      <span className="font-medium text-foreground">MP Payment:</span>{' '}
-                      {transaction.mpPaymentId ?? '-'}
+                      <span className="font-medium text-foreground">Pago proveedor:</span>{' '}
+                      {transaction.providerPaymentId ?? '-'}
                     </div>
                     <div>
                       <span className="font-medium text-foreground">Tipo de refund:</span>{' '}

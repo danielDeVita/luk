@@ -76,9 +76,11 @@ export class TransactionsRepository extends BaseRepository<
   /**
    * Find transaction by MP payment ID.
    */
-  async findByMpPaymentId(mpPaymentId: string): Promise<Transaction | null> {
+  async findByMpPaymentId(
+    providerPaymentId: string,
+  ): Promise<Transaction | null> {
     return this.prisma.transaction.findFirst({
-      where: { mpPaymentId },
+      where: { providerPaymentId },
       include: { user: true, raffle: true },
     });
   }
@@ -93,8 +95,8 @@ export class TransactionsRepository extends BaseRepository<
     comisionPlataforma: number;
     feeProcesamiento: number;
     montoNeto: number;
-    mpPaymentId?: string;
-    mpMerchantOrderId?: string;
+    providerPaymentId?: string;
+    providerOrderId?: string;
   }): Promise<Transaction> {
     return this.prisma.transaction.create({
       data: {
@@ -106,8 +108,8 @@ export class TransactionsRepository extends BaseRepository<
         comisionPlataforma: data.comisionPlataforma,
         feeProcesamiento: data.feeProcesamiento,
         montoNeto: data.montoNeto,
-        mpPaymentId: data.mpPaymentId,
-        mpMerchantOrderId: data.mpMerchantOrderId,
+        providerPaymentId: data.providerPaymentId,
+        providerOrderId: data.providerOrderId,
       },
     });
   }
@@ -119,7 +121,7 @@ export class TransactionsRepository extends BaseRepository<
     userId: string;
     raffleId: string;
     monto: number;
-    mpPaymentId?: string;
+    providerPaymentId?: string;
     metadata?: Prisma.JsonValue;
   }): Promise<Transaction> {
     return this.prisma.transaction.create({
@@ -129,16 +131,16 @@ export class TransactionsRepository extends BaseRepository<
         userId: data.userId,
         raffleId: data.raffleId,
         monto: data.monto,
-        mpPaymentId: data.mpPaymentId,
+        providerPaymentId: data.providerPaymentId,
         metadata: data.metadata ?? undefined,
       },
     });
   }
 
   /**
-   * Create a seller payout transaction.
+   * Create an internal seller payout transaction.
    */
-  async createSellerPayout(data: {
+  async createInternalSellerPayout(data: {
     userId: string;
     raffleId: string;
     monto: number;

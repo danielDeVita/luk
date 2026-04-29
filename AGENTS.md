@@ -68,7 +68,7 @@ This file is the repo-wide source of truth for OpenAI/Codex-style agents working
 
 ## Domain Invariants
 
-- Sellers must satisfy prerequisites before creating raffles: KYC verified, Mercado Pago connected, shipping address present.
+- Sellers must satisfy prerequisites before creating raffles: KYC verified, seller payment account ready, shipping address present.
 - Ticket purchases reserve tickets first and confirm them after approved payment state.
 - Refund and cancellation flows must preserve ticket and payout consistency.
 - Payout release must respect buyer-protection and dispute constraints.
@@ -102,7 +102,7 @@ This file is the repo-wide source of truth for OpenAI/Codex-style agents working
 ## Local QA Defaults
 
 - Prefer Docker-first commands from `COMMANDS.md`.
-- For payment QA without Mercado Pago, set `PAYMENTS_PROVIDER="mock"` and `MP_ACCESS_TOKEN=""`.
+- For payment QA without the live payment provider, set `PAYMENTS_PROVIDER="mock"` and leave live-provider credentials empty.
 - Important local URLs:
   - Frontend: `http://localhost:3000`
   - Backend: `http://localhost:3001`

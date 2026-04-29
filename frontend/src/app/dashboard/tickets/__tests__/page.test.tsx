@@ -42,7 +42,7 @@ vi.mock('sonner', () => ({
   },
 }));
 
-describe('MyTicketsPage seller reviews', () => {
+describe('MyTicketsPage', () => {
   const mockUseQuery = vi.mocked(useQuery);
   const mockUseMutation = vi.mocked(useMutation);
   const mockUseRouter = vi.mocked(useRouter);
@@ -67,6 +67,60 @@ describe('MyTicketsPage seller reviews', () => {
       hasHydrated: true,
       user: { id: 'winner-1', email: 'winner@test.com' },
     } as unknown as ReturnType<typeof useAuthStore>);
+  });
+
+  it('shows wallet onboarding when the buyer has no tickets yet', async () => {
+    mockUseQuery.mockImplementation((operation) => {
+      const operationName = getOperationName(operation);
+
+      if (operationName === 'MyTickets') {
+        return {
+          data: { myTickets: [] },
+          loading: false,
+          error: undefined,
+          refetch: vi.fn(),
+        } as unknown as ReturnType<typeof useQuery>;
+      }
+
+      if (operationName === 'BuyerStats') {
+        return {
+          data: {
+            buyerStats: {
+              totalTicketsPurchased: 0,
+              totalRafflesWon: 0,
+              winRate: 0,
+              totalSpent: 0,
+              activeTickets: 0,
+              favoritesCount: 0,
+            },
+          },
+          loading: false,
+          error: undefined,
+          refetch: vi.fn(),
+        } as unknown as ReturnType<typeof useQuery>;
+      }
+
+      return {
+        data: undefined,
+        loading: false,
+        error: undefined,
+        refetch: vi.fn(),
+      } as unknown as ReturnType<typeof useQuery>;
+    });
+    mockUseMutation.mockReturnValue([
+      vi.fn(),
+      { data: undefined, loading: false, error: undefined },
+    ] as unknown as ReturnType<typeof useMutation>);
+
+    render(<MyTicketsPage />);
+
+    expect(
+      await screen.findByText('Primeros pasos para participar'),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Comprar con saldo')).toBeInTheDocument();
+    expect(
+      screen.getAllByRole('link', { name: /cargar saldo luk/i })[0],
+    ).toHaveAttribute('href', '/dashboard/wallet');
   });
 
   it('shows review CTA only after confirmed delivery and submits seller review', async () => {

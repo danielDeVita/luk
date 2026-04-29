@@ -29,7 +29,7 @@ cd backend && npm run start:dev
 cd frontend && npm run dev
 ```
 
-### Local QA without Mercado Pago
+### Local QA without the live payment provider
 
 In [`.env`](/Users/danieldevita/Desktop/p/luk/.env):
 
@@ -39,7 +39,7 @@ ALLOW_MOCK_PAYMENTS="true"
 MP_ACCESS_TOKEN=""
 ```
 
-That enables the internal QA checkout under `/checkout/mock/...`.
+That enables the internal QA flow for Saldo LUK top-ups under `/checkout/mock/...`.
 
 ### Optional Social Worker
 
@@ -62,7 +62,7 @@ npm run docker:dev:down       # Stop services
 npm run docker:clean          # Stop + remove volumes + local images
 ```
 
-### Local QA sin Mercado Pago
+### Local QA sin el proveedor de pagos live
 
 En `.env`:
 
@@ -71,7 +71,7 @@ PAYMENTS_PROVIDER="mock"
 MP_ACCESS_TOKEN=""
 ```
 
-Con eso, el checkout local abre una pantalla interna de QA en `/checkout/mock/...` y permite aprobar, dejar pendiente, rechazar y reintegrar pagos sin tocar Mercado Pago real.
+Con eso, la carga de Saldo LUK abre una pantalla interna de QA en `/checkout/mock/...` y permite aprobar, dejar pendiente, rechazar y reintegrar cargas sin tocar Mercado Pago.
 
 ---
 

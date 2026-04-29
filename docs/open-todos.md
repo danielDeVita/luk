@@ -109,7 +109,7 @@ No intenta reemplazar esos documentos. Sirve como checklist única para ordenar 
   Fuente: [social-promotions-implementation.md](./social-promotions-implementation.md)
 
 - [ ] Revisar wording de producto para usar consistentemente `bonificación promocional`.
-  Evitar términos como `saldo` o `créditos` si generan ambigüedad regulatoria o de producto.
+  En social promotions, evitar llamar `saldo` o `créditos` a los grants. `Saldo LUK` sí queda como término de producto para el balance interno cargado con Mercado Pago o mock.
   Fuente: [social-promotions-implementation.md](./social-promotions-implementation.md)
 
 - [ ] Probar login por email/password en entorno real.

@@ -13,8 +13,7 @@ describe('TicketsRepository', () => {
     estado: TicketStatus.RESERVADO,
     raffleId: 'raffle-id-123',
     buyerId: 'buyer-id-123',
-    mpPaymentId: null,
-    mpExternalReference: 'ref-123',
+    purchaseReference: 'ref-123',
     precioPagado: 100,
     createdAt: new Date('2024-01-01'),
     updatedAt: new Date('2024-01-01'),
@@ -287,8 +286,8 @@ describe('TicketsRepository', () => {
     });
   });
 
-  describe('findByMpPaymentId', () => {
-    it('should find ticket by MP payment ID', async () => {
+  describe('findByPurchaseReference', () => {
+    it('should find ticket by wallet purchase reference', async () => {
       const ticketWithRelations = {
         ...mockTicket,
         buyer: mockBuyer,
@@ -296,11 +295,11 @@ describe('TicketsRepository', () => {
       };
       mockPrismaService.ticket.findFirst.mockResolvedValue(ticketWithRelations);
 
-      const result = await repository.findByMpPaymentId('payment-123');
+      const result = await repository.findByPurchaseReference('purchase-123');
 
       expect(result).toEqual(ticketWithRelations);
       expect(mockPrismaService.ticket.findFirst).toHaveBeenCalledWith({
-        where: { mpPaymentId: 'payment-123' },
+        where: { purchaseReference: 'purchase-123' },
         include: { buyer: true, raffle: true },
       });
     });
@@ -308,7 +307,7 @@ describe('TicketsRepository', () => {
     it('should return null if not found', async () => {
       mockPrismaService.ticket.findFirst.mockResolvedValue(null);
 
-      const result = await repository.findByMpPaymentId('nonexistent');
+      const result = await repository.findByPurchaseReference('nonexistent');
 
       expect(result).toBeNull();
     });
@@ -405,7 +404,7 @@ describe('TicketsRepository', () => {
             numeroTicket: 1,
             precioPagado: 100,
             estado: 'RESERVADO',
-            mpExternalReference: 'ref-123',
+            purchaseReference: 'ref-123',
           },
           {
             raffleId: 'raffle-id-123',
@@ -413,7 +412,7 @@ describe('TicketsRepository', () => {
             numeroTicket: 2,
             precioPagado: 100,
             estado: 'RESERVADO',
-            mpExternalReference: 'ref-123',
+            purchaseReference: 'ref-123',
           },
           {
             raffleId: 'raffle-id-123',
@@ -421,7 +420,7 @@ describe('TicketsRepository', () => {
             numeroTicket: 3,
             precioPagado: 100,
             estado: 'RESERVADO',
-            mpExternalReference: 'ref-123',
+            purchaseReference: 'ref-123',
           },
         ],
       });
@@ -434,44 +433,41 @@ describe('TicketsRepository', () => {
       await repository.createMany('raffle-id-123', 'buyer-id-123', [1], 100);
 
       const createCall = mockPrismaService.ticket.createMany.mock.calls[0];
-      expect(createCall[0].data[0].mpExternalReference).toBeUndefined();
+      expect(createCall[0].data[0].purchaseReference).toBeUndefined();
     });
   });
 
-  describe('updateStatusByExternalReference', () => {
-    it('should update status by external reference', async () => {
+  describe('updateStatusByPurchaseReference', () => {
+    it('should update status by purchase reference', async () => {
       mockPrismaService.ticket.updateMany.mockResolvedValue({ count: 5 });
 
-      const result = await repository.updateStatusByExternalReference(
+      const result = await repository.updateStatusByPurchaseReference(
         'ref-123',
         TicketStatus.PAGADO,
-        'payment-123',
       );
 
       expect(result).toBe(5);
       expect(mockPrismaService.ticket.updateMany).toHaveBeenCalledWith({
-        where: { mpExternalReference: 'ref-123' },
+        where: { purchaseReference: 'ref-123' },
         data: {
           estado: TicketStatus.PAGADO,
-          mpPaymentId: 'payment-123',
         },
       });
     });
 
-    it('should work without payment ID', async () => {
+    it('should update refunded status by purchase reference', async () => {
       mockPrismaService.ticket.updateMany.mockResolvedValue({ count: 3 });
 
-      const result = await repository.updateStatusByExternalReference(
+      const result = await repository.updateStatusByPurchaseReference(
         'ref-123',
         TicketStatus.REEMBOLSADO,
       );
 
       expect(result).toBe(3);
       expect(mockPrismaService.ticket.updateMany).toHaveBeenCalledWith({
-        where: { mpExternalReference: 'ref-123' },
+        where: { purchaseReference: 'ref-123' },
         data: {
           estado: TicketStatus.REEMBOLSADO,
-          mpPaymentId: undefined,
         },
       });
     });

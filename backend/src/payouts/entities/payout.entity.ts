@@ -39,7 +39,7 @@ export class Payout {
   status!: PayoutStatus;
 
   @Field({ nullable: true })
-  mpPayoutId?: string;
+  providerPayoutId?: string;
 
   @Field({ nullable: true })
   scheduledFor?: Date;

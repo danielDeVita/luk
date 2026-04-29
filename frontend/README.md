@@ -57,7 +57,7 @@ npm run dev
 | `/dashboard/tickets` | Buyer dashboard (stats, recommendations, favorites ending soon, tickets, seller review CTA for confirmed wins) | User |
 | `/dashboard/sales` | Seller dashboard (revenue chart, analytics, bulk actions, CSV export) | User |
 | `/dashboard/favorites` | Saved raffles wishlist (with price drop alerts) | User |
-| `/dashboard/settings` | Profile (Avatar), Payments (MP Connect), Security, and 2FA management | User |
+| `/dashboard/settings` | Profile (Avatar), payment account, Security, and 2FA management | User |
 | `/seller/[id]` | Public seller profile with seller reputation and latest public reviews | Public |
 | `/admin` | Admin panel (stats, raffles, reports, user management, buyer risk flags, review moderation) | Admin |
 | `/admin/disputes` | Dispute management with bulk resolution | Admin |
@@ -80,7 +80,7 @@ SENTRY_DSN=""
 SENTRY_RELEASE=""
 ```
 
-If the backend runs with `PAYMENTS_PROVIDER="mock"`, purchases redirect to the local mock checkout page instead of Mercado Pago. This is useful for QA of ticket confirmation, refunds, and promotion bonus reversals without a real PSP.
+If the backend runs with `PAYMENTS_PROVIDER="mock"`, Saldo LUK top-ups redirect to the local mock checkout page instead of Mercado Pago. Ticket purchases never open an external checkout; they debit internal balance.
 
 Keep the Sentry DSNs empty in local development if you do not want browser/server events sent from your machine.
 
@@ -185,19 +185,19 @@ try {
 }
 ```
 
-### MP Connect (Seller Onboarding)
-Sellers must connect their Mercado Pago account before creating raffles:
+### Seller Payment Account Onboarding
+Sellers must configure their payment account before creating raffles:
 1. Go to Settings → Payments tab
-2. Click "Connect Mercado Pago"
-3. Authorize on MP website
-4. Redirected back with success/error message
+2. Load internal payout account holder and CBU/CVU/alias data
+3. Complete KYC, CUIT/CUIL and address prerequisites
+4. The seller account becomes ready when all requirements are complete
 
-### Payment Flow
-1. User selects tickets on `/raffle/[id]`
-2. Backend creates MP preference
-3. User redirected to Mercado Pago
-4. After payment, redirected to `/checkout/status`
-5. Page auto-syncs payment status with backend
+### Saldo LUK Flow
+1. User loads Saldo LUK from `/dashboard/wallet`
+2. Mercado Pago/mock redirects back to `/checkout/status`
+3. The status page syncs and shows whether the top-up was credited
+4. User buys tickets on `/raffle/[id]` with available internal balance
+5. Refunds of ticket purchases return to Saldo LUK
 
 ### Random Pack Incentive
 
@@ -240,7 +240,7 @@ UI behavior:
 
 ### Seller Dashboard
 Enhanced seller panel at `/dashboard/sales`:
-- **Onboarding Checklist** - Progress tracker for new sellers (profile, MP Connect, address, first raffle)
+- **Onboarding Checklist** - Progress tracker for new sellers (profile, payment account, address, first raffle)
 - **Revenue Chart** - Monthly earnings visualization with Recharts
 - **Analytics Cards** - Total revenue, tickets sold, views, conversion rate
 - **Bulk Actions** - Cancel or extend multiple raffles at once
@@ -308,7 +308,7 @@ If a user tries to log in before verifying the email, the login page resumes the
 ### Seller Onboarding
 New sellers see a visual progress checklist at the top of their dashboard:
 1. **Complete profile** - Name and phone number
-2. **Connect Mercado Pago** - OAuth flow for payments
+2. **Load payout data** - Internal account holder and CBU/CVU/alias
 3. **Verify identity (KYC)** - Submit identity documents and address; admin approval required
 4. **Add shipping address** - Full address details
 5. **Create first raffle** - Start selling
@@ -443,8 +443,9 @@ test('should create a raffle', async ({ page }) => {
 
 ## Local Dev Notes
 
-- Mercado Pago cannot redirect to `localhost`. For full payment testing, use ngrok tunnel for frontend and update `FRONTEND_URL` in root `.env`
-- If MP "Pagar" button is disabled, try disabling ad blockers or use incognito mode
+- For payment QA without Mercado Pago, set `PAYMENTS_PROVIDER="mock"` and `ALLOW_MOCK_PAYMENTS="true"`.
+- Use `/dashboard/wallet` to create a top-up, then approve/reject/refund it from `/checkout/mock/:id`.
+- Ticket purchases should stay inside the app and fail before emission if Saldo LUK is insufficient.
 
 ## Key Files
 

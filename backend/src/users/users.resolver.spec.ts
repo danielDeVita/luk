@@ -3,9 +3,10 @@ import { UsersResolver } from './users.resolver';
 import { UsersService } from './users.service';
 import {
   UserRole,
-  MpConnectStatus,
+  SellerPaymentAccountStatus,
   KycStatus,
   DocumentType,
+  SellerPaymentAccountIdentifierType,
 } from '@prisma/client';
 
 describe('UsersResolver', () => {
@@ -18,6 +19,8 @@ describe('UsersResolver', () => {
     changePassword: jest.fn(),
     updateKyc: jest.fn(),
     acceptTerms: jest.fn(),
+    upsertSellerPaymentAccount: jest.fn(),
+    disconnectSellerPaymentAccount: jest.fn(),
     updateAvatar: jest.fn(),
     deleteAvatar: jest.fn(),
   };
@@ -31,7 +34,7 @@ describe('UsersResolver', () => {
     emailVerified: true,
     twoFactorEnabled: false,
     twoFactorEnabledAt: null,
-    mpConnectStatus: MpConnectStatus.NOT_CONNECTED,
+    sellerPaymentAccountStatus: SellerPaymentAccountStatus.NOT_CONNECTED,
     kycStatus: KycStatus.NOT_SUBMITTED,
     createdAt: new Date(),
     updatedAt: new Date(),
@@ -259,6 +262,54 @@ describe('UsersResolver', () => {
       expect(usersService.updateAvatar).toHaveBeenCalledWith(
         user.id,
         'https://example.com/new-avatar.png',
+      );
+    });
+  });
+
+  describe('upsertSellerPaymentAccount', () => {
+    it('should upsert the seller payment account for the current user', async () => {
+      const user = createTestUser();
+      const input = {
+        accountHolderName: 'Juan Perez',
+        accountIdentifierType: SellerPaymentAccountIdentifierType.CBU,
+        accountIdentifier: '2850590940090418135201',
+      };
+      const updatedUser = {
+        ...user,
+        sellerPaymentAccountStatus: 'CONNECTED',
+      };
+
+      usersService.upsertSellerPaymentAccount.mockResolvedValue(updatedUser);
+
+      const result = await resolver.upsertSellerPaymentAccount(user, input);
+
+      expect(result).toEqual(updatedUser);
+      expect(usersService.upsertSellerPaymentAccount).toHaveBeenCalledWith(
+        user.id,
+        input,
+      );
+    });
+  });
+
+  describe('disconnectSellerPaymentAccount', () => {
+    it('should disconnect the seller payment account for the current user', async () => {
+      const user = createTestUser({
+        sellerPaymentAccountStatus: SellerPaymentAccountStatus.CONNECTED,
+      });
+      const updatedUser = {
+        ...user,
+        sellerPaymentAccountStatus: SellerPaymentAccountStatus.NOT_CONNECTED,
+      };
+
+      usersService.disconnectSellerPaymentAccount.mockResolvedValue(
+        updatedUser,
+      );
+
+      const result = await resolver.disconnectSellerPaymentAccount(user);
+
+      expect(result).toEqual(updatedUser);
+      expect(usersService.disconnectSellerPaymentAccount).toHaveBeenCalledWith(
+        user.id,
       );
     });
   });

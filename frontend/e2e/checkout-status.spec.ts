@@ -3,8 +3,8 @@ import { test, expect } from '@playwright/test';
 test.describe('Checkout Status Page', () => {
   test.describe('Approved Payment', () => {
     test('shows success UI for approved payment', async ({ page }) => {
-      // Navigate with approved status (simulating MP redirect)
-      await page.goto('/checkout/status?status=approved&payment_id=12345678');
+      // Navigate with approved status (simulating provider redirect)
+      await page.goto('/checkout/status?status=approved&transactionId=12345678');
 
       // Should show success icon and title
       await expect(page.getByText('¡Pago Exitoso!')).toBeVisible({ timeout: 10000 });
@@ -22,7 +22,7 @@ test.describe('Checkout Status Page', () => {
     });
 
     test('shows payment details section for approved payment', async ({ page }) => {
-      await page.goto('/checkout/status?status=approved&payment_id=12345678&merchant_order_id=ORDER123');
+      await page.goto('/checkout/status?status=approved&transactionId=12345678&provider_order_id=ORDER123');
 
       // Should show payment details
       await expect(page.getByText('ID de Pago:')).toBeVisible({ timeout: 10000 });
@@ -32,7 +32,7 @@ test.describe('Checkout Status Page', () => {
     });
 
     test('shows navigation buttons after successful payment', async ({ page }) => {
-      await page.goto('/checkout/status?status=approved&payment_id=12345678');
+      await page.goto('/checkout/status?status=approved&transactionId=12345678');
 
       // Wait for page to load
       await expect(page.getByText('¡Pago Exitoso!')).toBeVisible({ timeout: 10000 });
@@ -51,7 +51,7 @@ test.describe('Checkout Status Page', () => {
 
   test.describe('Pending Payment', () => {
     test('shows pending UI for in-process payment', async ({ page }) => {
-      await page.goto('/checkout/status?status=pending&payment_id=12345678');
+      await page.goto('/checkout/status?status=pending&transactionId=12345678');
 
       // Should show pending icon and title
       await expect(page.getByText('Pago Pendiente')).toBeVisible({ timeout: 10000 });
@@ -66,14 +66,14 @@ test.describe('Checkout Status Page', () => {
     });
 
     test('shows pending UI for in_process status', async ({ page }) => {
-      await page.goto('/checkout/status?status=in_process&payment_id=12345678');
+      await page.goto('/checkout/status?status=in_process&transactionId=12345678');
 
       // Should show pending state
       await expect(page.getByText('Pago Pendiente')).toBeVisible({ timeout: 10000 });
     });
 
     test('shows warning message for pending payment', async ({ page }) => {
-      await page.goto('/checkout/status?status=pending&payment_id=12345678');
+      await page.goto('/checkout/status?status=pending&transactionId=12345678');
 
       await expect(page.getByText('Pago Pendiente')).toBeVisible({ timeout: 10000 });
 
@@ -87,7 +87,7 @@ test.describe('Checkout Status Page', () => {
     });
 
     test('shows verify status button for pending payment', async ({ page }) => {
-      await page.goto('/checkout/status?status=pending&payment_id=12345678');
+      await page.goto('/checkout/status?status=pending&transactionId=12345678');
 
       await expect(page.getByText('Pago Pendiente')).toBeVisible({ timeout: 10000 });
 
@@ -99,7 +99,7 @@ test.describe('Checkout Status Page', () => {
 
   test.describe('Rejected Payment', () => {
     test('shows error UI for rejected payment', async ({ page }) => {
-      await page.goto('/checkout/status?status=rejected&payment_id=12345678');
+      await page.goto('/checkout/status?status=rejected&transactionId=12345678');
 
       // Should show error icon and title
       await expect(page.getByText('Pago Rechazado')).toBeVisible({ timeout: 10000 });
@@ -114,7 +114,7 @@ test.describe('Checkout Status Page', () => {
     });
 
     test('shows retry suggestion for rejected payment', async ({ page }) => {
-      await page.goto('/checkout/status?status=rejected&payment_id=12345678');
+      await page.goto('/checkout/status?status=rejected&transactionId=12345678');
 
       await expect(page.getByText('Pago Rechazado')).toBeVisible({ timeout: 10000 });
 
@@ -125,7 +125,7 @@ test.describe('Checkout Status Page', () => {
     });
 
     test('shows navigation buttons after rejected payment', async ({ page }) => {
-      await page.goto('/checkout/status?status=rejected&payment_id=12345678');
+      await page.goto('/checkout/status?status=rejected&transactionId=12345678');
 
       await expect(page.getByText('Pago Rechazado')).toBeVisible({ timeout: 10000 });
 
@@ -143,7 +143,7 @@ test.describe('Checkout Status Page', () => {
 
   test.describe('Edge Cases', () => {
     test('handles null status as rejected', async ({ page }) => {
-      await page.goto('/checkout/status?status=null&payment_id=12345678');
+      await page.goto('/checkout/status?status=null&transactionId=12345678');
 
       // Should show rejected state
       await expect(page.getByText('Pago Rechazado')).toBeVisible({ timeout: 10000 });
@@ -165,8 +165,8 @@ test.describe('Checkout Status Page', () => {
       ).toBeVisible({ timeout: 5000 });
     });
 
-    test('handles collection_status param (MP alternative)', async ({ page }) => {
-      // Mercado Pago sometimes uses collection_status instead of status
+    test('handles collection_status param (legacy provider alternative)', async ({ page }) => {
+      // Some providers still return collection_status instead of status
       await page.goto('/checkout/status?collection_status=approved&collection_id=12345678');
 
       // Should recognize approved status
@@ -186,7 +186,7 @@ test.describe('Checkout Status Page', () => {
 
   test.describe('Navigation', () => {
     test('Ver Mis Tickets button navigates to tickets dashboard', async ({ page }) => {
-      await page.goto('/checkout/status?status=approved&payment_id=12345678');
+      await page.goto('/checkout/status?status=approved&transactionId=12345678');
 
       await expect(page.getByText('¡Pago Exitoso!')).toBeVisible({ timeout: 10000 });
 
@@ -202,7 +202,7 @@ test.describe('Checkout Status Page', () => {
     });
 
     test('Explorar Rifas button navigates to search page', async ({ page }) => {
-      await page.goto('/checkout/status?status=approved&payment_id=12345678');
+      await page.goto('/checkout/status?status=approved&transactionId=12345678');
 
       await expect(page.getByText('¡Pago Exitoso!')).toBeVisible({ timeout: 10000 });
 
@@ -217,7 +217,7 @@ test.describe('Checkout Status Page', () => {
 
   test.describe('Retry Functionality', () => {
     test('retry button is present for pending payments', async ({ page }) => {
-      await page.goto('/checkout/status?status=pending&payment_id=12345678');
+      await page.goto('/checkout/status?status=pending&transactionId=12345678');
 
       await expect(page.getByText('Pago Pendiente')).toBeVisible({ timeout: 10000 });
 
@@ -227,7 +227,7 @@ test.describe('Checkout Status Page', () => {
     });
 
     test('retry button shows loading state when clicked', async ({ page }) => {
-      await page.goto('/checkout/status?status=pending&payment_id=12345678');
+      await page.goto('/checkout/status?status=pending&transactionId=12345678');
 
       await expect(page.getByText('Pago Pendiente')).toBeVisible({ timeout: 10000 });
 
@@ -244,7 +244,7 @@ test.describe('Checkout Status Page', () => {
 
   test.describe('UI Elements', () => {
     test('page renders properly with approved status', async ({ page }) => {
-      await page.goto('/checkout/status?status=approved&payment_id=12345678');
+      await page.goto('/checkout/status?status=approved&transactionId=12345678');
 
       await expect(page.getByText('¡Pago Exitoso!')).toBeVisible({ timeout: 10000 });
 
@@ -254,7 +254,7 @@ test.describe('Checkout Status Page', () => {
     });
 
     test('approved status shows payment info section', async ({ page }) => {
-      await page.goto('/checkout/status?status=approved&payment_id=12345678');
+      await page.goto('/checkout/status?status=approved&transactionId=12345678');
 
       await expect(page.getByText('¡Pago Exitoso!')).toBeVisible({ timeout: 10000 });
 

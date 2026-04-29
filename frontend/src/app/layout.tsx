@@ -4,21 +4,21 @@ import { Bricolage_Grotesque, Manrope } from "next/font/google";
 import "./globals.css";
 import { ApolloWrapper } from "@/lib/apollo-provider";
 import { Navbar } from "@/components/navbar";
-import { Toaster } from 'sonner';
+import { Toaster } from "sonner";
 import { GoogleAnalytics } from "@/components/analytics/google-analytics";
 import { ConfirmDialogProvider } from "@/hooks/use-confirm-dialog";
-import { TabTitleController } from '@/components/tab-title-controller';
+import { TabTitleController } from "@/components/tab-title-controller";
 import {
   BRAND_DESCRIPTION,
   BRAND_NAME,
   BRAND_SHORT_DESCRIPTION,
   BRAND_TAGLINE,
-} from '@/lib/brand';
+} from "@/lib/brand";
 import {
   buildOrganizationJsonLd,
   buildWebsiteJsonLd,
   getSiteOrigin,
-} from '@/lib/seo';
+} from "@/lib/seo";
 
 const manrope = Manrope({
   subsets: ["latin"],
@@ -43,19 +43,19 @@ export const metadata: Metadata = {
   },
   description: BRAND_SHORT_DESCRIPTION,
   alternates: {
-    canonical: '/',
+    canonical: "/",
   },
   manifest: "/manifest.webmanifest",
   openGraph: {
     title: `${BRAND_NAME} | ${BRAND_TAGLINE}`,
     description: BRAND_SHORT_DESCRIPTION,
     type: "website",
-    locale: 'es_AR',
-    url: '/',
+    locale: "es_AR",
+    url: "/",
     siteName: BRAND_NAME,
   },
   twitter: {
-    card: 'summary',
+    card: "summary",
     title: `${BRAND_NAME} | ${BRAND_TAGLINE}`,
     description: BRAND_DESCRIPTION,
   },
@@ -91,13 +91,15 @@ export default function RootLayout({
         />
         {siteStructuredData.map((entry) => (
           <script
-            key={entry['@id']}
+            key={entry["@id"]}
             type="application/ld+json"
             dangerouslySetInnerHTML={{ __html: JSON.stringify(entry) }}
           />
         ))}
       </head>
-      <body className={`${manrope.variable} ${bricolageGrotesque.variable} font-sans antialiased`}>
+      <body
+        className={`${manrope.variable} ${bricolageGrotesque.variable} font-sans antialiased`}
+      >
         <TabTitleController />
         <GoogleAnalytics />
         <ApolloWrapper>
@@ -110,14 +112,18 @@ export default function RootLayout({
               <footer className="px-4 pb-4 pt-10">
                 <div className="container mx-auto">
                   <div className="rounded-[2rem] border border-border/80 bg-card/90 px-6 py-7 shadow-panel backdrop-blur-xl sm:px-8">
-                    <div className="max-w-none">
+                    <div className="mx-auto max-w-5xl text-center">
                       <p className="text-sm leading-relaxed text-muted-foreground sm:text-[15px]">
-                        La participación en rifas está reservada a mayores de 18 años. El juego compulsivo es perjudicial para la salud. Todos los derechos reservados.{' '}
-                        <span className="font-semibold text-foreground">© {new Date().getFullYear()} {BRAND_NAME}.</span>
+                        La participación en rifas está reservada a mayores de 18
+                        años. El juego compulsivo es perjudicial para la salud.
+                        Todos los derechos reservados.{" "}
+                        <span className="font-semibold text-foreground">
+                          © {new Date().getFullYear()} {BRAND_NAME}.
+                        </span>
                       </p>
                     </div>
                     <div className="mt-6 border-t border-border/70 pt-5">
-                      <nav className="flex flex-col gap-4 text-sm sm:flex-row sm:flex-wrap sm:justify-center">
+                      <nav className="mx-auto flex max-w-3xl flex-col items-center justify-center gap-4 text-sm sm:flex-row sm:flex-wrap">
                         <a
                           href="/legal/terminos"
                           className="inline-flex min-h-11 items-center justify-center rounded-full border border-border/80 bg-background/70 px-5 py-2.5 text-center text-muted-foreground transition-colors hover:text-foreground"
@@ -136,24 +142,22 @@ export default function RootLayout({
                 </div>
               </footer>
             </div>
-            <Toaster 
+            <Toaster
               position="bottom-right"
               richColors
               closeButton
               theme="system"
               toastOptions={{
-                className: 'rounded-[1.75rem] border shadow-panel font-sans',
+                className: "rounded-[1.75rem] border shadow-panel font-sans",
                 style: {
-                  background: 'var(--card)',
-                  color: 'var(--foreground)',
-                  borderColor: 'var(--border)',
-                }
+                  background: "var(--card)",
+                  color: "var(--foreground)",
+                  borderColor: "var(--border)",
+                },
               }}
             />
           </ConfirmDialogProvider>
-
         </ApolloWrapper>
-
       </body>
     </html>
   );

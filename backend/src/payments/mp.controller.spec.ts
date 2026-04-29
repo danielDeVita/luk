@@ -1,23 +1,18 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { ConfigService } from '@nestjs/config';
-import { MpController } from './mp.controller';
+import { PaymentsController } from './mp.controller';
 import { PaymentsService } from './payments.service';
 import { Response } from 'express';
 import { HttpStatus } from '@nestjs/common';
 import { ThrottlerModule } from '@nestjs/throttler';
 
-describe('MpController', () => {
-  let controller: MpController;
+describe('PaymentsController', () => {
+  let controller: PaymentsController;
   let _paymentsService: jest.Mocked<PaymentsService>;
 
   const mockPaymentsService = {
-    handleMpWebhook: jest.fn(),
+    handleProviderWebhook: jest.fn(),
     syncPaymentStatus: jest.fn(),
     getPaymentStatus: jest.fn(),
-  };
-
-  const mockConfigService = {
-    get: jest.fn().mockReturnValue(undefined), // No secret configured in tests
   };
 
   const mockResponse = () => {
@@ -34,85 +29,45 @@ describe('MpController', () => {
       imports: [
         ThrottlerModule.forRoot({ throttlers: [{ ttl: 60000, limit: 100 }] }),
       ],
-      controllers: [MpController],
-      providers: [
-        { provide: PaymentsService, useValue: mockPaymentsService },
-        { provide: ConfigService, useValue: mockConfigService },
-      ],
+      controllers: [PaymentsController],
+      providers: [{ provide: PaymentsService, useValue: mockPaymentsService }],
     }).compile();
 
-    controller = module.get<MpController>(MpController);
+    controller = module.get<PaymentsController>(PaymentsController);
     _paymentsService = module.get(PaymentsService);
   });
 
-  describe('POST /mp/webhook', () => {
-    it('should parse type-based payload (standard format)', async () => {
+  describe('POST /payments/webhook', () => {
+    it('should forward provider webhook payloads to the payments service', async () => {
       const res = mockResponse();
       const body = {
         type: 'payment',
         data: { id: '12345678' },
       };
 
-      mockPaymentsService.handleMpWebhook.mockResolvedValue(undefined);
+      mockPaymentsService.handleProviderWebhook.mockResolvedValue(undefined);
 
-      await controller.handleWebhook(body, undefined, undefined, res);
+      await controller.handleWebhook(body, res);
 
-      expect(mockPaymentsService.handleMpWebhook).toHaveBeenCalledWith({
-        type: 'payment',
-        data: { id: '12345678' },
-      });
+      expect(mockPaymentsService.handleProviderWebhook).toHaveBeenCalledWith(
+        body,
+      );
       expect(res.status).toHaveBeenCalledWith(HttpStatus.OK);
       expect(res.json).toHaveBeenCalledWith({ received: true });
     });
 
-    it('should parse topic-based payload (legacy format)', async () => {
-      const res = mockResponse();
-      const body = {
-        topic: 'payment',
-        id: '12345678',
-      };
-
-      mockPaymentsService.handleMpWebhook.mockResolvedValue(undefined);
-
-      await controller.handleWebhook(body, undefined, undefined, res);
-
-      expect(mockPaymentsService.handleMpWebhook).toHaveBeenCalledWith({
-        type: 'payment',
-        data: { id: '12345678' },
-      });
-      expect(res.status).toHaveBeenCalledWith(HttpStatus.OK);
-    });
-
-    it('should parse action-based payload (webhook v2 format)', async () => {
-      const res = mockResponse();
-      const body = {
-        action: 'payment.created',
-        data: { id: '12345678' },
-      };
-
-      mockPaymentsService.handleMpWebhook.mockResolvedValue(undefined);
-
-      await controller.handleWebhook(body, undefined, undefined, res);
-
-      expect(mockPaymentsService.handleMpWebhook).toHaveBeenCalledWith({
-        type: 'payment',
-        data: { id: '12345678' },
-      });
-      expect(res.status).toHaveBeenCalledWith(HttpStatus.OK);
-    });
-
-    it('should return 200 even on processing error (MP requirement)', async () => {
+    it('should return 200 even on processing error (provider webhook requirement)', async () => {
       const res = mockResponse();
       const body = {
         type: 'payment',
         data: { id: '12345678' },
       };
 
-      mockPaymentsService.handleMpWebhook.mockRejectedValue(
+      mockPaymentsService.handleProviderWebhook.mockRejectedValue(
         new Error('Database connection failed'),
       );
 
-      await controller.handleWebhook(body, undefined, undefined, res);
+      await controller.handleWebhook(body, res);
 
       expect(res.status).toHaveBeenCalledWith(HttpStatus.OK);
       expect(res.json).toHaveBeenCalledWith({
@@ -120,64 +75,16 @@ describe('MpController', () => {
         error: 'Database connection failed',
       });
     });
-
-    it('should return 200 with ignored=true for missing event type', async () => {
-      const res = mockResponse();
-      const body = { data: { id: '123' } }; // Missing type/topic
-
-      await controller.handleWebhook(body, undefined, undefined, res);
-
-      expect(mockPaymentsService.handleMpWebhook).not.toHaveBeenCalled();
-      expect(res.status).toHaveBeenCalledWith(HttpStatus.OK);
-      expect(res.json).toHaveBeenCalledWith({ received: true, ignored: true });
-    });
-
-    it('should return 200 with ignored=true for missing event id', async () => {
-      const res = mockResponse();
-      const body = { type: 'payment' };
-
-      await controller.handleWebhook(body, undefined, undefined, res);
-
-      expect(mockPaymentsService.handleMpWebhook).not.toHaveBeenCalled();
-      expect(res.status).toHaveBeenCalledWith(HttpStatus.OK);
-      expect(res.json).toHaveBeenCalledWith({ received: true, ignored: true });
-    });
-
-    it('should handle empty body gracefully', async () => {
-      const res = mockResponse();
-
-      await controller.handleWebhook({}, undefined, undefined, res);
-
-      expect(mockPaymentsService.handleMpWebhook).not.toHaveBeenCalled();
-      expect(res.status).toHaveBeenCalledWith(HttpStatus.OK);
-    });
-
-    it('should convert numeric id to string', async () => {
-      const res = mockResponse();
-      const body = {
-        type: 'payment',
-        data: { id: 12345678 }, // numeric id
-      };
-
-      mockPaymentsService.handleMpWebhook.mockResolvedValue(undefined);
-
-      await controller.handleWebhook(body, undefined, undefined, res);
-
-      expect(mockPaymentsService.handleMpWebhook).toHaveBeenCalledWith({
-        type: 'payment',
-        data: { id: '12345678' }, // should be string
-      });
-    });
   });
 
-  describe('GET /mp/payment-status', () => {
+  describe('GET /payments/status', () => {
     it('should return payment status with sync result', async () => {
       const res = mockResponse();
 
       mockPaymentsService.syncPaymentStatus.mockResolvedValue({
         status: 'approved',
         alreadyProcessed: false,
-        ticketsUpdated: 2,
+        creditedAmount: 500,
       });
       mockPaymentsService.getPaymentStatus.mockResolvedValue({
         status: 'approved',
@@ -201,7 +108,7 @@ describe('MpController', () => {
         syncResult: {
           status: 'approved',
           alreadyProcessed: false,
-          ticketsUpdated: 2,
+          creditedAmount: 500,
         },
       });
     });
@@ -212,7 +119,9 @@ describe('MpController', () => {
       await controller.getPaymentStatus('', res);
 
       expect(res.status).toHaveBeenCalledWith(HttpStatus.BAD_REQUEST);
-      expect(res.json).toHaveBeenCalledWith({ error: 'payment_id required' });
+      expect(res.json).toHaveBeenCalledWith({
+        error: 'payment_id required',
+      });
     });
 
     it('should return 500 on error', async () => {
@@ -227,16 +136,41 @@ describe('MpController', () => {
       expect(res.status).toHaveBeenCalledWith(HttpStatus.INTERNAL_SERVER_ERROR);
       expect(res.json).toHaveBeenCalledWith({ error: 'MP API failed' });
     });
+
+    it('uses payment_id as the canonical top-up identifier', async () => {
+      const res = mockResponse();
+
+      mockPaymentsService.syncPaymentStatus.mockResolvedValue({
+        status: 'approved',
+        alreadyProcessed: false,
+        creditedAmount: 500,
+      });
+      mockPaymentsService.getPaymentStatus.mockResolvedValue({
+        status: 'approved',
+        statusDetail: 'paid',
+        externalReference: '{"raffleId":"123"}',
+        providerOrderId: 'checkout-1',
+      });
+
+      await controller.getPaymentStatus('mp-payment-1', res);
+
+      expect(mockPaymentsService.syncPaymentStatus).toHaveBeenCalledWith(
+        'mp-payment-1',
+      );
+      expect(mockPaymentsService.getPaymentStatus).toHaveBeenCalledWith(
+        'mp-payment-1',
+      );
+    });
   });
 
-  describe('GET /mp/sync-payment/:paymentId', () => {
+  describe('GET /payments/sync/:paymentId', () => {
     it('should return sync result for valid payment', async () => {
       const res = mockResponse();
 
       mockPaymentsService.syncPaymentStatus.mockResolvedValue({
         status: 'approved',
         alreadyProcessed: false,
-        ticketsUpdated: 3,
+        creditedAmount: 750,
       });
 
       await controller.syncPayment('12345678', res);
@@ -248,7 +182,7 @@ describe('MpController', () => {
       expect(res.json).toHaveBeenCalledWith({
         status: 'approved',
         alreadyProcessed: false,
-        ticketsUpdated: 3,
+        creditedAmount: 750,
       });
     });
 
@@ -258,7 +192,7 @@ describe('MpController', () => {
       mockPaymentsService.syncPaymentStatus.mockResolvedValue({
         status: 'approved',
         alreadyProcessed: true,
-        ticketsUpdated: 0,
+        creditedAmount: 0,
       });
 
       await controller.syncPayment('12345678', res);
@@ -266,7 +200,7 @@ describe('MpController', () => {
       expect(res.json).toHaveBeenCalledWith({
         status: 'approved',
         alreadyProcessed: true,
-        ticketsUpdated: 0,
+        creditedAmount: 0,
       });
     });
 

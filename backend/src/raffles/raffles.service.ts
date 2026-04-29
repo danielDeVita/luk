@@ -291,11 +291,11 @@ export class RafflesService {
   }
 
   async create(sellerId: string, input: CreateRaffleInput) {
-    // Check if seller has MP Connect configured
+    // Check if seller has a ready payment account
     const seller = await this.prisma.user.findUnique({
       where: { id: sellerId },
       select: {
-        mpConnectStatus: true,
+        sellerPaymentAccountStatus: true,
         kycStatus: true,
         defaultSenderAddressId: true,
         shippingAddresses: { take: 1 },
@@ -306,9 +306,9 @@ export class RafflesService {
       throw new NotFoundException('Usuario no encontrado');
     }
 
-    if (seller.mpConnectStatus !== 'CONNECTED') {
+    if (seller.sellerPaymentAccountStatus !== 'CONNECTED') {
       throw new BadRequestException(
-        'Debes conectar tu cuenta de Mercado Pago antes de crear una rifa. Ve a tu perfil para conectarla.',
+        'Debes configurar tu cuenta de cobros antes de crear una rifa. Ve a tu perfil para conectarla.',
       );
     }
 

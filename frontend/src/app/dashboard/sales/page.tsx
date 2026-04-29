@@ -186,7 +186,7 @@ const GET_ONBOARDING_STATUS = gql`
       nombre
       apellido
       phone
-      mpConnectStatus
+      sellerPaymentAccountStatus
       kycStatus
       street
       city
@@ -259,7 +259,7 @@ interface OnboardingData {
     nombre: string;
     apellido: string;
     phone?: string;
-    mpConnectStatus: string;
+    sellerPaymentAccountStatus: string;
     kycStatus: string;
     street?: string;
     city?: string;
@@ -658,10 +658,10 @@ function SalesDashboardContent() {
         icon: User,
       },
       {
-        id: 'mp',
-        label: 'Conectar Mercado Pago',
-        description: 'Para recibir pagos',
-        completed: userData?.mpConnectStatus === 'CONNECTED',
+        id: 'payments',
+        label: 'Cargar datos de cobro',
+        description: 'Cuenta interna operativa',
+        completed: userData?.sellerPaymentAccountStatus === 'CONNECTED',
         href: '/dashboard/settings?tab=payments',
         icon: CreditCard,
       },
@@ -872,6 +872,11 @@ function SalesDashboardContent() {
                 <CardDescription>
                   Completá estos pasos para empezar a crear rifas
                 </CardDescription>
+                {onboardingData?.me?.sellerPaymentAccountStatus !== 'CONNECTED' && (
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    Tus cobros se activan desde Configuración cargando datos de cobro internos.
+                  </p>
+                )}
               </div>
               <span className="text-sm font-medium text-primary">
                 {onboardingSteps.completedCount}/{onboardingSteps.steps.length} completados

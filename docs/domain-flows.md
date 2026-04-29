@@ -78,7 +78,7 @@ El login con email/contraseña bloquea explícitamente a usuarios con `emailVeri
 
 Un seller sólo puede crear una rifa si cumple todo esto:
 
-- `mpConnectStatus = CONNECTED`
+- `sellerPaymentAccountStatus = CONNECTED`
 - tiene dirección de envío configurada
 - `kycStatus = VERIFIED`
 - no excede el límite reputacional de rifas activas
@@ -134,9 +134,19 @@ En ese caso, los tickets pagados deben ser reembolsados y la consistencia de pay
 
 ### Regla general
 
-La compra no escribe tickets pagados directamente. Primero reserva, luego confirma cuando el pago queda aprobado.
+La compra de tickets usa Saldo LUK interno. Mercado Pago no procesa rifas ni tickets: sólo procesa cargas de saldo previas. Si el buyer no tiene saldo suficiente, la compra falla antes de emitir tickets y no se reserva nada.
 
-### Reserva
+### Carga de Saldo LUK
+
+1. El buyer inicia la carga desde `/dashboard/wallet`.
+2. La carga se procesa con el provider configurado (`mercado_pago` o `mock` en QA/local).
+3. Se crea una `CreditTopUpSession` con referencia del provider y monto solicitado.
+4. Cuando el provider aprueba la operación, LUK acredita el Saldo LUK una sola vez.
+5. La idempotencia se apoya en la sesión/evento del provider y en el estado final de la carga.
+6. Mercado Pago sólo recibe datos de la carga de saldo; no recibe metadata de rifas, tickets, sellers, premios ni números.
+7. Los refunds externos aplican sólo sobre saldo cargado y no usado. Los refunds por tickets, cancelaciones o disputas vuelven al Saldo LUK interno.
+
+### Compra con saldo
 
 1. El buyer debe tener dirección de envío.
 2. Se toma lock de la rifa dentro de una transacción `Serializable`.
@@ -146,7 +156,9 @@ La compra no escribe tickets pagados directamente. Primero reserva, luego confir
    - que no esté oculta;
    - que no exceda el límite del 50% de tickets por buyer;
    - que haya disponibilidad.
-4. Se crean tickets `RESERVADO`.
+4. Se verifica saldo disponible.
+5. Se emiten tickets reales directamente en estado `PAGADO`.
+6. Se debita el Saldo LUK del buyer y se acredita el payable interno del seller.
 
 ### Compra aleatoria vs elegida
 
@@ -192,34 +204,29 @@ la compra degrada a compra normal:
 Si el buyer aplica un `bonusGrantId`:
 
 1. se previsualiza el descuento sobre el subtotal base;
-2. se reserva un `PromotionBonusRedemption`;
-3. el monto enviado a checkout se reduce por ese descuento;
+2. se reserva un `PromotionBonusRedemption` dentro de la compra con saldo;
+3. el saldo debitado se reduce por ese descuento;
 4. el seller no absorbe ese descuento: lo subsidia plataforma.
 
-### Confirmación del pago
+### Registro de compra
 
-Cuando el provider confirma aprobación:
+En la misma transacción serializable:
 
-1. los tickets reservados pasan a `PAGADO`;
-2. se crea `Transaction` de `COMPRA_TICKET`;
-3. si hubo pack simple, se crea también `SUBSIDIO_PACK_PLATAFORMA`;
-4. si hubo descuento promocional, se crea también `SUBSIDIO_PROMOCIONAL_PLATAFORMA`;
-5. el seller sigue cobrando sobre el bruto completo, no sobre el monto efectivamente cobrado al buyer;
-6. si había bonificación reservada, pasa a `USED`;
-7. se registra atribución de compra para social promotions;
-8. buyer y seller reciben las notificaciones normales de compra/venta, enriquecidas si hubo pack simple;
-9. se verifica si la rifa quedó completa para sortearla.
-
-### Pago pendiente o rechazado
-
-- `pending`: la reserva puede quedar retenida según el provider/mock flow.
-- `rejected` o expiración: la reserva se libera y los tickets no quedan pagados.
+1. se crea `Transaction` de `COMPRA_TICKET`;
+2. si hubo pack simple, se crea también `SUBSIDIO_PACK_PLATAFORMA`;
+3. si hubo descuento promocional, se crea también `SUBSIDIO_PROMOCIONAL_PLATAFORMA`;
+4. el seller sigue cobrando sobre el bruto completo, no sobre el saldo efectivamente debitado al buyer;
+5. si había bonificación reservada, pasa a `USED`;
+6. se registra atribución de compra para social promotions;
+7. buyer y seller reciben las notificaciones normales de compra/venta, enriquecidas si hubo pack simple;
+8. se verifica si la rifa quedó completa para sortearla.
 
 ### Reembolso
 
 Si la compra se revierte completamente:
 
 - los tickets pasan a `REEMBOLSADO`;
+- el monto vuelve al Saldo LUK del buyer, no al provider externo;
 - si la compra había incluido pack simple, también se revierten los tickets bonus porque forman parte de la misma compra confirmada;
 - si hubo bonificación promocional usada, se puede reinstalar como disponible;
 - se registra `REVERSION_BONIFICACION_PROMOCIONAL` cuando corresponde.
@@ -280,6 +287,7 @@ Cuando el payout termina bien:
 
 - `Payout.status -> COMPLETED`
 - `raffle.paymentReleasedAt` se completa
+- se debita el payable interno del seller y la liquidación externa queda como proceso manual/provider-neutral en esta fase
 - `raffle.estado -> FINALIZADA`
 
 ### Auto-confirmación
@@ -412,35 +420,35 @@ La redención asociada al checkout pasa por:
 
 ### Cálculo del descuento
 
-Sobre el subtotal base:
+Sobre el subtotal base de la compra con Saldo LUK:
 
 ```text
 uncappedDiscount = grossSubtotal * discountPercent / 100
-maximumAllowedDiscount = grossSubtotal - minMpCharge
-discountApplied = min(uncappedDiscount, maxDiscountAmount, maximumAllowedDiscount)
-mpChargeAmount = grossSubtotal - discountApplied
+discountApplied = min(uncappedDiscount, maxDiscountAmount, grossSubtotal)
+creditDebited = grossSubtotal - discountApplied
 ```
 
 Con esto:
 
-- Mercado Pago nunca recibe un monto menor que el mínimo configurado;
+- la pasarela externa no participa en la compra de tickets;
 - el descuento promocional no reduce el valor nominal del seller;
 - el subsidio queda registrado como transacción de plataforma.
 
 ## 8. Invariantes importantes
 
-- Un seller no puede crear rifas sin KYC verificado, MP Connect y dirección.
+- Un seller no puede crear rifas sin KYC verificado, cuenta de cobros lista y dirección.
 - Un buyer no puede comprar tickets de su propia rifa.
-- La reserva de tickets es la fuente de verdad previa al pago.
+- El Saldo LUK disponible es la fuente de verdad previa a emitir tickets.
 - La DB no permite duplicar un mismo número dentro de una rifa.
 - El payout no debe liberarse si la entrega no está confirmada o si hay disputa activa incompatible.
 - La bonificación de social promotion no es un wallet general: es un grant con ciclo propio.
+- Mercado Pago sólo carga Saldo LUK; no recibe metadata de rifas, tickets, sellers, premios ni números.
 - La reputación pública se expone para sellers; las señales de comprador son admin-only.
 - `ENCRYPTION_KEY` debe mantenerse estable entre entornos porque protege PII y tokens sensibles.
 
 ## 9. Seed canónico QA/dev
 
-El seed de desarrollo (`backend/prisma/seed.ts`) está pensado para QA manual determinístico. Incluye sellers con niveles reputacionales distintos, señales internas de compradores para admin, reseñas públicas y moderadas, preguntas/respuestas de rifas, disputas en los estados principales, compras mock, refunds, payouts, social promotion fixtures y escenarios de pack simple.
+El seed de desarrollo (`backend/prisma/seed.ts`) está pensado para QA manual determinístico. Incluye sellers con niveles reputacionales distintos, señales internas de compradores para admin, reseñas públicas y moderadas, preguntas/respuestas de rifas, disputas en los estados principales, compras mock, refunds, payouts, social promotion fixtures, escenarios de pack simple y fixtures de paginación para búsqueda y selector de números.
 
 No expone reputación de compradores al público ni a sellers; esas señales quedan limitadas al admin.
 

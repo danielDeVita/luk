@@ -57,8 +57,9 @@ export const BUY_TICKETS = gql`
       bonusGrantId: $bonusGrantId
       promotionToken: $promotionToken
     ) {
-      initPoint
-      preferenceId
+      paidWithCredit
+      creditDebited
+      creditBalanceAfter
       tickets {
         id
         numeroTicket
@@ -66,7 +67,7 @@ export const BUY_TICKETS = gql`
       totalAmount
       grossSubtotal
       discountApplied
-      mpChargeAmount
+      chargedAmount
       bonusGrantId
       cantidadComprada
       baseQuantity
@@ -108,6 +109,49 @@ export const OPEN_DISPUTE = gql`
       titulo
       estado
       createdAt
+    }
+  }
+`;
+
+export const UPSERT_SELLER_PAYMENT_ACCOUNT = gql`
+  mutation UpsertSellerPaymentAccount($input: UpsertSellerPaymentAccountInput!) {
+    upsertSellerPaymentAccount(input: $input) {
+      id
+      sellerPaymentAccountStatus
+      sellerPaymentAccountId
+      sellerPaymentAccount {
+        id
+        status
+        providerAccountId
+        accountHolderName
+        accountIdentifierType
+        maskedAccountIdentifier
+        lastSyncedAt
+      }
+    }
+  }
+`;
+
+export const DISCONNECT_SELLER_PAYMENT_ACCOUNT = gql`
+  mutation DisconnectSellerPaymentAccount {
+    disconnectSellerPaymentAccount {
+      id
+      sellerPaymentAccountStatus
+      sellerPaymentAccountId
+      sellerPaymentAccount {
+        id
+      }
+    }
+  }
+`;
+
+export const CREATE_CREDIT_TOP_UP = gql`
+  mutation CreateCreditTopUp($input: CreateCreditTopUpInput!) {
+    createCreditTopUp(input: $input) {
+      id
+      amount
+      redirectUrl
+      status
     }
   }
 `;

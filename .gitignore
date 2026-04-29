@@ -42,3 +42,5 @@ backend/debug-*.js
 # Test reports
 frontend/playwright-report/
 frontend/test-results/
+
+.playwright-mcp

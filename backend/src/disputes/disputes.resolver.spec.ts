@@ -3,7 +3,7 @@ import { DisputesResolver } from './disputes.resolver';
 import { DisputesService } from './disputes.service';
 import {
   UserRole,
-  MpConnectStatus,
+  SellerPaymentAccountStatus,
   KycStatus,
   DisputeType,
   DisputeStatus,
@@ -31,7 +31,7 @@ describe('DisputesResolver', () => {
     emailVerified: true,
     twoFactorEnabled: false,
     twoFactorEnabledAt: null,
-    mpConnectStatus: MpConnectStatus.NOT_CONNECTED,
+    sellerPaymentAccountStatus: SellerPaymentAccountStatus.NOT_CONNECTED,
     kycStatus: KycStatus.NOT_SUBMITTED,
     createdAt: new Date(),
     updatedAt: new Date(),

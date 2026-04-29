@@ -95,7 +95,7 @@ describe('Raffle Draw Flow (Integration)', () => {
         await createTestTickets(ctx.prisma, raffle.id, buyer.id, 2, {
           precioPagado: 50,
           estado: TicketStatus.PAGADO,
-          mpPaymentId: `draw-test-payment-${i}`,
+          purchaseReference: `draw-test-purchase-${i}`,
         });
       }
 

@@ -1,129 +1,71 @@
-import {
-  PackIneligibilityReason,
-  TicketPurchaseMode,
-} from '../../common/enums';
-
-export interface CheckoutBuyerPhone {
-  areaCode?: string;
-  number?: string;
-}
-
-export interface CheckoutBuyerAddress {
-  zipCode?: string;
-  streetName?: string;
-  streetNumber?: string;
-}
-
-export interface CheckoutBuyerProfile {
+export interface TopUpBuyerProfile {
   email: string;
   firstName?: string | null;
   lastName?: string | null;
-  identificationType?: string | null;
-  identificationNumber?: string | null;
-  phone?: CheckoutBuyerPhone | null;
-  registrationDate?: string | null;
-  authenticationType?: string | null;
-  isFirstPurchaseOnline?: boolean;
-  lastPurchase?: string | null;
-  address?: CheckoutBuyerAddress | null;
 }
 
-/**
- * Shared checkout payload used by both live and mock payment providers.
- */
-export interface CreateCheckoutSessionInput {
-  raffleId: string;
-  cantidad: number;
-  buyerId: string;
-  precioPorTicket: number;
-  tituloRifa: string;
-  reservationId: string;
-  baseQuantity: number;
-  bonusQuantity: number;
-  grantedQuantity: number;
-  packApplied: boolean;
-  packIneligibilityReason?: PackIneligibilityReason | null;
-  grossSubtotal: number;
-  discountApplied: number;
-  promotionDiscountApplied: number;
-  packDiscountApplied: number;
-  cashChargedAmount: number;
-  bonusGrantId?: string | null;
-  promotionBonusRedemptionId?: string | null;
-  promotionToken?: string | null;
-  purchaseMode: TicketPurchaseMode;
-  selectedNumbers?: number[] | null;
-  selectionPremiumPercent: number;
-  selectionPremiumAmount: number;
-  buyerProfile?: CheckoutBuyerProfile | null;
+export interface CreateCreditTopUpInput {
+  topUpSessionId: string;
+  userId: string;
+  amount: number;
+  providerReference: string;
+  buyerProfile: TopUpBuyerProfile;
 }
 
-/**
- * Minimal checkout session data returned to the tickets flow.
- */
-export interface CreateCheckoutSessionResult {
-  initPoint: string;
-  preferenceId: string;
+export interface CreateCreditTopUpResult {
+  redirectUrl: string;
+  providerSessionId: string;
 }
 
-/**
- * Normalized payment status shape consumed by controllers and checkout status pages.
- */
-export interface PaymentStatusResult {
+export interface TopUpStatusResult {
   status: string;
   statusDetail: string;
   externalReference: string | null;
-  merchantOrderId?: string | null;
+  providerOrderId?: string | null;
 }
 
-/**
- * Sync result returned when the backend replays provider state after a missed webhook.
- */
-export interface SyncStatusResult {
-  status: string;
-  alreadyProcessed: boolean;
-  ticketsUpdated: number;
-}
-
-/**
- * Browser-facing summary of a mock payment checkout session.
- */
-export interface MockPaymentSummary {
-  id: string;
-  publicToken: string;
-  raffleId: string;
-  raffleTitle: string;
-  buyerId: string;
-  buyerEmail: string;
-  quantity: number;
-  baseQuantity?: number;
-  bonusQuantity?: number;
-  grantedQuantity?: number;
-  packApplied?: boolean;
-  packIneligibilityReason?: PackIneligibilityReason | null;
-  grossSubtotal: number;
-  discountApplied: number;
-  promotionDiscountApplied?: number;
-  packDiscountApplied?: number;
-  cashChargedAmount: number;
-  purchaseMode: TicketPurchaseMode;
-  selectedNumbers?: number[] | null;
-  selectionPremiumPercent: number;
-  selectionPremiumAmount: number;
+export interface ProviderTopUpDetails {
+  providerPaymentId: string;
   status: string;
   statusDetail: string;
-  merchantOrderId: string;
-  promotionBonusGrantId?: string | null;
-  promotionBonusRedemptionId?: string | null;
+  amount: number;
+  externalReference: string | null;
+  providerOrderId?: string | null;
+  processingFee?: number;
+}
+
+export interface NormalizedTopUpWebhook {
+  eventType: string;
+  paymentId: string | null;
+  providerReference: string | null;
+  providerOrderId: string | null;
+  status: string | null;
+  statusDetail: string | null;
+}
+
+export interface SyncTopUpStatusResult {
+  status: string;
+  alreadyProcessed: boolean;
+  creditedAmount: number;
+}
+
+export interface MockTopUpSummary {
+  id: string;
+  publicToken: string;
+  userId: string;
+  userEmail: string;
+  amount: number;
+  creditedAmount: number;
+  refundedAmount: number;
+  status: string;
+  statusDetail: string;
+  providerOrderId: string;
   createdAt: string;
   approvedAt?: string | null;
   refundedAt?: string | null;
 }
 
-/**
- * Allowed actions that QA can trigger against a mock payment.
- */
-export type MockPaymentAction =
+export type MockTopUpAction =
   | 'APPROVE'
   | 'PEND'
   | 'REJECT'
@@ -131,13 +73,10 @@ export type MockPaymentAction =
   | 'REFUND_PARTIAL'
   | 'EXPIRE';
 
-/**
- * Result returned after applying a mock payment action.
- */
-export interface MockPaymentActionResult {
-  paymentId: string;
+export interface MockTopUpActionResult {
+  topUpSessionId: string;
   status: string;
-  merchantOrderId: string;
+  providerOrderId: string;
   redirectUrl: string;
   mockToken: string;
 }

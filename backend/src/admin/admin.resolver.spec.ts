@@ -6,8 +6,8 @@ import { DisputesService } from '../disputes/disputes.service';
 import { User, UserRole } from '@prisma/client';
 
 type MockAdminService = {
-  getMpEvents: jest.Mock;
-  getMpEventById: jest.Mock;
+  getPaymentProviderEvents: jest.Mock;
+  getPaymentProviderEventById: jest.Mock;
   getPaymentDebugInfo: jest.Mock;
   getTransactions: jest.Mock;
   getAdminStats: jest.Mock;
@@ -37,8 +37,8 @@ describe('AdminResolver', () => {
   let disputesService: MockDisputesService;
 
   const mockAdminService = (): MockAdminService => ({
-    getMpEvents: jest.fn(),
-    getMpEventById: jest.fn(),
+    getPaymentProviderEvents: jest.fn(),
+    getPaymentProviderEventById: jest.fn(),
     getPaymentDebugInfo: jest.fn(),
     getTransactions: jest.fn(),
     getAdminStats: jest.fn(),
@@ -99,8 +99,8 @@ describe('AdminResolver', () => {
     ) as unknown as MockDisputesService;
   });
 
-  describe('mpEvents', () => {
-    it('should return MP webhook events with pagination', async () => {
+  describe('paymentProviderEvents', () => {
+    it('should return payment provider webhook events with pagination', async () => {
       const mockEvents = {
         events: [
           {
@@ -111,11 +111,11 @@ describe('AdminResolver', () => {
         ],
         total: 1,
       };
-      adminService.getMpEvents.mockResolvedValue(mockEvents);
+      adminService.getPaymentProviderEvents.mockResolvedValue(mockEvents);
 
-      const result = await resolver.mpEvents('payment', 10, 0);
+      const result = await resolver.paymentProviderEvents('payment', 10, 0);
 
-      expect(adminService.getMpEvents).toHaveBeenCalledWith({
+      expect(adminService.getPaymentProviderEvents).toHaveBeenCalledWith({
         eventType: 'payment',
         limit: 10,
         offset: 0,
@@ -125,25 +125,27 @@ describe('AdminResolver', () => {
     });
   });
 
-  describe('mpEvent', () => {
-    it('should return single MP event by ID', async () => {
+  describe('paymentProviderEvent', () => {
+    it('should return single payment provider event by ID', async () => {
       const mockEvent = {
         id: 'event-1',
         eventType: 'payment',
         metadata: { paymentId: '123' },
       };
-      adminService.getMpEventById.mockResolvedValue(mockEvent);
+      adminService.getPaymentProviderEventById.mockResolvedValue(mockEvent);
 
-      const result = await resolver.mpEvent('event-1');
+      const result = await resolver.paymentProviderEvent('event-1');
 
-      expect(adminService.getMpEventById).toHaveBeenCalledWith('event-1');
+      expect(adminService.getPaymentProviderEventById).toHaveBeenCalledWith(
+        'event-1',
+      );
       expect(result).toEqual(mockEvent);
     });
 
     it('should return null for non-existent event', async () => {
-      adminService.getMpEventById.mockResolvedValue(null);
+      adminService.getPaymentProviderEventById.mockResolvedValue(null);
 
-      const result = await resolver.mpEvent('invalid-id');
+      const result = await resolver.paymentProviderEvent('invalid-id');
 
       expect(result).toBeNull();
     });
@@ -152,7 +154,7 @@ describe('AdminResolver', () => {
   describe('paymentDebug', () => {
     it('should return payment debug info', async () => {
       const mockDebugInfo = {
-        mpPaymentId: '123',
+        providerPaymentId: '123',
         status: 'approved',
         transactionAmount: 1000,
         tickets: [{ id: 'ticket-1', precioPagado: 1000 }],
@@ -162,7 +164,7 @@ describe('AdminResolver', () => {
       const result = await resolver.paymentDebug('123');
 
       expect(adminService.getPaymentDebugInfo).toHaveBeenCalledWith('123');
-      expect(result.mpPaymentId).toBe('123');
+      expect(result.providerPaymentId).toBe('123');
       expect(result.tickets).toHaveLength(1);
     });
   });
@@ -179,7 +181,7 @@ describe('AdminResolver', () => {
             promotionDiscountAmount: '1000.50',
             cashChargedAmount: '11000',
             estado: 'COMPLETADO',
-            mpPaymentId: 'mp-123',
+            providerPaymentId: 'mp-123',
             metadata: { refundType: 'full', refundAmount: 11000 },
             createdAt: new Date('2026-03-14T12:00:00.000Z'),
             user: {

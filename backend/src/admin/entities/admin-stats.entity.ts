@@ -1,6 +1,6 @@
 import { ObjectType, Field, Int, Float, ID } from '@nestjs/graphql';
 import { GraphQLJSON } from 'graphql-type-json';
-import { UserRole, MpConnectStatus } from '../../common/enums';
+import { UserRole, SellerPaymentAccountStatus } from '../../common/enums';
 import { AdminSellerReview } from '../../users/entities/review.entity';
 
 // ==================== User Management Entities ====================
@@ -22,8 +22,8 @@ export class AdminUser {
   @Field(() => UserRole)
   role!: UserRole;
 
-  @Field(() => MpConnectStatus)
-  mpConnectStatus!: MpConnectStatus;
+  @Field(() => SellerPaymentAccountStatus)
+  sellerPaymentAccountStatus!: SellerPaymentAccountStatus;
 
   @Field(() => String, { nullable: true })
   kycStatus?: string;
@@ -148,7 +148,7 @@ export class AdminStats {
   pendingDisputes!: number;
 
   @Field(() => Int)
-  recentMpEvents!: number;
+  recentPaymentEvents!: number;
 
   @Field(() => Int)
   newUsersToday!: number;
@@ -235,7 +235,7 @@ export class AdminTransaction {
   estado?: string;
 
   @Field(() => String, { nullable: true })
-  mpPaymentId?: string;
+  providerPaymentId?: string;
 
   @Field(() => GraphQLJSON, { nullable: true })
   metadata?: Record<string, unknown>;
@@ -262,7 +262,7 @@ export class AdminTransactionList {
 @ObjectType()
 export class PaymentDebugInfo {
   @Field()
-  mpPaymentId!: string;
+  providerPaymentId!: string;
 
   @Field()
   webhookReceived!: boolean;

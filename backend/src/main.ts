@@ -35,7 +35,7 @@ async function bootstrap() {
           defaultSrc: ["'self'"],
           scriptSrc: [
             "'self'",
-            "'unsafe-inline'", // Required for Mercado Pago SDK
+            "'unsafe-inline'", // Required by the current live checkout SDK
             'https://www.mercadopago.com.ar',
             'https://sdk.mercadopago.com',
             'https://http2.mlstatic.com',

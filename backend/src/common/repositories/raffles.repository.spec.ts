@@ -62,7 +62,7 @@ describe('RafflesRepository', () => {
     estado: TicketStatus.PAGADO,
     raffleId: 'raffle-id-123',
     buyerId: 'buyer-id-123',
-    mpPaymentId: null,
+    providerPaymentId: null,
     purchasePrice: 100,
     createdAt: new Date('2024-01-01'),
     updatedAt: new Date('2024-01-01'),

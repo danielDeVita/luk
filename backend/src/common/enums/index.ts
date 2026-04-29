@@ -8,7 +8,7 @@ import {
   DisputeType,
   DisputeStatus,
   SellerLevel,
-  MpConnectStatus,
+  SellerPaymentAccountStatus,
   PayoutStatus,
   TransactionType,
   TransactionStatus,
@@ -16,6 +16,8 @@ import {
   ActivityType,
   DocumentType,
   KycStatus,
+  SellerPaymentAccountIdentifierType,
+  WalletLedgerEntryType,
 } from '@prisma/client';
 
 export {
@@ -27,7 +29,7 @@ export {
   DisputeType,
   DisputeStatus,
   SellerLevel,
-  MpConnectStatus,
+  SellerPaymentAccountStatus,
   PayoutStatus,
   TransactionType,
   TransactionStatus,
@@ -35,6 +37,8 @@ export {
   ActivityType,
   DocumentType,
   KycStatus,
+  SellerPaymentAccountIdentifierType,
+  WalletLedgerEntryType,
 };
 
 export enum RaffleSort {
@@ -64,7 +68,9 @@ registerEnumType(TicketStatus, { name: 'TicketStatus' });
 registerEnumType(DisputeType, { name: 'DisputeType' });
 registerEnumType(DisputeStatus, { name: 'DisputeStatus' });
 registerEnumType(SellerLevel, { name: 'SellerLevel' });
-registerEnumType(MpConnectStatus, { name: 'MpConnectStatus' });
+registerEnumType(SellerPaymentAccountStatus, {
+  name: 'SellerPaymentAccountStatus',
+});
 registerEnumType(PayoutStatus, { name: 'PayoutStatus' });
 registerEnumType(TransactionType, { name: 'TransactionType' });
 registerEnumType(TransactionStatus, { name: 'TransactionStatus' });
@@ -73,6 +79,10 @@ registerEnumType(ActivityType, { name: 'ActivityType' });
 registerEnumType(RaffleSort, { name: 'RaffleSort' });
 registerEnumType(DocumentType, { name: 'DocumentType' });
 registerEnumType(KycStatus, { name: 'KycStatus' });
+registerEnumType(SellerPaymentAccountIdentifierType, {
+  name: 'SellerPaymentAccountIdentifierType',
+});
+registerEnumType(WalletLedgerEntryType, { name: 'WalletLedgerEntryType' });
 registerEnumType(TicketPurchaseMode, { name: 'TicketPurchaseMode' });
 registerEnumType(PackIneligibilityReason, {
   name: 'PackIneligibilityReason',

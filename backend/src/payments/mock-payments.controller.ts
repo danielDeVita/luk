@@ -11,23 +11,23 @@ import {
 import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import { Public } from '../auth/decorators/public.decorator';
 import { PaymentsService } from './payments.service';
-import type { MockPaymentAction } from './providers/payment-provider.types';
+import type { MockTopUpAction } from './providers/payment-provider.types';
 
 interface MockPaymentActionBody {
   publicToken?: string;
-  action?: MockPaymentAction;
+  action?: MockTopUpAction;
   amount?: number;
 }
 
 /**
- * Exposes read-only and action endpoints for the local mock checkout flow used in QA.
+ * Exposes read-only and action endpoints for the local mock top-up flow used in QA.
  */
 @Controller('payments/mock')
 export class MockPaymentsController {
   constructor(private readonly paymentsService: PaymentsService) {}
 
   /**
-   * Returns the public checkout summary for a mock payment.
+   * Returns the public checkout summary for a mock top-up.
    */
   @Get(':mockPaymentId')
   @Public()

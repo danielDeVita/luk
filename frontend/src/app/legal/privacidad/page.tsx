@@ -61,7 +61,7 @@ export default function PrivacidadPage() {
         <ul>
           <li><strong>Datos de registro:</strong> Nombre, apellido, email, fecha de nacimiento y contraseña.</li>
           <li><strong>Datos de verificación (KYC):</strong> DNI, CUIT/CUIL, domicilio, teléfono y foto de documento.</li>
-          <li><strong>Datos de pago:</strong> Información de tu cuenta de Mercado Pago vinculada.</li>
+          <li><strong>Datos de pago:</strong> Información de tu cuenta de cobros vinculada y del proveedor de pagos cuando corresponda.</li>
         </ul>
 
         <h3>1.2 Información que recopilamos automáticamente</h3>
@@ -103,7 +103,7 @@ export default function PrivacidadPage() {
         <p>Podemos compartir tu información con:</p>
 
         <ul>
-          <li><strong>Mercado Pago:</strong> Para procesar pagos de boletos.</li>
+          <li><strong>Proveedor de pagos integrado:</strong> Para procesar pagos de boletos.</li>
           <li><strong>Organizadores de rifas:</strong> Datos necesarios para entrega de premios.</li>
           <li><strong>Autoridades:</strong> Cuando sea requerido por ley (UIF, ARCA, autoridades judiciales).</li>
           <li><strong>Proveedores de servicios:</strong> Hosting, analytics, soporte técnico (bajo estrictos acuerdos de confidencialidad).</li>

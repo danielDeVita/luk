@@ -6,14 +6,19 @@ import {
   Logger,
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { Prisma, DisputeStatus, UserRole } from '@prisma/client';
+import {
+  Prisma,
+  DisputeStatus,
+  UserRole,
+  WalletLedgerEntryType,
+} from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   OpenDisputeInput,
   RespondDisputeInput,
   ResolveDisputeInput,
 } from './dto/dispute.input';
-import { PaymentsService } from '../payments/payments.service';
+import { WalletService } from '../wallet/wallet.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { AuditService } from '../audit/audit.service';
 import { ActivityService } from '../activity/activity.service';
@@ -29,7 +34,7 @@ export class DisputesService {
 
   constructor(
     private prisma: PrismaService,
-    private paymentsService: PaymentsService,
+    private walletService: WalletService,
     private notifications: NotificationsService,
     private audit: AuditService,
     private activity: ActivityService,
@@ -249,54 +254,13 @@ export class DisputesService {
         buyerId: dispute.reporterId,
         estado: 'PAGADO',
       },
-      select: { precioPagado: true, mpPaymentId: true },
+      select: { precioPagado: true },
     });
 
-    const groupedBuyerPayments = new Map<string, { baseAmount: number }>();
-    let buyerPaidTotal = 0;
-
-    for (const ticket of buyerTickets) {
-      if (!ticket.mpPaymentId) {
-        buyerPaidTotal += Number(ticket.precioPagado);
-        continue;
-      }
-
-      const existing = groupedBuyerPayments.get(ticket.mpPaymentId) ?? {
-        baseAmount: 0,
-      };
-      existing.baseAmount += Number(ticket.precioPagado);
-      groupedBuyerPayments.set(ticket.mpPaymentId, existing);
-    }
-
-    const buyerPaymentIds = Array.from(groupedBuyerPayments.keys());
-    const buyerPaymentTransactions =
-      buyerPaymentIds.length > 0
-        ? await this.prisma.transaction.findMany({
-            where: {
-              mpPaymentId: { in: buyerPaymentIds },
-              tipo: 'COMPRA_TICKET',
-              estado: 'COMPLETADO',
-              isDeleted: false,
-            },
-            select: {
-              mpPaymentId: true,
-              cashChargedAmount: true,
-            },
-          })
-        : [];
-    const buyerChargedAmountByPaymentId = new Map(
-      (buyerPaymentTransactions ?? [])
-        .filter((transaction) => transaction.mpPaymentId)
-        .map((transaction) => [
-          transaction.mpPaymentId as string,
-          Number(transaction.cashChargedAmount ?? 0),
-        ]),
+    const buyerPaidTotal = buyerTickets.reduce(
+      (sum, ticket) => sum + Number(ticket.precioPagado),
+      0,
     );
-
-    for (const [paymentId, group] of groupedBuyerPayments) {
-      buyerPaidTotal +=
-        buyerChargedAmountByPaymentId.get(paymentId) ?? group.baseAmount;
-    }
 
     let refundAmount = 0;
     let sellerAmount = 0;
@@ -489,149 +453,120 @@ export class DisputesService {
     buyerEmail: string,
     adminId?: string,
   ) {
-    const tickets = await this.prisma.ticket.findMany({
-      where: {
-        raffleId,
-        buyerId,
-        estado: 'PAGADO',
-        mpPaymentId: { not: null },
-      },
-      select: {
-        id: true,
-        mpPaymentId: true,
-        precioPagado: true,
-      },
-      orderBy: { createdAt: 'asc' },
-    });
+    const normalizedAmount = Math.round(amount * 100) / 100;
+    const refundResult = await this.prisma.$transaction(
+      async (tx) => {
+        const raffle = await tx.raffle.findUnique({
+          where: { id: raffleId },
+          select: { sellerId: true },
+        });
+        if (!raffle) {
+          throw new NotFoundException('Rifa no encontrada');
+        }
 
-    if (tickets.length === 0) {
-      throw new BadRequestException(
-        'No hay pagos del comprador para procesar reembolso',
-      );
-    }
+        const tickets = await tx.ticket.findMany({
+          where: { raffleId, buyerId, estado: 'PAGADO' },
+          select: { id: true, precioPagado: true },
+          orderBy: { createdAt: 'asc' },
+        });
 
-    const groupedByPayment = new Map<
-      string,
-      { totalAmount: number; baseAmount: number; ticketIds: string[] }
-    >();
-    for (const ticket of tickets) {
-      if (!ticket.mpPaymentId) continue;
-      const existing = groupedByPayment.get(ticket.mpPaymentId) ?? {
-        totalAmount: 0,
-        baseAmount: 0,
-        ticketIds: [],
-      };
-      existing.baseAmount += Number(ticket.precioPagado);
-      existing.ticketIds.push(ticket.id);
-      groupedByPayment.set(ticket.mpPaymentId, existing);
-    }
-
-    const paymentIds = Array.from(groupedByPayment.keys());
-    const paymentTransactions =
-      paymentIds.length > 0
-        ? await this.prisma.transaction.findMany({
-            where: {
-              mpPaymentId: { in: paymentIds },
-              tipo: 'COMPRA_TICKET',
-              estado: 'COMPLETADO',
-              isDeleted: false,
-            },
-            select: {
-              id: true,
-              mpPaymentId: true,
-              cashChargedAmount: true,
-            },
-          })
-        : [];
-    const chargedAmountByPaymentId = new Map(
-      (paymentTransactions ?? [])
-        .filter((transaction) => transaction.mpPaymentId)
-        .map((transaction) => [
-          transaction.mpPaymentId as string,
-          Number(transaction.cashChargedAmount ?? 0),
-        ]),
-    );
-
-    for (const [paymentId, group] of groupedByPayment) {
-      group.totalAmount =
-        chargedAmountByPaymentId.get(paymentId) ?? group.baseAmount;
-    }
-
-    let remainingCents = Math.round(amount * 100);
-    const fullyRefundedTicketIds: string[] = [];
-
-    for (const [mpPaymentId, group] of groupedByPayment) {
-      if (remainingCents <= 0) break;
-
-      const groupCents = Math.round(group.totalAmount * 100);
-      const refundCents = Math.min(remainingCents, groupCents);
-      const refundAmount = refundCents / 100;
-      const fullGroupRefund = refundCents >= groupCents;
-
-      const success = await this.paymentsService.refundPayment(
-        mpPaymentId,
-        fullGroupRefund ? undefined : refundAmount,
-      );
-
-      if (!success) {
-        throw new BadRequestException(
-          `No se pudo procesar el reembolso para el pago ${mpPaymentId}`,
-        );
-      }
-
-      if (fullGroupRefund) {
-        fullyRefundedTicketIds.push(...group.ticketIds);
-      }
-
-      if (adminId) {
-        const matchingTransaction = paymentTransactions.find(
-          (transaction) => transaction.mpPaymentId === mpPaymentId,
-        );
-        if (matchingTransaction) {
-          await this.audit.logRefundIssued(
-            adminId,
-            matchingTransaction.id,
-            'Resolución de disputa',
-            {
-              raffleId,
-              buyerId,
-              refundAmount,
-              mpPaymentId,
-            },
+        if (tickets.length === 0) {
+          throw new BadRequestException(
+            'No hay pagos del comprador para procesar reembolso',
           );
         }
-      }
 
-      remainingCents -= refundCents;
-    }
+        const paidTotal = tickets.reduce(
+          (sum, ticket) => sum + Number(ticket.precioPagado),
+          0,
+        );
+        if (normalizedAmount > paidTotal + 0.01) {
+          throw new BadRequestException(
+            'El monto de reembolso excede lo pagado por el comprador',
+          );
+        }
 
-    if (remainingCents > 0) {
-      throw new BadRequestException(
-        'No fue posible completar el monto de reembolso solicitado',
+        await this.walletService.creditUserBalance(
+          tx,
+          buyerId,
+          normalizedAmount,
+          WalletLedgerEntryType.TICKET_PURCHASE_REFUND,
+          { raffleId, metadata: { reason: 'dispute_resolution' } },
+        );
+        await this.walletService.debitSellerPayable(
+          tx,
+          raffle.sellerId,
+          normalizedAmount,
+          { raffleId, metadata: { reason: 'dispute_resolution' } },
+        );
+
+        let remainingCents = Math.round(normalizedAmount * 100);
+        const fullyRefundedTicketIds: string[] = [];
+        for (const ticket of tickets) {
+          if (remainingCents <= 0) break;
+          const ticketCents = Math.round(Number(ticket.precioPagado) * 100);
+          if (remainingCents >= ticketCents) {
+            fullyRefundedTicketIds.push(ticket.id);
+          }
+          remainingCents -= Math.min(remainingCents, ticketCents);
+        }
+
+        if (fullyRefundedTicketIds.length > 0) {
+          await tx.ticket.updateMany({
+            where: {
+              id: { in: fullyRefundedTicketIds },
+              estado: 'PAGADO',
+            },
+            data: { estado: 'REEMBOLSADO' },
+          });
+        }
+
+        const purchaseTransaction = await tx.transaction.findFirst({
+          where: {
+            raffleId,
+            userId: buyerId,
+            tipo: 'COMPRA_TICKET',
+            estado: 'COMPLETADO',
+            isDeleted: false,
+          },
+          select: { id: true },
+        });
+
+        return {
+          refundedTicketCount: fullyRefundedTicketIds.length,
+          purchaseTransactionId: purchaseTransaction?.id,
+        };
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    );
+
+    if (adminId && refundResult.purchaseTransactionId) {
+      await this.audit.logRefundIssued(
+        adminId,
+        refundResult.purchaseTransactionId,
+        'Resolución de disputa',
+        {
+          raffleId,
+          buyerId,
+          refundAmount: normalizedAmount,
+          refundDestination: 'saldo_luk',
+        },
       );
     }
 
-    if (fullyRefundedTicketIds.length > 0) {
-      await this.prisma.ticket.updateMany({
-        where: {
-          id: { in: fullyRefundedTicketIds },
-          estado: 'PAGADO',
-        },
-        data: { estado: 'REEMBOLSADO' },
-      });
-
+    if (refundResult.refundedTicketCount > 0) {
       await this.activity.logTicketsRefunded(
         buyerId,
         raffleId,
-        fullyRefundedTicketIds.length,
-        amount,
+        refundResult.refundedTicketCount,
+        normalizedAmount,
         'Resolución de disputa',
       );
     }
 
     await this.notifications.sendRefundDueToDisputeNotification(buyerEmail, {
       raffleName,
-      amount,
+      amount: normalizedAmount,
     });
   }
 

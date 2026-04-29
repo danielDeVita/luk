@@ -27,7 +27,7 @@ export class Ticket {
   precioPagado!: number;
 
   @Field(() => String, { nullable: true })
-  mpPaymentId?: string;
+  purchaseReference?: string | null;
 
   @Field(() => TicketStatus)
   estado!: TicketStatus;

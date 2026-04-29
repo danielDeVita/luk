@@ -1,7 +1,12 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { RafflesResolver } from './raffles.resolver';
 import { RafflesService } from './raffles.service';
-import { User, UserRole, KycStatus, MpConnectStatus } from '@prisma/client';
+import {
+  User,
+  UserRole,
+  KycStatus,
+  SellerPaymentAccountStatus,
+} from '@prisma/client';
 import { NotFoundException } from '@nestjs/common';
 
 type MockRafflesService = {
@@ -52,7 +57,7 @@ describe('RafflesResolver', () => {
       apellido: 'User',
       role: UserRole.USER,
       kycStatus: KycStatus.VERIFIED,
-      mpConnectStatus: MpConnectStatus.CONNECTED,
+      sellerPaymentAccountStatus: SellerPaymentAccountStatus.CONNECTED,
       createdAt: new Date(),
       updatedAt: new Date(),
       isDeleted: false,
@@ -61,9 +66,7 @@ describe('RafflesResolver', () => {
       avatarUrl: null,
       emailVerified: true,
       emailVerifiedAt: new Date(),
-      mpUserId: null,
-      mpAccessToken: null,
-      mpRefreshToken: null,
+      sellerPaymentAccountId: null,
       termsAcceptedAt: new Date(),
       termsVersion: '1.0',
       fechaNacimiento: null,

@@ -1,41 +1,52 @@
-'use client';
+"use client";
 
-import { useState, useEffect, useMemo, useDeferredValue } from 'react';
-import { useQuery, useMutation } from '@apollo/client/react';
-import { gql } from '@apollo/client/core';
-import { useRouter, useSearchParams } from 'next/navigation';
-import { useAuthStore } from '@/store/auth';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Ticket, User, Clock, AlertTriangle, Loader2, ChevronLeft, ChevronRight, Heart, TrendingDown, History } from 'lucide-react';
-import { ShareButtons } from '@/components/share/share-buttons';
-import { Countdown } from '@/components/ui/countdown';
-import Link from 'next/link';
-import Image from 'next/image';
-import { toast } from 'sonner';
-import { RaffleDetailSkeleton } from '@/components/ui/skeleton';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { IS_FAVORITE } from '@/lib/graphql/queries';
-import { ADD_FAVORITE, REMOVE_FAVORITE } from '@/lib/graphql/mutations';
-import { getOptimizedImageUrl, CLOUDINARY_PRESETS } from '@/lib/cloudinary';
-import { formatProductCondition } from '@/lib/format-condition';
-import { RaffleQA } from './raffle-qa';
-import { useConfirmDialog } from '@/hooks/use-confirm-dialog';
-import { ComplianceNotice } from '@/components/legal/compliance-notice';
-import { PromotionBonusSelector } from '@/components/social-promotions/promotion-bonus-selector';
-import { SocialPromotionManager } from '@/components/social-promotions/social-promotion-manager';
+import { useState, useEffect, useMemo, useDeferredValue } from "react";
+import { useQuery, useMutation } from "@apollo/client/react";
+import { gql } from "@apollo/client/core";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useAuthStore } from "@/store/auth";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Ticket,
+  User,
+  Clock,
+  AlertTriangle,
+  Loader2,
+  ChevronLeft,
+  ChevronRight,
+  Heart,
+  TrendingDown,
+  History,
+  Minus,
+  Plus,
+} from "lucide-react";
+import { ShareButtons } from "@/components/share/share-buttons";
+import { Countdown } from "@/components/ui/countdown";
+import Link from "next/link";
+import Image from "next/image";
+import { toast } from "sonner";
+import { RaffleDetailSkeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { IS_FAVORITE } from "@/lib/graphql/queries";
+import { ADD_FAVORITE, REMOVE_FAVORITE } from "@/lib/graphql/mutations";
+import { getOptimizedImageUrl, CLOUDINARY_PRESETS } from "@/lib/cloudinary";
+import { formatProductCondition } from "@/lib/format-condition";
+import { RaffleQA } from "./raffle-qa";
+import { useConfirmDialog } from "@/hooks/use-confirm-dialog";
+import { ComplianceNotice } from "@/components/legal/compliance-notice";
+import { PromotionBonusSelector } from "@/components/social-promotions/promotion-bonus-selector";
+import { SocialPromotionManager } from "@/components/social-promotions/social-promotion-manager";
 import {
   evaluateSimpleRandomPack,
   type PackIneligibilityReason,
-} from '@/lib/tickets/pack-simple';
+} from "@/lib/tickets/pack-simple";
 import {
   getStoredSocialPromotionToken,
   persistSocialPromotionToken,
-} from '@/lib/social-promotions';
-
-
+} from "@/lib/social-promotions";
 
 const GET_RAFFLE = gql`
   query GetRaffle($id: String!) {
@@ -71,19 +82,25 @@ const GET_RAFFLE = gql`
 `;
 
 const BUY_TICKETS = gql`
-  mutation BuyTickets($raffleId: String!, $cantidad: Int!, $bonusGrantId: String, $promotionToken: String) {
+  mutation BuyTickets(
+    $raffleId: String!
+    $cantidad: Int!
+    $bonusGrantId: String
+    $promotionToken: String
+  ) {
     buyTickets(
       raffleId: $raffleId
       cantidad: $cantidad
       bonusGrantId: $bonusGrantId
       promotionToken: $promotionToken
     ) {
-      initPoint
-      preferenceId
+      paidWithCredit
+      creditDebited
+      creditBalanceAfter
       totalAmount
       grossSubtotal
       discountApplied
-      mpChargeAmount
+      chargedAmount
       bonusGrantId
       cantidadComprada
       baseQuantity
@@ -108,12 +125,13 @@ const BUY_SELECTED_TICKETS = gql`
       bonusGrantId: $bonusGrantId
       promotionToken: $promotionToken
     ) {
-      initPoint
-      preferenceId
+      paidWithCredit
+      creditDebited
+      creditBalanceAfter
       totalAmount
       grossSubtotal
       discountApplied
-      mpChargeAmount
+      chargedAmount
       bonusGrantId
       cantidadComprada
       baseQuantity
@@ -124,6 +142,16 @@ const BUY_SELECTED_TICKETS = gql`
       purchaseMode
       selectionPremiumPercent
       selectionPremiumAmount
+    }
+  }
+`;
+
+const MY_WALLET = gql`
+  query MyWallet {
+    myWallet {
+      id
+      creditBalance
+      sellerPayableBalance
     }
   }
 `;
@@ -232,12 +260,13 @@ interface RaffleResult {
 
 interface BuyTicketsResult {
   buyTickets: {
-    initPoint: string;
-    preferenceId: string;
+    paidWithCredit: boolean;
+    creditDebited: number;
+    creditBalanceAfter: number;
     totalAmount: number;
     grossSubtotal: number;
     discountApplied: number;
-    mpChargeAmount: number;
+    chargedAmount: number;
     bonusGrantId?: string;
     cantidadComprada: number;
     baseQuantity: number;
@@ -250,12 +279,13 @@ interface BuyTicketsResult {
 
 interface BuySelectedTicketsResult {
   buySelectedTickets: {
-    initPoint: string;
-    preferenceId: string;
+    paidWithCredit: boolean;
+    creditDebited: number;
+    creditBalanceAfter: number;
     totalAmount: number;
     grossSubtotal: number;
     discountApplied: number;
-    mpChargeAmount: number;
+    chargedAmount: number;
     bonusGrantId?: string;
     cantidadComprada: number;
     baseQuantity: number;
@@ -263,7 +293,7 @@ interface BuySelectedTicketsResult {
     grantedQuantity: number;
     packApplied: boolean;
     packIneligibilityReason?: PackIneligibilityReason;
-    purchaseMode: 'CHOOSE_NUMBERS';
+    purchaseMode: "CHOOSE_NUMBERS";
     selectionPremiumPercent: number;
     selectionPremiumAmount: number;
   };
@@ -271,6 +301,14 @@ interface BuySelectedTicketsResult {
 
 interface MyTicketCountInRaffleResult {
   myTicketCountInRaffle: number;
+}
+
+interface MyWalletResult {
+  myWallet: {
+    id: string;
+    creditBalance: number;
+    sellerPayableBalance: number;
+  };
 }
 
 interface TicketNumberAvailabilityItem {
@@ -297,37 +335,37 @@ interface PromotionBonusPreview {
   bonusGrantId: string;
   grossSubtotal: number;
   discountApplied: number;
-  mpChargeAmount: number;
+  chargedAmount: number;
 }
 
 function getNonActiveRaffleMessage(raffle: RaffleData): string {
   switch (raffle.estado) {
-    case 'COMPLETADA':
-      return 'Todos los números se agotaron. El sorteo se está procesando.';
-    case 'SORTEADA':
-      return 'La rifa ya fue sorteada.';
-    case 'EN_ENTREGA':
-      return 'La rifa ya fue sorteada y el premio está en entrega.';
-    case 'FINALIZADA':
-      return 'La rifa finalizó y el premio ya fue entregado.';
-    case 'CANCELADA':
-      return 'Esta rifa fue cancelada.';
+    case "COMPLETADA":
+      return "Todos los números se agotaron. El sorteo se está procesando.";
+    case "SORTEADA":
+      return "La rifa ya fue sorteada.";
+    case "EN_ENTREGA":
+      return "La rifa ya fue sorteada y el premio está en entrega.";
+    case "FINALIZADA":
+      return "La rifa finalizó y el premio ya fue entregado.";
+    case "CANCELADA":
+      return "Esta rifa fue cancelada.";
     default:
-      return 'Esta rifa ya no está disponible para comprar.';
+      return "Esta rifa ya no está disponible para comprar.";
   }
 }
 
 function getEstadoClass(estado: string): string {
   switch (estado) {
-    case 'ACTIVA':
-      return 'badge-active';
-    case 'SORTEADA':
-    case 'FINALIZADA':
-      return 'badge-completed';
-    case 'COMPLETADA':
-      return 'badge-hot';
+    case "ACTIVA":
+      return "badge-active";
+    case "SORTEADA":
+    case "FINALIZADA":
+      return "badge-completed";
+    case "COMPLETADA":
+      return "badge-hot";
     default:
-      return 'badge-pending';
+      return "badge-pending";
   }
 }
 
@@ -369,15 +407,20 @@ export function RaffleContent({ id }: RaffleContentProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { isAuthenticated, user } = useAuthStore();
-  const [purchaseMode, setPurchaseMode] = useState<'RANDOM' | 'CHOOSE_NUMBERS'>('RANDOM');
+  const [purchaseMode, setPurchaseMode] = useState<"RANDOM" | "CHOOSE_NUMBERS">(
+    "RANDOM",
+  );
   const [quantity, setQuantity] = useState(1);
   const [selectedNumbers, setSelectedNumbers] = useState<number[]>([]);
   const [availabilityPage, setAvailabilityPage] = useState(1);
-  const [searchNumberInput, setSearchNumberInput] = useState('');
+  const [searchNumberInput, setSearchNumberInput] = useState("");
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [isFavorite, setIsFavorite] = useState(false);
-  const [selectedBonusGrantId, setSelectedBonusGrantId] = useState<string | null>(null);
-  const [bonusPreview, setBonusPreview] = useState<PromotionBonusPreview | null>(null);
+  const [selectedBonusGrantId, setSelectedBonusGrantId] = useState<
+    string | null
+  >(null);
+  const [bonusPreview, setBonusPreview] =
+    useState<PromotionBonusPreview | null>(null);
   const confirm = useConfirmDialog();
   const deferredSearchNumberInput = useDeferredValue(searchNumberInput);
 
@@ -390,43 +433,58 @@ export function RaffleContent({ id }: RaffleContentProps) {
     clearPromotionBonusSelection();
     setSelectedNumbers([]);
     setAvailabilityPage(1);
-    setSearchNumberInput('');
+    setSearchNumberInput("");
   };
 
-  const { data, loading, error } = useQuery<RaffleResult>(GET_RAFFLE, {
+  const {
+    data,
+    loading,
+    error,
+    refetch: refetchRaffle,
+  } = useQuery<RaffleResult>(GET_RAFFLE, {
     variables: { id },
   });
   const isSellerOwner = Boolean(
     isAuthenticated &&
-      data?.raffle?.seller?.id &&
-      user?.id === data.raffle.seller.id,
+    data?.raffle?.seller?.id &&
+    user?.id === data.raffle.seller.id,
   );
 
   // Query price history
-  const { data: priceHistoryData } = useQuery<PriceHistoryResult>(GET_PRICE_HISTORY, {
-    variables: { raffleId: id },
-  });
+  const { data: priceHistoryData } = useQuery<PriceHistoryResult>(
+    GET_PRICE_HISTORY,
+    {
+      variables: { raffleId: id },
+    },
+  );
 
-  const {
-    data: socialPromotionData,
-    refetch: refetchSocialPromotionPosts,
-  } = useQuery<{
-    mySocialPromotionPosts: SocialPromotionPostSummary[];
-  }>(MY_SOCIAL_PROMOTION_POSTS, {
-    variables: { raffleId: id },
-    skip: !isSellerOwner,
-  });
+  const { data: socialPromotionData, refetch: refetchSocialPromotionPosts } =
+    useQuery<{
+      mySocialPromotionPosts: SocialPromotionPostSummary[];
+    }>(MY_SOCIAL_PROMOTION_POSTS, {
+      variables: { raffleId: id },
+      skip: !isSellerOwner,
+    });
 
   // Query favorite status
-  const { data: favoriteData } = useQuery<{ isFavorite: boolean }>(IS_FAVORITE, {
-    variables: { raffleId: id },
-    skip: !isAuthenticated,
-  });
+  const { data: favoriteData } = useQuery<{ isFavorite: boolean }>(
+    IS_FAVORITE,
+    {
+      variables: { raffleId: id },
+      skip: !isAuthenticated,
+    },
+  );
   const { data: myTicketCountData } = useQuery<MyTicketCountInRaffleResult>(
     MY_TICKET_COUNT_IN_RAFFLE,
     {
       variables: { raffleId: id },
       skip: !isAuthenticated || !data?.raffle || isSellerOwner,
+    },
+  );
+  const { data: walletData, refetch: refetchWallet } = useQuery<MyWalletResult>(
+    MY_WALLET,
+    {
+      skip: !isAuthenticated,
     },
   );
 
@@ -449,23 +507,33 @@ export function RaffleContent({ id }: RaffleContentProps) {
       ? parsedValue
       : undefined;
   }, [deferredSearchNumberInput]);
+  const searchNumberOutOfRangeForQuery =
+    parsedSearchNumber !== undefined &&
+    data?.raffle?.totalTickets !== undefined &&
+    parsedSearchNumber > data.raffle.totalTickets;
 
   const {
     data: ticketAvailabilityData,
+    loading: ticketAvailabilityLoading,
+    error: ticketAvailabilityError,
     refetch: refetchTicketAvailability,
   } = useQuery<TicketNumberAvailabilityResult>(TICKET_NUMBER_AVAILABILITY, {
+    notifyOnNetworkStatusChange: true,
     variables: {
       raffleId: id,
       page: availabilityPage,
       pageSize: 100,
     },
-    skip: purchaseMode !== 'CHOOSE_NUMBERS' || !data?.raffle,
+    skip: purchaseMode !== "CHOOSE_NUMBERS" || !data?.raffle,
   });
 
   const {
     data: ticketSearchData,
+    loading: ticketSearchLoading,
+    error: ticketSearchError,
     refetch: refetchTicketSearch,
   } = useQuery<TicketNumberAvailabilityResult>(TICKET_NUMBER_AVAILABILITY, {
+    notifyOnNetworkStatusChange: true,
     variables: {
       raffleId: id,
       page: 1,
@@ -473,15 +541,16 @@ export function RaffleContent({ id }: RaffleContentProps) {
       searchNumber: parsedSearchNumber,
     },
     skip:
-      purchaseMode !== 'CHOOSE_NUMBERS' ||
+      purchaseMode !== "CHOOSE_NUMBERS" ||
       !data?.raffle ||
-      parsedSearchNumber === undefined,
+      parsedSearchNumber === undefined ||
+      searchNumberOutOfRangeForQuery,
   });
 
   const handlePurchaseMutationError = (message: string) => {
     toast.error(message);
 
-    if (!message.includes('ya no están disponibles')) {
+    if (!message.includes("ya no están disponibles")) {
       return;
     }
 
@@ -513,7 +582,7 @@ export function RaffleContent({ id }: RaffleContentProps) {
       parsedSearchNumber !== undefined &&
       unavailableNumbers.includes(parsedSearchNumber)
     ) {
-      setSearchNumberInput('');
+      setSearchNumberInput("");
     }
 
     void refetchTicketAvailability();
@@ -522,62 +591,79 @@ export function RaffleContent({ id }: RaffleContentProps) {
     }
   };
 
-  const [buyTickets, { data: buyData, loading: buyingRandom }] =
-    useMutation<BuyTicketsResult>(BUY_TICKETS, {
+  const [buyTickets, { loading: buyingRandom }] = useMutation<BuyTicketsResult>(
+    BUY_TICKETS,
+    {
+      onCompleted: async (mutationData) => {
+        const result = mutationData.buyTickets;
+        toast.success(
+          `Compra confirmada. Se debitaron $${result.creditDebited.toFixed(2)} de tu Saldo LUK.`,
+        );
+        await Promise.all([refetchWallet(), refetchRaffle()]);
+      },
+      onError: (mutationError) => {
+        handlePurchaseMutationError(mutationError.message);
+      },
+    },
+  );
+  const [buySelectedTickets, { loading: buyingSelected }] =
+    useMutation<BuySelectedTicketsResult>(BUY_SELECTED_TICKETS, {
+      onCompleted: async (mutationData) => {
+        const result = mutationData.buySelectedTickets;
+        toast.success(
+          `Compra confirmada. Se debitaron $${result.creditDebited.toFixed(2)} de tu Saldo LUK.`,
+        );
+        await Promise.all([
+          refetchWallet(),
+          refetchRaffle(),
+          refetchTicketAvailability(),
+        ]);
+      },
       onError: (mutationError) => {
         handlePurchaseMutationError(mutationError.message);
       },
     });
-  const [
-    buySelectedTickets,
-    {
-      data: buySelectedData,
-      loading: buyingSelected,
-    },
-  ] = useMutation<BuySelectedTicketsResult>(BUY_SELECTED_TICKETS, {
-    onError: (mutationError) => {
-      handlePurchaseMutationError(mutationError.message);
-    },
-  });
   const [incrementViews] = useMutation(INCREMENT_VIEWS);
 
   // Favorite mutations
   const [addFavorite, { loading: addingFavorite }] = useMutation(ADD_FAVORITE, {
     onError: () => {
       setIsFavorite(false);
-      toast.error('Error al agregar a favoritos');
+      toast.error("Error al agregar a favoritos");
     },
   });
 
-  const [removeFavorite, { loading: removingFavorite }] = useMutation(REMOVE_FAVORITE, {
-    onError: () => {
-      setIsFavorite(true);
-      toast.error('Error al quitar de favoritos');
+  const [removeFavorite, { loading: removingFavorite }] = useMutation(
+    REMOVE_FAVORITE,
+    {
+      onError: () => {
+        setIsFavorite(true);
+        toast.error("Error al quitar de favoritos");
+      },
     },
-  });
+  );
 
   const isTogglingFavorite = addingFavorite || removingFavorite;
 
   const handleFavoriteClick = async () => {
     if (!isAuthenticated) {
-      router.push('/auth/login');
+      router.push("/auth/login");
       return;
     }
 
     if (isFavorite) {
       const confirmed = await confirm({
-        title: '¿Quitar de favoritos?',
+        title: "¿Quitar de favoritos?",
         description: `¿Estás seguro que querés quitar "${raffle.titulo}" de tu lista de favoritos?`,
-        confirmText: 'Quitar',
-        cancelText: 'Cancelar',
-        variant: 'destructive',
+        confirmText: "Quitar",
+        cancelText: "Cancelar",
+        variant: "destructive",
       });
 
       if (confirmed) {
         setIsFavorite(false);
         removeFavorite({ variables: { raffleId: id } });
       }
-
     } else {
       setIsFavorite(true);
       addFavorite({ variables: { raffleId: id } });
@@ -589,35 +675,25 @@ export function RaffleContent({ id }: RaffleContentProps) {
     const viewedKey = `raffle-viewed-${id}`;
     if (!sessionStorage.getItem(viewedKey)) {
       incrementViews({ variables: { raffleId: id } });
-      sessionStorage.setItem(viewedKey, 'true');
+      sessionStorage.setItem(viewedKey, "true");
     }
   }, [id, incrementViews]);
 
   useEffect(() => {
-    const promoFromUrl = searchParams.get('promo');
+    const promoFromUrl = searchParams.get("promo");
     if (promoFromUrl) {
       persistSocialPromotionToken(promoFromUrl, id);
     }
   }, [id, searchParams]);
 
   const promotionToken = useMemo(() => {
-    const promoFromUrl = searchParams.get('promo');
+    const promoFromUrl = searchParams.get("promo");
     if (promoFromUrl) {
       return promoFromUrl;
     }
 
     return getStoredSocialPromotionToken(id);
   }, [id, searchParams]);
-
-  const checkoutRedirectUrl =
-    buyData?.buyTickets?.initPoint ??
-    buySelectedData?.buySelectedTickets?.initPoint;
-
-  useEffect(() => {
-    if (checkoutRedirectUrl) {
-      window.location.href = checkoutRedirectUrl;
-    }
-  }, [checkoutRedirectUrl]);
 
   if (loading) {
     return <RaffleDetailSkeleton />;
@@ -638,28 +714,33 @@ export function RaffleContent({ id }: RaffleContentProps) {
   }
 
   const raffle = data.raffle;
-  const socialPromotionPosts = socialPromotionData?.mySocialPromotionPosts || [];
-  const canPromoteThisRaffle = isSellerOwner && raffle.estado === 'ACTIVA';
-  const canBuyThisRaffle = raffle.estado === 'ACTIVA' && !isSellerOwner;
-  const shouldShowCountdown = raffle.estado === 'ACTIVA';
+  const socialPromotionPosts =
+    socialPromotionData?.mySocialPromotionPosts || [];
+  const canPromoteThisRaffle = isSellerOwner && raffle.estado === "ACTIVA";
+  const canBuyThisRaffle = raffle.estado === "ACTIVA" && !isSellerOwner;
+  const shouldShowCountdown = raffle.estado === "ACTIVA";
   const shouldShowWinningNumber =
     raffle.winningTicketNumber !== null &&
     raffle.winningTicketNumber !== undefined &&
-    ['SORTEADA', 'EN_ENTREGA', 'FINALIZADA'].includes(raffle.estado);
+    ["SORTEADA", "EN_ENTREGA", "FINALIZADA"].includes(raffle.estado);
   const shouldShowOwnRafflePurchaseNotice =
-    raffle.estado === 'ACTIVA' && isSellerOwner;
+    raffle.estado === "ACTIVA" && isSellerOwner;
   const images = raffle.product?.imagenes || [];
-  const soldTickets = raffle.tickets?.filter((t) => t.estado !== 'REEMBOLSADO').length || 0;
+  const soldTickets =
+    raffle.tickets?.filter((t) => t.estado !== "REEMBOLSADO").length || 0;
   const progress = (soldTickets / raffle.totalTickets) * 100;
   const ticketAvailability = ticketAvailabilityData?.ticketNumberAvailability;
+  const ticketAvailabilityItems = ticketAvailability?.items ?? [];
   const searchedTicket = ticketSearchData?.ticketNumberAvailability.items[0];
+  const searchNumberOutOfRange = Boolean(searchNumberOutOfRangeForQuery);
+  const availableNumbersOnPage =
+    ticketAvailabilityItems.filter((item) => item.isAvailable).length;
+  const shouldShowAvailabilityLoading =
+    ticketAvailabilityLoading && ticketAvailabilityItems.length === 0;
   const selectedNumbersSorted = [...selectedNumbers].sort((a, b) => a - b);
   const selectedModePremiumPercent = ticketAvailability?.premiumPercent ?? 5;
   const premiumPerSelectedTicket = Number(
-    (
-      raffle.precioPorTicket *
-      (selectedModePremiumPercent / 100)
-    ).toFixed(2),
+    (raffle.precioPorTicket * (selectedModePremiumPercent / 100)).toFixed(2),
   );
   const selectedModeGrossSubtotal = Number(
     (selectedNumbers.length * raffle.precioPorTicket).toFixed(2),
@@ -668,7 +749,7 @@ export function RaffleContent({ id }: RaffleContentProps) {
     (premiumPerSelectedTicket * selectedNumbers.length).toFixed(2),
   );
   const selectedModeChargedBase =
-    bonusPreview?.mpChargeAmount ?? selectedModeGrossSubtotal;
+    bonusPreview?.chargedAmount ?? selectedModeGrossSubtotal;
   const selectedModeTotalToCharge = Number(
     (selectedModeChargedBase + selectedModePremiumAmount).toFixed(2),
   );
@@ -699,24 +780,45 @@ export function RaffleContent({ id }: RaffleContentProps) {
   );
   const randomChargedSubtotal = randomPackEvaluation.packApplied
     ? Number((randomGrossSubtotal - randomPackDiscount).toFixed(2))
-    : (bonusPreview?.mpChargeAmount ?? randomGrossSubtotal);
+    : (bonusPreview?.chargedAmount ?? randomGrossSubtotal);
   const totalToCharge =
-    purchaseMode === 'CHOOSE_NUMBERS'
+    purchaseMode === "CHOOSE_NUMBERS"
       ? selectedModeTotalToCharge
       : randomChargedSubtotal;
+  const availableCredit = walletData?.myWallet.creditBalance ?? 0;
+  const hasEnoughCredit = availableCredit >= totalToCharge;
+  const projectedCreditBalance = Number(
+    Math.max(0, availableCredit - totalToCharge).toFixed(2),
+  );
   const shouldHidePromotionBonusForRandom =
-    purchaseMode === 'RANDOM' && randomPackEvaluation.packApplied;
+    purchaseMode === "RANDOM" && randomPackEvaluation.packApplied;
   const randomPackNotice =
-    randomPackEvaluation.packIneligibilityReason === 'INSUFFICIENT_STOCK'
-      ? 'Quedan pocos tickets, el pack ya no aplica.'
-      : randomPackEvaluation.packIneligibilityReason === 'BUYER_LIMIT'
-        ? 'El pack no aplica porque superarías el máximo permitido para esta rifa.'
+    randomPackEvaluation.packIneligibilityReason === "INSUFFICIENT_STOCK"
+      ? "Quedan pocos tickets, el pack ya no aplica."
+      : randomPackEvaluation.packIneligibilityReason === "BUYER_LIMIT"
+        ? "El pack no aplica porque superarías el máximo permitido para esta rifa."
         : null;
+  const randomPurchaseButtonLabel = !isAuthenticated
+    ? "Iniciar sesión para comprar"
+    : !hasEnoughCredit
+      ? "Cargar Saldo LUK"
+      : randomPackEvaluation.packApplied
+        ? `Comprar ${randomPackEvaluation.baseQuantity} y recibir ${randomPackEvaluation.grantedQuantity}`
+        : `Comprar ${quantity} Ticket${quantity > 1 ? "s" : ""}`;
+  const selectedPurchaseButtonLabel = !isAuthenticated
+    ? "Iniciar sesión para comprar"
+    : !hasEnoughCredit
+      ? "Cargar Saldo LUK"
+      : "Comprar números elegidos";
   const buying = buyingRandom || buyingSelected;
 
   const handleBuy = () => {
     if (!isAuthenticated) {
-      router.push('/auth/login');
+      router.push("/auth/login");
+      return;
+    }
+    if (!hasEnoughCredit) {
+      router.push("/dashboard/wallet");
       return;
     }
     buyTickets({
@@ -732,13 +834,27 @@ export function RaffleContent({ id }: RaffleContentProps) {
   };
 
   const handlePurchaseModeChange = (value: string) => {
-    const nextPurchaseMode = value as 'RANDOM' | 'CHOOSE_NUMBERS';
+    const nextPurchaseMode = value as "RANDOM" | "CHOOSE_NUMBERS";
     if (nextPurchaseMode === purchaseMode) {
       return;
     }
 
     setPurchaseMode(nextPurchaseMode);
     resetSelectedNumberPurchaseState();
+  };
+
+  const adjustSearchNumber = (delta: number) => {
+    if (!data?.raffle) {
+      return;
+    }
+
+    const currentNumber = Number.parseInt(searchNumberInput, 10);
+    const safeNumber = Number.isFinite(currentNumber) ? currentNumber : 1;
+    const nextNumber = Math.min(
+      data.raffle.totalTickets,
+      Math.max(1, safeNumber + delta),
+    );
+    setSearchNumberInput(String(nextNumber));
   };
 
   const toggleSelectedNumber = (number: number, isAvailable: boolean) => {
@@ -771,11 +887,15 @@ export function RaffleContent({ id }: RaffleContentProps) {
 
   const handleBuySelectedNumbers = () => {
     if (!isAuthenticated) {
-      router.push('/auth/login');
+      router.push("/auth/login");
       return;
     }
 
     if (selectedNumbersSorted.length === 0) {
+      return;
+    }
+    if (!hasEnoughCredit) {
+      router.push("/dashboard/wallet");
       return;
     }
 
@@ -813,77 +933,147 @@ export function RaffleContent({ id }: RaffleContentProps) {
           </div>
           <div className="rounded-[1.8rem] border border-border/80 bg-card/92 p-5 shadow-lift">
             <p className="editorial-kicker text-primary">Ticket</p>
-            <p className="mt-3 font-display text-4xl leading-none text-primary sm:text-5xl">${raffle.precioPorTicket}</p>
+            <p className="mt-3 font-display text-4xl leading-none text-primary sm:text-5xl">
+              ${raffle.precioPorTicket}
+            </p>
             <p className="mt-2 text-sm text-muted-foreground">por ticket</p>
           </div>
         </div>
       </div>
 
-      <div className="grid gap-8 lg:grid-cols-[minmax(0,1.05fr)_420px]">
-        {/* Image Gallery */}
-        <div className="space-y-4">
-          <div className="relative aspect-square overflow-hidden rounded-[2rem] border border-border/80 bg-muted shadow-panel">
-            {images.length > 0 ? (
-              <Image
-                src={getOptimizedImageUrl(images[currentImageIndex], CLOUDINARY_PRESETS.detail)}
-                alt={raffle.titulo}
-                fill
-                sizes="(max-width: 768px) 100vw, 50vw"
-                className="object-cover"
-                priority
-              />
-            ) : (
-              <div className="flex items-center justify-center h-full">
-                <Ticket className="h-24 w-24 text-muted-foreground" />
-              </div>
-            )}
+      <div className="grid gap-8 lg:grid-cols-[minmax(0,1.05fr)_420px] lg:items-start">
+        <div className="contents lg:block lg:space-y-8">
+          {/* Image Gallery */}
+          <div className="order-1 space-y-4 lg:order-none">
+            <div className="relative aspect-square overflow-hidden rounded-[2rem] border border-border/80 bg-muted shadow-panel lg:aspect-[4/3]">
+              {images.length > 0 ? (
+                <Image
+                  src={getOptimizedImageUrl(
+                    images[currentImageIndex],
+                    CLOUDINARY_PRESETS.detail,
+                  )}
+                  alt={raffle.titulo}
+                  fill
+                  sizes="(max-width: 768px) 100vw, 50vw"
+                  className="object-cover"
+                  priority
+                />
+              ) : (
+                <div className="flex items-center justify-center h-full">
+                  <Ticket className="h-24 w-24 text-muted-foreground" />
+                </div>
+              )}
 
-            <div className="absolute inset-0 bg-gradient-to-t from-[oklch(0.14_0.02_260_/_0.38)] via-transparent to-transparent" />
+              <div className="absolute inset-0 bg-gradient-to-t from-[oklch(0.14_0.02_260_/_0.38)] via-transparent to-transparent" />
+
+              {images.length > 1 && (
+                <>
+                  <button
+                    onClick={() =>
+                      setCurrentImageIndex((i) =>
+                        i > 0 ? i - 1 : images.length - 1,
+                      )
+                    }
+                    className="absolute left-4 top-1/2 z-10 rounded-full border border-white/20 bg-card/90 p-2.5 text-foreground backdrop-blur-sm transition-colors hover:bg-card"
+                  >
+                    <ChevronLeft className="h-5 w-5" />
+                  </button>
+                  <button
+                    onClick={() =>
+                      setCurrentImageIndex((i) =>
+                        i < images.length - 1 ? i + 1 : 0,
+                      )
+                    }
+                    className="absolute right-4 top-1/2 z-10 rounded-full border border-white/20 bg-card/90 p-2.5 text-foreground backdrop-blur-sm transition-colors hover:bg-card"
+                  >
+                    <ChevronRight className="h-5 w-5" />
+                  </button>
+                </>
+              )}
+            </div>
 
             {images.length > 1 && (
-              <>
-                <button
-                  onClick={() => setCurrentImageIndex((i) => (i > 0 ? i - 1 : images.length - 1))}
-                  className="absolute left-4 top-1/2 z-10 rounded-full border border-white/20 bg-card/90 p-2.5 text-foreground backdrop-blur-sm transition-colors hover:bg-card"
-                >
-                  <ChevronLeft className="h-5 w-5" />
-                </button>
-                <button
-                  onClick={() => setCurrentImageIndex((i) => (i < images.length - 1 ? i + 1 : 0))}
-                  className="absolute right-4 top-1/2 z-10 rounded-full border border-white/20 bg-card/90 p-2.5 text-foreground backdrop-blur-sm transition-colors hover:bg-card"
-                >
-                  <ChevronRight className="h-5 w-5" />
-                </button>
-              </>
+              <div className="flex gap-3 overflow-x-auto pb-1">
+                {images.map((img: string, i: number) => (
+                  <button
+                    key={i}
+                    onClick={() => setCurrentImageIndex(i)}
+                    className={`relative h-24 w-24 flex-shrink-0 overflow-hidden rounded-[1.2rem] border-2 shadow-lift ${
+                      i === currentImageIndex
+                        ? "border-primary"
+                        : "border-border/80"
+                    }`}
+                  >
+                    <Image
+                      src={getOptimizedImageUrl(
+                        img,
+                        CLOUDINARY_PRESETS.gallery,
+                      )}
+                      alt={`Imagen ${i + 1}`}
+                      fill
+                      sizes="80px"
+                      className="object-cover"
+                    />
+                  </button>
+                ))}
+              </div>
             )}
           </div>
 
-          {images.length > 1 && (
-            <div className="flex gap-3 overflow-x-auto pb-1">
-              {images.map((img: string, i: number) => (
-                <button
-                  key={i}
-                  onClick={() => setCurrentImageIndex(i)}
-                  className={`relative h-24 w-24 flex-shrink-0 overflow-hidden rounded-[1.2rem] border-2 shadow-lift ${
-                    i === currentImageIndex ? 'border-primary' : 'border-border/80'
-                  }`}
-                >
-                  <Image
-                    src={getOptimizedImageUrl(img, CLOUDINARY_PRESETS.gallery)}
-                    alt={`Imagen ${i + 1}`}
-                    fill
-                    sizes="80px"
-                    className="object-cover"
-                  />
-                </button>
-              ))}
-            </div>
-          )}
+          {/* Description */}
+          <div className="order-3 grid gap-8 md:grid-cols-2 lg:order-none">
+            <Card>
+              <CardHeader>
+                <CardTitle>Descripcion</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="whitespace-pre-wrap">{raffle.descripcion}</p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Detalles del Producto</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <span className="text-sm text-muted-foreground">
+                    Producto
+                  </span>
+                  <p className="font-medium">{raffle.product?.nombre}</p>
+                </div>
+                <div>
+                  <span className="text-sm text-muted-foreground">
+                    Condicion
+                  </span>
+                  <p className="font-medium">
+                    {formatProductCondition(raffle.product?.condicion)}
+                  </p>
+                </div>
+                <div>
+                  <span className="text-sm text-muted-foreground">
+                    Descripcion Detallada
+                  </span>
+                  <p className="text-sm whitespace-pre-wrap">
+                    {raffle.product?.descripcionDetallada}
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Q&A Section */}
+          <div className="order-4 lg:order-none">
+            <RaffleQA
+              raffleId={raffle.id}
+              sellerId={raffle.seller?.id || ""}
+              isRaffleActive={raffle.estado === "ACTIVA"}
+            />
+          </div>
         </div>
 
         {/* Info */}
-        <div className="space-y-5 lg:sticky lg:top-28 lg:self-start">
-
+        <div className="order-2 space-y-5 lg:sticky lg:top-28 lg:order-none lg:self-start">
           {/* Seller */}
           <div className="flex flex-col items-start gap-4 rounded-[1.7rem] border border-border/80 bg-card/92 p-5 shadow-panel sm:flex-row sm:items-center">
             <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/12">
@@ -891,8 +1081,13 @@ export function RaffleContent({ id }: RaffleContentProps) {
             </div>
             <div>
               <p className="editorial-kicker text-muted-foreground">Vendedor</p>
-              <Link href={`/seller/${raffle.seller?.id}`} className="hover:underline">
-                <p className="mt-2 font-display text-2xl leading-none text-primary">{raffle.seller?.nombre} {raffle.seller?.apellido}</p>
+              <Link
+                href={`/seller/${raffle.seller?.id}`}
+                className="hover:underline"
+              >
+                <p className="mt-2 font-display text-2xl leading-none text-primary">
+                  {raffle.seller?.nombre} {raffle.seller?.apellido}
+                </p>
               </Link>
             </div>
           </div>
@@ -901,7 +1096,9 @@ export function RaffleContent({ id }: RaffleContentProps) {
           <div className="space-y-3 rounded-[1.7rem] border border-border/80 bg-card/92 p-5 shadow-panel">
             <div className="flex justify-between text-sm">
               <span className="font-semibold">{soldTickets} vendidos</span>
-              <span className="text-muted-foreground">{raffle.totalTickets} total</span>
+              <span className="text-muted-foreground">
+                {raffle.totalTickets} total
+              </span>
             </div>
             <div className="progress-bar h-3">
               <div
@@ -909,7 +1106,9 @@ export function RaffleContent({ id }: RaffleContentProps) {
                 style={{ width: `${progress}%` }}
               />
             </div>
-            <p className="text-sm text-muted-foreground">{progress.toFixed(0)}% completado</p>
+            <p className="text-sm text-muted-foreground">
+              {progress.toFixed(0)}% completado
+            </p>
           </div>
 
           {shouldShowCountdown ? (
@@ -933,7 +1132,9 @@ export function RaffleContent({ id }: RaffleContentProps) {
               <p className="font-medium">{getNonActiveRaffleMessage(raffle)}</p>
               {shouldShowWinningNumber && (
                 <div className="rounded-[1.35rem] border border-border/80 bg-background/72 p-4">
-                  <p className="text-sm text-muted-foreground">Número ganador</p>
+                  <p className="text-sm text-muted-foreground">
+                    Número ganador
+                  </p>
                   <p className="font-display text-5xl leading-none text-primary">
                     #{raffle.winningTicketNumber}
                   </p>
@@ -943,41 +1144,60 @@ export function RaffleContent({ id }: RaffleContentProps) {
           )}
 
           {/* Price History Badge */}
-          {priceHistoryData?.priceHistory && priceHistoryData.priceHistory.length > 0 && (
-            <div className="rounded-[1.7rem] border border-success/24 bg-success/10 p-4 shadow-panel">
-              <div className="mb-2 flex items-center gap-2">
-                <TrendingDown className="h-4 w-4 text-success" />
-                <span className="font-medium text-success">Historial de precios</span>
-              </div>
-              <div className="space-y-1 text-sm">
-                <p className="text-muted-foreground">
-                  Precio original: <span className="line-through">${priceHistoryData.priceHistory[0].previousPrice}</span>
-                </p>
-                <p className="font-medium text-success">
-                  Precio actual: ${raffle.precioPorTicket}
-                  {' '}
-                  <span className="text-xs">
-                    (-{Math.round(((priceHistoryData.priceHistory[0].previousPrice - raffle.precioPorTicket) / priceHistoryData.priceHistory[0].previousPrice) * 100)}%)
+          {priceHistoryData?.priceHistory &&
+            priceHistoryData.priceHistory.length > 0 && (
+              <div className="rounded-[1.7rem] border border-success/24 bg-success/10 p-4 shadow-panel">
+                <div className="mb-2 flex items-center gap-2">
+                  <TrendingDown className="h-4 w-4 text-success" />
+                  <span className="font-medium text-success">
+                    Historial de precios
                   </span>
-                </p>
-                {priceHistoryData.priceHistory.length > 1 && (
-                  <details className="mt-2">
-                    <summary className="cursor-pointer text-muted-foreground hover:text-foreground flex items-center gap-1">
-                      <History className="h-3 w-3" />
-                      Ver {priceHistoryData.priceHistory.length} cambios de precio
-                    </summary>
-                    <ul className="mt-2 space-y-1 border-l-2 border-muted pl-4">
-                      {priceHistoryData.priceHistory.map((entry) => (
-                        <li key={entry.id} className="text-xs text-muted-foreground">
-                          {new Date(entry.changedAt).toLocaleDateString('es-AR')}: ${entry.previousPrice} → ${entry.newPrice}
-                        </li>
-                      ))}
-                    </ul>
-                  </details>
-                )}
+                </div>
+                <div className="space-y-1 text-sm">
+                  <p className="text-muted-foreground">
+                    Precio original:{" "}
+                    <span className="line-through">
+                      ${priceHistoryData.priceHistory[0].previousPrice}
+                    </span>
+                  </p>
+                  <p className="font-medium text-success">
+                    Precio actual: ${raffle.precioPorTicket}{" "}
+                    <span className="text-xs">
+                      (-
+                      {Math.round(
+                        ((priceHistoryData.priceHistory[0].previousPrice -
+                          raffle.precioPorTicket) /
+                          priceHistoryData.priceHistory[0].previousPrice) *
+                          100,
+                      )}
+                      %)
+                    </span>
+                  </p>
+                  {priceHistoryData.priceHistory.length > 1 && (
+                    <details className="mt-2">
+                      <summary className="cursor-pointer text-muted-foreground hover:text-foreground flex items-center gap-1">
+                        <History className="h-3 w-3" />
+                        Ver {priceHistoryData.priceHistory.length} cambios de
+                        precio
+                      </summary>
+                      <ul className="mt-2 space-y-1 border-l-2 border-muted pl-4">
+                        {priceHistoryData.priceHistory.map((entry) => (
+                          <li
+                            key={entry.id}
+                            className="text-xs text-muted-foreground"
+                          >
+                            {new Date(entry.changedAt).toLocaleDateString(
+                              "es-AR",
+                            )}
+                            : ${entry.previousPrice} → ${entry.newPrice}
+                          </li>
+                        ))}
+                      </ul>
+                    </details>
+                  )}
+                </div>
               </div>
-            </div>
-          )}
+            )}
 
           {/* Buy Section */}
           {canBuyThisRaffle && (
@@ -985,10 +1205,44 @@ export function RaffleContent({ id }: RaffleContentProps) {
               <CardHeader>
                 <CardTitle className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <span>Comprar Tickets</span>
-                  <span className="text-2xl text-primary">${raffle.precioPorTicket}/ticket</span>
+                  <span className="text-2xl text-primary">
+                    ${raffle.precioPorTicket}/ticket
+                  </span>
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
+                <div className="rounded-[1.35rem] border border-primary/15 bg-primary/6 p-4 text-sm">
+                  <p className="font-medium">Comprás con Saldo LUK</p>
+                  <p className="mt-1 text-muted-foreground">
+                    Mercado Pago sólo se usa para cargar saldo. Los tickets se
+                    confirman dentro de LUK con tu saldo disponible.
+                  </p>
+                </div>
+
+                {isAuthenticated ? (
+                  <div className="rounded-[1.35rem] border border-border/80 bg-background/72 p-4 text-sm">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="font-medium">Saldo LUK disponible</span>
+                      <span className="font-display text-2xl leading-none text-primary">
+                        ${availableCredit.toFixed(2)}
+                      </span>
+                    </div>
+                    {!hasEnoughCredit ? (
+                      <p className="mt-2 text-muted-foreground">
+                        Para esta compra te faltan $
+                        {(totalToCharge - availableCredit).toFixed(2)}. Cargá
+                        saldo antes de comprar; no se reservan tickets sin saldo
+                        suficiente.
+                      </p>
+                    ) : (
+                      <p className="mt-2 text-muted-foreground">
+                        Después de comprar te quedarían $
+                        {projectedCreditBalance.toFixed(2)}.
+                      </p>
+                    )}
+                  </div>
+                ) : null}
+
                 <Tabs
                   value={purchaseMode}
                   onValueChange={handlePurchaseModeChange}
@@ -996,7 +1250,9 @@ export function RaffleContent({ id }: RaffleContentProps) {
                 >
                   <TabsList className="grid h-auto w-full grid-cols-2">
                     <TabsTrigger value="RANDOM">Aleatorio</TabsTrigger>
-                    <TabsTrigger value="CHOOSE_NUMBERS">Elegir números</TabsTrigger>
+                    <TabsTrigger value="CHOOSE_NUMBERS">
+                      Elegir números
+                    </TabsTrigger>
                   </TabsList>
 
                   <TabsContent value="RANDOM" className="space-y-4">
@@ -1014,8 +1270,8 @@ export function RaffleContent({ id }: RaffleContentProps) {
                           Si pagás 10 tickets, recibís 12 en total.
                         </p>
                         <p className="text-muted-foreground">
-                          Los tickets extra los subsidia LUK. El vendedor cobra por todos
-                          los tickets emitidos.
+                          Los tickets extra los subsidia LUK. El vendedor cobra
+                          por todos los tickets emitidos.
                         </p>
                       </div>
                     </div>
@@ -1031,14 +1287,21 @@ export function RaffleContent({ id }: RaffleContentProps) {
                           -
                         </Button>
                         <Input
-                          type="number"
-                          min={1}
+                          type="text"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
                           value={quantity}
                           onChange={(e) =>
                             setQuantity(
                               Math.min(
                                 raffle.totalTickets,
-                                Math.max(1, parseInt(e.target.value, 10) || 1),
+                                Math.max(
+                                  1,
+                                  parseInt(
+                                    e.target.value.replace(/\D/g, ""),
+                                    10,
+                                  ) || 1,
+                                ),
                               ),
                             )
                           }
@@ -1048,7 +1311,9 @@ export function RaffleContent({ id }: RaffleContentProps) {
                           variant="outline"
                           className="h-12 w-12 shrink-0 text-xl font-bold"
                           onClick={() =>
-                            setQuantity(Math.min(raffle.totalTickets, quantity + 1))
+                            setQuantity(
+                              Math.min(raffle.totalTickets, quantity + 1),
+                            )
                           }
                         >
                           +
@@ -1059,10 +1324,13 @@ export function RaffleContent({ id }: RaffleContentProps) {
                     {randomPackEvaluation.packApplied ? (
                       <div className="rounded-[1.35rem] border border-success/25 bg-success/10 p-4 text-sm">
                         <p className="font-medium text-success">
-                          Pack activo: pagás {randomPackEvaluation.baseQuantity} y recibís {randomPackEvaluation.grantedQuantity} tickets.
+                          Pack activo: pagás {randomPackEvaluation.baseQuantity}{" "}
+                          y recibís {randomPackEvaluation.grantedQuantity}{" "}
+                          tickets.
                         </p>
                         <p className="mt-1 text-muted-foreground">
-                          Esta compra no se acumula con bonificaciones promocionales.
+                          Esta compra no se acumula con bonificaciones
+                          promocionales.
                         </p>
                       </div>
                     ) : randomPackNotice ? (
@@ -1075,7 +1343,11 @@ export function RaffleContent({ id }: RaffleContentProps) {
                       <PromotionBonusSelector
                         raffleId={id}
                         quantity={quantity}
-                        sellerId={user?.id !== raffle.seller?.id ? raffle.seller?.id : undefined}
+                        sellerId={
+                          user?.id !== raffle.seller?.id
+                            ? raffle.seller?.id
+                            : undefined
+                        }
                         selectedBonusGrantId={selectedBonusGrantId}
                         onSelectedBonusGrantIdChange={setSelectedBonusGrantId}
                         onPreviewChange={setBonusPreview}
@@ -1111,11 +1383,24 @@ export function RaffleContent({ id }: RaffleContentProps) {
                       )}
                       <div className="flex justify-between text-lg font-bold">
                         <span>Total a pagar</span>
-                        <span className="text-primary">${totalToCharge.toFixed(2)}</span>
+                        <span className="text-primary">
+                          ${totalToCharge.toFixed(2)}
+                        </span>
                       </div>
+                      {isAuthenticated ? (
+                        <div className="mt-2 flex justify-between text-sm text-muted-foreground">
+                          <span>Saldo luego de comprar</span>
+                          <span>${projectedCreditBalance.toFixed(2)}</span>
+                        </div>
+                      ) : null}
                     </div>
 
-                    <Button className="w-full" size="lg" onClick={handleBuy} disabled={buying}>
+                    <Button
+                      className="w-full"
+                      size="lg"
+                      onClick={handleBuy}
+                      disabled={buying}
+                    >
                       {buying ? (
                         <>
                           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -1124,9 +1409,7 @@ export function RaffleContent({ id }: RaffleContentProps) {
                       ) : (
                         <>
                           <Ticket className="mr-2 h-4 w-4" />
-                          {randomPackEvaluation.packApplied
-                            ? `Comprar ${randomPackEvaluation.baseQuantity} y recibir ${randomPackEvaluation.grantedQuantity}`
-                            : `Comprar ${quantity} Ticket${quantity > 1 ? 's' : ''}`}
+                          {randomPurchaseButtonLabel}
                         </>
                       )}
                     </Button>
@@ -1134,30 +1417,92 @@ export function RaffleContent({ id }: RaffleContentProps) {
 
                   <TabsContent value="CHOOSE_NUMBERS" className="space-y-4">
                     <div className="space-y-1">
-                      <h3 className="font-semibold">Elegí tus números favoritos</h3>
+                      <h3 className="font-semibold">
+                        Elegí tus números favoritos
+                      </h3>
                       <p className="text-sm text-muted-foreground">
-                        Pagás un {selectedModePremiumPercent}% extra por ticket para reservar
-                        números específicos.
+                        Pagás un {selectedModePremiumPercent}% extra por ticket
+                        para reservar números específicos.
                       </p>
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="ticket-number-search">Buscar número exacto</Label>
-                      <Input
-                        id="ticket-number-search"
-                        type="number"
-                        min={1}
-                        max={raffle.totalTickets}
-                        value={searchNumberInput}
-                        onChange={(e) => setSearchNumberInput(e.target.value)}
-                        placeholder={`Entre 1 y ${raffle.totalTickets}`}
-                      />
+                      <Label htmlFor="ticket-number-search">
+                        Buscar número exacto
+                      </Label>
+                      <div className="relative">
+                        <Input
+                          id="ticket-number-search"
+                          type="text"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
+                          value={searchNumberInput}
+                          onChange={(e) =>
+                            setSearchNumberInput(
+                              e.target.value.replace(/\D/g, ""),
+                            )
+                          }
+                          placeholder={`Entre 1 y ${raffle.totalTickets}`}
+                          className="min-h-16 rounded-[1.6rem] border-primary/35 bg-background/80 pr-28 text-2xl tracking-[-0.03em] shadow-panel ring-1 ring-primary/15 placeholder:text-muted-foreground/70 focus-visible:ring-primary/30"
+                        />
+                        <div className="absolute right-2 top-1/2 flex -translate-y-1/2 items-center gap-1 rounded-full border border-primary/20 bg-card/90 p-1 shadow-panel backdrop-blur">
+                          <button
+                            type="button"
+                            aria-label="Disminuir número"
+                            className="flex h-10 w-10 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary disabled:opacity-40"
+                            onClick={() => adjustSearchNumber(-1)}
+                            disabled={
+                              parsedSearchNumber === undefined ||
+                              parsedSearchNumber <= 1
+                            }
+                          >
+                            <Minus className="h-4 w-4" />
+                          </button>
+                          <button
+                            type="button"
+                            aria-label="Aumentar número"
+                            className="flex h-10 w-10 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lift transition-transform hover:-translate-y-0.5 hover:bg-primary/92 disabled:opacity-40"
+                            onClick={() => adjustSearchNumber(1)}
+                            disabled={
+                              parsedSearchNumber !== undefined &&
+                              parsedSearchNumber >= raffle.totalTickets
+                            }
+                          >
+                            <Plus className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </div>
                       {parsedSearchNumber !== undefined && (
                         <div className="rounded-lg border border-dashed p-3 text-sm">
-                          {searchedTicket ? (
+                          {searchNumberOutOfRange ? (
+                            <p className="text-muted-foreground">
+                              Ese número está fuera del rango de esta rifa.
+                            </p>
+                          ) : ticketSearchLoading && !ticketSearchData ? (
+                            <div className="flex items-center gap-2 text-muted-foreground">
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                              <span>Buscando número...</span>
+                            </div>
+                          ) : ticketSearchError ? (
+                            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                              <p className="text-muted-foreground">
+                                No pudimos consultar ese número. Probá de nuevo.
+                              </p>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => void refetchTicketSearch()}
+                              >
+                                Reintentar
+                              </Button>
+                            </div>
+                          ) : searchedTicket ? (
                             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                               <div>
-                                <p className="font-medium">Resultado de búsqueda</p>
+                                <p className="font-medium">
+                                  Resultado de búsqueda
+                                </p>
                                 <p className="text-muted-foreground">
                                   Número #{searchedTicket.number}
                                 </p>
@@ -1165,9 +1510,11 @@ export function RaffleContent({ id }: RaffleContentProps) {
                               <Button
                                 type="button"
                                 variant={
-                                  selectedNumbers.includes(searchedTicket.number)
-                                    ? 'default'
-                                    : 'outline'
+                                  selectedNumbers.includes(
+                                    searchedTicket.number,
+                                  )
+                                    ? "default"
+                                    : "outline"
                                 }
                                 disabled={!searchedTicket.isAvailable}
                                 onClick={() =>
@@ -1178,63 +1525,133 @@ export function RaffleContent({ id }: RaffleContentProps) {
                                 }
                               >
                                 {searchedTicket.isAvailable
-                                  ? selectedNumbers.includes(searchedTicket.number)
-                                    ? 'Quitar'
-                                    : 'Agregar'
-                                  : 'Ocupado'}
+                                  ? selectedNumbers.includes(
+                                      searchedTicket.number,
+                                    )
+                                    ? "Quitar"
+                                    : "Agregar"
+                                  : "Ocupado"}
                               </Button>
                             </div>
                           ) : (
                             <p className="text-muted-foreground">
-                              Ese número no existe en esta rifa.
+                              No encontramos ese número. Si el mapa todavía está
+                              cargando, esperá unos segundos y probá otra vez.
                             </p>
                           )}
                         </div>
                       )}
                     </div>
 
-                    <div className="space-y-3 rounded-[1.35rem] border border-border/80 bg-background/60 p-4">
+                    <div className="space-y-4 rounded-[1.35rem] border border-border/80 bg-background/60 p-4">
                       <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
                         <div>
-                          <p className="font-medium">Disponibilidad por página</p>
+                          <p className="font-medium">
+                            Mapa de números disponibles
+                          </p>
                           <p className="text-sm text-muted-foreground">
-                            Mostrando 100 números por página. Máximo {maxSelectable} por compra.
+                            Mostrando 100 números por página. Máximo{" "}
+                            {maxSelectable} por compra.
                           </p>
                         </div>
                         {ticketAvailability && (
                           <p className="text-sm text-muted-foreground">
-                            {ticketAvailability.availableCount} disponibles de{' '}
-                            {ticketAvailability.totalTickets}
+                            {availableNumbersOnPage} disponibles en esta página
                           </p>
                         )}
                       </div>
 
-                      <div className="grid grid-cols-3 gap-2 sm:grid-cols-5 md:grid-cols-6">
-                        {ticketAvailability?.items.map((item) => {
-                          const isSelected = selectedNumbers.includes(item.number);
+                      <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
+                        <span className="inline-flex items-center gap-1.5">
+                          <span className="h-3 w-3 rounded-full border border-primary/40 bg-card" />
+                          Disponible
+                        </span>
+                        <span className="inline-flex items-center gap-1.5">
+                          <span className="h-3 w-3 rounded-full bg-primary" />
+                          Seleccionado
+                        </span>
+                        <span className="inline-flex items-center gap-1.5">
+                          <span className="h-3 w-3 rounded-full border border-border bg-muted/50 opacity-45" />
+                          Ocupado
+                        </span>
+                      </div>
 
-                          return (
+                      <div className="grid min-h-16 grid-cols-5 gap-2 rounded-[1.2rem] border border-border/70 bg-card/45 p-3 sm:grid-cols-8 md:grid-cols-10">
+                        {shouldShowAvailabilityLoading ? (
+                          <div className="col-span-full flex items-center justify-center gap-2 py-3 text-sm text-muted-foreground">
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            <span>Cargando mapa de números...</span>
+                          </div>
+                        ) : ticketAvailabilityError ? (
+                          <div className="col-span-full flex flex-col gap-3 py-3 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+                            <span>
+                              No pudimos cargar la disponibilidad de números.
+                            </span>
                             <Button
-                              key={item.number}
                               type="button"
-                              variant={isSelected ? 'default' : 'outline'}
-                              className="h-11"
-                              disabled={!item.isAvailable}
-                              onClick={() =>
-                                toggleSelectedNumber(item.number, item.isAvailable)
-                              }
+                              variant="outline"
+                              size="sm"
+                              onClick={() => void refetchTicketAvailability()}
                             >
-                              #{item.number}
+                              Reintentar
                             </Button>
-                          );
-                        })}
+                          </div>
+                        ) : ticketAvailabilityItems.length === 0 ? (
+                          <p className="col-span-full py-3 text-center text-sm text-muted-foreground">
+                            Todavía no hay números para mostrar.
+                          </p>
+                        ) : (
+                          ticketAvailabilityItems.map((item) => {
+                            const isSelected = selectedNumbers.includes(
+                              item.number,
+                            );
+
+                            return (
+                              <button
+                                key={item.number}
+                                type="button"
+                                aria-label={
+                                  isSelected
+                                    ? `Número ${item.number} seleccionado`
+                                    : item.isAvailable
+                                      ? `Número ${item.number} disponible`
+                                      : `Número ${item.number} ocupado`
+                                }
+                                aria-pressed={isSelected}
+                                title={
+                                  item.isAvailable
+                                    ? `Número ${item.number} disponible`
+                                    : `Número ${item.number} ocupado`
+                                }
+                                className={
+                                  isSelected
+                                    ? "min-h-10 rounded-xl border border-primary bg-primary px-1 text-sm font-bold text-primary-foreground shadow-lift"
+                                    : item.isAvailable
+                                      ? "min-h-10 rounded-xl border border-border/80 bg-background/80 px-1 text-sm font-semibold text-foreground transition-colors hover:border-primary/50 hover:bg-primary/10 hover:text-primary"
+                                      : "min-h-10 cursor-not-allowed rounded-xl border border-border/45 bg-muted/35 px-1 text-sm font-semibold text-muted-foreground/45 opacity-55"
+                                }
+                                disabled={!item.isAvailable}
+                                onClick={() =>
+                                  toggleSelectedNumber(
+                                    item.number,
+                                    item.isAvailable,
+                                  )
+                                }
+                              >
+                                {item.number}
+                              </button>
+                            );
+                          })
+                        )}
                       </div>
 
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                         <Button
                           type="button"
                           variant="outline"
-                          disabled={!ticketAvailability || availabilityPage <= 1}
+                          disabled={
+                            !ticketAvailability || availabilityPage <= 1
+                          }
                           onClick={() =>
                             setAvailabilityPage((currentPage) =>
                               Math.max(1, currentPage - 1),
@@ -1244,8 +1661,8 @@ export function RaffleContent({ id }: RaffleContentProps) {
                           Anterior
                         </Button>
                         <p className="text-center text-sm text-muted-foreground">
-                          Página {ticketAvailability?.page ?? availabilityPage} de{' '}
-                          {ticketAvailability?.totalPages ?? 1}
+                          Página {ticketAvailability?.page ?? availabilityPage}{" "}
+                          de {ticketAvailability?.totalPages ?? 1}
                         </p>
                         <Button
                           type="button"
@@ -1255,7 +1672,9 @@ export function RaffleContent({ id }: RaffleContentProps) {
                             availabilityPage >= ticketAvailability.totalPages
                           }
                           onClick={() =>
-                            setAvailabilityPage((currentPage) => currentPage + 1)
+                            setAvailabilityPage(
+                              (currentPage) => currentPage + 1,
+                            )
                           }
                         >
                           Siguiente
@@ -1268,11 +1687,13 @@ export function RaffleContent({ id }: RaffleContentProps) {
                         <div>
                           <p className="font-medium">
                             {selectedNumbers.length} número
-                            {selectedNumbers.length === 1 ? '' : 's'} seleccionado
-                            {selectedNumbers.length === 1 ? '' : 's'}
+                            {selectedNumbers.length === 1 ? "" : "s"}{" "}
+                            seleccionado
+                            {selectedNumbers.length === 1 ? "" : "s"}
                           </p>
                           <p className="text-sm text-muted-foreground">
-                            Elegí números concretos y reservalos al momento del checkout.
+                            Elegí números concretos y reservalos al momento del
+                            checkout.
                           </p>
                         </div>
                         <Button
@@ -1314,7 +1735,9 @@ export function RaffleContent({ id }: RaffleContentProps) {
                         raffleId={id}
                         quantity={selectedNumbers.length}
                         sellerId={
-                          user?.id !== raffle.seller?.id ? raffle.seller?.id : undefined
+                          user?.id !== raffle.seller?.id
+                            ? raffle.seller?.id
+                            : undefined
                         }
                         selectedBonusGrantId={selectedBonusGrantId}
                         onSelectedBonusGrantIdChange={setSelectedBonusGrantId}
@@ -1330,7 +1753,9 @@ export function RaffleContent({ id }: RaffleContentProps) {
                       {bonusPreview && (
                         <div className="mb-2 flex justify-between text-success">
                           <span>Bonificación aplicada</span>
-                          <span>-${bonusPreview.discountApplied.toFixed(2)}</span>
+                          <span>
+                            -${bonusPreview.discountApplied.toFixed(2)}
+                          </span>
                         </div>
                       )}
                       <div className="mb-2 flex justify-between">
@@ -1343,6 +1768,12 @@ export function RaffleContent({ id }: RaffleContentProps) {
                           ${selectedModeTotalToCharge.toFixed(2)}
                         </span>
                       </div>
+                      {isAuthenticated ? (
+                        <div className="mt-2 flex justify-between text-sm text-muted-foreground">
+                          <span>Saldo luego de comprar</span>
+                          <span>${projectedCreditBalance.toFixed(2)}</span>
+                        </div>
+                      ) : null}
                     </div>
 
                     <Button
@@ -1359,7 +1790,7 @@ export function RaffleContent({ id }: RaffleContentProps) {
                       ) : (
                         <>
                           <Ticket className="mr-2 h-4 w-4" />
-                          Comprar números elegidos
+                          {selectedPurchaseButtonLabel}
                         </>
                       )}
                     </Button>
@@ -1377,14 +1808,16 @@ export function RaffleContent({ id }: RaffleContentProps) {
           {shouldShowOwnRafflePurchaseNotice && (
             <Card>
               <CardHeader>
-                <CardTitle>No podés comprar tickets de tu propia rifa</CardTitle>
+                <CardTitle>
+                  No podés comprar tickets de tu propia rifa
+                </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="flex items-start gap-3 rounded-[1.35rem] border border-secondary/35 bg-secondary/14 p-4 text-sm text-foreground dark:border-secondary/28 dark:bg-secondary/12 dark:text-foreground">
                   <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" />
                   <p>
-                    La compra está bloqueada para evitar autocompras. Podés compartirla o
-                    promocionarla para atraer participantes.
+                    La compra está bloqueada para evitar autocompras. Podés
+                    compartirla o promocionarla para atraer participantes.
                   </p>
                 </div>
               </CardContent>
@@ -1394,7 +1827,9 @@ export function RaffleContent({ id }: RaffleContentProps) {
           {/* Actions: Favorite & Share */}
           <div
             className={`grid gap-3 ${
-              canPromoteThisRaffle ? 'sm:grid-cols-2 xl:grid-cols-3' : 'sm:grid-cols-2'
+              canPromoteThisRaffle
+                ? "sm:grid-cols-2 xl:grid-cols-3"
+                : "sm:grid-cols-2"
             }`}
           >
             <Button
@@ -1405,15 +1840,15 @@ export function RaffleContent({ id }: RaffleContentProps) {
             >
               <Heart
                 className={`mr-2 h-4 w-4 transition-all ${
-                  isFavorite ? 'fill-destructive text-destructive' : ''
-                } ${isTogglingFavorite ? 'opacity-50' : ''}`}
+                  isFavorite ? "fill-destructive text-destructive" : ""
+                } ${isTogglingFavorite ? "opacity-50" : ""}`}
               />
-              {isFavorite ? 'En Favoritos' : 'Agregar a Favoritos'}
+              {isFavorite ? "En Favoritos" : "Agregar a Favoritos"}
             </Button>
             <ShareButtons
-              url={typeof window !== 'undefined' ? window.location.href : ''}
+              url={typeof window !== "undefined" ? window.location.href : ""}
               title={raffle.titulo}
-              label={canPromoteThisRaffle ? 'Compartir rápido' : 'Compartir'}
+              label={canPromoteThisRaffle ? "Compartir rápido" : "Compartir"}
               className="w-full"
             />
             {canPromoteThisRaffle && (
@@ -1436,46 +1871,6 @@ export function RaffleContent({ id }: RaffleContentProps) {
         </div>
       </div>
 
-      {/* Description */}
-      <div className="mt-12 grid gap-8 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Descripcion</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="whitespace-pre-wrap">{raffle.descripcion}</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Detalles del Producto</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <span className="text-sm text-muted-foreground">Producto</span>
-              <p className="font-medium">{raffle.product?.nombre}</p>
-            </div>
-            <div>
-              <span className="text-sm text-muted-foreground">Condicion</span>
-              <p className="font-medium">{formatProductCondition(raffle.product?.condicion)}</p>
-            </div>
-            <div>
-              <span className="text-sm text-muted-foreground">Descripcion Detallada</span>
-              <p className="text-sm whitespace-pre-wrap">{raffle.product?.descripcionDetallada}</p>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Q&A Section */}
-      <div className="mt-8">
-        <RaffleQA
-          raffleId={raffle.id}
-          sellerId={raffle.seller?.id || ''}
-          isRaffleActive={raffle.estado === 'ACTIVA'}
-        />
-      </div>
     </div>
   );
 }

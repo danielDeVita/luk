@@ -118,7 +118,7 @@ describe('RafflesService', () => {
     email: 'seller@example.com',
     nombre: 'Test',
     apellido: 'Seller',
-    mpConnectStatus: 'CONNECTED',
+    sellerPaymentAccountStatus: 'CONNECTED',
     kycStatus: 'VERIFIED',
     defaultSenderAddressId: 'addr-1',
     shippingAddresses: [{ id: 'addr-1' }],
@@ -226,14 +226,14 @@ describe('RafflesService', () => {
 
     it('should throw BadRequestException if MP not connected', async () => {
       mockPrismaService.user.findUnique.mockResolvedValue(
-        createTestUser({ mpConnectStatus: 'NOT_CONNECTED' }),
+        createTestUser({ sellerPaymentAccountStatus: 'NOT_CONNECTED' }),
       );
 
       await expect(service.create('user-123', validInput)).rejects.toThrow(
         BadRequestException,
       );
       await expect(service.create('user-123', validInput)).rejects.toThrow(
-        'conectar tu cuenta de Mercado Pago',
+        'configurar tu cuenta de cobros',
       );
     });
 

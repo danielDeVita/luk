@@ -3,7 +3,8 @@ import {
   PrismaClient,
   UserRole,
   KycStatus,
-  MpConnectStatus,
+  SellerPaymentAccountStatus,
+  SellerPaymentAccountIdentifierType,
   RaffleStatus,
   DeliveryStatus,
   ProductCondition,
@@ -19,6 +20,10 @@ import {
   SellerLevel,
   TransactionType,
   TransactionStatus,
+  PaymentsProvider,
+  CreditTopUpStatus,
+  CreditTopUpEventType,
+  WalletLedgerEntryType,
   ActivityType,
 } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
@@ -39,9 +44,9 @@ const USERS = {
   rejectedKyc: 'rejected-kyc@test.com',
   sellerPro: 'seller-pro@test.com',
   sellerGrowth: 'seller-growth@test.com',
-  sellerNoMp: 'seller-no-mp@test.com',
+  sellerNoPayout: 'seller-no-payout@test.com',
   sellerNoAddress: 'seller-no-address@test.com',
-  sellerPendingMp: 'seller-pending-mp@test.com',
+  sellerPendingPayout: 'seller-pending-payout@test.com',
   buyerHeavy: 'buyer-heavy@test.com',
   buyerWinner: 'buyer-winner@test.com',
   buyerRefund: 'buyer-refund@test.com',
@@ -83,11 +88,21 @@ const IDS = {
   socialClickEvent: 'qa_social_attr_click',
   socialRegistrationEvent: 'qa_social_attr_registration',
   socialPurchaseEvent: 'qa_social_attr_purchase',
+  topUpApprovedBuyer: 'qa_topup_approved_buyer',
+  topUpPendingBuyer: 'qa_topup_pending_buyer',
+  topUpRejectedBuyer: 'qa_topup_rejected_buyer',
+  topUpRefundFullBuyer: 'qa_topup_refund_full_buyer',
+  topUpRefundPartialBuyer: 'qa_topup_refund_partial_buyer',
+  topUpExpiredBuyerNew: 'qa_topup_expired_buyer_new',
+  topUpPackBuyer: 'qa_topup_pack_buyer',
+  topUpPromoBuyer: 'qa_topup_promo_buyer',
+  topUpHeavyBuyer: 'qa_topup_heavy_buyer_low_balance',
   rafflePackFive: 'qa_raffle_pack_five_random',
   rafflePackTen: 'qa_raffle_pack_ten_random',
   rafflePackLowStock: 'qa_raffle_pack_low_stock',
   rafflePackBuyerLimit: 'qa_raffle_pack_buyer_limit',
   raffleChooseNumbers: 'qa_raffle_choose_numbers_premium',
+  raffleTicketNumberPagination: 'qa_raffle_ticket_numbers_pagination',
   rafflePriceDropActive: 'qa_raffle_active_price_drop',
   raffleAlmostSold: 'qa_raffle_active_almost_sold',
   raffleNewLaunch: 'qa_raffle_new_launch',
@@ -211,6 +226,14 @@ function transactionId(key: string): string {
   return `qa_tx_${key}`;
 }
 
+function walletLedgerEntryId(key: string): string {
+  return `qa_wallet_ledger_${key}`;
+}
+
+function creditTopUpEventId(topUpId: string, key: string): string {
+  return `qa_topup_event_${topUpId}_${key}`;
+}
+
 function notificationId(key: string): string {
   return `qa_notification_${key}`;
 }
@@ -227,6 +250,10 @@ function reportId(raffleId: string, reporterId: string): string {
   return `qa_report_${raffleId}_${reporterId}`;
 }
 
+function searchPaginationRaffleId(index: number): string {
+  return `qa_raffle_pagination_${String(index).padStart(2, '0')}`;
+}
+
 async function upsertUser(params: {
   email: string;
   nombre: string;
@@ -238,11 +265,11 @@ async function upsertUser(params: {
   kycSubmittedAt?: Date | null;
   kycVerifiedAt?: Date | null;
   kycRejectedReason?: string | null;
-  mpConnectStatus?: MpConnectStatus;
-  mpUserId?: string | null;
-  mpAccessToken?: string | null;
+  sellerPaymentAccountStatus?: SellerPaymentAccountStatus;
+  sellerPaymentAccountId?: string | null;
   documentType?: DocumentType | null;
   documentNumber?: string | null;
+  cuitCuil?: string | null;
   googleId?: string | null;
   avatarUrl?: string | null;
   createdAt?: Date;
@@ -258,11 +285,11 @@ async function upsertUser(params: {
     kycSubmittedAt = null,
     kycVerifiedAt = null,
     kycRejectedReason = null,
-    mpConnectStatus = MpConnectStatus.NOT_CONNECTED,
-    mpUserId = null,
-    mpAccessToken = null,
+    sellerPaymentAccountStatus = SellerPaymentAccountStatus.NOT_CONNECTED,
+    sellerPaymentAccountId = null,
     documentType = null,
     documentNumber = null,
+    cuitCuil = null,
     googleId = null,
     avatarUrl = null,
     createdAt = new Date(),
@@ -286,11 +313,11 @@ async function upsertUser(params: {
       kycSubmittedAt,
       kycVerifiedAt: resolvedKycVerifiedAt,
       kycRejectedReason,
-      mpConnectStatus,
-      mpUserId,
-      mpAccessToken,
+      sellerPaymentAccountStatus,
+      sellerPaymentAccountId,
       documentType,
       documentNumber,
+      cuitCuil,
       googleId,
       avatarUrl,
       createdAt,
@@ -311,11 +338,11 @@ async function upsertUser(params: {
       kycSubmittedAt,
       kycVerifiedAt: resolvedKycVerifiedAt,
       kycRejectedReason,
-      mpConnectStatus,
-      mpUserId,
-      mpAccessToken,
+      sellerPaymentAccountStatus,
+      sellerPaymentAccountId,
       documentType,
       documentNumber,
+      cuitCuil,
       googleId,
       avatarUrl,
       createdAt,
@@ -599,7 +626,7 @@ async function upsertTicket(params: {
   buyerId: string;
   status: TicketStatus;
   price: number;
-  mpPaymentId?: string | null;
+  purchaseReference?: string | null;
   purchasedAt?: Date;
 }) {
   const {
@@ -608,7 +635,7 @@ async function upsertTicket(params: {
     buyerId,
     status,
     price,
-    mpPaymentId = null,
+    purchaseReference = null,
     purchasedAt = new Date(),
   } = params;
 
@@ -620,7 +647,7 @@ async function upsertTicket(params: {
       buyerId,
       estado: status,
       precioPagado: price,
-      mpPaymentId,
+      purchaseReference,
       fechaCompra: purchasedAt,
       isDeleted: false,
       deletedAt: null,
@@ -632,7 +659,7 @@ async function upsertTicket(params: {
       buyerId,
       estado: status,
       precioPagado: price,
-      mpPaymentId,
+      purchaseReference,
       fechaCompra: purchasedAt,
     },
   });
@@ -1030,7 +1057,7 @@ async function upsertTransaction(params: {
   id: string;
   tipo: TransactionType;
   userId: string;
-  raffleId: string;
+  raffleId?: string | null;
   monto: number;
   grossAmount?: number | null;
   promotionDiscountAmount?: number | null;
@@ -1038,8 +1065,9 @@ async function upsertTransaction(params: {
   comisionPlataforma?: number | null;
   feeProcesamiento?: number | null;
   montoNeto?: number | null;
-  mpPaymentId?: string | null;
-  mpMerchantOrderId?: string | null;
+  purchaseReference?: string | null;
+  providerPaymentId?: string | null;
+  providerOrderId?: string | null;
   estado?: TransactionStatus;
   metadata?: Prisma.InputJsonValue;
 }) {
@@ -1047,7 +1075,7 @@ async function upsertTransaction(params: {
     id,
     tipo,
     userId,
-    raffleId,
+    raffleId = null,
     monto,
     grossAmount = null,
     promotionDiscountAmount = null,
@@ -1055,8 +1083,9 @@ async function upsertTransaction(params: {
     comisionPlataforma = null,
     feeProcesamiento = null,
     montoNeto = null,
-    mpPaymentId = null,
-    mpMerchantOrderId = null,
+    purchaseReference = null,
+    providerPaymentId = null,
+    providerOrderId = null,
     estado = TransactionStatus.COMPLETADO,
     metadata = undefined,
   } = params;
@@ -1074,10 +1103,11 @@ async function upsertTransaction(params: {
       comisionPlataforma,
       feeProcesamiento,
       montoNeto,
-      mpPaymentId,
-      mpMerchantOrderId,
+      providerPaymentId,
+      providerOrderId,
       estado,
-      metadata,
+      metadata:
+        metadata ?? (purchaseReference ? { purchaseReference } : undefined),
       isDeleted: false,
       deletedAt: null,
     },
@@ -1093,12 +1123,261 @@ async function upsertTransaction(params: {
       comisionPlataforma,
       feeProcesamiento,
       montoNeto,
-      mpPaymentId,
-      mpMerchantOrderId,
+      providerPaymentId,
+      providerOrderId,
       estado,
+      metadata:
+        metadata ?? (purchaseReference ? { purchaseReference } : undefined),
+    },
+  });
+}
+
+async function upsertSellerPaymentAccount(params: {
+  id: string;
+  userId: string;
+  status: SellerPaymentAccountStatus;
+  accountHolderName?: string | null;
+  accountIdentifierType?: SellerPaymentAccountIdentifierType | null;
+  accountIdentifierEncrypted?: string | null;
+  providerMetadata?: Prisma.InputJsonValue;
+}) {
+  const {
+    id,
+    userId,
+    status,
+    accountHolderName = null,
+    accountIdentifierType = null,
+    accountIdentifierEncrypted = null,
+    providerMetadata = undefined,
+  } = params;
+
+  await prisma.sellerPaymentAccount.upsert({
+    where: { userId },
+    update: {
+      status,
+      accountHolderName,
+      accountIdentifierType,
+      accountIdentifierEncrypted,
+      providerMetadata,
+      lastSyncedAt: new Date(),
+    },
+    create: {
+      id,
+      userId,
+      status,
+      accountHolderName,
+      accountIdentifierType,
+      accountIdentifierEncrypted,
+      providerMetadata,
+      lastSyncedAt: new Date(),
+    },
+  });
+
+  await prisma.user.update({
+    where: { id: userId },
+    data: {
+      sellerPaymentAccountStatus: status,
+      sellerPaymentAccountId: id,
+    },
+  });
+}
+
+async function ensureWalletAccount(params: {
+  userId: string;
+  creditBalance?: number;
+  sellerPayableBalance?: number;
+}) {
+  const { userId, creditBalance, sellerPayableBalance } = params;
+
+  return prisma.walletAccount.upsert({
+    where: { userId },
+    update: {
+      ...(creditBalance === undefined ? {} : { creditBalance }),
+      ...(sellerPayableBalance === undefined ? {} : { sellerPayableBalance }),
+    },
+    create: {
+      userId,
+      creditBalance: creditBalance ?? 0,
+      sellerPayableBalance: sellerPayableBalance ?? 0,
+    },
+  });
+}
+
+async function upsertWalletLedgerEntry(params: {
+  id: string;
+  userId: string;
+  type: WalletLedgerEntryType;
+  amount: number;
+  creditBalanceAfter?: number | null;
+  sellerPayableBalanceAfter?: number | null;
+  raffleId?: string | null;
+  creditTopUpSessionId?: string | null;
+  payoutId?: string | null;
+  metadata?: Prisma.InputJsonValue;
+  createdAt?: Date;
+}) {
+  const {
+    id,
+    userId,
+    type,
+    amount,
+    creditBalanceAfter = null,
+    sellerPayableBalanceAfter = null,
+    raffleId = null,
+    creditTopUpSessionId = null,
+    payoutId = null,
+    metadata = undefined,
+    createdAt = new Date(),
+  } = params;
+  const wallet = await ensureWalletAccount({ userId });
+
+  await prisma.walletLedgerEntry.upsert({
+    where: { id },
+    update: {
+      walletAccountId: wallet.id,
+      userId,
+      type,
+      amount,
+      creditBalanceAfter,
+      sellerPayableBalanceAfter,
+      raffleId,
+      creditTopUpSessionId,
+      payoutId,
+      metadata,
+      createdAt,
+    },
+    create: {
+      id,
+      walletAccountId: wallet.id,
+      userId,
+      type,
+      amount,
+      creditBalanceAfter,
+      sellerPayableBalanceAfter,
+      raffleId,
+      creditTopUpSessionId,
+      payoutId,
+      metadata,
+      createdAt,
+    },
+  });
+}
+
+async function upsertCreditTopUpSession(params: {
+  id: string;
+  userId: string;
+  provider: PaymentsProvider;
+  amount: number;
+  status: CreditTopUpStatus;
+  creditedAmount?: number;
+  refundedAmount?: number;
+  feeAmount?: number;
+  statusDetail?: string | null;
+  providerPaymentId?: string | null;
+  providerOrderId?: string | null;
+  providerReference?: string;
+  redirectUrl?: string | null;
+  approvedAt?: Date | null;
+  processedAt?: Date | null;
+  expiresAt?: Date | null;
+  refundedAt?: Date | null;
+  metadata?: Prisma.InputJsonValue;
+  events?: Array<{
+    key: string;
+    eventType: CreditTopUpEventType;
+    status?: CreditTopUpStatus | null;
+    amount?: number | null;
+    metadata?: Prisma.InputJsonValue;
+    createdAt?: Date;
+  }>;
+}) {
+  const {
+    id,
+    userId,
+    provider,
+    amount,
+    status,
+    creditedAmount = 0,
+    refundedAmount = 0,
+    feeAmount = 0,
+    statusDetail = null,
+    providerPaymentId = null,
+    providerOrderId = null,
+    providerReference = `${id}_reference`,
+    redirectUrl = null,
+    approvedAt = null,
+    processedAt = null,
+    expiresAt = null,
+    refundedAt = null,
+    metadata = undefined,
+    events = [],
+  } = params;
+
+  await prisma.creditTopUpSession.upsert({
+    where: { id },
+    update: {
+      userId,
+      provider,
+      amount,
+      creditedAmount,
+      refundedAmount,
+      feeAmount,
+      status,
+      statusDetail,
+      providerPaymentId,
+      providerOrderId,
+      providerReference,
+      redirectUrl,
+      approvedAt,
+      processedAt,
+      expiresAt,
+      refundedAt,
+      metadata,
+    },
+    create: {
+      id,
+      userId,
+      provider,
+      amount,
+      creditedAmount,
+      refundedAmount,
+      feeAmount,
+      status,
+      statusDetail,
+      providerPaymentId,
+      providerOrderId,
+      providerReference,
+      redirectUrl,
+      approvedAt,
+      processedAt,
+      expiresAt,
+      refundedAt,
       metadata,
     },
   });
+
+  for (const event of events) {
+    await prisma.creditTopUpEvent.upsert({
+      where: { id: creditTopUpEventId(id, event.key) },
+      update: {
+        creditTopUpSessionId: id,
+        eventType: event.eventType,
+        status: event.status ?? status,
+        amount: event.amount ?? amount,
+        metadata: event.metadata,
+        createdAt: event.createdAt ?? new Date(),
+      },
+      create: {
+        id: creditTopUpEventId(id, event.key),
+        creditTopUpSessionId: id,
+        eventType: event.eventType,
+        status: event.status ?? status,
+        amount: event.amount ?? amount,
+        metadata: event.metadata,
+        createdAt: event.createdAt ?? new Date(),
+      },
+    });
+  }
 }
 
 async function upsertNotification(params: {
@@ -1516,6 +1795,654 @@ async function upsertSocialPromotionFixture(params: {
   });
 }
 
+async function seedWalletFixtures(params: {
+  sellerId: string;
+  otherSellerId: string;
+  sellerProId: string;
+  sellerGrowthId: string;
+  sellerNoPayoutId: string;
+  sellerPendingPayoutId: string;
+  buyerId: string;
+  buyerHeavyId: string;
+  buyerWinnerId: string;
+  buyerRefundId: string;
+  buyerDisputeId: string;
+  buyerNewId: string;
+  buyerPromoId: string;
+  buyerPackId: string;
+  googleOnlyId: string;
+}) {
+  await Promise.all([
+    upsertCreditTopUpSession({
+      id: IDS.topUpApprovedBuyer,
+      userId: params.buyerId,
+      provider: PaymentsProvider.MOCK,
+      amount: 120000,
+      creditedAmount: 120000,
+      status: CreditTopUpStatus.APPROVED,
+      statusDetail: 'Carga mock aprobada para QA',
+      providerOrderId: 'qa_mock_order_buyer_approved',
+      providerReference: 'qa_topup_ref_buyer_approved',
+      approvedAt: daysAgo(10),
+      processedAt: daysAgo(10),
+      metadata: { qaCase: 'approved_top_up_with_ticket_debits' },
+      events: [
+        {
+          key: 'approved',
+          eventType: CreditTopUpEventType.APPROVE,
+          status: CreditTopUpStatus.APPROVED,
+          amount: 120000,
+          createdAt: daysAgo(10),
+        },
+      ],
+    }),
+    upsertCreditTopUpSession({
+      id: IDS.topUpPendingBuyer,
+      userId: params.buyerId,
+      provider: PaymentsProvider.MOCK,
+      amount: 25000,
+      status: CreditTopUpStatus.PENDING,
+      statusDetail: 'Carga pendiente para QA',
+      providerOrderId: 'qa_mock_order_buyer_pending',
+      providerReference: 'qa_topup_ref_buyer_pending',
+      expiresAt: daysFromNow(1),
+      metadata: { qaCase: 'pending_top_up_without_credit' },
+      events: [
+        {
+          key: 'pending',
+          eventType: CreditTopUpEventType.PEND,
+          status: CreditTopUpStatus.PENDING,
+          amount: 25000,
+          createdAt: hoursAgo(10),
+        },
+      ],
+    }),
+    upsertCreditTopUpSession({
+      id: IDS.topUpRejectedBuyer,
+      userId: params.buyerId,
+      provider: PaymentsProvider.MOCK,
+      amount: 15000,
+      status: CreditTopUpStatus.REJECTED,
+      statusDetail: 'Carga rechazada para QA',
+      providerOrderId: 'qa_mock_order_buyer_rejected',
+      providerReference: 'qa_topup_ref_buyer_rejected',
+      processedAt: hoursAgo(7),
+      metadata: { qaCase: 'rejected_top_up_without_credit' },
+      events: [
+        {
+          key: 'rejected',
+          eventType: CreditTopUpEventType.REJECT,
+          status: CreditTopUpStatus.REJECTED,
+          amount: 15000,
+          createdAt: hoursAgo(7),
+        },
+      ],
+    }),
+    upsertCreditTopUpSession({
+      id: IDS.topUpRefundFullBuyer,
+      userId: params.buyerId,
+      provider: PaymentsProvider.MOCK,
+      amount: 10000,
+      creditedAmount: 10000,
+      refundedAmount: 10000,
+      status: CreditTopUpStatus.REFUNDED_FULL,
+      statusDetail: 'Carga reintegrada completamente',
+      providerOrderId: 'qa_mock_order_refund_full',
+      providerReference: 'qa_topup_ref_refund_full',
+      approvedAt: daysAgo(8),
+      processedAt: daysAgo(8),
+      refundedAt: daysAgo(6),
+      metadata: { qaCase: 'full_external_top_up_refund' },
+      events: [
+        {
+          key: 'approved',
+          eventType: CreditTopUpEventType.APPROVE,
+          status: CreditTopUpStatus.APPROVED,
+          amount: 10000,
+          createdAt: daysAgo(8),
+        },
+        {
+          key: 'refunded',
+          eventType: CreditTopUpEventType.REFUND_FULL,
+          status: CreditTopUpStatus.REFUNDED_FULL,
+          amount: 10000,
+          createdAt: daysAgo(6),
+        },
+      ],
+    }),
+    upsertCreditTopUpSession({
+      id: IDS.topUpRefundPartialBuyer,
+      userId: params.buyerId,
+      provider: PaymentsProvider.MOCK,
+      amount: 30000,
+      creditedAmount: 30000,
+      refundedAmount: 12000,
+      status: CreditTopUpStatus.REFUNDED_PARTIAL,
+      statusDetail: 'Carga reintegrada parcialmente',
+      providerOrderId: 'qa_mock_order_refund_partial',
+      providerReference: 'qa_topup_ref_refund_partial',
+      approvedAt: daysAgo(5),
+      processedAt: daysAgo(5),
+      refundedAt: daysAgo(4),
+      metadata: { qaCase: 'partial_external_top_up_refund' },
+      events: [
+        {
+          key: 'approved',
+          eventType: CreditTopUpEventType.APPROVE,
+          status: CreditTopUpStatus.APPROVED,
+          amount: 30000,
+          createdAt: daysAgo(5),
+        },
+        {
+          key: 'partial-refund',
+          eventType: CreditTopUpEventType.REFUND_PARTIAL,
+          status: CreditTopUpStatus.REFUNDED_PARTIAL,
+          amount: 12000,
+          createdAt: daysAgo(4),
+        },
+      ],
+    }),
+    upsertCreditTopUpSession({
+      id: IDS.topUpExpiredBuyerNew,
+      userId: params.buyerNewId,
+      provider: PaymentsProvider.MOCK,
+      amount: 20000,
+      status: CreditTopUpStatus.EXPIRED,
+      statusDetail: 'Carga expirada sin acreditar',
+      providerOrderId: 'qa_mock_order_buyer_new_expired',
+      providerReference: 'qa_topup_ref_buyer_new_expired',
+      expiresAt: daysAgo(1),
+      processedAt: daysAgo(1),
+      metadata: { qaCase: 'expired_top_up_zero_balance' },
+      events: [
+        {
+          key: 'expired',
+          eventType: CreditTopUpEventType.EXPIRE,
+          status: CreditTopUpStatus.EXPIRED,
+          amount: 20000,
+          createdAt: daysAgo(1),
+        },
+      ],
+    }),
+    upsertCreditTopUpSession({
+      id: IDS.topUpPackBuyer,
+      userId: params.buyerPackId,
+      provider: PaymentsProvider.MOCK,
+      amount: 80000,
+      creditedAmount: 80000,
+      status: CreditTopUpStatus.APPROVED,
+      statusDetail: 'Carga aprobada para probar packs',
+      providerOrderId: 'qa_mock_order_pack_buyer',
+      providerReference: 'qa_topup_ref_pack_buyer',
+      approvedAt: daysAgo(6),
+      processedAt: daysAgo(6),
+      metadata: { qaCase: 'pack_purchase_balance' },
+      events: [
+        {
+          key: 'approved',
+          eventType: CreditTopUpEventType.APPROVE,
+          status: CreditTopUpStatus.APPROVED,
+          amount: 80000,
+          createdAt: daysAgo(6),
+        },
+      ],
+    }),
+    upsertCreditTopUpSession({
+      id: IDS.topUpPromoBuyer,
+      userId: params.buyerPromoId,
+      provider: PaymentsProvider.MOCK,
+      amount: 70000,
+      creditedAmount: 70000,
+      status: CreditTopUpStatus.APPROVED,
+      statusDetail: 'Carga aprobada para probar promociones',
+      providerOrderId: 'qa_mock_order_promo_buyer',
+      providerReference: 'qa_topup_ref_promo_buyer',
+      approvedAt: daysAgo(7),
+      processedAt: daysAgo(7),
+      metadata: { qaCase: 'social_promotion_bonus_balance' },
+      events: [
+        {
+          key: 'approved',
+          eventType: CreditTopUpEventType.APPROVE,
+          status: CreditTopUpStatus.APPROVED,
+          amount: 70000,
+          createdAt: daysAgo(7),
+        },
+      ],
+    }),
+    upsertCreditTopUpSession({
+      id: IDS.topUpHeavyBuyer,
+      userId: params.buyerHeavyId,
+      provider: PaymentsProvider.MOCK,
+      amount: 12000,
+      creditedAmount: 12000,
+      status: CreditTopUpStatus.APPROVED,
+      statusDetail: 'Carga aprobada con saldo casi agotado',
+      providerOrderId: 'qa_mock_order_heavy_buyer',
+      providerReference: 'qa_topup_ref_heavy_buyer',
+      approvedAt: daysAgo(9),
+      processedAt: daysAgo(9),
+      metadata: { qaCase: 'low_balance_after_many_purchases' },
+      events: [
+        {
+          key: 'approved',
+          eventType: CreditTopUpEventType.APPROVE,
+          status: CreditTopUpStatus.APPROVED,
+          amount: 12000,
+          createdAt: daysAgo(9),
+        },
+      ],
+    }),
+  ]);
+
+  await Promise.all([
+    upsertTransaction({
+      id: transactionId('topup_buyer_approved'),
+      tipo: TransactionType.CARGA_SALDO,
+      userId: params.buyerId,
+      monto: 120000,
+      cashChargedAmount: 120000,
+      providerOrderId: 'qa_mock_order_buyer_approved',
+      estado: TransactionStatus.COMPLETADO,
+      metadata: {
+        topUpSessionId: IDS.topUpApprovedBuyer,
+        provider: PaymentsProvider.MOCK,
+      },
+    }),
+    upsertTransaction({
+      id: transactionId('topup_buyer_pending'),
+      tipo: TransactionType.CARGA_SALDO,
+      userId: params.buyerId,
+      monto: 25000,
+      cashChargedAmount: 25000,
+      providerOrderId: 'qa_mock_order_buyer_pending',
+      estado: TransactionStatus.PENDIENTE,
+      metadata: {
+        topUpSessionId: IDS.topUpPendingBuyer,
+        provider: PaymentsProvider.MOCK,
+      },
+    }),
+    upsertTransaction({
+      id: transactionId('topup_buyer_rejected'),
+      tipo: TransactionType.CARGA_SALDO,
+      userId: params.buyerId,
+      monto: 15000,
+      cashChargedAmount: 15000,
+      providerOrderId: 'qa_mock_order_buyer_rejected',
+      estado: TransactionStatus.FALLIDO,
+      metadata: {
+        topUpSessionId: IDS.topUpRejectedBuyer,
+        provider: PaymentsProvider.MOCK,
+      },
+    }),
+    upsertTransaction({
+      id: transactionId('topup_buyer_refund_full'),
+      tipo: TransactionType.REEMBOLSO_CARGA_SALDO,
+      userId: params.buyerId,
+      monto: 10000,
+      cashChargedAmount: 10000,
+      providerOrderId: 'qa_mock_order_refund_full',
+      estado: TransactionStatus.REEMBOLSADO,
+      metadata: {
+        topUpSessionId: IDS.topUpRefundFullBuyer,
+        refundType: 'full',
+      },
+    }),
+    upsertTransaction({
+      id: transactionId('topup_buyer_refund_partial'),
+      tipo: TransactionType.REEMBOLSO_CARGA_SALDO,
+      userId: params.buyerId,
+      monto: 12000,
+      cashChargedAmount: 12000,
+      providerOrderId: 'qa_mock_order_refund_partial',
+      estado: TransactionStatus.REEMBOLSADO,
+      metadata: {
+        topUpSessionId: IDS.topUpRefundPartialBuyer,
+        refundType: 'partial',
+      },
+    }),
+    upsertTransaction({
+      id: transactionId('topup_pack_buyer'),
+      tipo: TransactionType.CARGA_SALDO,
+      userId: params.buyerPackId,
+      monto: 80000,
+      cashChargedAmount: 80000,
+      providerOrderId: 'qa_mock_order_pack_buyer',
+      estado: TransactionStatus.COMPLETADO,
+      metadata: {
+        topUpSessionId: IDS.topUpPackBuyer,
+        provider: PaymentsProvider.MOCK,
+      },
+    }),
+    upsertTransaction({
+      id: transactionId('topup_promo_buyer'),
+      tipo: TransactionType.CARGA_SALDO,
+      userId: params.buyerPromoId,
+      monto: 70000,
+      cashChargedAmount: 70000,
+      providerOrderId: 'qa_mock_order_promo_buyer',
+      estado: TransactionStatus.COMPLETADO,
+      metadata: {
+        topUpSessionId: IDS.topUpPromoBuyer,
+        provider: PaymentsProvider.MOCK,
+      },
+    }),
+  ]);
+
+  await Promise.all([
+    ensureWalletAccount({ userId: params.sellerId }),
+    ensureWalletAccount({ userId: params.otherSellerId }),
+    ensureWalletAccount({ userId: params.sellerProId }),
+    ensureWalletAccount({ userId: params.sellerGrowthId }),
+    ensureWalletAccount({ userId: params.sellerNoPayoutId }),
+    ensureWalletAccount({ userId: params.sellerPendingPayoutId }),
+    ensureWalletAccount({ userId: params.buyerId }),
+    ensureWalletAccount({ userId: params.buyerHeavyId }),
+    ensureWalletAccount({ userId: params.buyerWinnerId }),
+    ensureWalletAccount({ userId: params.buyerRefundId }),
+    ensureWalletAccount({ userId: params.buyerDisputeId }),
+    ensureWalletAccount({ userId: params.buyerNewId }),
+    ensureWalletAccount({ userId: params.buyerPromoId }),
+    ensureWalletAccount({ userId: params.buyerPackId }),
+    ensureWalletAccount({ userId: params.googleOnlyId }),
+  ]);
+
+  await Promise.all([
+    upsertWalletLedgerEntry({
+      id: walletLedgerEntryId('buyer_topup_approved'),
+      userId: params.buyerId,
+      type: WalletLedgerEntryType.CREDIT_TOP_UP,
+      amount: 120000,
+      creditBalanceAfter: 120000,
+      creditTopUpSessionId: IDS.topUpApprovedBuyer,
+      metadata: { provider: 'mock', qaCase: 'approved_credit' },
+      createdAt: daysAgo(10),
+    }),
+    upsertWalletLedgerEntry({
+      id: walletLedgerEntryId('buyer_topup_refund_full_credit'),
+      userId: params.buyerId,
+      type: WalletLedgerEntryType.CREDIT_TOP_UP,
+      amount: 10000,
+      creditBalanceAfter: 130000,
+      creditTopUpSessionId: IDS.topUpRefundFullBuyer,
+      metadata: { provider: 'mock', qaCase: 'full_refund_credit_before_debit' },
+      createdAt: daysAgo(8),
+    }),
+    upsertWalletLedgerEntry({
+      id: walletLedgerEntryId('buyer_topup_refund_full_debit'),
+      userId: params.buyerId,
+      type: WalletLedgerEntryType.CREDIT_TOP_UP_REFUND,
+      amount: -10000,
+      creditBalanceAfter: 120000,
+      creditTopUpSessionId: IDS.topUpRefundFullBuyer,
+      metadata: { provider: 'mock', qaCase: 'full_refund_debit' },
+      createdAt: daysAgo(6),
+    }),
+    upsertWalletLedgerEntry({
+      id: walletLedgerEntryId('buyer_topup_refund_partial_credit'),
+      userId: params.buyerId,
+      type: WalletLedgerEntryType.CREDIT_TOP_UP,
+      amount: 30000,
+      creditBalanceAfter: 150000,
+      creditTopUpSessionId: IDS.topUpRefundPartialBuyer,
+      metadata: {
+        provider: 'mock',
+        qaCase: 'partial_refund_credit_before_debit',
+      },
+      createdAt: daysAgo(5),
+    }),
+    upsertWalletLedgerEntry({
+      id: walletLedgerEntryId('buyer_topup_refund_partial_debit'),
+      userId: params.buyerId,
+      type: WalletLedgerEntryType.CREDIT_TOP_UP_REFUND,
+      amount: -12000,
+      creditBalanceAfter: 138000,
+      creditTopUpSessionId: IDS.topUpRefundPartialBuyer,
+      metadata: { provider: 'mock', qaCase: 'partial_refund_debit' },
+      createdAt: daysAgo(4),
+    }),
+    upsertWalletLedgerEntry({
+      id: walletLedgerEntryId('buyer_ticket_purchase_active'),
+      userId: params.buyerId,
+      type: WalletLedgerEntryType.TICKET_PURCHASE_DEBIT,
+      amount: -1500,
+      creditBalanceAfter: 136500,
+      raffleId: IDS.raffleActive,
+      metadata: { purchaseReference: 'qa_wallet_active_1' },
+      createdAt: daysAgo(1),
+    }),
+    upsertWalletLedgerEntry({
+      id: walletLedgerEntryId('buyer_ticket_refund_low_sale'),
+      userId: params.buyerId,
+      type: WalletLedgerEntryType.TICKET_PURCHASE_REFUND,
+      amount: 500,
+      creditBalanceAfter: 137000,
+      raffleId: IDS.raffleExpiredLowSale,
+      metadata: { qaCase: 'cancelled_raffle_credit_refund' },
+      createdAt: hoursAgo(20),
+    }),
+    upsertWalletLedgerEntry({
+      id: walletLedgerEntryId('pack_buyer_topup'),
+      userId: params.buyerPackId,
+      type: WalletLedgerEntryType.CREDIT_TOP_UP,
+      amount: 80000,
+      creditBalanceAfter: 80000,
+      creditTopUpSessionId: IDS.topUpPackBuyer,
+      metadata: { provider: 'mock' },
+      createdAt: daysAgo(6),
+    }),
+    upsertWalletLedgerEntry({
+      id: walletLedgerEntryId('pack_buyer_pack_purchase'),
+      userId: params.buyerPackId,
+      type: WalletLedgerEntryType.TICKET_PURCHASE_DEBIT,
+      amount: -10500,
+      creditBalanceAfter: 69500,
+      raffleId: IDS.rafflePackFive,
+      metadata: {
+        packApplied: true,
+        baseQuantity: 5,
+        bonusQuantity: 1,
+        grantedQuantity: 6,
+      },
+      createdAt: hoursAgo(2),
+    }),
+    upsertWalletLedgerEntry({
+      id: walletLedgerEntryId('promo_buyer_topup'),
+      userId: params.buyerPromoId,
+      type: WalletLedgerEntryType.CREDIT_TOP_UP,
+      amount: 70000,
+      creditBalanceAfter: 70000,
+      creditTopUpSessionId: IDS.topUpPromoBuyer,
+      metadata: { provider: 'mock' },
+      createdAt: daysAgo(7),
+    }),
+    upsertWalletLedgerEntry({
+      id: walletLedgerEntryId('promo_buyer_discounted_purchase'),
+      userId: params.buyerPromoId,
+      type: WalletLedgerEntryType.TICKET_PURCHASE_DEBIT,
+      amount: -6750,
+      creditBalanceAfter: 63250,
+      raffleId: IDS.raffleBonusTargetOther,
+      metadata: {
+        promotionBonusApplied: true,
+        discountApplied: 750,
+        grossSubtotal: 7500,
+      },
+      createdAt: hoursAgo(14),
+    }),
+    upsertWalletLedgerEntry({
+      id: walletLedgerEntryId('heavy_buyer_topup'),
+      userId: params.buyerHeavyId,
+      type: WalletLedgerEntryType.CREDIT_TOP_UP,
+      amount: 12000,
+      creditBalanceAfter: 12000,
+      creditTopUpSessionId: IDS.topUpHeavyBuyer,
+      metadata: { provider: 'mock' },
+      createdAt: daysAgo(9),
+    }),
+    upsertWalletLedgerEntry({
+      id: walletLedgerEntryId('heavy_buyer_many_purchases'),
+      userId: params.buyerHeavyId,
+      type: WalletLedgerEntryType.TICKET_PURCHASE_DEBIT,
+      amount: -11500,
+      creditBalanceAfter: 500,
+      raffleId: IDS.raffleSportsActive,
+      metadata: { qaCase: 'insufficient_balance_next_purchase' },
+      createdAt: daysAgo(3),
+    }),
+    upsertWalletLedgerEntry({
+      id: walletLedgerEntryId('refund_buyer_topup'),
+      userId: params.buyerRefundId,
+      type: WalletLedgerEntryType.CREDIT_TOP_UP,
+      amount: 45000,
+      creditBalanceAfter: 45000,
+      metadata: { provider: 'mock', qaCase: 'refund_flow_balance' },
+      createdAt: daysAgo(9),
+    }),
+    upsertWalletLedgerEntry({
+      id: walletLedgerEntryId('refund_buyer_cancelled_raffle_refund'),
+      userId: params.buyerRefundId,
+      type: WalletLedgerEntryType.TICKET_PURCHASE_REFUND,
+      amount: 1680,
+      creditBalanceAfter: 46680,
+      raffleId: IDS.raffleCancelledRefunded,
+      metadata: { refundedTicketNumbers: [1, 2] },
+      createdAt: daysAgo(6),
+    }),
+    upsertWalletLedgerEntry({
+      id: walletLedgerEntryId('dispute_buyer_topup'),
+      userId: params.buyerDisputeId,
+      type: WalletLedgerEntryType.CREDIT_TOP_UP,
+      amount: 30000,
+      creditBalanceAfter: 30000,
+      metadata: { provider: 'mock', qaCase: 'dispute_refund_balance' },
+      createdAt: daysAgo(18),
+    }),
+    upsertWalletLedgerEntry({
+      id: walletLedgerEntryId('dispute_buyer_partial_refund'),
+      userId: params.buyerDisputeId,
+      type: WalletLedgerEntryType.TICKET_PURCHASE_REFUND,
+      amount: 620,
+      creditBalanceAfter: 30620,
+      raffleId: IDS.raffleDisputeResolvedPartial,
+      metadata: { disputeStatus: DisputeStatus.RESUELTA_PARCIAL },
+      createdAt: daysAgo(10),
+    }),
+    upsertWalletLedgerEntry({
+      id: walletLedgerEntryId('winner_buyer_topup'),
+      userId: params.buyerWinnerId,
+      type: WalletLedgerEntryType.CREDIT_TOP_UP,
+      amount: 90000,
+      creditBalanceAfter: 90000,
+      metadata: { provider: 'mock', qaCase: 'winner_history_balance' },
+      createdAt: daysAgo(25),
+    }),
+    upsertWalletLedgerEntry({
+      id: walletLedgerEntryId('winner_buyer_finalized_purchase'),
+      userId: params.buyerWinnerId,
+      type: WalletLedgerEntryType.TICKET_PURCHASE_DEBIT,
+      amount: -1320,
+      creditBalanceAfter: 88680,
+      raffleId: IDS.raffleFinalizedReviewed,
+      metadata: { purchaseReference: 'qa_wallet_final_review_1' },
+      createdAt: daysAgo(19),
+    }),
+    upsertWalletLedgerEntry({
+      id: walletLedgerEntryId('google_only_topup'),
+      userId: params.googleOnlyId,
+      type: WalletLedgerEntryType.CREDIT_TOP_UP,
+      amount: 12000,
+      creditBalanceAfter: 12000,
+      metadata: { provider: 'mock', qaCase: 'oauth_user_wallet' },
+      createdAt: daysAgo(3),
+    }),
+    upsertWalletLedgerEntry({
+      id: walletLedgerEntryId('seller_default_payable'),
+      userId: params.sellerId,
+      type: WalletLedgerEntryType.SELLER_PAYABLE_CREDIT,
+      amount: 12000,
+      sellerPayableBalanceAfter: 12000,
+      raffleId: IDS.raffleActive,
+      metadata: { qaCase: 'seller_internal_balance' },
+      createdAt: daysAgo(1),
+    }),
+    upsertWalletLedgerEntry({
+      id: walletLedgerEntryId('seller_pro_payable_credit'),
+      userId: params.sellerProId,
+      type: WalletLedgerEntryType.SELLER_PAYABLE_CREDIT,
+      amount: 52006,
+      sellerPayableBalanceAfter: 52006,
+      raffleId: IDS.raffleEntertainmentActive,
+      metadata: { qaCase: 'seller_payable_waiting_release' },
+      createdAt: daysAgo(4),
+    }),
+    upsertWalletLedgerEntry({
+      id: walletLedgerEntryId('seller_pro_payout_debit'),
+      userId: params.sellerProId,
+      type: WalletLedgerEntryType.SELLER_PAYABLE_DEBIT,
+      amount: -6336,
+      sellerPayableBalanceAfter: 45670,
+      raffleId: IDS.raffleFinalizedReviewed,
+      payoutId: payoutId(IDS.raffleFinalizedReviewed),
+      metadata: { payoutStatus: PayoutStatus.COMPLETED },
+      createdAt: daysAgo(15),
+    }),
+    upsertWalletLedgerEntry({
+      id: walletLedgerEntryId('seller_growth_payable'),
+      userId: params.sellerGrowthId,
+      type: WalletLedgerEntryType.SELLER_PAYABLE_CREDIT,
+      amount: 25000,
+      sellerPayableBalanceAfter: 25000,
+      raffleId: IDS.rafflePackFive,
+      metadata: { qaCase: 'pack_seller_payable_not_reduced_by_bonus' },
+      createdAt: hoursAgo(2),
+    }),
+    upsertWalletLedgerEntry({
+      id: walletLedgerEntryId('other_seller_payable'),
+      userId: params.otherSellerId,
+      type: WalletLedgerEntryType.SELLER_PAYABLE_CREDIT,
+      amount: 7000,
+      sellerPayableBalanceAfter: 7000,
+      raffleId: IDS.raffleBonusTargetOther,
+      metadata: { qaCase: 'promotion_bonus_seller_payable' },
+      createdAt: hoursAgo(14),
+    }),
+  ]);
+
+  await Promise.all([
+    ensureWalletAccount({ userId: params.buyerId, creditBalance: 137000 }),
+    ensureWalletAccount({ userId: params.buyerHeavyId, creditBalance: 500 }),
+    ensureWalletAccount({ userId: params.buyerWinnerId, creditBalance: 88680 }),
+    ensureWalletAccount({ userId: params.buyerRefundId, creditBalance: 46680 }),
+    ensureWalletAccount({
+      userId: params.buyerDisputeId,
+      creditBalance: 30620,
+    }),
+    ensureWalletAccount({ userId: params.buyerNewId, creditBalance: 0 }),
+    ensureWalletAccount({ userId: params.buyerPromoId, creditBalance: 63250 }),
+    ensureWalletAccount({ userId: params.buyerPackId, creditBalance: 69500 }),
+    ensureWalletAccount({ userId: params.googleOnlyId, creditBalance: 12000 }),
+    ensureWalletAccount({
+      userId: params.sellerId,
+      sellerPayableBalance: 12000,
+    }),
+    ensureWalletAccount({
+      userId: params.otherSellerId,
+      sellerPayableBalance: 7000,
+    }),
+    ensureWalletAccount({
+      userId: params.sellerProId,
+      sellerPayableBalance: 45670,
+    }),
+    ensureWalletAccount({
+      userId: params.sellerGrowthId,
+      sellerPayableBalance: 25000,
+    }),
+    ensureWalletAccount({ userId: params.sellerNoPayoutId }),
+    ensureWalletAccount({ userId: params.sellerPendingPayoutId }),
+  ]);
+}
+
 async function main() {
   console.log('🌱 Running canonical QA/dev seed...');
 
@@ -1531,11 +2458,11 @@ async function main() {
     passwordHash: userHash,
     kycStatus: KycStatus.VERIFIED,
     kycVerifiedAt: daysAgo(45),
-    mpConnectStatus: MpConnectStatus.CONNECTED,
-    mpUserId: 'qa_mp_seller_001',
-    mpAccessToken: 'qa_mock_access_token_seller',
+    sellerPaymentAccountStatus: SellerPaymentAccountStatus.CONNECTED,
+    sellerPaymentAccountId: 'qa_seller_payment_account_default',
     documentType: DocumentType.DNI,
     documentNumber: '30111222',
+    cuitCuil: '20-30111222-3',
     createdAt: daysAgo(70),
   });
 
@@ -1558,11 +2485,11 @@ async function main() {
     passwordHash: userHash,
     kycStatus: KycStatus.VERIFIED,
     kycVerifiedAt: daysAgo(30),
-    mpConnectStatus: MpConnectStatus.CONNECTED,
-    mpUserId: 'qa_mp_other_001',
-    mpAccessToken: 'qa_mock_access_token_other',
+    sellerPaymentAccountStatus: SellerPaymentAccountStatus.CONNECTED,
+    sellerPaymentAccountId: 'qa_seller_payment_account_other',
     documentType: DocumentType.DNI,
     documentNumber: '32111999',
+    cuitCuil: '20-32111999-2',
     createdAt: daysAgo(50),
   });
 
@@ -1616,11 +2543,11 @@ async function main() {
     passwordHash: userHash,
     kycStatus: KycStatus.VERIFIED,
     kycVerifiedAt: daysAgo(120),
-    mpConnectStatus: MpConnectStatus.CONNECTED,
-    mpUserId: 'qa_mp_seller_pro_001',
-    mpAccessToken: 'qa_mock_access_token_seller_pro',
+    sellerPaymentAccountStatus: SellerPaymentAccountStatus.CONNECTED,
+    sellerPaymentAccountId: 'qa_seller_payment_account_pro',
     documentType: DocumentType.DNI,
     documentNumber: '28888001',
+    cuitCuil: '27-28888001-4',
     createdAt: daysAgo(160),
   });
 
@@ -1631,23 +2558,24 @@ async function main() {
     passwordHash: userHash,
     kycStatus: KycStatus.VERIFIED,
     kycVerifiedAt: daysAgo(75),
-    mpConnectStatus: MpConnectStatus.CONNECTED,
-    mpUserId: 'qa_mp_seller_growth_001',
-    mpAccessToken: 'qa_mock_access_token_seller_growth',
+    sellerPaymentAccountStatus: SellerPaymentAccountStatus.CONNECTED,
+    sellerPaymentAccountId: 'qa_seller_payment_account_growth',
     documentType: DocumentType.DNI,
     documentNumber: '29999002',
+    cuitCuil: '20-29999002-5',
     createdAt: daysAgo(110),
   });
 
-  const sellerNoMp = await upsertUser({
-    email: USERS.sellerNoMp,
+  const sellerNoPayout = await upsertUser({
+    email: USERS.sellerNoPayout,
     nombre: 'Lucía',
-    apellido: 'Sin MP',
+    apellido: 'Sin datos de cobro',
     passwordHash: userHash,
     kycStatus: KycStatus.VERIFIED,
     kycVerifiedAt: daysAgo(28),
     documentType: DocumentType.DNI,
     documentNumber: '27777003',
+    cuitCuil: '27-27777003-9',
     createdAt: daysAgo(35),
   });
 
@@ -1658,24 +2586,25 @@ async function main() {
     passwordHash: userHash,
     kycStatus: KycStatus.VERIFIED,
     kycVerifiedAt: daysAgo(40),
-    mpConnectStatus: MpConnectStatus.CONNECTED,
-    mpUserId: 'qa_mp_seller_no_addr_001',
-    mpAccessToken: 'qa_mock_access_token_seller_no_addr',
+    sellerPaymentAccountStatus: SellerPaymentAccountStatus.CONNECTED,
+    sellerPaymentAccountId: 'qa_seller_payment_account_no_address',
     documentType: DocumentType.DNI,
     documentNumber: '26666004',
+    cuitCuil: '20-26666004-7',
     createdAt: daysAgo(55),
   });
 
-  const sellerPendingMp = await upsertUser({
-    email: USERS.sellerPendingMp,
+  const sellerPendingPayout = await upsertUser({
+    email: USERS.sellerPendingPayout,
     nombre: 'Valentina',
-    apellido: 'MP Pending',
+    apellido: 'Cobro pendiente',
     passwordHash: userHash,
     kycStatus: KycStatus.VERIFIED,
     kycVerifiedAt: daysAgo(18),
-    mpConnectStatus: MpConnectStatus.PENDING,
+    sellerPaymentAccountStatus: SellerPaymentAccountStatus.PENDING,
     documentType: DocumentType.DNI,
     documentNumber: '25555005',
+    cuitCuil: '27-25555005-1',
     createdAt: daysAgo(30),
   });
 
@@ -1872,10 +2801,10 @@ async function main() {
   });
 
   await upsertAddress({
-    id: addressId('seller_no_mp'),
-    userId: sellerNoMp.id,
+    id: addressId('seller_no_payout'),
+    userId: sellerNoPayout.id,
     label: 'Casa',
-    recipientName: 'Lucía Sin MP',
+    recipientName: 'Lucía Sin datos de cobro',
     street: 'Calle Comercio',
     number: '915',
     city: 'Rosario',
@@ -1885,10 +2814,10 @@ async function main() {
   });
 
   await upsertAddress({
-    id: addressId('seller_pending_mp'),
-    userId: sellerPendingMp.id,
+    id: addressId('seller_pending_payout'),
+    userId: sellerPendingPayout.id,
     label: 'Taller',
-    recipientName: 'Valentina MP Pending',
+    recipientName: 'Valentina Cobro pendiente',
     street: 'Av. Colón',
     number: '410',
     city: 'Córdoba',
@@ -2022,14 +2951,89 @@ async function main() {
   });
 
   await prisma.user.update({
-    where: { id: sellerNoMp.id },
-    data: { defaultSenderAddressId: addressId('seller_no_mp') },
+    where: { id: sellerNoPayout.id },
+    data: { defaultSenderAddressId: addressId('seller_no_payout') },
   });
 
   await prisma.user.update({
-    where: { id: sellerPendingMp.id },
-    data: { defaultSenderAddressId: addressId('seller_pending_mp') },
+    where: { id: sellerPendingPayout.id },
+    data: { defaultSenderAddressId: addressId('seller_pending_payout') },
   });
+
+  await Promise.all([
+    upsertSellerPaymentAccount({
+      id: 'qa_seller_payment_account_default',
+      userId: seller.id,
+      status: SellerPaymentAccountStatus.CONNECTED,
+      accountHolderName: 'Vendedor Test',
+      accountIdentifierType: SellerPaymentAccountIdentifierType.CVU,
+      accountIdentifierEncrypted: '0000003100000000000001',
+      providerMetadata: {
+        source: 'canonical-seed',
+        settlementMode: 'manual_internal_payable',
+      },
+    }),
+    upsertSellerPaymentAccount({
+      id: 'qa_seller_payment_account_other',
+      userId: other.id,
+      status: SellerPaymentAccountStatus.CONNECTED,
+      accountHolderName: 'Otro Seller',
+      accountIdentifierType: SellerPaymentAccountIdentifierType.ALIAS,
+      accountIdentifierEncrypted: 'otro.seller.qa',
+      providerMetadata: {
+        source: 'canonical-seed',
+        settlementMode: 'manual_internal_payable',
+      },
+    }),
+    upsertSellerPaymentAccount({
+      id: 'qa_seller_payment_account_pro',
+      userId: sellerPro.id,
+      status: SellerPaymentAccountStatus.CONNECTED,
+      accountHolderName: 'Sofía Premium',
+      accountIdentifierType: SellerPaymentAccountIdentifierType.CBU,
+      accountIdentifierEncrypted: '0170000120000000000002',
+      providerMetadata: {
+        source: 'canonical-seed',
+        settlementMode: 'manual_internal_payable',
+      },
+    }),
+    upsertSellerPaymentAccount({
+      id: 'qa_seller_payment_account_growth',
+      userId: sellerGrowth.id,
+      status: SellerPaymentAccountStatus.CONNECTED,
+      accountHolderName: 'Martín Growth',
+      accountIdentifierType: SellerPaymentAccountIdentifierType.CVU,
+      accountIdentifierEncrypted: '0000003100000000000003',
+      providerMetadata: {
+        source: 'canonical-seed',
+        settlementMode: 'manual_internal_payable',
+      },
+    }),
+    upsertSellerPaymentAccount({
+      id: 'qa_seller_payment_account_no_address',
+      userId: sellerNoAddress.id,
+      status: SellerPaymentAccountStatus.CONNECTED,
+      accountHolderName: 'Diego Sin Dirección',
+      accountIdentifierType: SellerPaymentAccountIdentifierType.ALIAS,
+      accountIdentifierEncrypted: 'diego.sin.direccion.qa',
+      providerMetadata: {
+        source: 'canonical-seed',
+        qaCase: 'connected_payout_data_missing_shipping_address',
+      },
+    }),
+    upsertSellerPaymentAccount({
+      id: 'qa_seller_payment_account_pending',
+      userId: sellerPendingPayout.id,
+      status: SellerPaymentAccountStatus.PENDING,
+      accountHolderName: 'Valentina Cobro Pendiente',
+      accountIdentifierType: SellerPaymentAccountIdentifierType.CVU,
+      accountIdentifierEncrypted: null,
+      providerMetadata: {
+        source: 'canonical-seed',
+        qaCase: 'missing_account_identifier',
+      },
+    }),
+  ]);
 
   await Promise.all([
     upsertUserReputation({
@@ -2070,7 +3074,7 @@ async function main() {
       ratingPromedioVendedor: 4.6,
     }),
     upsertUserReputation({
-      userId: sellerNoMp.id,
+      userId: sellerNoPayout.id,
       maxRifasSimultaneas: 3,
       nivelVendedor: SellerLevel.BRONCE,
       totalVentasCompletadas: 4,
@@ -2084,7 +3088,7 @@ async function main() {
       ratingPromedioVendedor: 4.3,
     }),
     upsertUserReputation({
-      userId: sellerPendingMp.id,
+      userId: sellerPendingPayout.id,
       maxRifasSimultaneas: 3,
       nivelVendedor: SellerLevel.NUEVO,
       totalVentasCompletadas: 1,
@@ -2135,6 +3139,24 @@ async function main() {
     }),
   ]);
 
+  await seedWalletFixtures({
+    sellerId: seller.id,
+    otherSellerId: other.id,
+    sellerProId: sellerPro.id,
+    sellerGrowthId: sellerGrowth.id,
+    sellerNoPayoutId: sellerNoPayout.id,
+    sellerPendingPayoutId: sellerPendingPayout.id,
+    buyerId: buyer.id,
+    buyerHeavyId: buyerHeavy.id,
+    buyerWinnerId: buyerWinner.id,
+    buyerRefundId: buyerRefund.id,
+    buyerDisputeId: buyerDispute.id,
+    buyerNewId: buyerNew.id,
+    buyerPromoId: buyerPromo.id,
+    buyerPackId: buyerPack.id,
+    googleOnlyId: googleOnly.id,
+  });
+
   const categories = await upsertCategories();
   const electronicsCategoryId = categories.get('Electronica') ?? null;
   const fashionCategoryId = categories.get('Moda') ?? null;
@@ -2161,7 +3183,7 @@ async function main() {
     buyerId: buyer.id,
     status: TicketStatus.PAGADO,
     price: 1500,
-    mpPaymentId: 'qa_mp_active_1',
+    purchaseReference: 'qa_wallet_active_1',
     purchasedAt: daysAgo(1),
   });
   await upsertTicket({
@@ -2170,7 +3192,7 @@ async function main() {
     buyerId: other.id,
     status: TicketStatus.PAGADO,
     price: 1500,
-    mpPaymentId: 'qa_mp_active_2',
+    purchaseReference: 'qa_wallet_active_2',
     purchasedAt: daysAgo(1),
   });
 
@@ -2224,7 +3246,7 @@ async function main() {
       buyerId: number <= 3 ? buyer.id : other.id,
       status: TicketStatus.PAGADO,
       price: 700,
-      mpPaymentId: `qa_mp_completed_${number}`,
+      purchaseReference: `qa_wallet_completed_${number}`,
       purchasedAt: daysAgo(2),
     });
   }
@@ -2250,7 +3272,7 @@ async function main() {
       buyerId: number === 1 ? buyer.id : other.id,
       status: TicketStatus.PAGADO,
       price: 1200,
-      mpPaymentId: `qa_mp_pending_ship_${number}`,
+      purchaseReference: `qa_wallet_pending_ship_${number}`,
       purchasedAt: daysAgo(3),
     });
   }
@@ -2284,7 +3306,7 @@ async function main() {
       buyerId: number === 1 ? buyer.id : other.id,
       status: TicketStatus.PAGADO,
       price: 1300,
-      mpPaymentId: `qa_mp_shipped_${number}`,
+      purchaseReference: `qa_wallet_shipped_${number}`,
       purchasedAt: daysAgo(5),
     });
   }
@@ -2299,8 +3321,8 @@ async function main() {
     sellerId: seller.id,
     grossAmount: 3900,
     platformFee: 156,
-    processingFee: 195,
-    netAmount: 3549,
+    processingFee: 0,
+    netAmount: 3744,
     status: PayoutStatus.PENDING,
     scheduledFor: daysFromNow(1),
   });
@@ -2330,7 +3352,7 @@ async function main() {
       buyerId: number === 1 ? buyer.id : other.id,
       status: TicketStatus.PAGADO,
       price: 1600,
-      mpPaymentId: `qa_mp_final_${number}`,
+      purchaseReference: `qa_wallet_final_${number}`,
       purchasedAt: daysAgo(14),
     });
   }
@@ -2345,8 +3367,8 @@ async function main() {
     sellerId: seller.id,
     grossAmount: 4800,
     platformFee: 192,
-    processingFee: 240,
-    netAmount: 4368,
+    processingFee: 0,
+    netAmount: 4608,
     status: PayoutStatus.COMPLETED,
     scheduledFor: daysAgo(11),
     processedAt: daysAgo(10),
@@ -2407,7 +3429,7 @@ async function main() {
       buyerId: number <= 2 ? buyer.id : other.id,
       status: TicketStatus.PAGADO,
       price: 500,
-      mpPaymentId: `qa_mp_low_sale_${number}`,
+      purchaseReference: `qa_wallet_low_sale_${number}`,
       purchasedAt: daysAgo(3),
     });
   }
@@ -2446,7 +3468,7 @@ async function main() {
     buyerId: buyer.id,
     status: TicketStatus.PAGADO,
     price: 900,
-    mpPaymentId: 'qa_mp_dispute_open_1',
+    purchaseReference: 'qa_wallet_dispute_open_1',
     purchasedAt: daysAgo(8),
   });
   await upsertDrawResult({
@@ -2487,7 +3509,7 @@ async function main() {
     buyerId: buyer.id,
     status: TicketStatus.PAGADO,
     price: 950,
-    mpPaymentId: 'qa_mp_dispute_med_1',
+    purchaseReference: 'qa_wallet_dispute_med_1',
     purchasedAt: daysAgo(10),
   });
   await upsertDrawResult({
@@ -2534,7 +3556,7 @@ async function main() {
     buyerId: buyerNew.id,
     status: TicketStatus.PAGADO,
     price: 1000,
-    mpPaymentId: 'qa_mp_dispute_old_1',
+    purchaseReference: 'qa_wallet_dispute_old_1',
     purchasedAt: daysAgo(24),
   });
   await upsertDrawResult({
@@ -2575,7 +3597,7 @@ async function main() {
     buyerId: buyer.id,
     status: TicketStatus.PAGADO,
     price: 1100,
-    mpPaymentId: 'qa_mp_dispute_resolved_1',
+    purchaseReference: 'qa_wallet_dispute_resolved_1',
     purchasedAt: daysAgo(14),
   });
   await upsertDrawResult({
@@ -2629,7 +3651,7 @@ async function main() {
     buyerId: buyer.id,
     status: TicketStatus.PAGADO,
     price: 2100,
-    mpPaymentId: 'qa_mp_pack_five_1',
+    purchaseReference: 'qa_wallet_pack_five_1',
     purchasedAt: daysAgo(1),
   });
   await upsertTicket({
@@ -2638,7 +3660,7 @@ async function main() {
     buyerId: other.id,
     status: TicketStatus.PAGADO,
     price: 2100,
-    mpPaymentId: 'qa_mp_pack_five_2',
+    purchaseReference: 'qa_wallet_pack_five_2',
     purchasedAt: daysAgo(1),
   });
 
@@ -2662,7 +3684,7 @@ async function main() {
       buyerId: number === 1 ? buyerPack.id : other.id,
       status: TicketStatus.PAGADO,
       price: 950,
-      mpPaymentId: `qa_mp_pack_ten_${number}`,
+      purchaseReference: `qa_wallet_pack_ten_${number}`,
       purchasedAt: daysAgo(2),
     });
   }
@@ -2688,7 +3710,7 @@ async function main() {
       buyerId: number <= 3 ? buyerRefund.id : other.id,
       status: TicketStatus.PAGADO,
       price: 1750,
-      mpPaymentId: `qa_mp_pack_low_stock_${number}`,
+      purchaseReference: `qa_wallet_pack_low_stock_${number}`,
       purchasedAt: daysAgo(1),
     });
   }
@@ -2714,7 +3736,7 @@ async function main() {
       buyerId: number <= 5 ? buyerHeavy.id : other.id,
       status: TicketStatus.PAGADO,
       price: 1450,
-      mpPaymentId: `qa_mp_pack_limit_${number}`,
+      purchaseReference: `qa_wallet_pack_limit_${number}`,
       purchasedAt: daysAgo(2),
     });
   }
@@ -2740,7 +3762,7 @@ async function main() {
       buyerId: number % 2 === 0 ? buyer.id : other.id,
       status: TicketStatus.PAGADO,
       price: 700,
-      mpPaymentId: `qa_mp_choose_numbers_${number}`,
+      purchaseReference: `qa_wallet_choose_numbers_${number}`,
       purchasedAt: daysAgo(3),
     });
   }
@@ -2750,9 +3772,37 @@ async function main() {
     buyerId: buyerRefund.id,
     status: TicketStatus.REEMBOLSADO,
     price: 700,
-    mpPaymentId: 'qa_mp_choose_numbers_refunded',
+    purchaseReference: 'qa_wallet_choose_numbers_refunded',
     purchasedAt: daysAgo(4),
   });
+
+  await upsertRaffle({
+    id: IDS.raffleTicketNumberPagination,
+    sellerId: sellerPro.id,
+    categoryId: electronicsCategoryId,
+    title: `${QA_PREFIX} Números paginados`,
+    description:
+      'Rifa activa con más de 200 números para QA de paginación del selector.',
+    totalTickets: 240,
+    price: 640,
+    deadline: daysFromNow(17),
+    status: RaffleStatus.ACTIVA,
+    viewCount: 156,
+    productCategory: 'Electronica',
+  });
+  await deleteDrawResultIfAny(IDS.raffleTicketNumberPagination);
+  for (const number of [1, 2, 3, 99, 100, 101, 102, 155, 201, 239]) {
+    await upsertTicket({
+      raffleId: IDS.raffleTicketNumberPagination,
+      number,
+      buyerId:
+        number <= 100 ? buyer.id : number <= 200 ? buyerHeavy.id : other.id,
+      status: TicketStatus.PAGADO,
+      price: 640,
+      purchaseReference: `qa_wallet_number_pagination_${number}`,
+      purchasedAt: daysAgo(number % 2 === 0 ? 2 : 3),
+    });
+  }
 
   await upsertRaffle({
     id: IDS.rafflePriceDropActive,
@@ -2777,7 +3827,7 @@ async function main() {
         number <= 4 ? buyerHeavy.id : number <= 7 ? buyerPromo.id : buyer.id,
       status: TicketStatus.PAGADO,
       price: 1800,
-      mpPaymentId: `qa_mp_price_drop_${number}`,
+      purchaseReference: `qa_wallet_price_drop_${number}`,
       purchasedAt: daysAgo(4),
     });
   }
@@ -2808,7 +3858,7 @@ async function main() {
             : buyerPack.id,
       status: TicketStatus.PAGADO,
       price: 560,
-      mpPaymentId: `qa_mp_almost_sold_${number}`,
+      purchaseReference: `qa_wallet_almost_sold_${number}`,
       purchasedAt: daysAgo(1),
     });
   }
@@ -2849,7 +3899,7 @@ async function main() {
         number <= 2 ? buyerNew.id : number <= 4 ? buyerWinner.id : buyer.id,
       status: TicketStatus.PAGADO,
       price: 980,
-      mpPaymentId: `qa_mp_home_active_${number}`,
+      purchaseReference: `qa_wallet_home_active_${number}`,
       purchasedAt: daysAgo(2),
     });
   }
@@ -2881,7 +3931,7 @@ async function main() {
             : buyerWinner.id,
       status: TicketStatus.PAGADO,
       price: 890,
-      mpPaymentId: `qa_mp_fashion_active_${number}`,
+      purchaseReference: `qa_wallet_fashion_active_${number}`,
       purchasedAt: daysAgo(2),
     });
   }
@@ -2909,7 +3959,7 @@ async function main() {
         number <= 3 ? buyerHeavy.id : number <= 5 ? buyerPack.id : buyer.id,
       status: TicketStatus.PAGADO,
       price: 1150,
-      mpPaymentId: `qa_mp_sports_active_${number}`,
+      purchaseReference: `qa_wallet_sports_active_${number}`,
       purchasedAt: daysAgo(3),
     });
   }
@@ -2941,9 +3991,206 @@ async function main() {
             : buyerPack.id,
       status: TicketStatus.PAGADO,
       price: 990,
-      mpPaymentId: `qa_mp_entertainment_active_${number}`,
+      purchaseReference: `qa_wallet_entertainment_active_${number}`,
       purchasedAt: daysAgo(5),
     });
+  }
+
+  const searchPaginationFixtures = [
+    {
+      title: 'Auriculares studio',
+      categoryId: electronicsCategoryId,
+      productCategory: 'Electronica',
+      sellerId: seller.id,
+      totalTickets: 42,
+      price: 730,
+      deadlineDays: 6,
+      viewCount: 64,
+      soldTickets: 2,
+    },
+    {
+      title: 'Campera técnica',
+      categoryId: fashionCategoryId,
+      productCategory: 'Moda',
+      sellerId: other.id,
+      totalTickets: 36,
+      price: 860,
+      deadlineDays: 7,
+      viewCount: 81,
+      soldTickets: 3,
+    },
+    {
+      title: 'Set espresso',
+      categoryId: homeCategoryId,
+      productCategory: 'Hogar',
+      sellerId: sellerGrowth.id,
+      totalTickets: 44,
+      price: 920,
+      deadlineDays: 8,
+      viewCount: 52,
+      soldTickets: 1,
+    },
+    {
+      title: 'Tabla wakeboard',
+      categoryId: sportsCategoryId,
+      productCategory: 'Deportes',
+      sellerId: sellerPro.id,
+      totalTickets: 50,
+      price: 780,
+      deadlineDays: 9,
+      viewCount: 95,
+      soldTickets: 4,
+    },
+    {
+      title: 'Parlante portátil',
+      categoryId: entertainmentCategoryId,
+      productCategory: 'Entretenimiento',
+      sellerId: seller.id,
+      totalTickets: 38,
+      price: 680,
+      deadlineDays: 10,
+      viewCount: 74,
+      soldTickets: 2,
+    },
+    {
+      title: 'Smartwatch urbano',
+      categoryId: electronicsCategoryId,
+      productCategory: 'Electronica',
+      sellerId: sellerGrowth.id,
+      totalTickets: 58,
+      price: 1040,
+      deadlineDays: 11,
+      viewCount: 116,
+      soldTickets: 5,
+    },
+    {
+      title: 'Mochila premium',
+      categoryId: fashionCategoryId,
+      productCategory: 'Moda',
+      sellerId: other.id,
+      totalTickets: 33,
+      price: 610,
+      deadlineDays: 12,
+      viewCount: 44,
+      soldTickets: 1,
+    },
+    {
+      title: 'Aspiradora robot',
+      categoryId: homeCategoryId,
+      productCategory: 'Hogar',
+      sellerId: sellerPro.id,
+      totalTickets: 54,
+      price: 990,
+      deadlineDays: 13,
+      viewCount: 108,
+      soldTickets: 4,
+    },
+    {
+      title: 'Kit entrenamiento',
+      categoryId: sportsCategoryId,
+      productCategory: 'Deportes',
+      sellerId: sellerGrowth.id,
+      totalTickets: 46,
+      price: 570,
+      deadlineDays: 14,
+      viewCount: 69,
+      soldTickets: 2,
+    },
+    {
+      title: 'Vinilos edición especial',
+      categoryId: entertainmentCategoryId,
+      productCategory: 'Entretenimiento',
+      sellerId: seller.id,
+      totalTickets: 30,
+      price: 430,
+      deadlineDays: 15,
+      viewCount: 57,
+      soldTickets: 3,
+    },
+    {
+      title: 'Monitor curvo',
+      categoryId: electronicsCategoryId,
+      productCategory: 'Electronica',
+      sellerId: sellerPro.id,
+      totalTickets: 62,
+      price: 1250,
+      deadlineDays: 16,
+      viewCount: 138,
+      soldTickets: 6,
+    },
+    {
+      title: 'Sillón compacto',
+      categoryId: homeCategoryId,
+      productCategory: 'Hogar',
+      sellerId: sellerGrowth.id,
+      totalTickets: 40,
+      price: 710,
+      deadlineDays: 18,
+      viewCount: 63,
+      soldTickets: 2,
+    },
+    {
+      title: 'Raqueta pro',
+      categoryId: sportsCategoryId,
+      productCategory: 'Deportes',
+      sellerId: sellerPro.id,
+      totalTickets: 34,
+      price: 660,
+      deadlineDays: 19,
+      viewCount: 72,
+      soldTickets: 3,
+    },
+    {
+      title: 'Camisa lino',
+      categoryId: fashionCategoryId,
+      productCategory: 'Moda',
+      sellerId: other.id,
+      totalTickets: 28,
+      price: 520,
+      deadlineDays: 21,
+      viewCount: 46,
+      soldTickets: 1,
+    },
+  ];
+
+  for (const [index, fixture] of searchPaginationFixtures.entries()) {
+    const raffleId = searchPaginationRaffleId(index + 1);
+
+    await upsertRaffle({
+      id: raffleId,
+      sellerId: fixture.sellerId,
+      categoryId: fixture.categoryId,
+      title: `${QA_PREFIX} Paginación búsqueda ${String(index + 1).padStart(
+        2,
+        '0',
+      )} - ${fixture.title}`,
+      description:
+        'Rifa activa para validar paginación e infinite scroll en resultados de búsqueda.',
+      totalTickets: fixture.totalTickets,
+      price: fixture.price,
+      deadline: daysFromNow(fixture.deadlineDays),
+      status: RaffleStatus.ACTIVA,
+      viewCount: fixture.viewCount,
+      productCategory: fixture.productCategory,
+    });
+    await deleteDrawResultIfAny(raffleId);
+
+    for (let number = 1; number <= fixture.soldTickets; number++) {
+      await upsertTicket({
+        raffleId,
+        number,
+        buyerId:
+          number % 3 === 0
+            ? buyerPromo.id
+            : number % 2 === 0
+              ? buyerNew.id
+              : buyer.id,
+        status: TicketStatus.PAGADO,
+        price: fixture.price,
+        purchaseReference: `qa_wallet_search_pagination_${index + 1}_${number}`,
+        purchasedAt: daysAgo((index % 4) + 1),
+      });
+    }
   }
 
   await upsertRaffle({
@@ -2968,7 +4215,7 @@ async function main() {
       buyerId: number <= 2 ? buyerRefund.id : buyerDispute.id,
       status: TicketStatus.REEMBOLSADO,
       price: 840,
-      mpPaymentId: `qa_mp_cancelled_refund_${number}`,
+      purchaseReference: `qa_wallet_cancelled_refund_${number}`,
       purchasedAt: daysAgo(7),
     });
   }
@@ -3006,7 +4253,7 @@ async function main() {
             : buyerPack.id,
       status: TicketStatus.PAGADO,
       price: 1110,
-      mpPaymentId: `qa_mp_growth_review_${number}`,
+      purchaseReference: `qa_wallet_growth_review_${number}`,
       purchasedAt: daysAgo(17),
     });
   }
@@ -3021,8 +4268,8 @@ async function main() {
     sellerId: sellerGrowth.id,
     grossAmount: 4440,
     platformFee: 177.6,
-    processingFee: 222,
-    netAmount: 4040.4,
+    processingFee: 0,
+    netAmount: 4262.4,
     status: PayoutStatus.COMPLETED,
     scheduledFor: daysAgo(13),
     processedAt: daysAgo(12),
@@ -3056,7 +4303,7 @@ async function main() {
         number === 1 ? buyerWinner.id : number <= 3 ? buyer.id : buyerHeavy.id,
       status: TicketStatus.PAGADO,
       price: 1320,
-      mpPaymentId: `qa_mp_final_review_${number}`,
+      purchaseReference: `qa_wallet_final_review_${number}`,
       purchasedAt: daysAgo(19),
     });
   }
@@ -3071,8 +4318,8 @@ async function main() {
     sellerId: sellerPro.id,
     grossAmount: 6600,
     platformFee: 264,
-    processingFee: 330,
-    netAmount: 6006,
+    processingFee: 0,
+    netAmount: 6336,
     status: PayoutStatus.COMPLETED,
     scheduledFor: daysAgo(16),
     processedAt: daysAgo(15),
@@ -3102,7 +4349,7 @@ async function main() {
     buyerId: buyerDispute.id,
     status: TicketStatus.PAGADO,
     price: 1180,
-    mpPaymentId: 'qa_mp_dispute_seller_1',
+    purchaseReference: 'qa_wallet_dispute_seller_1',
     purchasedAt: daysAgo(18),
   });
   await upsertDrawResult({
@@ -3156,7 +4403,7 @@ async function main() {
     buyerId: buyerDispute.id,
     status: TicketStatus.PAGADO,
     price: 1240,
-    mpPaymentId: 'qa_mp_dispute_partial_1',
+    purchaseReference: 'qa_wallet_dispute_partial_1',
     purchasedAt: daysAgo(16),
   });
   await upsertDrawResult({
@@ -3193,8 +4440,8 @@ async function main() {
     sellerId: sellerPro.id,
     grossAmount: 1180,
     platformFee: 47.2,
-    processingFee: 59,
-    netAmount: 1073.8,
+    processingFee: 0,
+    netAmount: 1132.8,
     status: PayoutStatus.COMPLETED,
     scheduledFor: daysAgo(14),
     processedAt: daysAgo(13),
@@ -3494,9 +4741,9 @@ async function main() {
       grossAmount: 12600,
       cashChargedAmount: 10500,
       comisionPlataforma: 504,
-      feeProcesamiento: 630,
-      montoNeto: 11466,
-      mpPaymentId: 'qa_mp_tx_pack_five',
+      feeProcesamiento: 0,
+      montoNeto: 12096,
+      purchaseReference: 'qa_wallet_tx_pack_five',
       metadata: {
         packApplied: true,
         baseQuantity: 5,
@@ -3512,7 +4759,7 @@ async function main() {
       monto: 2100,
       grossAmount: 12600,
       cashChargedAmount: 10500,
-      mpPaymentId: 'qa_mp_tx_pack_five',
+      purchaseReference: 'qa_wallet_tx_pack_five',
       metadata: {
         baseQuantity: 5,
         bonusQuantity: 1,
@@ -3527,7 +4774,7 @@ async function main() {
       monto: 1680,
       grossAmount: 1680,
       cashChargedAmount: 1680,
-      mpPaymentId: 'qa_mp_cancelled_refund_group',
+      purchaseReference: 'qa_wallet_cancelled_refund_group',
       estado: TransactionStatus.REEMBOLSADO,
       metadata: {
         refundedTicketNumbers: [1, 2],
@@ -3541,7 +4788,7 @@ async function main() {
       monto: 1680,
       grossAmount: 1680,
       cashChargedAmount: 1680,
-      mpPaymentId: 'qa_mp_cancelled_refund_group',
+      purchaseReference: 'qa_wallet_cancelled_refund_group',
       estado: TransactionStatus.REEMBOLSADO,
       metadata: {
         refundedTicketNumbers: [1, 2],
@@ -3556,9 +4803,9 @@ async function main() {
       grossAmount: 1320,
       cashChargedAmount: 1320,
       comisionPlataforma: 52.8,
-      feeProcesamiento: 66,
-      montoNeto: 1201.2,
-      mpPaymentId: 'qa_mp_final_review_1',
+      feeProcesamiento: 0,
+      montoNeto: 1267.2,
+      purchaseReference: 'qa_wallet_final_review_1',
       metadata: {
         purchaseMode: 'RANDOM',
       },
@@ -3568,10 +4815,10 @@ async function main() {
       tipo: TransactionType.PAGO_VENDEDOR,
       userId: sellerPro.id,
       raffleId: IDS.raffleFinalizedReviewed,
-      monto: 6006,
+      monto: 6336,
       grossAmount: 6600,
       cashChargedAmount: 6600,
-      montoNeto: 6006,
+      montoNeto: 6336,
       estado: TransactionStatus.COMPLETADO,
       metadata: {
         payoutStatus: 'COMPLETED',
@@ -3634,7 +4881,7 @@ async function main() {
       targetType: 'Raffle',
       targetId: IDS.raffleFinalizedReviewed,
       metadata: {
-        netAmount: 6006,
+        netAmount: 6336,
       },
       createdAt: daysAgo(15),
     }),
@@ -3681,9 +4928,13 @@ async function main() {
   console.log(`- KYC reject:${USERS.rejectedKyc} / ${DEFAULT_PASSWORD}`);
   console.log(`- Seller Pro: ${USERS.sellerPro} / ${DEFAULT_PASSWORD}`);
   console.log(`- Seller Grw: ${USERS.sellerGrowth} / ${DEFAULT_PASSWORD}`);
-  console.log(`- No MP:      ${USERS.sellerNoMp} / ${DEFAULT_PASSWORD}`);
+  console.log(
+    `- Sin cobro:      ${USERS.sellerNoPayout} / ${DEFAULT_PASSWORD}`,
+  );
   console.log(`- No address: ${USERS.sellerNoAddress} / ${DEFAULT_PASSWORD}`);
-  console.log(`- MP pending: ${USERS.sellerPendingMp} / ${DEFAULT_PASSWORD}`);
+  console.log(
+    `- Cobro pendiente: ${USERS.sellerPendingPayout} / ${DEFAULT_PASSWORD}`,
+  );
   console.log(`- Buyer heavy:${USERS.buyerHeavy} / ${DEFAULT_PASSWORD}`);
   console.log(`- Buyer win:  ${USERS.buyerWinner} / ${DEFAULT_PASSWORD}`);
   console.log(`- Buyer refund:${USERS.buyerRefund} / ${DEFAULT_PASSWORD}`);
@@ -3706,11 +4957,13 @@ async function main() {
   console.log(`- /raffle/${IDS.rafflePackLowStock}`);
   console.log(`- /raffle/${IDS.rafflePackBuyerLimit}`);
   console.log(`- /raffle/${IDS.raffleChooseNumbers}`);
+  console.log(`- /raffle/${IDS.raffleTicketNumberPagination}`);
   console.log(`- /raffle/${IDS.rafflePriceDropActive}`);
   console.log(`- /raffle/${IDS.raffleAlmostSold}`);
   console.log(`- /raffle/${IDS.raffleCancelledRefunded}`);
   console.log(`- /raffle/${IDS.raffleFinalizedGrowthReviewed}`);
   console.log(`- /raffle/${IDS.raffleFinalizedReviewed}`);
+  console.log('- /dashboard/wallet');
   console.log('- /dashboard/sales');
   console.log('- /dashboard/tickets');
   console.log('- /dashboard/disputes');

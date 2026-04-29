@@ -23,7 +23,7 @@ interface AdminReviewFilters {
   offset?: number;
 }
 
-interface MpEventFilters {
+interface PaymentProviderEventFilters {
   eventType?: string;
   startDate?: Date;
   endDate?: Date;
@@ -36,7 +36,7 @@ interface TransactionFilters {
   raffleId?: string;
   tipo?: string;
   estado?: string;
-  mpPaymentId?: string;
+  providerPaymentId?: string;
   startDate?: Date;
   endDate?: Date;
   limit?: number;
@@ -53,9 +53,9 @@ export class AdminService {
     private notificationsService: NotificationsService,
   ) {}
 
-  // ==================== MpEvent Viewer ====================
+  // ==================== Payment Provider Event Viewer ====================
 
-  async getMpEvents(filters: MpEventFilters) {
+  async getPaymentProviderEvents(filters: PaymentProviderEventFilters) {
     const where: Record<string, unknown> = {};
 
     if (filters.eventType) {
@@ -71,20 +71,20 @@ export class AdminService {
     }
 
     const [events, total] = await Promise.all([
-      this.prisma.mpEvent.findMany({
+      this.prisma.paymentProviderEvent.findMany({
         where,
         orderBy: { processedAt: 'desc' },
         take: filters.limit ?? 50,
         skip: filters.offset ?? 0,
       }),
-      this.prisma.mpEvent.count({ where }),
+      this.prisma.paymentProviderEvent.count({ where }),
     ]);
 
     return { events, total };
   }
 
-  async getMpEventById(eventId: string) {
-    return this.prisma.mpEvent.findUnique({
+  async getPaymentProviderEventById(eventId: string) {
+    return this.prisma.paymentProviderEvent.findUnique({
       where: { eventId },
     });
   }
@@ -98,7 +98,8 @@ export class AdminService {
     if (filters.raffleId) where.raffleId = filters.raffleId;
     if (filters.tipo) where.tipo = filters.tipo;
     if (filters.estado) where.estado = filters.estado;
-    if (filters.mpPaymentId) where.mpPaymentId = filters.mpPaymentId;
+    if (filters.providerPaymentId)
+      where.providerPaymentId = filters.providerPaymentId;
 
     if (filters.startDate || filters.endDate) {
       where.createdAt = {};
@@ -127,9 +128,9 @@ export class AdminService {
     return { transactions, total };
   }
 
-  async getTransactionByMpPaymentId(mpPaymentId: string) {
+  async getTransactionByMpPaymentId(providerPaymentId: string) {
     return this.prisma.transaction.findFirst({
-      where: { mpPaymentId, isDeleted: false },
+      where: { providerPaymentId, isDeleted: false },
       include: {
         user: {
           select: { id: true, email: true, nombre: true, apellido: true },
@@ -141,47 +142,32 @@ export class AdminService {
 
   // ==================== Payment Debug Summary ====================
 
-  async getPaymentDebugInfo(mpPaymentId: string) {
-    const [mpEvent, transaction, tickets] = await Promise.all([
-      this.prisma.mpEvent.findFirst({
-        where: { eventId: mpPaymentId },
+  async getPaymentDebugInfo(providerPaymentId: string) {
+    const [providerEvent, transaction] = await Promise.all([
+      this.prisma.paymentProviderEvent.findFirst({
+        where: { eventId: providerPaymentId },
       }),
       this.prisma.transaction.findFirst({
-        where: { mpPaymentId, isDeleted: false },
+        where: { providerPaymentId, isDeleted: false },
         include: {
           user: { select: { id: true, email: true, nombre: true } },
           raffle: { select: { id: true, titulo: true, sellerId: true } },
         },
       }),
-      this.prisma.ticket.findMany({
-        where: { mpPaymentId },
-        select: {
-          id: true,
-          numeroTicket: true,
-          estado: true,
-          precioPagado: true,
-          createdAt: true,
-        },
-      }),
     ]);
 
     return {
-      mpPaymentId,
-      webhookReceived: !!mpEvent,
-      webhookProcessedAt: mpEvent?.processedAt,
-      webhookEventType: mpEvent?.eventType,
+      providerPaymentId,
+      webhookReceived: !!providerEvent,
+      webhookProcessedAt: providerEvent?.processedAt,
+      webhookEventType: providerEvent?.eventType,
       transactionCreated: !!transaction,
       transactionId: transaction?.id,
       transactionStatus: transaction?.estado,
       transactionAmount: transaction?.monto,
-      ticketsCount: tickets.length,
-      tickets: tickets.map((t) => ({
-        id: t.id,
-        numeroTicket: t.numeroTicket,
-        estado: t.estado,
-        precioPagado: t.precioPagado,
-      })),
-      raffle: transaction?.raffle,
+      ticketsCount: 0,
+      tickets: [],
+      raffle: transaction?.raffle ?? undefined,
       buyer: transaction?.user,
     };
   }
@@ -200,7 +186,7 @@ export class AdminService {
       totalTransactions,
       totalDisputes,
       pendingDisputes,
-      recentMpEvents,
+      recentPaymentEvents,
       newUsersToday,
       newRafflesToday,
       ticketStats,
@@ -212,7 +198,7 @@ export class AdminService {
       this.prisma.transaction.count({ where: { isDeleted: false } }),
       this.prisma.dispute.count(),
       this.prisma.dispute.count({ where: { estado: 'ABIERTA' } }),
-      this.prisma.mpEvent.count({
+      this.prisma.paymentProviderEvent.count({
         where: {
           processedAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) },
         },
@@ -240,7 +226,7 @@ export class AdminService {
       totalTicketsSold: ticketStats._count.id || 0,
       totalDisputes,
       pendingDisputes,
-      recentMpEvents,
+      recentPaymentEvents,
       newUsersToday,
       newRafflesToday,
     };
@@ -294,7 +280,7 @@ export class AdminService {
         nombre: u.nombre,
         apellido: u.apellido,
         role: u.role,
-        mpConnectStatus: u.mpConnectStatus,
+        sellerPaymentAccountStatus: u.sellerPaymentAccountStatus,
         kycStatus: u.kycStatus,
         createdAt: u.createdAt,
         isDeleted: u.isDeleted,

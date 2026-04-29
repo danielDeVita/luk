@@ -38,10 +38,11 @@ export class CsrfMiddleware implements NestMiddleware {
   // Paths exempt from CSRF validation
   private readonly exemptPaths = [
     '/graphql', // GraphQL uses JWT authentication, not cookies
-    '/mp/webhook', // Mercado Pago webhooks (use signature verification)
+    '/payments/webhook', // Payment-provider webhooks (use signature verification)
     '/auth/google', // OAuth redirect (stateless flow)
     '/auth/google/callback', // OAuth callback (has state param)
-    '/mp/connect/callback', // MP OAuth callback
+    '/payments/account/callback', // Seller payment-account callback
+    '/payments/account/disconnect', // Bearer-token disconnect endpoint
     '/health', // Health checks
     '/health/ready',
     '/health/live',

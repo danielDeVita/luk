@@ -17,7 +17,7 @@ interface SyncResult {
   syncResult?: {
     status: string;
     alreadyProcessed: boolean;
-    ticketsUpdated: number;
+    creditedAmount: number;
   };
   error?: string;
 }
@@ -30,10 +30,13 @@ interface PersistedMockCheckout {
 function StatusContent() {
   const searchParams = useSearchParams();
 
-  // Mercado Pago redirect params
+  // Credit top-up redirect params
   const urlStatus = searchParams.get('status') || searchParams.get('collection_status');
-  const paymentId = searchParams.get('payment_id') || searchParams.get('collection_id');
-  const merchantOrderId = searchParams.get('merchant_order_id');
+  const paymentId =
+    searchParams.get('payment_id') ||
+    searchParams.get('collection_id');
+  const providerOrderId =
+    searchParams.get('provider_order_id') || searchParams.get('merchant_order_id');
   const mockToken = searchParams.get('mock_token');
 
   const [syncData, setSyncData] = useState<SyncResult | null>(null);
@@ -53,7 +56,9 @@ function StatusContent() {
 
     try {
       setError(null);
-      const response = await fetch(`${backendUrl}/mp/payment-status?payment_id=${paymentId}`);
+      const response = await fetch(
+        `${backendUrl}/payments/status?payment_id=${encodeURIComponent(paymentId)}`,
+      );
       const data = await response.json();
 
       if (!response.ok) {
@@ -62,9 +67,8 @@ function StatusContent() {
 
       setSyncData(data);
 
-      // Show toast if tickets were just updated
-      if (data.syncResult?.ticketsUpdated > 0 && !data.syncResult?.alreadyProcessed) {
-        toast.success(`${data.syncResult.ticketsUpdated} ticket(s) confirmado(s)`);
+      if (data.syncResult?.creditedAmount > 0 && !data.syncResult?.alreadyProcessed) {
+        toast.success('Saldo LUK acreditado');
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error desconocido');
@@ -91,7 +95,7 @@ function StatusContent() {
 
     try {
       const parsed = JSON.parse(rawValue) as PersistedMockCheckout;
-      if (parsed?.paymentId?.startsWith('mock_pay_') && parsed.token) {
+      if (parsed?.paymentId && parsed.token) {
         setPersistedMockCheckout(parsed);
       }
     } catch {
@@ -114,11 +118,11 @@ function StatusContent() {
   const isRefunded = finalStatus === 'refunded';
   const isPartiallyRefunded = finalStatus === 'partially_refunded';
   const mockCheckoutPaymentId =
-    paymentId?.startsWith('mock_pay_') && mockToken
+    paymentId && mockToken
       ? paymentId
       : persistedMockCheckout?.paymentId ?? null;
   const mockCheckoutToken =
-    paymentId?.startsWith('mock_pay_') && mockToken
+    paymentId && mockToken
       ? mockToken
       : persistedMockCheckout?.token ?? null;
   const canReturnToMockCheckout = Boolean(
@@ -130,7 +134,7 @@ function StatusContent() {
       <div className="container mx-auto px-4 py-16 max-w-lg">
         <Card className="text-center p-8">
           <Clock className="h-12 w-12 mx-auto text-muted-foreground animate-pulse" />
-          <p className="mt-4 text-muted-foreground">Verificando estado del pago...</p>
+          <p className="mt-4 text-muted-foreground">Verificando carga de saldo...</p>
         </Card>
       </div>
     );
@@ -141,7 +145,7 @@ function StatusContent() {
       <div className="container mx-auto px-4 py-16 max-w-lg">
         <Card className="text-center p-8">
           <AlertTriangle className="h-12 w-12 mx-auto text-red-500 mb-4" />
-          <p className="mt-4 text-red-600">Error al verificar el pago</p>
+          <p className="mt-4 text-red-600">Error al verificar la carga</p>
           <p className="text-sm text-muted-foreground mt-2">{error}</p>
           <div className="flex flex-col gap-2 mt-4">
             <Button onClick={handleRetry} disabled={retrying}>
@@ -173,25 +177,25 @@ function StatusContent() {
           {isApproved && (
             <>
               <CheckCircle className="h-20 w-20 mx-auto text-green-500 mb-4" />
-              <CardTitle className="text-2xl text-green-600">¡Pago Exitoso!</CardTitle>
+              <CardTitle className="text-2xl text-green-600">Carga aprobada</CardTitle>
             </>
           )}
           {isPending && (
             <>
               <Clock className="h-20 w-20 mx-auto text-yellow-500 mb-4" />
-              <CardTitle className="text-2xl text-yellow-600">Pago Pendiente</CardTitle>
+              <CardTitle className="text-2xl text-yellow-600">Carga pendiente</CardTitle>
             </>
           )}
           {isRejected && (
             <>
               <XCircle className="h-20 w-20 mx-auto text-red-500 mb-4" />
-              <CardTitle className="text-2xl text-red-600">Pago Rechazado</CardTitle>
+              <CardTitle className="text-2xl text-red-600">Carga rechazada</CardTitle>
             </>
           )}
           {!finalStatus && (
             <>
               <AlertTriangle className="h-20 w-20 mx-auto text-muted-foreground mb-4" />
-              <CardTitle className="text-2xl">Estado del pago no disponible</CardTitle>
+              <CardTitle className="text-2xl">Estado de la carga no disponible</CardTitle>
             </>
           )}
           {isRefunded && (
@@ -211,19 +215,19 @@ function StatusContent() {
           {isApproved && (
             <div className="space-y-4">
               <p className="text-muted-foreground">
-                Tu compra ha sido procesada correctamente. Ya tenés tus tickets registrados.
+                Tu carga fue procesada correctamente. El Saldo LUK ya debería estar acreditado.
               </p>
               <div className="p-4 bg-muted/50 rounded-lg text-left space-y-2">
                 {paymentId && (
                   <p className="text-sm">
-                    <span className="text-muted-foreground">ID de Pago:</span>{' '}
+                    <span className="text-muted-foreground">ID de carga:</span>{' '}
                     <span className="font-mono">{paymentId}</span>
                   </p>
                 )}
-                {merchantOrderId && (
+                {providerOrderId && (
                   <p className="text-sm">
                     <span className="text-muted-foreground">Orden:</span>{' '}
-                    <span className="font-mono">{merchantOrderId}</span>
+                    <span className="font-mono">{providerOrderId}</span>
                   </p>
                 )}
                 {backendStatus && (
@@ -240,11 +244,11 @@ function StatusContent() {
                 )}
                 {syncData?.syncResult && (
                   <p className="text-sm">
-                    <span className="text-muted-foreground">Tickets:</span>{' '}
+                    <span className="text-muted-foreground">Saldo:</span>{' '}
                     <span className="font-mono">
                       {syncData.syncResult.alreadyProcessed
                         ? 'Ya procesados'
-                        : `${syncData.syncResult.ticketsUpdated} confirmado(s)`}
+                        : `$${syncData.syncResult.creditedAmount.toFixed(2)} acreditado`}
                     </span>
                   </p>
                 )}
@@ -255,14 +259,13 @@ function StatusContent() {
           {isPending && (
             <div className="space-y-4">
               <p className="text-muted-foreground">
-                Tu pago está siendo procesado. Esto puede tomar unos minutos.
+                Tu carga de saldo está siendo procesada. Esto puede tomar unos minutos.
               </p>
               <div className="p-4 bg-yellow-500/10 rounded-lg border border-yellow-500/20">
                 <div className="flex items-start gap-2">
                   <AlertTriangle className="h-5 w-5 text-yellow-500 flex-shrink-0 mt-0.5" />
                   <p className="text-sm text-yellow-700 dark:text-yellow-300">
-                    Tus tickets se confirmarán automáticamente cuando se apruebe el pago.
-                    Revisá tu email para actualizaciones.
+                    El Saldo LUK se acreditará automáticamente cuando se apruebe la carga.
                   </p>
                 </div>
               </div>
@@ -285,11 +288,11 @@ function StatusContent() {
           {isRefunded && (
             <div className="space-y-4">
               <p className="text-muted-foreground">
-                El pago fue reintegrado por completo. Si había una bonificación promocional asociada, ya debería haberse restituido.
+                La carga fue reintegrada por completo.
               </p>
               <div className="p-4 bg-blue-500/10 rounded-lg border border-blue-500/20">
                 <p className="text-sm text-blue-700 dark:text-blue-300">
-                  Verifica en el dashboard y en el panel admin de Promoción Social que la reversión del grant haya quedado registrada.
+                  Si ese saldo ya había sido usado, el reintegro externo no corresponde y debe resolverse dentro del ledger interno.
                 </p>
               </div>
             </div>
@@ -298,11 +301,11 @@ function StatusContent() {
           {isPartiallyRefunded && (
             <div className="space-y-4">
               <p className="text-muted-foreground">
-                El pago recibió un reintegro parcial. La compra sigue registrada y la bonificación promocional no debería restituirse.
+                La carga recibió un reintegro parcial. El saldo no usado se ajustó en tu cuenta.
               </p>
               <div className="p-4 bg-blue-500/10 rounded-lg border border-blue-500/20">
                 <p className="text-sm text-blue-700 dark:text-blue-300">
-                  Usa esto para QA de disputas o devoluciones parciales sin tocar Mercado Pago real.
+                  Usá esto para QA de reintegros de carga sin asociarlo a tickets.
                 </p>
               </div>
             </div>
@@ -311,11 +314,11 @@ function StatusContent() {
           {isRejected && (
             <div className="space-y-4">
               <p className="text-muted-foreground">
-                No pudimos procesar tu pago. Por favor intenta nuevamente con otro método de pago.
+                No pudimos procesar la carga. Podés intentar nuevamente con otro método de pago.
               </p>
               <div className="p-4 bg-red-500/10 rounded-lg border border-red-500/20">
                 <p className="text-sm text-red-700 dark:text-red-300">
-                  Si el problema persiste, contacta a soporte o intenta con otra tarjeta.
+                  Si el problema persiste, contactá a soporte o intentá con otra tarjeta.
                 </p>
               </div>
             </div>
@@ -324,12 +327,12 @@ function StatusContent() {
           {!finalStatus && (
             <div className="space-y-4">
               <p className="text-muted-foreground">
-                Esta pantalla no recibió los parámetros del pago. Si venís de un checkout mock, podés volver al último flujo QA desde el botón inferior.
+                Esta pantalla no recibió los parámetros de la carga. Si venís de un checkout mock, podés volver al último flujo QA desde el botón inferior.
               </p>
               {persistedMockCheckout && (
                 <div className="p-4 bg-muted/50 rounded-lg text-left space-y-2">
                   <p className="text-sm">
-                    <span className="text-muted-foreground">Último pago mock:</span>{' '}
+                    <span className="text-muted-foreground">Última carga mock:</span>{' '}
                     <span className="font-mono">{persistedMockCheckout.paymentId}</span>
                   </p>
                 </div>
@@ -344,13 +347,13 @@ function StatusContent() {
                 className="flex-1"
               >
                 <Button className="w-full" variant="outline">
-                  Volver al pago mock
+                  Volver a la carga mock
                 </Button>
               </Link>
             )}
-            <Link href="/dashboard/tickets" className="flex-1">
+            <Link href="/dashboard/wallet" className="flex-1">
               <Button className="w-full" variant={isApproved ? 'default' : 'outline'}>
-                Ver Mis Tickets
+                Ver Saldo LUK
               </Button>
             </Link>
             <Link href="/search" className="flex-1">

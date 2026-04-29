@@ -3,9 +3,9 @@ import { ConfigService } from '@nestjs/config';
 import { Prisma } from '@prisma/client';
 import { RaffleTasksService } from './raffle-tasks.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { PaymentsService } from '../payments/payments.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PayoutsService } from '../payouts/payouts.service';
+import { TicketsService } from '../tickets/tickets.service';
 
 type MockPrismaService = {
   raffle: {
@@ -19,17 +19,22 @@ type MockPrismaService = {
   priceReduction: {
     create: jest.Mock;
   };
+  notification: {
+    findFirst: jest.Mock;
+  };
 };
 
-type MockPaymentsService = {
-  refundPayment: jest.Mock;
+type MockTicketsService = {
+  refundTickets: jest.Mock;
   drawRaffleIfEligible: jest.Mock;
 };
 
 type MockNotificationsService = {
+  create: jest.Mock;
   sendRefundNotification: jest.Mock;
   sendPriceReductionSuggestion: jest.Mock;
   sendDeliveryReminderToWinner: jest.Mock;
+  sendRaffleExpirationReminder: jest.Mock;
 };
 
 type MockPayoutsService = {
@@ -40,7 +45,7 @@ type MockPayoutsService = {
 describe('RaffleTasksService', () => {
   let service: RaffleTasksService;
   let prisma: MockPrismaService;
-  let paymentsService: MockPaymentsService;
+  let ticketsService: MockTicketsService;
   let notificationsService: MockNotificationsService;
   let payoutsService: MockPayoutsService;
 
@@ -56,17 +61,22 @@ describe('RaffleTasksService', () => {
     priceReduction: {
       create: jest.fn(),
     },
+    notification: {
+      findFirst: jest.fn(),
+    },
   });
 
-  const mockPaymentsService = (): MockPaymentsService => ({
-    refundPayment: jest.fn(),
+  const mockTicketsService = (): MockTicketsService => ({
+    refundTickets: jest.fn(),
     drawRaffleIfEligible: jest.fn(),
   });
 
   const mockNotificationsService = (): MockNotificationsService => ({
+    create: jest.fn(),
     sendRefundNotification: jest.fn(),
     sendPriceReductionSuggestion: jest.fn(),
     sendDeliveryReminderToWinner: jest.fn(),
+    sendRaffleExpirationReminder: jest.fn(),
   });
 
   const mockPayoutsService = (): MockPayoutsService => ({
@@ -81,7 +91,7 @@ describe('RaffleTasksService', () => {
       providers: [
         RaffleTasksService,
         { provide: PrismaService, useValue: mockPrismaService() },
-        { provide: PaymentsService, useValue: mockPaymentsService() },
+        { provide: TicketsService, useValue: mockTicketsService() },
         { provide: NotificationsService, useValue: mockNotificationsService() },
         { provide: PayoutsService, useValue: mockPayoutsService() },
         {
@@ -97,15 +107,19 @@ describe('RaffleTasksService', () => {
 
     service = module.get<RaffleTasksService>(RaffleTasksService);
     prisma = module.get(PrismaService) as unknown as MockPrismaService;
-    paymentsService = module.get(
-      PaymentsService,
-    ) as unknown as MockPaymentsService;
+    ticketsService = module.get(
+      TicketsService,
+    ) as unknown as MockTicketsService;
     notificationsService = module.get(
       NotificationsService,
     ) as unknown as MockNotificationsService;
     payoutsService = module.get(
       PayoutsService,
     ) as unknown as MockPayoutsService;
+
+    prisma.notification.findFirst.mockResolvedValue(null);
+    notificationsService.create.mockResolvedValue({ id: 'notification-1' });
+    notificationsService.sendRaffleExpirationReminder.mockResolvedValue(true);
   });
 
   describe('processExpiredRaffles', () => {
@@ -114,7 +128,7 @@ describe('RaffleTasksService', () => {
         providers: [
           RaffleTasksService,
           { provide: PrismaService, useValue: mockPrismaService() },
-          { provide: PaymentsService, useValue: mockPaymentsService() },
+          { provide: TicketsService, useValue: mockTicketsService() },
           {
             provide: NotificationsService,
             useValue: mockNotificationsService(),
@@ -171,11 +185,11 @@ describe('RaffleTasksService', () => {
           seller: { id: 'seller-1', email: 'seller@test.com' },
         },
       ]);
-      paymentsService.drawRaffleIfEligible.mockResolvedValue(true);
+      ticketsService.drawRaffleIfEligible.mockResolvedValue(true);
 
       await service.processExpiredRaffles();
 
-      expect(paymentsService.drawRaffleIfEligible).toHaveBeenCalledWith(
+      expect(ticketsService.drawRaffleIfEligible).toHaveBeenCalledWith(
         'raffle-1',
       );
     });
@@ -193,11 +207,11 @@ describe('RaffleTasksService', () => {
           seller: { id: 'seller-1', email: 'seller@test.com' },
         },
       ]);
-      paymentsService.drawRaffleIfEligible.mockResolvedValue(true);
+      ticketsService.drawRaffleIfEligible.mockResolvedValue(true);
 
       await service.processExpiredRaffles();
 
-      expect(paymentsService.drawRaffleIfEligible).toHaveBeenCalledWith(
+      expect(ticketsService.drawRaffleIfEligible).toHaveBeenCalledWith(
         'raffle-1',
       );
     });
@@ -223,30 +237,24 @@ describe('RaffleTasksService', () => {
         tickets: [
           {
             id: 'ticket-1',
-            mpPaymentId: 'mp-1',
             precioPagado: new Prisma.Decimal(500),
             buyer: { email: 'buyer1@test.com' },
           },
           {
             id: 'ticket-2',
-            mpPaymentId: 'mp-2',
             precioPagado: new Prisma.Decimal(500),
             buyer: { email: 'buyer2@test.com' },
           },
         ],
         seller: { id: 'seller-1', email: 'seller@test.com' },
       });
-      paymentsService.refundPayment.mockResolvedValue(true);
-      prisma.ticket.updateMany.mockResolvedValue({ count: 2 });
+      ticketsService.refundTickets.mockResolvedValue({ count: 2 });
       prisma.raffle.update.mockResolvedValue({});
       prisma.priceReduction.create.mockResolvedValue({ id: 'pr-1' });
 
       await service.processExpiredRaffles();
 
-      expect(prisma.ticket.updateMany).toHaveBeenCalledWith({
-        where: { id: { in: ['ticket-1', 'ticket-2'] }, estado: 'PAGADO' },
-        data: { estado: 'REEMBOLSADO' },
-      });
+      expect(ticketsService.refundTickets).toHaveBeenCalledWith('raffle-1');
       expect(prisma.raffle.update).toHaveBeenCalledWith({
         where: { id: 'raffle-1' },
         data: { estado: 'CANCELADA' },
@@ -257,7 +265,7 @@ describe('RaffleTasksService', () => {
       ).toHaveBeenCalled();
     });
 
-    it('should not cancel raffle when some refunds fail', async () => {
+    it('should not cancel raffle when wallet refunds fail', async () => {
       prisma.raffle.findMany.mockResolvedValue([
         {
           id: 'raffle-1',
@@ -278,30 +286,23 @@ describe('RaffleTasksService', () => {
         tickets: [
           {
             id: 'ticket-1',
-            mpPaymentId: 'mp-1',
             precioPagado: new Prisma.Decimal(500),
             buyer: { email: 'buyer1@test.com' },
           },
           {
             id: 'ticket-2',
-            mpPaymentId: 'mp-2',
             precioPagado: new Prisma.Decimal(500),
             buyer: { email: 'buyer2@test.com' },
           },
         ],
         seller: { id: 'seller-1', email: 'seller@test.com' },
       });
-      paymentsService.refundPayment
-        .mockResolvedValueOnce(true)
-        .mockResolvedValueOnce(false);
-      prisma.ticket.updateMany.mockResolvedValue({ count: 1 });
+      ticketsService.refundTickets.mockRejectedValue(
+        new Error('refund failed'),
+      );
 
       await service.processExpiredRaffles();
 
-      expect(prisma.ticket.updateMany).toHaveBeenCalledWith({
-        where: { id: { in: ['ticket-1'] }, estado: 'PAGADO' },
-        data: { estado: 'REEMBOLSADO' },
-      });
       expect(prisma.raffle.update).not.toHaveBeenCalledWith({
         where: { id: 'raffle-1' },
         data: { estado: 'CANCELADA' },
@@ -321,6 +322,77 @@ describe('RaffleTasksService', () => {
       await service.processRemindersAndReleases();
 
       expect(payoutsService.processDuePayouts).toHaveBeenCalled();
+    });
+
+    it('should send one seller reminder when an active raffle is about to expire', async () => {
+      const deadline = new Date('2026-05-01T12:00:00.000Z');
+      prisma.raffle.findMany
+        .mockResolvedValueOnce([
+          {
+            id: 'raffle-1',
+            sellerId: 'seller-1',
+            titulo: 'Rifa por vencer QA',
+            fechaLimiteSorteo: deadline,
+            totalTickets: 10,
+            tickets: [{ id: 'ticket-1' }, { id: 'ticket-2' }],
+            seller: { id: 'seller-1', email: 'seller@test.com' },
+          },
+        ])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([]);
+
+      await service.processRemindersAndReleases();
+
+      expect(prisma.notification.findFirst).toHaveBeenCalledWith({
+        where: {
+          userId: 'seller-1',
+          type: 'INFO',
+          title: 'Rifa por vencer',
+          actionUrl: '/raffle/raffle-1',
+        },
+      });
+      expect(notificationsService.create).toHaveBeenCalledWith(
+        'seller-1',
+        'INFO',
+        'Rifa por vencer',
+        'Tu rifa "Rifa por vencer QA" vence pronto. Revisá el avance de ventas.',
+        '/raffle/raffle-1',
+      );
+      expect(
+        notificationsService.sendRaffleExpirationReminder,
+      ).toHaveBeenCalledWith('seller@test.com', {
+        raffleName: 'Rifa por vencer QA',
+        deadline,
+        soldTickets: 2,
+        totalTickets: 10,
+      });
+    });
+
+    it('should not resend the raffle expiration reminder if one already exists', async () => {
+      prisma.notification.findFirst.mockResolvedValueOnce({
+        id: 'notification-1',
+      });
+      prisma.raffle.findMany
+        .mockResolvedValueOnce([
+          {
+            id: 'raffle-1',
+            sellerId: 'seller-1',
+            titulo: 'Rifa por vencer QA',
+            fechaLimiteSorteo: new Date('2026-05-01T12:00:00.000Z'),
+            totalTickets: 10,
+            tickets: [],
+            seller: { id: 'seller-1', email: 'seller@test.com' },
+          },
+        ])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([]);
+
+      await service.processRemindersAndReleases();
+
+      expect(notificationsService.create).not.toHaveBeenCalled();
+      expect(
+        notificationsService.sendRaffleExpirationReminder,
+      ).not.toHaveBeenCalled();
     });
 
     it('should auto-confirm and process payout after 7 days without dispute', async () => {

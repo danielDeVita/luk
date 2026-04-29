@@ -76,7 +76,7 @@ describe('SocialPromotionsService', () => {
     get: jest.fn((key: string, fallback?: unknown) => {
       const values: Record<string, unknown> = {
         SOCIAL_PROMOTION_TOKEN_TTL_HOURS: 24,
-        SOCIAL_PROMOTION_MIN_MP_CHARGE: 1,
+        SOCIAL_PROMOTION_MIN_PROVIDER_CHARGE: 1,
         FRONTEND_URL: 'http://localhost:3000',
         BACKEND_URL: 'http://localhost:3001',
         SOCIAL_PROMOTION_DEFAULT_BONUS_TIER_JSON: '',
@@ -301,7 +301,7 @@ describe('SocialPromotionsService', () => {
 
       expect(preview.grossSubtotal).toBe(2000);
       expect(preview.discountApplied).toBe(200);
-      expect(preview.mpChargeAmount).toBe(1800);
+      expect(preview.chargedAmount).toBe(1800);
     });
   });
 
@@ -341,7 +341,7 @@ describe('SocialPromotionsService', () => {
     });
   });
 
-  describe('reinstateRedemptionByPaymentId', () => {
+  describe('reinstateRedemptionByPurchaseReference', () => {
     it('reinstates the grant and records a reversal transaction for a full refund', async () => {
       prisma.promotionBonusRedemption.findMany.mockResolvedValue([
         {
@@ -351,12 +351,12 @@ describe('SocialPromotionsService', () => {
           raffleId: 'raffle-1',
           grossSubtotal: 1200,
           discountApplied: 200,
-          mpChargeAmount: 1000,
+          chargedAmount: 1000,
           status: PromotionBonusRedemptionStatus.USED,
         },
       ]);
 
-      await service.reinstateRedemptionByPaymentId('mp-123');
+      await service.reinstateRedemptionByPurchaseReference('purchase-123');
 
       expect(prisma.promotionBonusRedemption.update).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -380,7 +380,9 @@ describe('SocialPromotionsService', () => {
             userId: 'buyer-1',
             raffleId: 'raffle-1',
             monto: 200,
-            mpPaymentId: 'mp-123',
+            metadata: expect.objectContaining({
+              purchaseReference: 'purchase-123',
+            }),
           }),
         }),
       );
@@ -395,12 +397,12 @@ describe('SocialPromotionsService', () => {
           raffleId: 'raffle-1',
           grossSubtotal: 1200,
           discountApplied: 200,
-          mpChargeAmount: 1000,
+          chargedAmount: 1000,
           status: PromotionBonusRedemptionStatus.USED,
         },
       ]);
 
-      await service.reinstateRedemptionByPaymentId('mp-123', 250);
+      await service.reinstateRedemptionByPurchaseReference('purchase-123', 250);
 
       expect(prisma.promotionBonusRedemption.update).not.toHaveBeenCalled();
       expect(prisma.promotionBonusGrant.update).not.toHaveBeenCalled();

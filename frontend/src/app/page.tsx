@@ -139,7 +139,7 @@ export default function HomePage() {
             <FeatureCard
               icon={<Ticket className="h-6 w-6" />}
               title="Fácil de usar"
-              description="Comprá tickets en segundos con pagos seguros por Mercado Pago"
+              description="Comprá tickets en segundos con pagos seguros integrados"
             />
             <FeatureCard
               icon={<Shield className="h-6 w-6" />}
@@ -217,7 +217,7 @@ export default function HomePage() {
               </div>
               <div>
                 <p className="font-semibold text-sm">Pagos seguros</p>
-                <p className="text-sm text-muted-foreground">Powered by Mercado Pago</p>
+                <p className="text-sm text-muted-foreground">Pagos seguros integrados</p>
               </div>
             </div>
             <div className="flex items-center gap-3">

@@ -99,7 +99,7 @@ export class SocialPromotionsService {
     'P2024',
   ]);
   private readonly tokenTtlHours: number;
-  private readonly minMpCharge: number;
+  private readonly minProviderCharge: number;
   private readonly frontendUrl: string;
   private readonly backendUrl: string;
   private readonly defaultBonusTiers: BonusTier[];
@@ -118,8 +118,8 @@ export class SocialPromotionsService {
       'SOCIAL_PROMOTION_TOKEN_TTL_HOURS',
       24,
     );
-    this.minMpCharge = this.configService.get<number>(
-      'SOCIAL_PROMOTION_MIN_MP_CHARGE',
+    this.minProviderCharge = this.configService.get<number>(
+      'SOCIAL_PROMOTION_MIN_PROVIDER_CHARGE',
       1,
     );
     this.frontendUrl = this.normalizeBaseUrl(
@@ -393,7 +393,7 @@ export class SocialPromotionsService {
         reservationId: params.reservationId,
         grossSubtotal: preview.grossSubtotal,
         discountApplied: preview.discountApplied,
-        mpChargeAmount: preview.mpChargeAmount,
+        chargedAmount: preview.chargedAmount,
         status: PromotionBonusRedemptionStatus.RESERVED,
       },
     });
@@ -411,7 +411,7 @@ export class SocialPromotionsService {
   async markRedemptionUsedByReservation(params: {
     reservationId?: string;
     bonusGrantId?: string | null;
-    mpPaymentId: string;
+    purchaseReference: string;
   }): Promise<void> {
     if (!params.reservationId || !params.bonusGrantId) {
       return;
@@ -434,7 +434,7 @@ export class SocialPromotionsService {
         where: { id: redemption.id },
         data: {
           status: PromotionBonusRedemptionStatus.USED,
-          mpPaymentId: params.mpPaymentId,
+          purchaseReference: params.purchaseReference,
           resolvedAt: new Date(),
         },
       }),
@@ -454,7 +454,7 @@ export class SocialPromotionsService {
         raffleId: redemption.raffleId,
         grantId: redemption.promotionBonusGrantId,
         discountApplied: Number(redemption.discountApplied),
-        cashChargedAmount: Number(redemption.mpChargeAmount),
+        cashChargedAmount: Number(redemption.chargedAmount),
       },
     );
   }
@@ -494,13 +494,13 @@ export class SocialPromotionsService {
   /**
    * Restores bonus availability after a full refund and records the reversal transaction.
    */
-  async reinstateRedemptionByPaymentId(
-    mpPaymentId: string,
+  async reinstateRedemptionByPurchaseReference(
+    purchaseReference: string,
     refundAmount?: number,
   ): Promise<void> {
     const redemptions = await this.prisma.promotionBonusRedemption.findMany({
       where: {
-        mpPaymentId,
+        purchaseReference,
         status: PromotionBonusRedemptionStatus.USED,
       },
     });
@@ -510,14 +510,14 @@ export class SocialPromotionsService {
         typeof refundAmount === 'number' && refundAmount > 0
           ? Number(refundAmount.toFixed(2))
           : null;
-      const mpChargeAmount = Number(redemption.mpChargeAmount);
+      const chargedAmount = Number(redemption.chargedAmount);
       const isFullRefund =
         normalizedRefundAmount === null ||
-        normalizedRefundAmount >= Number((mpChargeAmount - 0.01).toFixed(2));
+        normalizedRefundAmount >= Number((chargedAmount - 0.01).toFixed(2));
 
       if (!isFullRefund) {
         this.logger.log(
-          `Keeping promotion bonus grant ${redemption.promotionBonusGrantId} in USED after partial refund ${normalizedRefundAmount} for payment ${mpPaymentId}`,
+          `Keeping promotion bonus grant ${redemption.promotionBonusGrantId} in USED after partial refund ${normalizedRefundAmount} for purchase ${purchaseReference}`,
         );
         continue;
       }
@@ -545,13 +545,13 @@ export class SocialPromotionsService {
             monto: redemption.discountApplied,
             grossAmount: redemption.grossSubtotal,
             promotionDiscountAmount: redemption.discountApplied,
-            cashChargedAmount: redemption.mpChargeAmount,
+            cashChargedAmount: redemption.chargedAmount,
             estado: 'COMPLETADO',
-            mpPaymentId,
             metadata: {
               promotionBonusGrantId: redemption.promotionBonusGrantId,
               promotionBonusRedemptionId: redemption.id,
-              refundAmount: normalizedRefundAmount ?? mpChargeAmount,
+              purchaseReference,
+              refundAmount: normalizedRefundAmount ?? chargedAmount,
               refundType:
                 normalizedRefundAmount === null ? 'full' : 'full-equivalent',
               reason: 'payment_refunded',
@@ -566,7 +566,7 @@ export class SocialPromotionsService {
         {
           raffleId: redemption.raffleId,
           grantId: redemption.promotionBonusGrantId,
-          refundAmount: normalizedRefundAmount ?? mpChargeAmount,
+          refundAmount: normalizedRefundAmount ?? chargedAmount,
           discountApplied: Number(redemption.discountApplied),
         },
       );
@@ -1298,7 +1298,7 @@ export class SocialPromotionsService {
   }
 
   /**
-   * Calculates the capped discount and remaining Mercado Pago charge for a grant.
+   * Calculates the capped discount and remaining live-provider charge for a grant.
    */
   private buildBonusPreview(
     grant: {
@@ -1314,7 +1314,7 @@ export class SocialPromotionsService {
       ((grossSubtotal * discountPercent) / 100).toFixed(2),
     );
     const maximumAllowedDiscount = Number(
-      Math.max(grossSubtotal - this.minMpCharge, 0).toFixed(2),
+      Math.max(grossSubtotal - this.minProviderCharge, 0).toFixed(2),
     );
     const discountApplied = Number(
       Math.min(
@@ -1324,7 +1324,7 @@ export class SocialPromotionsService {
       ).toFixed(2),
     );
 
-    if (grossSubtotal <= this.minMpCharge) {
+    if (grossSubtotal <= this.minProviderCharge) {
       throw new BadRequestException(
         'El monto de la compra es demasiado bajo para aplicar bonificación',
       );
@@ -1334,7 +1334,7 @@ export class SocialPromotionsService {
       bonusGrantId: grant.id,
       grossSubtotal: Number(grossSubtotal.toFixed(2)),
       discountApplied,
-      mpChargeAmount: Number((grossSubtotal - discountApplied).toFixed(2)),
+      chargedAmount: Number((grossSubtotal - discountApplied).toFixed(2)),
     };
   }
 

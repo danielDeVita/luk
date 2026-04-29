@@ -42,8 +42,8 @@ La red permitida se controla además por configuración mediante `SOCIAL_PROMOTI
 - solo el seller dueño puede registrar publicaciones sobre su rifa;
 - la bonificación promocional pertenece al usuario que la ganó;
 - una bonificación no puede aplicarse sobre una rifa propia;
-- la bonificación se usa en checkout y queda reservada antes de abrir el pago;
-- el sistema asegura un cobro mínimo a Mercado Pago mediante `SOCIAL_PROMOTION_MIN_MP_CHARGE`.
+- la bonificación se usa durante la compra con Saldo LUK y queda reservada dentro de esa transacción;
+- no acumula con el pack simple global cuando el pack aplica.
 
 ## Arquitectura real
 
@@ -57,7 +57,7 @@ Responsable de:
 - creación de drafts promocionales;
 - registro de permalinks;
 - lectura de posts, grants y snapshots para la UI;
-- integración de bonificaciones con checkout y Mercado Pago;
+- integración de bonificaciones con compras de tickets usando Saldo LUK;
 - persistencia de métricas atribuidas dentro de Luk.
 
 ### Social Worker
@@ -140,24 +140,24 @@ La feature emite `PromotionBonusGrant` para compras futuras dentro de Luk.
 
 Comportamiento operativo actual:
 
-- la bonificación se previsualiza antes del checkout;
+- la bonificación se previsualiza antes de comprar;
 - si el grant está disponible, se reserva;
-- si el pago se aprueba, el grant pasa a usado;
-- si el pago falla o expira, el grant puede liberarse según el flujo de redención;
-- la bonificación reduce el monto que se cobra por Mercado Pago;
-- el sistema no permite que el monto cobrado caiga por debajo del mínimo configurado.
+- si la compra con saldo se confirma, el grant pasa a usado;
+- si la compra falla antes de emitir tickets, el grant se libera;
+- la bonificación reduce el Saldo LUK debitado al buyer;
+- el seller no absorbe el descuento: se registra como subsidio de plataforma.
 
 El cálculo del descuento se limita por:
 
 - `discountPercent` del grant;
 - `maxDiscountAmount` del grant;
-- `SOCIAL_PROMOTION_MIN_MP_CHARGE`.
+- el subtotal de la compra con saldo.
 
 ## Reversión de grants por refund
 
 Cuando una compra usó una `bonificación promocional`:
 
-- si el pago recibe un `refund completo`, el grant vuelve a `AVAILABLE`;
+- si la compra recibe un `refund completo`, el grant vuelve a `AVAILABLE`;
 - la `redemption` pasa a `REVERSED`;
 - se crea una transacción contable `REVERSION_BONIFICACION_PROMOCIONAL`;
 - el admin puede auditar esa reversión desde `/admin`, en la pestaña `Promoción Social`.
@@ -173,8 +173,8 @@ El log admin de reversiones muestra:
 - comprador;
 - rifa;
 - monto del grant devuelto;
-- monto del refund;
-- `mpPaymentId`;
+- monto del refund acreditado a Saldo LUK;
+- `purchaseReference`;
 - `grantId`;
 - `redemptionId`;
 - tipo de refund.

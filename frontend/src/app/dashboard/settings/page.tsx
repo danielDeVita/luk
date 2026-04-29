@@ -15,7 +15,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, User, Lock, CreditCard, CheckCircle2, XCircle, ExternalLink, Shield, AlertTriangle, Clock, FileCheck, Camera, Trash2 } from 'lucide-react';
+import { Loader2, User, Lock, CreditCard, CheckCircle2, XCircle, Shield, AlertTriangle, Clock, FileCheck, Camera, Trash2 } from 'lucide-react';
 import { PasswordInput } from '@/components/ui/password-input';
 import { toast } from 'sonner';
 import { useConfirmDialog } from '@/hooks/use-confirm-dialog';
@@ -24,12 +24,20 @@ import { getOptimizedImageUrl, CLOUDINARY_PRESETS } from '@/lib/cloudinary';
 import { TwoFactorSettingsCard } from '@/components/auth/two-factor-settings-card';
 
 // Types
-interface MpStatusData {
+interface SettingsUserData {
   me: {
     id: string;
     avatarUrl?: string;
-    mpConnectStatus: string;
-    mpUserId?: string;
+    sellerPaymentAccountStatus: string;
+    sellerPaymentAccountId?: string;
+    sellerPaymentAccount?: {
+      id: string;
+      status: string;
+      accountHolderName?: string | null;
+      accountIdentifierType?: string | null;
+      maskedAccountIdentifier?: string | null;
+      lastSyncedAt?: string | null;
+    } | null;
     kycStatus: string;
     documentType?: string;
     documentNumber?: string;
@@ -69,8 +77,16 @@ const GET_USER_DATA = gql`
     me {
       id
       avatarUrl
-      mpConnectStatus
-      mpUserId
+      sellerPaymentAccountStatus
+      sellerPaymentAccountId
+      sellerPaymentAccount {
+        id
+        status
+        accountHolderName
+        accountIdentifierType
+        maskedAccountIdentifier
+        lastSyncedAt
+      }
       kycStatus
       documentType
       documentNumber
@@ -148,6 +164,37 @@ const DELETE_AVATAR = gql`
   }
 `;
 
+const UPSERT_SELLER_PAYMENT_ACCOUNT = gql`
+  mutation UpsertSellerPaymentAccount($input: UpsertSellerPaymentAccountInput!) {
+    upsertSellerPaymentAccount(input: $input) {
+      id
+      sellerPaymentAccountStatus
+      sellerPaymentAccountId
+      sellerPaymentAccount {
+        id
+        status
+        accountHolderName
+        accountIdentifierType
+        maskedAccountIdentifier
+        lastSyncedAt
+      }
+    }
+  }
+`;
+
+const DISCONNECT_SELLER_PAYMENT_ACCOUNT = gql`
+  mutation DisconnectSellerPaymentAccount {
+    disconnectSellerPaymentAccount {
+      id
+      sellerPaymentAccountStatus
+      sellerPaymentAccountId
+      sellerPaymentAccount {
+        id
+      }
+    }
+  }
+`;
+
 // Schemas
 const profileSchema = z.object({
   nombre: z.string().min(2, 'Mínimo 2 caracteres'),
@@ -177,9 +224,16 @@ const kycSchema = z.object({
   cuitCuil: z.string().regex(/^\d{2}-\d{8}-\d$/, 'Formato: XX-XXXXXXXX-X').optional().or(z.literal('')),
 });
 
+const paymentAccountSchema = z.object({
+  accountHolderName: z.string().min(2, 'Ingresá el titular de la cuenta'),
+  accountIdentifierType: z.enum(['CBU', 'CVU', 'ALIAS']),
+  accountIdentifier: z.string().min(4, 'Ingresá un CBU, CVU o alias válido'),
+});
+
 type ProfileForm = z.infer<typeof profileSchema>;
 type PasswordForm = z.infer<typeof passwordSchema>;
 type KycForm = z.infer<typeof kycSchema>;
+type PaymentAccountForm = z.infer<typeof paymentAccountSchema>;
 
 const PROVINCIAS_ARGENTINA = [
   'Buenos Aires', 'CABA', 'Catamarca', 'Chaco', 'Chubut', 'Cordoba', 'Corrientes',
@@ -223,15 +277,27 @@ function KycStatusBadge({ status }: { status: string }) {
 
 function SettingsContent() {
   const router = useRouter();
-  const { user, isAuthenticated, hasHydrated, updateUser } = useAuthStore();
+  const { user, isAuthenticated, hasHydrated, updateUser } =
+    useAuthStore();
   const searchParams = useSearchParams();
+  const backendUrl =
+    process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
+  const [isSavingPaymentAccount, setIsSavingPaymentAccount] =
+    useState(false);
   const [isDisconnecting, setIsDisconnecting] = useState(false);
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [avatarDeleting, setAvatarDeleting] = useState(false);
+  const [activeTab, setActiveTab] = useState(
+    searchParams.get('tab') || 'profile',
+  );
   const confirmDialog = useConfirmDialog();
 
   // All hooks must be called unconditionally, before any early returns
-  const { data: userData, loading: userLoading, refetch: refetchUserData } = useQuery<MpStatusData>(GET_USER_DATA, {
+  const {
+    data: userData,
+    loading: userLoading,
+    refetch: refetchUserData,
+  } = useQuery<SettingsUserData>(GET_USER_DATA, {
     fetchPolicy: 'network-only',
   });
 
@@ -261,6 +327,26 @@ function SettingsContent() {
       postalCode: userData?.me?.postalCode || '',
       phone: userData?.me?.phone || '',
       cuitCuil: userData?.me?.cuitCuil || '',
+    },
+  });
+  const {
+    register: registerPaymentAccount,
+    handleSubmit: handlePaymentAccountSubmit,
+    setValue: setPaymentAccountValue,
+    formState: {
+      errors: paymentAccountErrors,
+      isSubmitting: isPaymentAccountSubmitting,
+    },
+  } = useForm<PaymentAccountForm>({
+    resolver: zodResolver(paymentAccountSchema),
+    defaultValues: {
+      accountHolderName:
+        userData?.me?.sellerPaymentAccount?.accountHolderName || '',
+      accountIdentifierType:
+        (userData?.me?.sellerPaymentAccount
+          ?.accountIdentifierType as PaymentAccountForm['accountIdentifierType']) ||
+        'CBU',
+      accountIdentifier: '',
     },
   });
 
@@ -317,6 +403,30 @@ function SettingsContent() {
       toast.error(error.message || 'Error al eliminar avatar');
     }
   });
+  const [upsertSellerPaymentAccount] = useMutation(
+    UPSERT_SELLER_PAYMENT_ACCOUNT,
+    {
+      onCompleted: () => {
+        toast.success('Datos de cobro guardados');
+        refetchUserData();
+      },
+      onError: (error) => {
+        toast.error(error.message || 'Error al guardar datos de cobro');
+      },
+    },
+  );
+  const [disconnectSellerPaymentAccount] = useMutation(
+    DISCONNECT_SELLER_PAYMENT_ACCOUNT,
+    {
+      onCompleted: () => {
+        toast.success('Datos de cobro desactivados');
+        refetchUserData();
+      },
+      onError: (error) => {
+        toast.error(error.message || 'Error al desactivar datos de cobro');
+      },
+    },
+  );
 
   // Auth redirect effect
   useEffect(() => {
@@ -325,20 +435,12 @@ function SettingsContent() {
     }
   }, [hasHydrated, isAuthenticated, router]);
 
-  // Handle query params for MP connection result
   useEffect(() => {
-    const mpConnected = searchParams.get('mp_connected');
-    const mpError = searchParams.get('mp_error');
-
-    if (mpConnected === 'true') {
-      toast.success('Mercado Pago conectado exitosamente');
-      refetchUserData();
-      window.history.replaceState({}, '', '/dashboard/settings');
-    } else if (mpError) {
-      toast.error(`Error al conectar Mercado Pago: ${mpError}`);
-      window.history.replaceState({}, '', '/dashboard/settings');
+    const requestedTab = searchParams.get('tab');
+    if (requestedTab) {
+      setActiveTab(requestedTab);
     }
-  }, [searchParams, refetchUserData]);
+  }, [searchParams]);
 
   // Update KYC form when data loads
   useEffect(() => {
@@ -354,20 +456,43 @@ function SettingsContent() {
       if (me.postalCode) setKycValue('postalCode', me.postalCode);
       if (me.phone) setKycValue('phone', me.phone);
       if (me.cuitCuil) setKycValue('cuitCuil', me.cuitCuil);
+      if (me.sellerPaymentAccount?.accountHolderName) {
+        setPaymentAccountValue(
+          'accountHolderName',
+          me.sellerPaymentAccount.accountHolderName,
+        );
+      }
+      if (me.sellerPaymentAccount?.accountIdentifierType) {
+        setPaymentAccountValue(
+          'accountIdentifierType',
+          me.sellerPaymentAccount
+            .accountIdentifierType as PaymentAccountForm['accountIdentifierType'],
+        );
+      }
     }
-  }, [userData, setKycValue]);
+  }, [userData, setKycValue, setPaymentAccountValue]);
 
   // Now the early return check (after all hooks are declared)
   if (!hasHydrated || !isAuthenticated) return null;
 
-  const mpStatus = userData?.me?.mpConnectStatus || 'NOT_CONNECTED';
-  const mpUserId = userData?.me?.mpUserId;
-  const isConnected = mpStatus === 'CONNECTED';
+  const paymentAccountStatus =
+    userData?.me?.sellerPaymentAccountStatus || 'NOT_CONNECTED';
+  const sellerPaymentAccount = userData?.me?.sellerPaymentAccount;
+  const isConnected = paymentAccountStatus === 'CONNECTED';
+  const isPendingPaymentAccount = paymentAccountStatus === 'PENDING';
   const kycStatus = userData?.me?.kycStatus || 'NOT_SUBMITTED';
   const isKycVerified = kycStatus === 'VERIFIED';
   const isKycPending = kycStatus === 'PENDING_REVIEW';
   const isKycRejected = kycStatus === 'REJECTED';
   const kycRejectedReason = userData?.me?.kycRejectedReason;
+  const hasAddress = Boolean(
+    userData?.me?.street &&
+      userData?.me?.city &&
+      userData?.me?.province &&
+      userData?.me?.postalCode,
+  );
+  const hasCuit = Boolean(userData?.me?.cuitCuil);
+  const canActivatePaymentAccount = isKycVerified && hasAddress && hasCuit;
 
   const watchedDocType = watchKyc('documentType');
   const watchedProvince = watchKyc('province');
@@ -384,18 +509,21 @@ function SettingsContent() {
     updateKyc({ variables: { input: data } });
   };
 
-  const handleConnectMP = () => {
-    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
-    // Pass token as query param since we can't send Authorization header with redirect
-    const token = useAuthStore.getState().token;
-    window.location.href = `${backendUrl}/mp/connect?token=${token}`;
+  const onPaymentAccountSubmit = async (data: PaymentAccountForm) => {
+    setIsSavingPaymentAccount(true);
+    try {
+      await upsertSellerPaymentAccount({ variables: { input: data } });
+    } finally {
+      setIsSavingPaymentAccount(false);
+    }
   };
 
-  const handleDisconnectMP = async () => {
+  const handleDisconnectPaymentAccount = async () => {
     const confirmed = await confirmDialog({
-      title: '¿Desconectar Mercado Pago?',
-      description: 'No podrás recibir pagos hasta que conectes tu cuenta nuevamente.',
-      confirmText: 'Desconectar',
+      title: '¿Desactivar datos de cobro?',
+      description:
+        'No vas a poder crear rifas nuevas hasta volver a cargar datos de cobro válidos.',
+      confirmText: 'Desactivar',
       cancelText: 'Cancelar',
       variant: 'destructive',
     });
@@ -403,27 +531,14 @@ function SettingsContent() {
 
     setIsDisconnecting(true);
     try {
-      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
-      const token = useAuthStore.getState().token;
-
-      const response = await fetch(`${backendUrl}/mp/connect/disconnect`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-      });
-
-      if (response.ok) {
-        toast.success('Mercado Pago desconectado');
-        refetchUserData();
-      } else {
-        const data = await response.json();
-        toast.error(data.error || 'Error al desconectar');
-      }
-    } catch {
-      toast.error('Error al desconectar Mercado Pago');
+      await disconnectSellerPaymentAccount();
+      router.replace('/dashboard/settings?tab=payments');
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : 'Error al desactivar datos de cobro',
+      );
     } finally {
       setIsDisconnecting(false);
     }
@@ -447,12 +562,11 @@ function SettingsContent() {
     setAvatarUploading(true);
     try {
       // Get signature from backend
-      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
-      const token = useAuthStore.getState().token;
+      const authToken = useAuthStore.getState().token;
       const sigResponse = await fetch(`${backendUrl}/uploads/signature/avatar`, {
         credentials: 'include',
         headers: {
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
         },
       });
       const sigData = await sigResponse.json();
@@ -527,7 +641,7 @@ function SettingsContent() {
         <h1 className="mt-4 font-display text-4xl leading-none sm:text-5xl">Configuración de Cuenta</h1>
       </div>
 
-      <Tabs defaultValue="profile" className="space-y-6">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <TabsList className="grid w-full grid-cols-2 md:grid-cols-4">
           <TabsTrigger value="profile">
             <User className="h-4 w-4 mr-2" />
@@ -863,67 +977,215 @@ function SettingsContent() {
         <TabsContent value="payments">
           <Card>
             <CardHeader>
-              <CardTitle>Mercado Pago</CardTitle>
+              <CardTitle>Datos de cobro</CardTitle>
               <CardDescription>
-                Conectá tu cuenta de Mercado Pago para recibir pagos cuando vendas rifas.
+                Cargá los datos internos que LUK usa para liquidaciones manuales. No hay conexión con una pasarela para ventas de tickets.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              {/* Connection Status */}
-              <div className="flex items-center justify-between p-4 border rounded-lg">
-                <div className="flex items-center gap-3">
+              <div className="flex flex-col gap-4 rounded-[1.35rem] border border-border/80 p-5 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-start gap-3">
                   {isConnected ? (
-                    <CheckCircle2 className="h-8 w-8 text-success" />
+                    <CheckCircle2 className="mt-0.5 h-8 w-8 text-success" />
+                  ) : isPendingPaymentAccount ? (
+                    <Clock className="mt-0.5 h-8 w-8 text-secondary" />
                   ) : (
-                    <XCircle className="h-8 w-8 text-muted-foreground" />
+                    <XCircle className="mt-0.5 h-8 w-8 text-muted-foreground" />
                   )}
-                  <div>
+                  <div className="space-y-1">
                     <p className="font-medium">
-                      {isConnected ? 'Cuenta conectada' : 'No conectado'}
+                      {isConnected
+                        ? 'Datos de cobro activos'
+                        : isPendingPaymentAccount
+                          ? 'Datos de cobro pendientes'
+                          : 'Datos de cobro no cargados'}
                     </p>
-                    {isConnected && mpUserId && (
+                    <p className="text-sm text-muted-foreground">
+                      {isConnected
+                        ? 'Ya podés crear rifas y recibir liquidaciones internas cuando se cumplan las reglas de protección al comprador.'
+                        : isPendingPaymentAccount
+                          ? 'Completá KYC, CUIT/CUIL y dirección para que la cuenta quede operativa.'
+                          : 'Cargá tus datos de cobro para habilitar rifas y futuras liquidaciones.'}
+                    </p>
+                    {sellerPaymentAccount?.accountHolderName && (
                       <p className="text-sm text-muted-foreground">
-                        ID: {mpUserId}
+                        Titular: {sellerPaymentAccount.accountHolderName}
+                      </p>
+                    )}
+                    {sellerPaymentAccount?.maskedAccountIdentifier && (
+                      <p className="text-sm text-muted-foreground">
+                        {sellerPaymentAccount.accountIdentifierType}:{' '}
+                        {sellerPaymentAccount.maskedAccountIdentifier}
+                      </p>
+                    )}
+                    {sellerPaymentAccount?.lastSyncedAt && (
+                      <p className="text-xs text-muted-foreground">
+                        Última sincronización:{' '}
+                        {new Date(
+                          sellerPaymentAccount.lastSyncedAt,
+                        ).toLocaleString()}
                       </p>
                     )}
                   </div>
                 </div>
                 <Badge variant={isConnected ? 'default' : 'secondary'}>
-                  {isConnected ? 'Activo' : 'Inactivo'}
+                  {paymentAccountStatus}
                 </Badge>
               </div>
 
-              {/* Action Buttons */}
-              {isConnected ? (
-                <Button
-                  variant="outline"
-                  onClick={handleDisconnectMP}
-                  disabled={isDisconnecting}
-                  className="w-full"
-                >
-                  {isDisconnecting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Desconectar Mercado Pago
-                </Button>
-              ) : (
-                <Button
-                  onClick={handleConnectMP}
-                  className="w-full"
-                >
-                  <ExternalLink className="mr-2 h-4 w-4" />
-                  Conectar Mercado Pago
-                </Button>
-              )}
+              <div className="grid gap-3 rounded-[1.35rem] border border-primary/18 bg-primary/6 p-4 text-sm">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="font-medium">Requisitos para activar cobros</span>
+                  {canActivatePaymentAccount ? (
+                    <span className="text-success">Listo</span>
+                  ) : (
+                    <span className="text-muted-foreground">Faltan pasos</span>
+                  )}
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                  <span>KYC verificado</span>
+                  {isKycVerified ? (
+                    <CheckCircle2 className="h-4 w-4 text-success" />
+                  ) : (
+                    <XCircle className="h-4 w-4 text-muted-foreground" />
+                  )}
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                  <span>CUIT/CUIL cargado</span>
+                  {hasCuit ? (
+                    <CheckCircle2 className="h-4 w-4 text-success" />
+                  ) : (
+                    <XCircle className="h-4 w-4 text-muted-foreground" />
+                  )}
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                  <span>Dirección disponible</span>
+                  {hasAddress ? (
+                    <CheckCircle2 className="h-4 w-4 text-success" />
+                  ) : (
+                    <XCircle className="h-4 w-4 text-muted-foreground" />
+                  )}
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                  <span>Datos de cobro activos</span>
+                  {isConnected ? (
+                    <CheckCircle2 className="h-4 w-4 text-success" />
+                  ) : (
+                    <XCircle className="h-4 w-4 text-muted-foreground" />
+                  )}
+                </div>
+              </div>
 
-              {/* Info */}
+              <form
+                onSubmit={handlePaymentAccountSubmit(onPaymentAccountSubmit)}
+                className="rounded-[1.35rem] border border-border/80 p-5 space-y-4"
+              >
+                <div className="space-y-2">
+                  <p className="font-medium">Cuenta para liquidaciones</p>
+                  <p className="text-sm text-muted-foreground">
+                    El saldo a liquidar del vendedor es interno y separado del Saldo LUK gastable del comprador.
+                  </p>
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2 sm:col-span-2">
+                    <Label htmlFor="accountHolderName">Titular</Label>
+                    <Input
+                      id="accountHolderName"
+                      placeholder="Nombre y apellido o razón social"
+                      {...registerPaymentAccount('accountHolderName')}
+                    />
+                    {paymentAccountErrors.accountHolderName && (
+                      <p className="text-xs text-destructive">
+                        {paymentAccountErrors.accountHolderName.message}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="accountIdentifierType">Tipo</Label>
+                    <Select
+                      defaultValue={
+                        sellerPaymentAccount?.accountIdentifierType || 'CBU'
+                      }
+                      onValueChange={(value) =>
+                        setPaymentAccountValue(
+                          'accountIdentifierType',
+                          value as PaymentAccountForm['accountIdentifierType'],
+                        )
+                      }
+                    >
+                      <SelectTrigger id="accountIdentifierType">
+                        <SelectValue placeholder="Tipo de cuenta" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="CBU">CBU</SelectItem>
+                        <SelectItem value="CVU">CVU</SelectItem>
+                        <SelectItem value="ALIAS">Alias</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {paymentAccountErrors.accountIdentifierType && (
+                      <p className="text-xs text-destructive">
+                        {paymentAccountErrors.accountIdentifierType.message}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="accountIdentifier">CBU/CVU/Alias</Label>
+                    <Input
+                      id="accountIdentifier"
+                      placeholder={
+                        sellerPaymentAccount?.maskedAccountIdentifier ||
+                        'Ingresá el dato completo'
+                      }
+                      {...registerPaymentAccount('accountIdentifier')}
+                    />
+                    {paymentAccountErrors.accountIdentifier && (
+                      <p className="text-xs text-destructive">
+                        {paymentAccountErrors.accountIdentifier.message}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-3 sm:flex-row">
+                  <Button
+                    type="submit"
+                    disabled={
+                      isSavingPaymentAccount || isPaymentAccountSubmitting
+                    }
+                  >
+                    {(isSavingPaymentAccount || isPaymentAccountSubmitting) && (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    )}
+                    Guardar datos de cobro
+                  </Button>
+                  {sellerPaymentAccount && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={handleDisconnectPaymentAccount}
+                      disabled={isDisconnecting}
+                    >
+                      {isDisconnecting && (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      )}
+                      Desactivar datos
+                    </Button>
+                  )}
+                </div>
+              </form>
+
               <div className="text-sm text-muted-foreground space-y-2">
                 <p>
-                  <strong>Importante:</strong> Necesitás conectar tu cuenta de Mercado Pago para:
+                  Los cobros se liberan después de la confirmación de entrega y respetan las reglas de protección al comprador.
                 </p>
-                <ul className="list-disc list-inside space-y-1 ml-2">
-                  <li>Crear rifas y recibir pagos</li>
-                  <li>Los pagos se retienen hasta que el ganador confirme la entrega</li>
-                  <li>Podrás ver tus ventas en tu cuenta de Mercado Pago</li>
-                </ul>
+                {!canActivatePaymentAccount && (
+                  <p>
+                    Para dejarla operativa completá primero la verificación KYC, el CUIT/CUIL y la dirección desde la pestaña de Verificación.
+                  </p>
+                )}
               </div>
             </CardContent>
           </Card>

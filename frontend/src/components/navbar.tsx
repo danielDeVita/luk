@@ -22,6 +22,7 @@ import {
   Sparkles,
   ChevronDown,
   ShieldCheck,
+  Wallet,
 } from 'lucide-react';
 import { NotificationsBell } from './notifications-bell';
 import { ThemeToggle } from './ui/theme-toggle';
@@ -158,6 +159,12 @@ export function Navbar() {
                   <span className="hidden lg:inline">Mis tickets</span>
                 </Button>
               </Link>
+              <Link href="/dashboard/wallet" className="hidden xl:block">
+                <Button variant="ghost" size="sm" className="gap-2">
+                  <Wallet className="h-4 w-4" />
+                  <span className="hidden lg:inline">Saldo LUK</span>
+                </Button>
+              </Link>
 
               {/* User Dropdown */}
               <div
@@ -214,6 +221,16 @@ export function Navbar() {
                             ref={(el) => { menuItemsRef.current[menuIndex++] = el; }}
                           >
                             Mis rifas
+                          </DropdownLink>
+                        );
+                        items.push(
+                          <DropdownLink
+                            key="wallet"
+                            href="/dashboard/wallet"
+                            icon={<Wallet className="h-4 w-4" />}
+                            ref={(el) => { menuItemsRef.current[menuIndex++] = el; }}
+                          >
+                            Saldo LUK
                           </DropdownLink>
                         );
                         items.push(
@@ -375,6 +392,9 @@ export function Navbar() {
 
               <MobileNavLink href="/dashboard/tickets" onClick={closeMobileMenu} icon={<Ticket className="h-4 w-4" />}>
                 Mis tickets
+              </MobileNavLink>
+              <MobileNavLink href="/dashboard/wallet" onClick={closeMobileMenu} icon={<Wallet className="h-4 w-4" />}>
+                Saldo LUK
               </MobileNavLink>
               <MobileNavLink href="/dashboard/sales" onClick={closeMobileMenu} icon={<PlusCircle className="h-4 w-4" />}>
                 Mis rifas

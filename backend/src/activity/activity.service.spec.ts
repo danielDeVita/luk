@@ -240,7 +240,7 @@ describe('ActivityService', () => {
           metadata: {
             ticketNumbers: [5, 10, 15],
             amount: 300,
-            mpPaymentId: 'mp-123',
+            purchaseReference: 'mp-123',
             count: 3,
           },
         }),
@@ -324,20 +324,20 @@ describe('ActivityService', () => {
     });
   });
 
-  describe('MP Connect events', () => {
-    it('should log Mercado Pago account connection', async () => {
+  describe('seller payment account events', () => {
+    it('should log seller payment account connection', async () => {
       prisma.activityLog.create.mockResolvedValue({ id: 'activity-1' });
 
-      await service.logMpConnectConnected('seller-1', 'mp-user-1');
+      await service.logSellerPaymentAccountConnected('seller-1', 'spa-1');
 
       expect(prisma.activityLog.create).toHaveBeenCalledWith({
         data: expect.objectContaining({
           userId: 'seller-1',
-          action: ActivityType.MP_CONNECT_CONNECTED,
-          targetType: 'MpConnectAccount',
-          targetId: 'mp-user-1',
+          action: ActivityType.SELLER_PAYMENT_ACCOUNT_CONNECTED,
+          targetType: 'SellerPaymentAccount',
+          targetId: 'spa-1',
           metadata: {
-            mpUserId: 'mp-user-1',
+            sellerPaymentAccountId: 'spa-1',
           },
         }),
       });

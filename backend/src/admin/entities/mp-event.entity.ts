@@ -2,7 +2,7 @@ import { ObjectType, Field, ID } from '@nestjs/graphql';
 import { GraphQLJSON } from 'graphql-type-json';
 
 @ObjectType()
-export class MpEvent {
+export class PaymentProviderEvent {
   @Field(() => ID)
   id!: string;
 
@@ -20,9 +20,9 @@ export class MpEvent {
 }
 
 @ObjectType()
-export class MpEventList {
-  @Field(() => [MpEvent])
-  events!: MpEvent[];
+export class PaymentProviderEventList {
+  @Field(() => [PaymentProviderEvent])
+  events!: PaymentProviderEvent[];
 
   @Field()
   total!: number;

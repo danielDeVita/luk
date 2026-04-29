@@ -11,7 +11,10 @@ import {
   Min,
   Max,
 } from 'class-validator';
-import { DocumentType } from '../../common/enums';
+import {
+  DocumentType,
+  SellerPaymentAccountIdentifierType,
+} from '../../common/enums';
 
 @InputType()
 export class UpdateProfileInput {
@@ -149,4 +152,23 @@ export class CreateSellerReviewInput {
   @IsString()
   @MaxLength(1000)
   comentario?: string;
+}
+
+@InputType()
+export class UpsertSellerPaymentAccountInput {
+  @Field()
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(120)
+  accountHolderName!: string;
+
+  @Field(() => SellerPaymentAccountIdentifierType)
+  @IsEnum(SellerPaymentAccountIdentifierType)
+  accountIdentifierType!: SellerPaymentAccountIdentifierType;
+
+  @Field()
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(120)
+  accountIdentifier!: string;
 }

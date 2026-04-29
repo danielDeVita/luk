@@ -118,6 +118,31 @@ export const ME = gql`
   }
 `;
 
+// ==================== Wallet ====================
+
+export const MY_WALLET = gql`
+  query MyWallet {
+    myWallet {
+      id
+      creditBalance
+      sellerPayableBalance
+    }
+  }
+`;
+
+export const WALLET_LEDGER = gql`
+  query WalletLedger($take: Int) {
+    walletLedger(take: $take) {
+      id
+      type
+      amount
+      creditBalanceAfter
+      sellerPayableBalanceAfter
+      createdAt
+    }
+  }
+`;
+
 // ==================== Categories ====================
 
 export const GET_CATEGORIES = gql`

@@ -210,7 +210,7 @@ describe('AdminPage', () => {
                   nombre: 'Buyer',
                   apellido: 'Risk',
                   role: 'USER',
-                  mpConnectStatus: 'NOT_CONNECTED',
+                  sellerPaymentAccountStatus: 'NOT_CONNECTED',
                   kycStatus: 'NOT_SUBMITTED',
                   createdAt: '2026-04-01T12:00:00.000Z',
                   isDeleted: false,

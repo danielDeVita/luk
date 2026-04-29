@@ -159,17 +159,17 @@ describe('CleanupTasksService', () => {
       expect(prisma.ticket.deleteMany).toHaveBeenCalled();
     });
 
-    it('should release reserved promotion bonuses tied to expired reservations', async () => {
-      prisma.ticket.findMany.mockResolvedValue([
-        { mpExternalReference: 'reservation-1' },
-      ]);
+    it('should remove expired reserved tickets without provider reservations', async () => {
       prisma.ticket.deleteMany.mockResolvedValue({ count: 1 });
 
       await service.cleanupExpiredReservedTickets();
 
-      expect(
-        socialPromotionsService.releaseReservedRedemptionByReservation,
-      ).toHaveBeenCalledWith('reservation-1');
+      expect(prisma.ticket.deleteMany).toHaveBeenCalledWith({
+        where: {
+          estado: 'RESERVADO',
+          createdAt: { lte: expect.any(Date) },
+        },
+      });
     });
 
     it('should handle database errors gracefully', async () => {

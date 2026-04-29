@@ -196,7 +196,7 @@ export class PromotionBonusPreview {
   discountApplied!: number;
 
   @Field(() => Float)
-  mpChargeAmount!: number;
+  chargedAmount!: number;
 
   @Field()
   bonusGrantId!: string;
