@@ -37,7 +37,6 @@ const LOGIN_MUTATION = `
   mutation Login($email: String!, $password: String!) {
     login(input: { email: $email, password: $password }) {
       token
-      refreshToken
       user {
         id
         email
@@ -56,7 +55,7 @@ const LOGIN_MUTATION = `
 export async function apiLogin(
   page: Page,
   user: { email: string; password: string },
-): Promise<{ token: string; refreshToken: string; user: Record<string, unknown> }> {
+): Promise<{ token: string; user: Record<string, unknown> }> {
   const graphqlUrl =
     process.env.NEXT_PUBLIC_GRAPHQL_URL || 'http://localhost:3001/graphql';
 
@@ -108,7 +107,7 @@ export async function apiLogin(
     );
   }
 
-  const { token, refreshToken, user: userData } = result.data.login;
+  const { token, user: userData } = result.data.login;
 
   // Navigate to establish origin for localStorage
   // Use domcontentloaded to avoid waiting for Apollo queries to complete
@@ -118,22 +117,21 @@ export async function apiLogin(
   // Now that dashboard pages check hasHydrated, they will wait for Zustand to finish
   // reading from localStorage before checking authentication.
   await page.evaluate(
-    ({ user, token, refreshToken }) => {
+    ({ user, token }) => {
       localStorage.setItem(
         'auth-storage',
         JSON.stringify({
           state: {
             user,
             token,
-            refreshToken,
             isAuthenticated: true,
           },
           version: 0,
         }),
       );
     },
-    { user: userData, token, refreshToken },
+    { user: userData, token },
   );
 
-  return { token, refreshToken, user: userData };
+  return { token, user: userData };
 }
