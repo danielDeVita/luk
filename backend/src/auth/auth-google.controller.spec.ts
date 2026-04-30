@@ -142,39 +142,66 @@ describe('AuthGoogleController', () => {
     });
 
     it('should use secure cookies in production', async () => {
-      const module: TestingModule = await Test.createTestingModule({
-        controllers: [AuthGoogleController],
-        providers: [
-          { provide: AuthService, useValue: mockAuthService() },
-          { provide: ConfigService, useValue: mockConfigService('production') },
-        ],
-      }).compile();
+      const originalCi = process.env.CI;
 
-      controller = module.get<AuthGoogleController>(AuthGoogleController);
-      authService = module.get(AuthService) as unknown as MockAuthService;
+      delete process.env.CI;
 
-      const mockUser = { id: 'user-123', email: 'test@example.com' } as User;
-      const req = mockRequest({ user: mockUser });
-      const res = mockResponse();
+      try {
+        const module: TestingModule = await Test.createTestingModule({
+          controllers: [AuthGoogleController],
+          providers: [
+            { provide: AuthService, useValue: mockAuthService() },
+            {
+              provide: ConfigService,
+              useValue: mockConfigService('production'),
+            },
+          ],
+        }).compile();
 
-      authService.generateTokenForUser.mockResolvedValue({
-        token: 'access-token-123',
-        refreshToken: 'refresh-token-123',
-      });
+        controller = module.get<AuthGoogleController>(AuthGoogleController);
+        authService = module.get(AuthService) as unknown as MockAuthService;
 
-      await controller.googleAuthCallback(req, res);
+        const mockUser = { id: 'user-123', email: 'test@example.com' } as User;
+        const req = mockRequest({ user: mockUser });
+        const res = mockResponse();
 
-      expect(res.cookie).toHaveBeenCalledWith(
-        'auth_token',
-        'access-token-123',
-        {
-          httpOnly: true,
-          secure: true,
-          sameSite: 'none', // production mode
-          maxAge: 15 * 60 * 1000,
-          path: '/',
-        },
-      );
+        authService.generateTokenForUser.mockResolvedValue({
+          token: 'access-token-123',
+          refreshToken: 'refresh-token-123',
+        });
+
+        await controller.googleAuthCallback(req, res);
+
+        expect(res.cookie).toHaveBeenCalledWith(
+          'auth_token',
+          'access-token-123',
+          {
+            httpOnly: true,
+            secure: true,
+            sameSite: 'none', // production mode
+            maxAge: 15 * 60 * 1000,
+            path: '/',
+          },
+        );
+
+        expect(res.cookie).toHaveBeenCalledWith(
+          'refresh_token',
+          'refresh-token-123',
+          {
+            httpOnly: true,
+            secure: true,
+            sameSite: 'none',
+            maxAge: 7 * 24 * 60 * 60 * 1000,
+            path: '/auth',
+          },
+        );
+      } finally {
+        if (originalCi === undefined) {
+          delete process.env.CI;
+        } else {
+          process.env.CI = originalCi;
+        }
+      }
     });
 
     it('should redirect to error page when no user', async () => {

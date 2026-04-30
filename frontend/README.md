@@ -64,7 +64,7 @@ npm run dev
 
 ## Environment
 
-The frontend reads from `.env.local` (symlink to root `.env`):
+The frontend reads from `frontend/.env.local`:
 
 ```bash
 NEXT_PUBLIC_GRAPHQL_URL="http://localhost:3001/graphql"

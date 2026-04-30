@@ -12,7 +12,7 @@ import { SocialPromotionWorkerService } from './social-promotions/social-promoti
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: '../.env',
+      envFilePath: '.env',
       validate,
     }),
     WinstonModule.forRoot(winstonConfig),

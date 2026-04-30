@@ -8,7 +8,11 @@ All commands run from the **project root**.
 
 Recommended when you want to develop locally without depending on Neon or Render.
 
-`backend/.env` and `frontend/.env.local` are symlinks to the root [`.env`](/Users/danieldevita/Desktop/p/luk/.env), so changing `DATABASE_URL` there is enough.
+Local config is split by app ownership:
+
+- Backend, social worker, and Prisma read [backend/.env](/Users/danieldevita/Desktop/p/luk/backend/.env).
+- Frontend reads [frontend/.env.local](/Users/danieldevita/Desktop/p/luk/frontend/.env.local).
+- The root [`.env`](/Users/danieldevita/Desktop/p/luk/.env) may exist as a temporary local backup, but runtime config should be edited in the app-specific files.
 
 The local Docker PostgreSQL is exposed on `localhost:5433` to avoid conflicts with native PostgreSQL already using `5432`.
 
@@ -31,7 +35,7 @@ cd frontend && npm run dev
 
 ### Local QA without the live payment provider
 
-In [`.env`](/Users/danieldevita/Desktop/p/luk/.env):
+In [backend/.env](/Users/danieldevita/Desktop/p/luk/backend/.env):
 
 ```bash
 PAYMENTS_PROVIDER="mock"
@@ -55,7 +59,8 @@ cd backend && npm run start:social-worker
 ## Docker Dev Stack
 
 ```bash
-cp .env.example .env          # First time only
+cp backend/.env.example backend/.env                    # First time only
+cp frontend/.env.local.example frontend/.env.local      # First time only
 npm run docker:dev:build      # Build + start frontend, backend y social-worker
 npm run docker:dev            # Start without rebuild
 npm run docker:dev:down       # Stop services
@@ -64,7 +69,7 @@ npm run docker:clean          # Stop + remove volumes + local images
 
 ### Local QA sin el proveedor de pagos live
 
-En `.env`:
+En [backend/.env](/Users/danieldevita/Desktop/p/luk/backend/.env):
 
 ```bash
 PAYMENTS_PROVIDER="mock"

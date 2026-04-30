@@ -1,4 +1,4 @@
-# Environment variables (single source of truth)
+# Environment variables
 .env
 
 # Build outputs

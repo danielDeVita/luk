@@ -37,7 +37,7 @@ services:
       dockerfile: Dockerfile
     container_name: luk_backend
     env_file:
-      - .env
+      - ./backend/.env
     environment:
       NODE_ENV: production
       DATABASE_URL: postgresql://raffle_user:raffle_password@postgres:5432/raffle_db
@@ -45,16 +45,9 @@ services:
       PORT: 3001
       # For local Docker: use localhost (browser connects directly)
       # For production: set these via .env or override
-      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
-      BACKEND_URL: ${BACKEND_URL:-http://localhost:3001}
-      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000}
-      JWT_SECRET: ${JWT_SECRET:-super-secret-jwt-key-change-in-production}
-      MP_ACCESS_TOKEN: ${MP_ACCESS_TOKEN}
-      CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME}
-      CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY}
-      CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET}
-      EMAIL_FROM: ${EMAIL_FROM}
-      EMAIL_FROM_NAME: ${EMAIL_FROM_NAME}
+      FRONTEND_URL: http://localhost:3000
+      BACKEND_URL: http://localhost:3001
+      CORS_ORIGIN: http://localhost:3000
     ports:
       - "3001:3001"
       - "5555:5555"
@@ -70,12 +63,21 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        # Build-time args from .env (NEXT_PUBLIC_ vars are baked at build time)
-        NEXT_PUBLIC_GRAPHQL_URL: ${NEXT_PUBLIC_GRAPHQL_URL:-http://localhost:3001/graphql}
-        NEXT_PUBLIC_GRAPHQL_WS_URL: ${NEXT_PUBLIC_GRAPHQL_WS_URL:-ws://localhost:3001/graphql}
+        # Build-time args are baked into the Next.js bundle.
+        NEXT_PUBLIC_SITE_URL: http://localhost:3000
+        NEXT_PUBLIC_GRAPHQL_URL: http://localhost:3001/graphql
+        NEXT_PUBLIC_GRAPHQL_WS_URL: ws://localhost:3001/graphql
+        NEXT_PUBLIC_BACKEND_URL: http://localhost:3001
+        NEXT_PUBLIC_TURNSTILE_ENABLED: "false"
+        NEXT_PUBLIC_TURNSTILE_SITE_KEY: ""
+        NEXT_PUBLIC_GA_MEASUREMENT_ID: ""
+        NEXT_PUBLIC_SENTRY_DSN: ""
+        NEXT_PUBLIC_SENTRY_RELEASE: local-docker
+        SENTRY_DSN: ""
+        SENTRY_RELEASE: local-docker
     container_name: luk_frontend
     env_file:
-      - .env
+      - ./frontend/.env.local
     ports:
       - "3000:3000"
     depends_on:

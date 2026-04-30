@@ -95,7 +95,7 @@ No official Meta/X APIs are used in v1. Metrics come from public content plus Lu
 
 ## Environment
 
-The backend reads from `../.env` (root). `backend/.env` is a symlink to that file. Key variables:
+The backend reads from `backend/.env`. The social worker and Prisma use the same file. Key variables:
 
 ```bash
 DATABASE_URL="postgresql://..."

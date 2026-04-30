@@ -90,7 +90,7 @@ function getBooleanFlag(
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: '../.env',
+      envFilePath: '.env',
       validate,
     }),
     // Structured logging with Winston
