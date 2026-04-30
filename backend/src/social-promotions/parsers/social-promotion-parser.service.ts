@@ -1,5 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { SocialPromotionNetwork } from '../entities/social-promotion.entity';
+import {
+  assertSupportedSocialPromotionUrl,
+  detectSocialPromotionNetworkFromUrl,
+} from '../social-promotion-url-policy';
 
 /**
  * Parsed engagement metrics extracted from the visible public post content.
@@ -31,34 +35,27 @@ export class SocialPromotionParserService {
    * Detects which supported social network a submitted URL belongs to.
    */
   detectNetworkFromUrl(rawUrl: string): SocialPromotionNetwork {
-    const url = new URL(rawUrl);
-    const host = url.hostname.toLowerCase();
-
-    if (host.includes('facebook.com')) return SocialPromotionNetwork.FACEBOOK;
-    if (host.includes('instagram.com')) return SocialPromotionNetwork.INSTAGRAM;
-    if (
-      host === 'x.com' ||
-      host.endsWith('.x.com') ||
-      host.includes('twitter.com')
-    ) {
-      return SocialPromotionNetwork.X;
-    }
-
-    throw new Error(`Unsupported social promotion host: ${host}`);
+    return detectSocialPromotionNetworkFromUrl(rawUrl);
   }
 
   /**
    * Removes unstable URL parts so the same public post resolves to a canonical permalink.
    */
   canonicalizePermalink(rawUrl: string): string {
-    const url = new URL(rawUrl);
+    const { url, network } = assertSupportedSocialPromotionUrl(rawUrl);
     url.hash = '';
     url.search = '';
 
-    if (url.hostname === 'm.facebook.com') {
+    if (
+      network === SocialPromotionNetwork.FACEBOOK &&
+      url.hostname === 'm.facebook.com'
+    ) {
       url.hostname = 'www.facebook.com';
     }
-    if (url.hostname.endsWith('twitter.com')) {
+    if (
+      network === SocialPromotionNetwork.X &&
+      url.hostname.endsWith('twitter.com')
+    ) {
       url.hostname = 'x.com';
     }
     if (!url.pathname.endsWith('/')) {
@@ -78,9 +75,11 @@ export class SocialPromotionParserService {
     promotionToken: string;
     trackingUrl: string;
   }): ParsedSocialPromotionResult {
-    const canonicalPermalink =
-      this.extractCanonicalUrl(params.html) ??
-      this.canonicalizePermalink(params.rawUrl);
+    const canonicalPermalink = this.resolveCanonicalPermalink(
+      params.network,
+      params.rawUrl,
+      this.extractCanonicalUrl(params.html),
+    );
 
     return {
       canonicalPermalink,
@@ -119,6 +118,29 @@ export class SocialPromotionParserService {
       html.match(/rel=["']canonical["']\s+href=["']([^"']+)["']/i);
 
     return match?.[1] ?? null;
+  }
+
+  private resolveCanonicalPermalink(
+    network: SocialPromotionNetwork,
+    rawUrl: string,
+    extractedCanonicalUrl: string | null,
+  ): string {
+    if (extractedCanonicalUrl) {
+      try {
+        const { network: extractedNetwork } = assertSupportedSocialPromotionUrl(
+          extractedCanonicalUrl,
+          network,
+        );
+
+        if (extractedNetwork === network) {
+          return this.canonicalizePermalink(extractedCanonicalUrl);
+        }
+      } catch {
+        // Ignore hostile or malformed canonical URLs and fall back to the submitted permalink.
+      }
+    }
+
+    return this.canonicalizePermalink(rawUrl);
   }
 
   private isAccessibleContent(html: string): boolean {

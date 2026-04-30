@@ -1,5 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { SocialPromotionNetwork } from './entities/social-promotion.entity';
+import {
+  assertSupportedSocialPromotionUrl,
+  detectSocialPromotionNetworkFromUrl,
+} from './social-promotion-url-policy';
 
 /**
  * Loaded page payload used by the validation pipeline after fetch or Playwright fallback.
@@ -13,6 +18,8 @@ export interface SocialPromotionLoadedPage {
 interface LoadPublicPageOptions {
   preferBrowser?: boolean;
 }
+
+const MAX_REDIRECTS = 5;
 
 /**
  * Loads publicly accessible social post pages, preferring fetch and falling back to Playwright when needed.
@@ -41,9 +48,11 @@ export class SocialPromotionPageLoaderService {
     url: string,
     options: LoadPublicPageOptions = {},
   ): Promise<SocialPromotionLoadedPage> {
+    const network = detectSocialPromotionNetworkFromUrl(url);
+
     if (options.preferBrowser && this.browserEnabled) {
       try {
-        return await this.loadWithPlaywright(url);
+        return await this.loadWithPlaywright(url, network);
       } catch (error) {
         const message =
           error instanceof Error ? error.message : 'Unknown error';
@@ -53,7 +62,7 @@ export class SocialPromotionPageLoaderService {
       }
     }
 
-    const fetched = await this.loadWithFetch(url);
+    const fetched = await this.loadWithFetch(url, network);
 
     if (!this.shouldFallbackToBrowser(url, fetched.html)) {
       return fetched;
@@ -64,7 +73,7 @@ export class SocialPromotionPageLoaderService {
     }
 
     try {
-      return await this.loadWithPlaywright(url);
+      return await this.loadWithPlaywright(url, network);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
       this.logger.warn(`Playwright fallback failed for ${url}: ${message}`);
@@ -72,26 +81,62 @@ export class SocialPromotionPageLoaderService {
     }
   }
 
-  private async loadWithFetch(url: string): Promise<SocialPromotionLoadedPage> {
+  private async loadWithFetch(
+    url: string,
+    network: SocialPromotionNetwork,
+  ): Promise<SocialPromotionLoadedPage> {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), this.fetchTimeoutMs);
+    let currentUrl = assertSupportedSocialPromotionUrl(
+      url,
+      network,
+    ).url.toString();
+    let redirectsFollowed = 0;
 
     try {
-      const response = await fetch(url, {
-        redirect: 'follow',
-        signal: controller.signal,
-        headers: {
-          'User-Agent':
-            'Mozilla/5.0 (compatible; LukSocialPromotionBot/1.0; +https://luk.app)',
-        },
-      });
-      const html = await response.text();
+      while (redirectsFollowed <= MAX_REDIRECTS) {
+        const response = await fetch(currentUrl, {
+          redirect: 'manual',
+          signal: controller.signal,
+          headers: {
+            'User-Agent':
+              'Mozilla/5.0 (compatible; LukSocialPromotionBot/1.0; +https://luk.app)',
+          },
+        });
 
-      return {
-        html,
-        finalUrl: response.url || url,
-        loader: 'fetch',
-      };
+        if (this.isRedirectStatus(response.status)) {
+          if (redirectsFollowed === MAX_REDIRECTS) {
+            throw new Error('Too many redirects loading social promotion page');
+          }
+
+          const redirectLocation = response.headers.get('location');
+
+          if (!redirectLocation) {
+            throw new Error('Redirect response missing location header');
+          }
+
+          currentUrl = assertSupportedSocialPromotionUrl(
+            new URL(redirectLocation, currentUrl).toString(),
+            network,
+          ).url.toString();
+          redirectsFollowed += 1;
+          continue;
+        }
+
+        const finalUrl = assertSupportedSocialPromotionUrl(
+          response.url || currentUrl,
+          network,
+        ).url.toString();
+        const html = await response.text();
+
+        return {
+          html,
+          finalUrl,
+          loader: 'fetch',
+        };
+      }
+
+      throw new Error('Too many redirects loading social promotion page');
     } finally {
       clearTimeout(timeout);
     }
@@ -110,6 +155,7 @@ export class SocialPromotionPageLoaderService {
 
   private async loadWithPlaywright(
     url: string,
+    network: SocialPromotionNetwork,
   ): Promise<SocialPromotionLoadedPage> {
     const { chromium } = await import('playwright');
     const browser = await chromium.launch({
@@ -121,6 +167,28 @@ export class SocialPromotionPageLoaderService {
       const page = await browser.newPage({
         userAgent:
           'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36',
+      });
+      await page.route('**/*', (route) => {
+        const request = route.request();
+        const requestUrl = request.url();
+
+        if (
+          !request.isNavigationRequest() &&
+          request.resourceType() !== 'document'
+        ) {
+          return route.continue();
+        }
+
+        if (!/^https?:/i.test(requestUrl)) {
+          return route.continue();
+        }
+
+        try {
+          assertSupportedSocialPromotionUrl(requestUrl, network);
+          return route.continue();
+        } catch {
+          return route.abort('blockedbyclient');
+        }
       });
       await page.goto(url, {
         waitUntil: 'domcontentloaded',
@@ -162,14 +230,22 @@ export class SocialPromotionPageLoaderService {
         ariaLabels,
         '<!--LUK_ARIA_LABELS_END-->',
       ].join('\n');
+      const finalUrl = assertSupportedSocialPromotionUrl(
+        page.url(),
+        network,
+      ).url.toString();
 
       return {
         html: enrichedHtml,
-        finalUrl: page.url(),
+        finalUrl,
         loader: 'playwright',
       };
     } finally {
       await browser.close();
     }
+  }
+
+  private isRedirectStatus(status: number): boolean {
+    return [301, 302, 303, 307, 308].includes(status);
   }
 }

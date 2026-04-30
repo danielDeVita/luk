@@ -4,7 +4,6 @@ export const VERIFY_EMAIL_MUTATION = gql`
   mutation VerifyEmail($userId: String!, $code: String!, $promotionToken: String) {
     verifyEmail(userId: $userId, code: $code, promotionToken: $promotionToken) {
       token
-      refreshToken
       user {
         id
         email
@@ -26,7 +25,6 @@ export const RESEND_VERIFICATION_CODE_MUTATION = gql`
 export interface VerifyEmailResult {
   verifyEmail: {
     token: string;
-    refreshToken?: string;
     user: {
       id: string;
       email: string;

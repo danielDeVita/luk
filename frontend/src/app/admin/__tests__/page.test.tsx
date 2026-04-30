@@ -47,6 +47,7 @@ describe('AdminPage', () => {
   const mockAdminSession = () => {
     mockUseAuthStore.mockReturnValue({
       isAuthenticated: true,
+      token: 'jwt-token',
       user: {
         id: 'admin-1',
         email: 'admin@test.com',
@@ -60,8 +61,7 @@ describe('AdminPage', () => {
       setUser: vi.fn(),
       setAuth: vi.fn(),
       getToken: vi.fn(),
-      getRefreshToken: vi.fn(),
-      setTokens: vi.fn(),
+      setToken: vi.fn(),
       updateUser: vi.fn(),
       setLoading: vi.fn(),
       setError: vi.fn(),
@@ -105,6 +105,7 @@ describe('AdminPage', () => {
   it('does not redirect before auth store hydration finishes', () => {
     mockUseAuthStore.mockReturnValue({
       isAuthenticated: false,
+      token: null,
       user: null,
       hasHydrated: false,
       login: vi.fn(),
@@ -112,8 +113,7 @@ describe('AdminPage', () => {
       setUser: vi.fn(),
       setAuth: vi.fn(),
       getToken: vi.fn(),
-      getRefreshToken: vi.fn(),
-      setTokens: vi.fn(),
+      setToken: vi.fn(),
       updateUser: vi.fn(),
       setLoading: vi.fn(),
       setError: vi.fn(),
@@ -135,6 +135,7 @@ describe('AdminPage', () => {
   it('redirects unauthenticated users after hydration', async () => {
     mockUseAuthStore.mockReturnValue({
       isAuthenticated: false,
+      token: null,
       user: null,
       hasHydrated: true,
       login: vi.fn(),
@@ -142,8 +143,7 @@ describe('AdminPage', () => {
       setUser: vi.fn(),
       setAuth: vi.fn(),
       getToken: vi.fn(),
-      getRefreshToken: vi.fn(),
-      setTokens: vi.fn(),
+      setToken: vi.fn(),
       updateUser: vi.fn(),
       setLoading: vi.fn(),
       setError: vi.fn(),

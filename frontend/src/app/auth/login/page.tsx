@@ -32,7 +32,6 @@ const LOGIN_MUTATION = gql`
   mutation Login($email: String!, $password: String!, $captchaToken: String) {
     login(input: { email: $email, password: $password, captchaToken: $captchaToken }) {
       token
-      refreshToken
       requiresVerification
       requiresTwoFactor
       twoFactorChallengeToken
@@ -52,7 +51,6 @@ const COMPLETE_TWO_FACTOR_LOGIN_MUTATION = gql`
   mutation CompleteTwoFactorLogin($challengeToken: String!, $code: String, $recoveryCode: String) {
     completeTwoFactorLogin(challengeToken: $challengeToken, code: $code, recoveryCode: $recoveryCode) {
       token
-      refreshToken
       user {
         id
         email
@@ -74,7 +72,6 @@ type LoginForm = z.infer<typeof loginSchema>;
 interface LoginResult {
   login: {
     token?: string;
-    refreshToken?: string;
     requiresVerification: boolean;
     requiresTwoFactor: boolean;
     twoFactorChallengeToken?: string;
@@ -92,7 +89,6 @@ interface LoginResult {
 interface CompleteTwoFactorLoginResult {
   completeTwoFactorLogin: {
     token: string;
-    refreshToken?: string;
     user: {
       id: string;
       email: string;
@@ -172,11 +168,7 @@ export default function LoginPage() {
       }
 
       if (loginResult.token && loginResult.user) {
-        setAuth(
-          loginResult.user,
-          loginResult.token,
-          loginResult.refreshToken,
-        );
+        setAuth(loginResult.user, loginResult.token);
         router.push('/');
         return;
       }
@@ -236,11 +228,7 @@ export default function LoginPage() {
       });
 
       if (result.data?.verifyEmail) {
-        setAuth(
-          result.data.verifyEmail.user,
-          result.data.verifyEmail.token,
-          result.data.verifyEmail.refreshToken,
-        );
+        setAuth(result.data.verifyEmail.user, result.data.verifyEmail.token);
         toast.success('¡Email verificado! Ya podés entrar');
         router.push('/');
       }
@@ -279,7 +267,6 @@ export default function LoginPage() {
         setAuth(
           result.data.completeTwoFactorLogin.user,
           result.data.completeTwoFactorLogin.token,
-          result.data.completeTwoFactorLogin.refreshToken,
         );
         router.push('/');
       }

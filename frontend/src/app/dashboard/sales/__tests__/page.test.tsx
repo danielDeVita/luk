@@ -68,6 +68,7 @@ describe('Sales dashboard onboarding', () => {
     mockUseAuthStore.mockReturnValue({
       isAuthenticated: true,
       hasHydrated: true,
+      token: 'jwt-token',
       user: {
         id: 'seller-1',
         email: 'seller@test.com',
@@ -79,8 +80,7 @@ describe('Sales dashboard onboarding', () => {
       setUser: vi.fn(),
       setAuth: vi.fn(),
       getToken: vi.fn(),
-      getRefreshToken: vi.fn(),
-      setTokens: vi.fn(),
+      setToken: vi.fn(),
       updateUser: vi.fn(),
       setLoading: vi.fn(),
       setError: vi.fn(),

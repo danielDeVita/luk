@@ -1,4 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import * as crypto from 'crypto';
 import { AuthService } from './auth.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { JwtService } from '@nestjs/jwt';
@@ -47,7 +48,8 @@ describe('AuthService', () => {
       update: jest.fn(),
     },
     refreshToken: {
-      findUnique: jest.fn(),
+      findFirst: jest.fn(),
+      findMany: jest.fn(),
       create: jest.fn(),
       update: jest.fn(),
       updateMany: jest.fn(),
@@ -136,6 +138,9 @@ describe('AuthService', () => {
     updatedAt: new Date(),
     ...overrides,
   });
+
+  const hashRefreshToken = (value: string) =>
+    crypto.createHash('sha256').update(value, 'utf8').digest('hex');
 
   beforeEach(async () => {
     jest.clearAllMocks();
@@ -1210,6 +1215,14 @@ describe('AuthService', () => {
         'email',
         undefined,
       );
+      expect(mockPrismaService.refreshToken.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          userId: user.id,
+          token: null,
+          tokenHash: hashRefreshToken(result.refreshToken),
+          expiresAt: expect.any(Date),
+        }),
+      });
     });
 
     it('should reject unverified users when generating tokens directly', async () => {
@@ -1226,12 +1239,14 @@ describe('AuthService', () => {
 
   describe('refreshAccessToken', () => {
     const refreshTokenValue = 'valid-refresh-token';
+    const refreshTokenHash = hashRefreshToken(refreshTokenValue);
 
     it('should refresh token successfully with valid refresh token', async () => {
       const user = createTestUser({ emailVerified: true });
-      mockPrismaService.refreshToken.findUnique.mockResolvedValue({
+      mockPrismaService.refreshToken.findFirst.mockResolvedValue({
         id: 'token-1',
-        token: refreshTokenValue,
+        token: null,
+        tokenHash: refreshTokenHash,
         userId: user.id,
         expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
         revokedAt: null,
@@ -1246,10 +1261,18 @@ describe('AuthService', () => {
 
       expect(result.token).toBe('mock-jwt-token');
       expect(result.refreshToken).toBeDefined();
+      expect(mockPrismaService.refreshToken.update).toHaveBeenCalledWith({
+        where: { id: 'token-1' },
+        data: {
+          revokedAt: expect.any(Date),
+          tokenHash: refreshTokenHash,
+          token: null,
+        },
+      });
     });
 
     it('should throw UnauthorizedException for invalid refresh token', async () => {
-      mockPrismaService.refreshToken.findUnique.mockResolvedValue(null);
+      mockPrismaService.refreshToken.findFirst.mockResolvedValue(null);
 
       await expect(service.refreshAccessToken('invalid-token')).rejects.toThrow(
         UnauthorizedException,
@@ -1261,15 +1284,24 @@ describe('AuthService', () => {
 
     it('should throw UnauthorizedException for revoked token and revoke all user tokens (token theft detection)', async () => {
       const user = createTestUser();
-      mockPrismaService.refreshToken.findUnique.mockResolvedValue({
+      mockPrismaService.refreshToken.findFirst.mockResolvedValue({
         id: 'token-1',
-        token: refreshTokenValue,
+        token: null,
+        tokenHash: refreshTokenHash,
         userId: user.id,
         expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
         revokedAt: new Date(), // Already revoked
         user,
       });
-      mockPrismaService.refreshToken.updateMany.mockResolvedValue({ count: 3 });
+      mockPrismaService.refreshToken.findMany.mockResolvedValue([
+        {
+          id: 'token-2',
+          token: 'legacy-refresh-token',
+          tokenHash: null,
+        },
+      ]);
+      mockPrismaService.refreshToken.update.mockResolvedValue({});
+      mockPrismaService.$transaction.mockResolvedValue([{}]);
 
       await expect(
         service.refreshAccessToken(refreshTokenValue),
@@ -1278,18 +1310,26 @@ describe('AuthService', () => {
         service.refreshAccessToken(refreshTokenValue),
       ).rejects.toThrow('has been revoked');
 
-      // Should revoke all user tokens on reuse detection
-      expect(mockPrismaService.refreshToken.updateMany).toHaveBeenCalledWith({
+      expect(mockPrismaService.refreshToken.findMany).toHaveBeenCalledWith({
         where: { userId: user.id, revokedAt: null },
-        data: { revokedAt: expect.any(Date) },
+        select: { id: true, token: true, tokenHash: true },
+      });
+      expect(mockPrismaService.refreshToken.update).toHaveBeenCalledWith({
+        where: { id: 'token-2' },
+        data: {
+          revokedAt: expect.any(Date),
+          token: null,
+          tokenHash: hashRefreshToken('legacy-refresh-token'),
+        },
       });
     });
 
     it('should throw UnauthorizedException for expired token', async () => {
       const user = createTestUser();
-      mockPrismaService.refreshToken.findUnique.mockResolvedValue({
+      mockPrismaService.refreshToken.findFirst.mockResolvedValue({
         id: 'token-1',
-        token: refreshTokenValue,
+        token: null,
+        tokenHash: refreshTokenHash,
         userId: user.id,
         expiresAt: new Date(Date.now() - 1000), // Expired
         revokedAt: null,
@@ -1305,9 +1345,10 @@ describe('AuthService', () => {
     });
 
     it('should throw UnauthorizedException for inactive user', async () => {
-      mockPrismaService.refreshToken.findUnique.mockResolvedValue({
+      mockPrismaService.refreshToken.findFirst.mockResolvedValue({
         id: 'token-1',
-        token: refreshTokenValue,
+        token: null,
+        tokenHash: refreshTokenHash,
         userId: 'user-123',
         expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
         revokedAt: null,
@@ -1324,9 +1365,10 @@ describe('AuthService', () => {
 
     it('should implement token rotation (revoke old token)', async () => {
       const user = createTestUser({ emailVerified: true });
-      mockPrismaService.refreshToken.findUnique.mockResolvedValue({
+      mockPrismaService.refreshToken.findFirst.mockResolvedValue({
         id: 'token-1',
-        token: refreshTokenValue,
+        token: null,
+        tokenHash: refreshTokenHash,
         userId: user.id,
         expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
         revokedAt: null,
@@ -1342,15 +1384,20 @@ describe('AuthService', () => {
       // Should revoke the old token
       expect(mockPrismaService.refreshToken.update).toHaveBeenCalledWith({
         where: { id: 'token-1' },
-        data: { revokedAt: expect.any(Date) },
+        data: {
+          revokedAt: expect.any(Date),
+          tokenHash: refreshTokenHash,
+          token: null,
+        },
       });
     });
 
     it('should reject refresh for unverified users', async () => {
       const user = createTestUser({ emailVerified: false });
-      mockPrismaService.refreshToken.findUnique.mockResolvedValue({
+      mockPrismaService.refreshToken.findFirst.mockResolvedValue({
         id: 'token-1',
-        token: refreshTokenValue,
+        token: null,
+        tokenHash: refreshTokenHash,
         userId: user.id,
         expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
         revokedAt: null,
@@ -1364,6 +1411,32 @@ describe('AuthService', () => {
         service.refreshAccessToken(refreshTokenValue),
       ).rejects.toThrow('Email not verified');
     });
+
+    it('should accept legacy plaintext refresh tokens and migrate them on rotation', async () => {
+      const user = createTestUser({ emailVerified: true });
+      mockPrismaService.refreshToken.findFirst.mockResolvedValue({
+        id: 'token-legacy',
+        token: refreshTokenValue,
+        tokenHash: null,
+        userId: user.id,
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        revokedAt: null,
+        user,
+      });
+      mockPrismaService.refreshToken.update.mockResolvedValue({});
+
+      const result = await service.refreshAccessToken(refreshTokenValue);
+
+      expect(result.refreshToken).toBeDefined();
+      expect(mockPrismaService.refreshToken.update).toHaveBeenCalledWith({
+        where: { id: 'token-legacy' },
+        data: {
+          revokedAt: expect.any(Date),
+          tokenHash: refreshTokenHash,
+          token: null,
+        },
+      });
+    });
   });
 
   describe('revokeRefreshToken', () => {
@@ -1373,21 +1446,60 @@ describe('AuthService', () => {
       await service.revokeRefreshToken('token-to-revoke');
 
       expect(mockPrismaService.refreshToken.updateMany).toHaveBeenCalledWith({
-        where: { token: 'token-to-revoke', revokedAt: null },
-        data: { revokedAt: expect.any(Date) },
+        where: {
+          revokedAt: null,
+          OR: [
+            { tokenHash: hashRefreshToken('token-to-revoke') },
+            { token: 'token-to-revoke' },
+          ],
+        },
+        data: {
+          revokedAt: expect.any(Date),
+          tokenHash: hashRefreshToken('token-to-revoke'),
+          token: null,
+        },
       });
     });
   });
 
   describe('revokeAllUserRefreshTokens', () => {
-    it('should revoke all refresh tokens for a user', async () => {
-      mockPrismaService.refreshToken.updateMany.mockResolvedValue({ count: 5 });
+    it('should revoke all refresh tokens for a user and scrub legacy plaintext values', async () => {
+      mockPrismaService.refreshToken.findMany.mockResolvedValue([
+        {
+          id: 'token-1',
+          token: null,
+          tokenHash: hashRefreshToken('already-hashed'),
+        },
+        {
+          id: 'token-2',
+          token: 'legacy-refresh-token',
+          tokenHash: null,
+        },
+      ]);
+      mockPrismaService.refreshToken.update.mockResolvedValue({});
+      mockPrismaService.$transaction.mockResolvedValue([{}, {}]);
 
       await service.revokeAllUserRefreshTokens('user-123');
 
-      expect(mockPrismaService.refreshToken.updateMany).toHaveBeenCalledWith({
+      expect(mockPrismaService.refreshToken.findMany).toHaveBeenCalledWith({
         where: { userId: 'user-123', revokedAt: null },
-        data: { revokedAt: expect.any(Date) },
+        select: { id: true, token: true, tokenHash: true },
+      });
+      expect(mockPrismaService.refreshToken.update).toHaveBeenNthCalledWith(1, {
+        where: { id: 'token-1' },
+        data: {
+          revokedAt: expect.any(Date),
+          token: null,
+          tokenHash: hashRefreshToken('already-hashed'),
+        },
+      });
+      expect(mockPrismaService.refreshToken.update).toHaveBeenNthCalledWith(2, {
+        where: { id: 'token-2' },
+        data: {
+          revokedAt: expect.any(Date),
+          token: null,
+          tokenHash: hashRefreshToken('legacy-refresh-token'),
+        },
       });
     });
   });

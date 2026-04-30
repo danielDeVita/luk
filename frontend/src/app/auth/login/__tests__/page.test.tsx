@@ -85,15 +85,13 @@ describe('LoginPage', () => {
     const storeState = {
       user: null,
       token: null,
-      refreshToken: null,
       isAuthenticated: false,
       isLoading: false,
       error: null,
       hasHydrated: true,
       setAuth: mockSetAuth,
       getToken: vi.fn(),
-      getRefreshToken: vi.fn(),
-      setTokens: vi.fn(),
+      setToken: vi.fn(),
       logout: vi.fn(),
       updateUser: vi.fn(),
       setLoading: vi.fn(),
@@ -199,7 +197,6 @@ describe('LoginPage', () => {
       onCompleted?.({
         login: {
           token: 'access-token',
-          refreshToken: 'refresh-token',
           requiresVerification: false,
           user: {
             id: 'user-1',
@@ -221,7 +218,6 @@ describe('LoginPage', () => {
       expect(mockSetAuth).toHaveBeenCalledWith(
         expect.objectContaining({ id: 'user-1' }),
         'access-token',
-        'refresh-token',
       );
       expect(mockPush).toHaveBeenCalledWith('/');
     });
@@ -296,7 +292,6 @@ describe('LoginPage', () => {
       data: {
         verifyEmail: {
           token: 'verified-access-token',
-          refreshToken: 'verified-refresh-token',
           user: {
             id: 'user-1',
             email: 'test@example.com',
@@ -327,7 +322,6 @@ describe('LoginPage', () => {
       expect(mockSetAuth).toHaveBeenCalledWith(
         expect.objectContaining({ emailVerified: true }),
         'verified-access-token',
-        'verified-refresh-token',
       );
       expect(mockToast.success).toHaveBeenCalledWith(
         '¡Email verificado! Ya podés entrar',
@@ -411,7 +405,6 @@ describe('LoginPage', () => {
       data: {
         completeTwoFactorLogin: {
           token: '2fa-access-token',
-          refreshToken: '2fa-refresh-token',
           user: {
             id: 'user-1',
             email: 'test@example.com',
@@ -441,7 +434,6 @@ describe('LoginPage', () => {
       expect(mockSetAuth).toHaveBeenCalledWith(
         expect.objectContaining({ id: 'user-1' }),
         '2fa-access-token',
-        '2fa-refresh-token',
       );
       expect(mockPush).toHaveBeenCalledWith('/');
     });

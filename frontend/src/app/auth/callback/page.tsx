@@ -1,11 +1,12 @@
 'use client';
 
-import { useEffect, useRef, Suspense } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuthStore } from '@/store/auth';
 import { useQuery } from '@apollo/client/react';
 import { gql } from '@apollo/client/core';
 import { Loader2 } from 'lucide-react';
+import { getPublicBackendUrl } from '@/lib/public-env';
 
 interface MeQueryResult {
   me: {
@@ -34,34 +35,51 @@ function CallbackContent() {
   const searchParams = useSearchParams();
   const setAuth = useAuthStore((state) => state.setAuth);
   const storeToken = useAuthStore((state) => state.token);
-  const tokensProcessedRef = useRef(false);
+  const [tokenExchangeStatus, setTokenExchangeStatus] = useState<
+    'idle' | 'loading' | 'success'
+  >('idle');
 
   const successParam = searchParams.get('success');
   const errorParam = searchParams.get('error');
-  const tokenParam = searchParams.get('token');
-  const refreshTokenParam = searchParams.get('refreshToken');
 
-  // Store tokens from URL synchronously on mount (for cross-subdomain where cookies are blocked)
-  // Using ref to track processing and avoid re-runs - no setState in effect needed
-  if (tokenParam && !tokensProcessedRef.current) {
-    tokensProcessedRef.current = true;
-    // Store tokens synchronously before render completes
-    useAuthStore.setState({ token: tokenParam, refreshToken: refreshTokenParam });
-  }
-
-  // Clear tokens from URL for security (after initial render)
   useEffect(() => {
-    if (tokensProcessedRef.current && tokenParam) {
-      window.history.replaceState({}, '', '/auth/callback?success=true');
+    if (successParam !== 'true' || errorParam || tokenExchangeStatus !== 'idle') {
+      return;
     }
-  }, [tokenParam]);
 
-  // Check if we have a valid token (either just stored or from persisted state)
-  const hasToken = Boolean(storeToken || tokenParam);
+    const exchangeToken = async () => {
+      setTokenExchangeStatus('loading');
+
+      try {
+        const response = await fetch(`${getPublicBackendUrl()}/auth/token`, {
+          method: 'GET',
+          credentials: 'include',
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to exchange OAuth token');
+        }
+
+        const payload = (await response.json()) as { token?: string };
+
+        if (!payload.token) {
+          throw new Error('Missing OAuth token');
+        }
+
+        useAuthStore.setState({ token: payload.token });
+        setTokenExchangeStatus('success');
+      } catch {
+        useAuthStore.setState({ token: null, isAuthenticated: false });
+        router.replace('/auth/login?error=callback_failed');
+      }
+    };
+
+    void exchangeToken();
+  }, [errorParam, router, successParam, tokenExchangeStatus]);
 
   // Query user data - will use Authorization header from stored token
   const { data, error, loading } = useQuery<MeQueryResult>(ME_QUERY, {
-    skip: !hasToken,
+    skip: tokenExchangeStatus !== 'success' || !storeToken,
     fetchPolicy: 'network-only',
   });
 
@@ -69,9 +87,8 @@ function CallbackContent() {
   useEffect(() => {
     if (data?.me) {
       const storedToken = useAuthStore.getState().token;
-      const storedRefreshToken = useAuthStore.getState().refreshToken;
       if (storedToken) {
-        setAuth(data.me, storedToken, storedRefreshToken || undefined);
+        setAuth(data.me, storedToken);
         router.replace('/');
       }
     }
@@ -113,7 +130,7 @@ function CallbackContent() {
     <div className="min-h-screen flex items-center justify-center">
       <div className="text-center">
         <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-primary" />
-        <p className="text-muted-foreground">Completando inicio de sesión...</p>
+        <p className="text-muted-foreground">Completando inicio de sesión seguro...</p>
       </div>
     </div>
   );

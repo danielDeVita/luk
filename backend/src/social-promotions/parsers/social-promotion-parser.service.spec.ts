@@ -24,6 +24,23 @@ describe('SocialPromotionParserService', () => {
     expect(service.detectNetworkFromUrl('https://x.com/test/status/1')).toBe(
       SocialPromotionNetwork.X,
     );
+    expect(
+      service.detectNetworkFromUrl('https://mobile.twitter.com/test/status/1'),
+    ).toBe(SocialPromotionNetwork.X);
+  });
+
+  it('rejects deceptive hosts and insecure URL variants', () => {
+    expect(() =>
+      service.detectNetworkFromUrl(
+        'https://instagram.com.evil.example/p/ABC123/',
+      ),
+    ).toThrow('Unsupported social promotion host');
+    expect(() =>
+      service.detectNetworkFromUrl('http://www.instagram.com/p/ABC123/'),
+    ).toThrow('Unsupported social promotion protocol');
+    expect(() =>
+      service.detectNetworkFromUrl('https://www.instagram.com:444/p/ABC123/'),
+    ).toThrow('Unsupported social promotion port');
   });
 
   it('canonicalizes URLs by removing query params and hashes', () => {
@@ -116,5 +133,26 @@ describe('SocialPromotionParserService', () => {
     expect(result.metrics.commentsCount).toBe(2);
     expect(result.metrics.repostsOrSharesCount).toBe(3);
     expect(result.metrics.viewsCount).toBe(45);
+  });
+
+  it('ignores canonical URLs that escape the supported network allowlist', () => {
+    const result = service.parsePublicContent({
+      network: SocialPromotionNetwork.INSTAGRAM,
+      rawUrl: 'https://www.instagram.com/p/ABC123/',
+      html: `
+        <html>
+          <head>
+            <meta property="og:url" content="https://evil.example/steal" />
+          </head>
+          <body>token-123</body>
+        </html>
+      `,
+      promotionToken: 'token-123',
+      trackingUrl: 'https://luk.app/promo/token-123',
+    });
+
+    expect(result.canonicalPermalink).toBe(
+      'https://www.instagram.com/p/ABC123/',
+    );
   });
 });

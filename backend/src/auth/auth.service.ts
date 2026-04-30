@@ -23,6 +23,12 @@ import { TwoFactorService } from './two-factor.service';
 const ACCESS_TOKEN_EXPIRY = '15m'; // 15 minutes
 const REFRESH_TOKEN_EXPIRY_DAYS = 7; // 7 days
 const VERIFICATION_CODE_EXPIRY_MINUTES = 15;
+type RefreshTokenWithUser = Prisma.RefreshTokenGetPayload<{
+  include: { user: true };
+}>;
+type RefreshTokenForRevokeAll = Prisma.RefreshTokenGetPayload<{
+  select: { id: true; token: true; tokenHash: true };
+}>;
 
 @Injectable()
 export class AuthService {
@@ -709,16 +715,22 @@ export class AuthService {
   async refreshAccessToken(
     refreshTokenValue: string,
   ): Promise<{ token: string; refreshToken: string }> {
-    const refreshToken = await this.prisma.refreshToken.findUnique({
-      where: { token: refreshTokenValue },
-      include: { user: true },
-    });
+    const refreshToken = await this.findRefreshTokenByValue(refreshTokenValue);
 
     if (!refreshToken) {
       throw new UnauthorizedException('Invalid refresh token');
     }
 
+    const hashedRefreshTokenValue =
+      refreshToken.tokenHash ?? this.hashRefreshToken(refreshTokenValue);
+
     if (refreshToken.revokedAt) {
+      await this.persistRefreshTokenHashIfMissing(
+        refreshToken.id,
+        hashedRefreshTokenValue,
+        refreshToken.tokenHash,
+      );
+
       // Token was already used - possible token theft, revoke all user tokens
       this.logger.warn(
         `Refresh token reuse detected for user ${refreshToken.userId}`,
@@ -728,6 +740,11 @@ export class AuthService {
     }
 
     if (refreshToken.expiresAt < new Date()) {
+      await this.persistRefreshTokenHashIfMissing(
+        refreshToken.id,
+        hashedRefreshTokenValue,
+        refreshToken.tokenHash,
+      );
       throw new UnauthorizedException('Refresh token has expired');
     }
 
@@ -741,10 +758,14 @@ export class AuthService {
       throw new UnauthorizedException('Email not verified');
     }
 
-    // Revoke the old refresh token (rotation)
+    // Revoke the old refresh token (rotation) and scrub any legacy plaintext value.
     await this.prisma.refreshToken.update({
       where: { id: refreshToken.id },
-      data: { revokedAt: new Date() },
+      data: {
+        revokedAt: new Date(),
+        tokenHash: hashedRefreshTokenValue,
+        token: null,
+      },
     });
 
     // Generate new tokens
@@ -762,12 +783,18 @@ export class AuthService {
    * Revoke a specific refresh token (logout)
    */
   async revokeRefreshToken(refreshTokenValue: string): Promise<void> {
+    const tokenHash = this.hashRefreshToken(refreshTokenValue);
+
     await this.prisma.refreshToken.updateMany({
       where: {
-        token: refreshTokenValue,
         revokedAt: null,
+        OR: [{ tokenHash }, { token: refreshTokenValue }],
       },
-      data: { revokedAt: new Date() },
+      data: {
+        revokedAt: new Date(),
+        tokenHash,
+        token: null,
+      },
     });
   }
 
@@ -775,13 +802,43 @@ export class AuthService {
    * Revoke all refresh tokens for a user (logout all devices)
    */
   async revokeAllUserRefreshTokens(userId: string): Promise<void> {
-    await this.prisma.refreshToken.updateMany({
-      where: {
-        userId,
-        revokedAt: null,
-      },
-      data: { revokedAt: new Date() },
-    });
+    const activeRefreshTokens: RefreshTokenForRevokeAll[] =
+      await this.prisma.refreshToken.findMany({
+        where: {
+          userId,
+          revokedAt: null,
+        },
+        select: {
+          id: true,
+          token: true,
+          tokenHash: true,
+        },
+      });
+
+    if (activeRefreshTokens.length === 0) {
+      return;
+    }
+
+    const revokedAt = new Date();
+    await this.prisma.$transaction(
+      activeRefreshTokens.map((refreshToken) => {
+        const data: Prisma.RefreshTokenUpdateInput = {
+          revokedAt,
+          token: null,
+        };
+
+        if (refreshToken.tokenHash) {
+          data.tokenHash = refreshToken.tokenHash;
+        } else if (refreshToken.token) {
+          data.tokenHash = this.hashRefreshToken(refreshToken.token);
+        }
+
+        return this.prisma.refreshToken.update({
+          where: { id: refreshToken.id },
+          data,
+        });
+      }),
+    );
   }
 
   /**
@@ -793,13 +850,15 @@ export class AuthService {
     ipAddress?: string,
   ): Promise<string> {
     const token = crypto.randomBytes(64).toString('hex');
+    const tokenHash = this.hashRefreshToken(token);
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + REFRESH_TOKEN_EXPIRY_DAYS);
 
     await this.prisma.refreshToken.create({
       data: {
         userId,
-        token,
+        token: null,
+        tokenHash,
         expiresAt,
         deviceInfo,
         ipAddress,
@@ -819,6 +878,44 @@ export class AuthService {
       },
     });
     return result.count;
+  }
+
+  private async findRefreshTokenByValue(
+    refreshTokenValue: string,
+  ): Promise<RefreshTokenWithUser | null> {
+    const tokenHash = this.hashRefreshToken(refreshTokenValue);
+
+    return this.prisma.refreshToken.findFirst({
+      where: {
+        OR: [{ tokenHash }, { token: refreshTokenValue }],
+      },
+      include: { user: true },
+    });
+  }
+
+  private hashRefreshToken(refreshTokenValue: string): string {
+    return crypto
+      .createHash('sha256')
+      .update(refreshTokenValue, 'utf8')
+      .digest('hex');
+  }
+
+  private async persistRefreshTokenHashIfMissing(
+    refreshTokenId: string,
+    tokenHash: string,
+    existingTokenHash?: string | null,
+  ): Promise<void> {
+    if (existingTokenHash) {
+      return;
+    }
+
+    await this.prisma.refreshToken.update({
+      where: { id: refreshTokenId },
+      data: {
+        tokenHash,
+        token: null,
+      },
+    });
   }
 
   private generateAccessToken(

@@ -14,12 +14,30 @@ interface RequestWithCookies extends Request {
   cookies: Record<string, string | undefined>;
 }
 
+const ACCESS_TOKEN_MAX_AGE = 15 * 60 * 1000;
+const REFRESH_TOKEN_MAX_AGE = 7 * 24 * 60 * 60 * 1000;
+
 @Controller('auth')
 export class AuthGoogleController {
   constructor(
     private authService: AuthService,
     private configService: ConfigService,
   ) {}
+
+  private getCookieSettings(): {
+    secure: boolean;
+    sameSite: 'none' | 'lax';
+  } {
+    const secureCookiesEnabled =
+      this.configService.get<string>('SECURE_COOKIES') === 'true' ||
+      (this.configService.get('NODE_ENV') === 'production' &&
+        process.env.CI !== 'true');
+
+    return {
+      secure: secureCookiesEnabled,
+      sameSite: secureCookiesEnabled ? 'none' : 'lax',
+    };
+  }
 
   /**
    * GET /auth/google
@@ -46,7 +64,7 @@ export class AuthGoogleController {
   ): Promise<void> {
     const frontendUrl: string =
       this.configService.get<string>('FRONTEND_URL') || 'http://localhost:3000';
-    const isProduction = this.configService.get('NODE_ENV') === 'production';
+    const cookieSettings = this.getCookieSettings();
 
     if (!req.user) {
       return res.redirect(`${frontendUrl}/auth/login?error=google_auth_failed`);
@@ -59,29 +77,24 @@ export class AuthGoogleController {
       req.ip,
     );
 
-    // Pass token in URL for cross-subdomain deployments (third-party cookies blocked)
-    // Token is short-lived (15 min) and immediately stored in localStorage by frontend
-    // Also set cookies as fallback for same-domain deployments
+    // Complete the OAuth flow with cookies plus a one-time access-token exchange.
     res.cookie('auth_token', token, {
       httpOnly: true,
-      secure: true,
-      sameSite: isProduction ? 'strict' : 'none',
-      maxAge: 15 * 60 * 1000, // 15 minutes
+      secure: cookieSettings.secure,
+      sameSite: cookieSettings.sameSite,
+      maxAge: ACCESS_TOKEN_MAX_AGE,
       path: '/',
     });
 
     res.cookie('refresh_token', refreshToken, {
       httpOnly: true,
-      secure: true,
-      sameSite: isProduction ? 'strict' : 'none',
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+      secure: cookieSettings.secure,
+      sameSite: cookieSettings.sameSite,
+      maxAge: REFRESH_TOKEN_MAX_AGE,
       path: '/auth',
     });
 
-    // Redirect with tokens in URL (for cross-subdomain where cookies are blocked)
-    return res.redirect(
-      `${frontendUrl}/auth/callback?success=true&token=${token}&refreshToken=${refreshToken}`,
-    );
+    return res.redirect(`${frontendUrl}/auth/callback?success=true`);
   }
 
   /**
@@ -109,9 +122,7 @@ export class AuthGoogleController {
 
   /**
    * GET /auth/refresh
-   * Refreshes the access token using the refresh token from:
-   * 1. Authorization header (Bearer token) - for cross-subdomain deployments
-   * 2. httpOnly cookie - for same-domain deployments
+   * Refreshes the access token using the refresh-token cookie.
    */
   @Get('refresh')
   @Public()
@@ -119,18 +130,8 @@ export class AuthGoogleController {
     @Req() req: RequestWithCookies,
     @Res() res: Response,
   ): Promise<Response> {
-    // Try to get refresh token from Authorization header first (cross-subdomain support)
-    const authHeader: string | undefined = req.headers.authorization;
-    const headerToken: string | null =
-      authHeader && authHeader.startsWith('Bearer ')
-        ? authHeader.substring(7)
-        : null;
-
-    // Fall back to cookie if no header token
-    const refreshTokenValue: string | null | undefined =
-      headerToken || req.cookies.refresh_token;
-    const isProduction: boolean =
-      this.configService.get<string>('NODE_ENV') === 'production';
+    const refreshTokenValue: string | undefined = req.cookies.refresh_token;
+    const cookieSettings = this.getCookieSettings();
 
     if (!refreshTokenValue) {
       return res.status(401).json({ error: 'No refresh token found' });
@@ -140,28 +141,23 @@ export class AuthGoogleController {
       const { token, refreshToken } =
         await this.authService.refreshAccessToken(refreshTokenValue);
 
-      // Set new access token as httpOnly cookie
-      // In development, use sameSite: 'none' to allow cross-origin requests (localhost:3000 → localhost:3001)
-      // Note: sameSite: 'none' requires secure: true (always, not just production)
       res.cookie('auth_token', token, {
         httpOnly: true,
-        secure: true,
-        sameSite: isProduction ? 'strict' : 'none',
-        maxAge: 15 * 60 * 1000, // 15 minutes
+        secure: cookieSettings.secure,
+        sameSite: cookieSettings.sameSite,
+        maxAge: ACCESS_TOKEN_MAX_AGE,
         path: '/',
       });
 
-      // Set new refresh token (rotation)
       res.cookie('refresh_token', refreshToken, {
         httpOnly: true,
-        secure: true,
-        sameSite: isProduction ? 'strict' : 'none',
-        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+        secure: cookieSettings.secure,
+        sameSite: cookieSettings.sameSite,
+        maxAge: REFRESH_TOKEN_MAX_AGE,
         path: '/auth',
       });
 
-      // Return both tokens in response (for cross-subdomain where cookies don't work)
-      return res.json({ token, refreshToken });
+      return res.json({ token });
     } catch {
       // Clear invalid cookies
       res.clearCookie('auth_token');

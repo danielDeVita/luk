@@ -154,7 +154,11 @@ describe('AuthResolver', () => {
 
       const result = await resolver.verifyEmail(userId, code, context);
 
-      expect(result).toEqual(authPayload);
+      expect(result).toEqual({
+        user: authPayload.user,
+        token: authPayload.token,
+      });
+      expect(result).not.toHaveProperty('refreshToken');
       expect(authService.verifyEmail).toHaveBeenCalledWith(
         userId,
         code,
@@ -250,7 +254,13 @@ describe('AuthResolver', () => {
 
       const result = await resolver.login(input, context);
 
-      expect(result).toEqual(authPayload);
+      expect(result).toEqual({
+        user: authPayload.user,
+        token: authPayload.token,
+        requiresVerification: false,
+        requiresTwoFactor: false,
+      });
+      expect(result).not.toHaveProperty('refreshToken');
       expect(authService.login).toHaveBeenCalledWith(input, '192.168.1.1');
       expect(res.cookie).toHaveBeenCalledTimes(2);
     });
@@ -438,7 +448,11 @@ describe('AuthResolver', () => {
         '123456',
       );
 
-      expect(result).toEqual(expected);
+      expect(result).toEqual({
+        user: expected.user,
+        token: expected.token,
+      });
+      expect(result).not.toHaveProperty('refreshToken');
       expect(authService.completeTwoFactorLogin).toHaveBeenCalledWith(
         'challenge-token',
         '123456',

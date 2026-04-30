@@ -78,7 +78,7 @@ describe('AuthGoogleController', () => {
   });
 
   describe('googleAuthCallback', () => {
-    it('should redirect with tokens and set httpOnly cookies', async () => {
+    it('should redirect without tokens in URL and set httpOnly cookies', async () => {
       const module: TestingModule = await Test.createTestingModule({
         controllers: [AuthGoogleController],
         providers: [
@@ -116,8 +116,8 @@ describe('AuthGoogleController', () => {
         'access-token-123',
         {
           httpOnly: true,
-          secure: true,
-          sameSite: 'none', // development mode
+          secure: false,
+          sameSite: 'lax', // development mode
           maxAge: 15 * 60 * 1000,
           path: '/',
         },
@@ -129,19 +129,19 @@ describe('AuthGoogleController', () => {
         'refresh-token-123',
         {
           httpOnly: true,
-          secure: true,
-          sameSite: 'none', // development mode
+          secure: false,
+          sameSite: 'lax', // development mode
           maxAge: 7 * 24 * 60 * 60 * 1000,
           path: '/auth',
         },
       );
 
       expect(res.redirect).toHaveBeenCalledWith(
-        'http://localhost:3000/auth/callback?success=true&token=access-token-123&refreshToken=refresh-token-123',
+        'http://localhost:3000/auth/callback?success=true',
       );
     });
 
-    it('should use strict sameSite in production', async () => {
+    it('should use secure cookies in production', async () => {
       const module: TestingModule = await Test.createTestingModule({
         controllers: [AuthGoogleController],
         providers: [
@@ -164,14 +164,13 @@ describe('AuthGoogleController', () => {
 
       await controller.googleAuthCallback(req, res);
 
-      // Check sameSite is strict in production
       expect(res.cookie).toHaveBeenCalledWith(
         'auth_token',
         'access-token-123',
         {
           httpOnly: true,
           secure: true,
-          sameSite: 'strict', // production mode
+          sameSite: 'none', // production mode
           maxAge: 15 * 60 * 1000,
           path: '/',
         },
@@ -248,38 +247,6 @@ describe('AuthGoogleController', () => {
       authService = module.get(AuthService) as unknown as MockAuthService;
     });
 
-    it('should refresh token from Authorization header', async () => {
-      const req = mockRequest({
-        headers: { authorization: 'Bearer refresh-token-header' },
-      });
-      const res = mockResponse();
-
-      authService.refreshAccessToken.mockResolvedValue({
-        token: 'new-access-token',
-        refreshToken: 'new-refresh-token',
-      });
-
-      await controller.refreshToken(req, res);
-
-      expect(authService.refreshAccessToken).toHaveBeenCalledWith(
-        'refresh-token-header',
-      );
-      expect(res.cookie).toHaveBeenCalledWith(
-        'auth_token',
-        'new-access-token',
-        expect.any(Object),
-      );
-      expect(res.cookie).toHaveBeenCalledWith(
-        'refresh_token',
-        'new-refresh-token',
-        expect.any(Object),
-      );
-      expect(res.json).toHaveBeenCalledWith({
-        token: 'new-access-token',
-        refreshToken: 'new-refresh-token',
-      });
-    });
-
     it('should refresh token from cookie', async () => {
       const req = mockRequest({
         cookies: { refresh_token: 'refresh-token-cookie' },
@@ -296,9 +263,33 @@ describe('AuthGoogleController', () => {
       expect(authService.refreshAccessToken).toHaveBeenCalledWith(
         'refresh-token-cookie',
       );
+      expect(res.cookie).toHaveBeenCalledWith(
+        'auth_token',
+        'new-access-token',
+        expect.any(Object),
+      );
+      expect(res.cookie).toHaveBeenCalledWith(
+        'refresh_token',
+        'new-refresh-token',
+        expect.any(Object),
+      );
       expect(res.json).toHaveBeenCalledWith({
         token: 'new-access-token',
-        refreshToken: 'new-refresh-token',
+      });
+    });
+
+    it('should reject refresh requests without the refresh-token cookie', async () => {
+      const req = mockRequest({
+        headers: { authorization: 'Bearer refresh-token-header' },
+      });
+      const res = mockResponse();
+
+      await controller.refreshToken(req, res);
+
+      expect(authService.refreshAccessToken).not.toHaveBeenCalled();
+      expect(res.status).toHaveBeenCalledWith(401);
+      expect(res.json).toHaveBeenCalledWith({
+        error: 'No refresh token found',
       });
     });
 

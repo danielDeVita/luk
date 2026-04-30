@@ -1,4 +1,4 @@
-import { ObjectType, Field } from '@nestjs/graphql';
+import { ObjectType, Field, HideField } from '@nestjs/graphql';
 import { User } from '../../users/entities/user.entity';
 
 @ObjectType()
@@ -6,10 +6,8 @@ export class AuthPayload {
   @Field({ nullable: true })
   token?: string;
 
-  @Field({
-    nullable: true,
-    description: 'Refresh token for cross-subdomain deployments',
-  })
+  // Internal-only value used to bootstrap httpOnly cookies. Not exposed in GraphQL.
+  @HideField()
   refreshToken?: string;
 
   @Field(() => User)

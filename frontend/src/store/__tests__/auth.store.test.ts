@@ -26,7 +26,6 @@ describe('Auth Store (Zustand)', () => {
 
       expect(state.user).toBeNull();
       expect(state.token).toBeNull();
-      expect(state.refreshToken).toBeNull();
       expect(state.isAuthenticated).toBe(false);
       expect(state.isLoading).toBe(false);
       expect(state.error).toBeNull();
@@ -45,34 +44,15 @@ describe('Auth Store (Zustand)', () => {
       };
 
       act(() => {
-        useAuthStore.getState().setAuth(mockUser, 'token-123', 'refresh-123');
+        useAuthStore.getState().setAuth(mockUser, 'token-123');
       });
 
       const state = useAuthStore.getState();
       expect(state.user).toEqual(mockUser);
       expect(state.token).toBe('token-123');
-      expect(state.refreshToken).toBe('refresh-123');
       expect(state.isAuthenticated).toBe(true);
       expect(state.isLoading).toBe(false);
       expect(state.error).toBeNull();
-    });
-
-    it('should set auth without refresh token', () => {
-      const mockUser = {
-        id: 'user-123',
-        email: 'test@example.com',
-        nombre: 'Test',
-        apellido: 'User',
-        role: 'USER' as const,
-      };
-
-      act(() => {
-        useAuthStore.getState().setAuth(mockUser, 'token-123');
-      });
-
-      const state = useAuthStore.getState();
-      expect(state.token).toBe('token-123');
-      expect(state.refreshToken).toBeNull();
     });
   });
 
@@ -95,55 +75,18 @@ describe('Auth Store (Zustand)', () => {
     });
   });
 
-  describe('getRefreshToken', () => {
-    it('should return null when no refresh token', () => {
-      const token = useAuthStore.getState().getRefreshToken();
-      expect(token).toBeNull();
-    });
-
-    it('should return refresh token when set', () => {
+  describe('setToken', () => {
+    it('should update the access token', () => {
       act(() => {
         useAuthStore.getState().setAuth(
           { id: '1', email: 'test@test.com', nombre: 'Test', apellido: 'User', role: 'USER' },
-          'token',
-          'refresh-token'
+          'old-token'
         );
-      });
-
-      const token = useAuthStore.getState().getRefreshToken();
-      expect(token).toBe('refresh-token');
-    });
-  });
-
-  describe('setTokens', () => {
-    it('should update both tokens', () => {
-      act(() => {
-        useAuthStore.getState().setAuth(
-          { id: '1', email: 'test@test.com', nombre: 'Test', apellido: 'User', role: 'USER' },
-          'old-token',
-          'old-refresh'
-        );
-        useAuthStore.getState().setTokens('new-token', 'new-refresh');
+        useAuthStore.getState().setToken('new-token');
       });
 
       const state = useAuthStore.getState();
       expect(state.token).toBe('new-token');
-      expect(state.refreshToken).toBe('new-refresh');
-    });
-
-    it('should keep existing refresh token if not provided', () => {
-      act(() => {
-        useAuthStore.getState().setAuth(
-          { id: '1', email: 'test@test.com', nombre: 'Test', apellido: 'User', role: 'USER' },
-          'token',
-          'existing-refresh'
-        );
-        useAuthStore.getState().setTokens('new-token');
-      });
-
-      const state = useAuthStore.getState();
-      expect(state.token).toBe('new-token');
-      expect(state.refreshToken).toBe('existing-refresh');
     });
   });
 
@@ -153,8 +96,7 @@ describe('Auth Store (Zustand)', () => {
       act(() => {
         useAuthStore.getState().setAuth(
           { id: '1', email: 'test@test.com', nombre: 'Test', apellido: 'User', role: 'USER' },
-          'token',
-          'refresh'
+          'token'
         );
       });
 
@@ -167,7 +109,6 @@ describe('Auth Store (Zustand)', () => {
       const state = useAuthStore.getState();
       expect(state.user).toBeNull();
       expect(state.token).toBeNull();
-      expect(state.refreshToken).toBeNull();
       expect(state.isAuthenticated).toBe(false);
       expect(fetch).toHaveBeenCalledWith(
         expect.stringContaining('/auth/logout'),
@@ -296,14 +237,13 @@ describe('Auth Store (Zustand)', () => {
   });
 
   describe('Persistence', () => {
-    it('should persist user, token, and refreshToken', () => {
+    it('should persist user and access token only', () => {
       // This test verifies the partialize config
       // Set some values
       act(() => {
         useAuthStore.getState().setAuth(
           { id: '1', email: 'test@test.com', nombre: 'Test', apellido: 'User', role: 'USER' },
-          'token',
-          'refresh'
+          'token'
         );
         useAuthStore.getState().setLoading(true);
         useAuthStore.getState().setError('error');
@@ -312,7 +252,6 @@ describe('Auth Store (Zustand)', () => {
       // The store should have all values
       expect(useAuthStore.getState().user).not.toBeNull();
       expect(useAuthStore.getState().token).toBe('token');
-      expect(useAuthStore.getState().refreshToken).toBe('refresh');
       expect(useAuthStore.getState().isAuthenticated).toBe(true);
       // Note: isLoading and error are NOT persisted (partialize excludes them)
     });

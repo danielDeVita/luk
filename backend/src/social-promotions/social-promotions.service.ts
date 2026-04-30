@@ -236,7 +236,18 @@ export class SocialPromotionsService {
       );
     }
 
-    const detectedNetwork = this.parser.detectNetworkFromUrl(permalink);
+    let detectedNetwork: SocialPromotionNetwork;
+    let canonicalPermalink: string;
+
+    try {
+      detectedNetwork = this.parser.detectNetworkFromUrl(permalink);
+      canonicalPermalink = this.parser.canonicalizePermalink(permalink);
+    } catch {
+      throw new BadRequestException(
+        'La URL enviada no es válida para una publicación pública soportada',
+      );
+    }
+
     const detectedPrismaNetwork =
       detectedNetwork as unknown as PrismaSocialPromotionNetwork;
     if (detectedPrismaNetwork !== draft.network) {
@@ -244,8 +255,6 @@ export class SocialPromotionsService {
         'La URL enviada no coincide con la red del draft',
       );
     }
-
-    const canonicalPermalink = this.parser.canonicalizePermalink(permalink);
 
     const post = await this.prisma.socialPromotionPost.create({
       data: {

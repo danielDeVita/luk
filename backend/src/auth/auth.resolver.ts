@@ -61,6 +61,13 @@ export class AuthResolver {
     });
   }
 
+  private stripRefreshToken<T extends { refreshToken?: string }>(
+    result: T,
+  ): Omit<T, 'refreshToken'> {
+    const { refreshToken: _refreshToken, ...publicResult } = result;
+    return publicResult;
+  }
+
   @Public()
   @Mutation(() => RegisterPayload)
   async register(
@@ -89,7 +96,7 @@ export class AuthResolver {
     // Set httpOnly cookies for the tokens
     this.setAuthCookies(context.res, result.token, result.refreshToken);
 
-    return result;
+    return this.stripRefreshToken(result);
   }
 
   @Public()
@@ -114,7 +121,7 @@ export class AuthResolver {
       this.setAuthCookies(context.res, result.token, result.refreshToken);
     }
 
-    return result;
+    return this.stripRefreshToken(result);
   }
 
   @UseGuards(GqlAuthGuard)
@@ -156,7 +163,7 @@ export class AuthResolver {
 
     this.setAuthCookies(context.res, result.token, result.refreshToken);
 
-    return result;
+    return this.stripRefreshToken(result);
   }
 
   @UseGuards(GqlAuthGuard)

@@ -55,20 +55,10 @@ const resolvePendingRequests = () => {
  */
 const doRefreshToken = async (): Promise<boolean> => {
   try {
-    const storedRefreshToken = useAuthStore.getState().refreshToken;
-
-    if (!storedRefreshToken) {
-      console.warn('[Auth] No refresh token available');
-      return false;
-    }
-
     console.log('[Auth] Refreshing access token...');
     const response = await fetch(`${BACKEND_URL}/auth/refresh`, {
       method: 'GET',
       credentials: 'include',
-      headers: {
-        Authorization: `Bearer ${storedRefreshToken}`,
-      },
     });
 
     if (!response.ok) {
@@ -78,7 +68,7 @@ const doRefreshToken = async (): Promise<boolean> => {
 
     const data = await response.json();
     if (data.token) {
-      useAuthStore.getState().setTokens(data.token, data.refreshToken);
+      useAuthStore.getState().setToken(data.token);
       console.log('[Auth] Token refreshed successfully');
       return true;
     }
@@ -150,10 +140,9 @@ function createApolloClient(
   // Also proactively refreshes token if it's about to expire
   const authLink = setContext(async (_, { headers }) => {
     let token = useAuthStore.getState().token;
-    const storedRefreshToken = useAuthStore.getState().refreshToken;
 
     // Proactively refresh if token is about to expire
-    if (token && storedRefreshToken && isTokenExpiringSoon(token)) {
+    if (token && isTokenExpiringSoon(token)) {
       // Wait for refresh (all concurrent requests share the same promise)
       const success = await refreshToken();
       if (success) {
@@ -250,10 +239,8 @@ function createApolloClient(
 
     // Only attempt token refresh if:
     // 1. There's an auth error
-    // 2. We have a refresh token stored
-    // 3. We're not on an auth page (login/register mutations don't need refresh)
-    // 4. We're in a browser environment
-    const storedRefreshToken = useAuthStore.getState().refreshToken;
+    // 2. We're not on an auth page (login/register mutations don't need refresh)
+    // 3. We're in a browser environment
     const isOnAuthPage = typeof window !== 'undefined' && window.location.pathname.includes('/auth');
     const currentUser = useAuthStore.getState().user;
 
@@ -271,7 +258,7 @@ function createApolloClient(
       user: currentUser,
     });
 
-    if (isAuthError && storedRefreshToken && typeof window !== 'undefined') {
+    if (isAuthError && typeof window !== 'undefined') {
       // Return an Observable that handles the token refresh
       return new Observable<FetchResult>((observer) => {
         // Use the shared refresh function (handles concurrent requests)
@@ -290,7 +277,6 @@ function createApolloClient(
             useAuthStore.setState({
               user: null,
               token: null,
-              refreshToken: null,
               isAuthenticated: false,
             });
             window.location.href = '/auth/login';

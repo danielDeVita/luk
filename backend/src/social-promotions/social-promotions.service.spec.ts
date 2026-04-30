@@ -273,6 +273,30 @@ describe('SocialPromotionsService', () => {
         ),
       ).rejects.toThrow(BadRequestException);
     });
+
+    it('throws a bad request when the submitted URL is invalid or hostile', async () => {
+      prisma.socialPromotionDraft.findUnique.mockResolvedValue({
+        id: 'draft-1',
+        sellerId: 'seller-1',
+        raffleId: 'raffle-1',
+        network: SocialPromotionNetwork.INSTAGRAM,
+        expiresAt: new Date(Date.now() + 60_000),
+        raffle: { id: 'raffle-1', sellerId: 'seller-1', estado: 'ACTIVA' },
+        post: null,
+      });
+      parser.detectNetworkFromUrl.mockImplementation(() => {
+        throw new Error('Unsupported social promotion host: evil.example');
+      });
+
+      await expect(
+        service.submitSocialPromotionPost(
+          'seller-1',
+          'draft-1',
+          'https://evil.example/post',
+        ),
+      ).rejects.toThrow(BadRequestException);
+      expect(prisma.socialPromotionPost.create).not.toHaveBeenCalled();
+    });
   });
 
   describe('previewPromotionBonus', () => {
