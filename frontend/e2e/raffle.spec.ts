@@ -1,5 +1,18 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 import { apiLogin, TEST_SELLER, TEST_BUYER } from './helpers/auth';
+
+async function expectComplianceNotice(page: Page) {
+  await expect(
+    page.getByText(
+      /las rifas publicadas en luk deben cumplir con la normativa aplicable/i,
+    ),
+  ).toBeVisible({ timeout: 10000 });
+  await expect(
+    page.getByText(
+      /saldo interno y las bonificaciones promocionales se utilizan/i,
+    ),
+  ).toBeVisible({ timeout: 10000 });
+}
 
 test.describe('Raffle Browsing', () => {
   test('homepage loads with featured raffles section', async ({
@@ -13,9 +26,7 @@ test.describe('Raffle Browsing', () => {
     await expect(
       page.getByText(/rifas|explor|particip/i).first(),
     ).toBeVisible({ timeout: 10000 });
-    await expect(
-      page.getByText(/la publicacion y participacion en rifas estan sujetas/i),
-    ).toBeVisible({ timeout: 10000 });
+    await expectComplianceNotice(page);
   });
 
   test('search page loads with filters', async ({ page }) => {
@@ -27,11 +38,7 @@ test.describe('Raffle Browsing', () => {
     ).toBeVisible({
       timeout: 10000,
     });
-    await expect(
-      page.getByText(
-        /no comercializa fichas, saldo, monedas virtuales|bonificaciones promocionales internas/i,
-      ),
-    ).toBeVisible({ timeout: 10000 });
+    await expectComplianceNotice(page);
   });
 
   test('search page supports category filtering', async ({
@@ -87,11 +94,7 @@ test.describe('Raffle Browsing', () => {
       await raffleCard.click();
       await page.waitForURL(/\/raffle\//);
 
-      await expect(
-        page.getByText(
-          /no comercializa fichas, saldo, monedas virtuales|bonificaciones promocionales internas/i,
-        ),
-      ).toBeVisible({ timeout: 10000 });
+      await expectComplianceNotice(page);
     }
   });
 
