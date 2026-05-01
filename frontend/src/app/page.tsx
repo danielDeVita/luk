@@ -13,7 +13,7 @@ import {
 } from '@/lib/brand';
 
 export const metadata: Metadata = {
-  title: 'Rifas digitales seguras y transparentes',
+  title: 'Rifas transparentes con pagos protegidos',
   description: BRAND_DESCRIPTION,
   alternates: {
     canonical: '/',
@@ -49,13 +49,13 @@ export default function HomePage() {
 
                 <div className="space-y-5">
                   <h1 className="font-display text-5xl leading-[0.92] tracking-[-0.07em] text-balance text-foreground sm:text-6xl lg:text-[6.3rem] animate-fade-up delay-2">
-                    <span className="block">Tu suerte</span>
-                    <span className="block text-primary">empieza acá</span>
+                    <span className="block">Rifas claras,</span>
+                    <span className="block text-primary">premios reales</span>
                   </h1>
                   <p className="max-w-2xl text-lg leading-relaxed text-muted-foreground sm:text-xl animate-fade-up delay-3">
                     {BRAND_DESCRIPTION}{' '}
                     <span className="font-semibold text-foreground">
-                      100% seguro y transparente.
+                      Todo desde una sola cuenta.
                     </span>
                   </p>
                 </div>
@@ -64,16 +64,16 @@ export default function HomePage() {
 
                 <div className="grid gap-4 sm:grid-cols-3 animate-fade-up delay-5">
                   <div className="rounded-[1.6rem] border border-border/80 bg-card/88 p-5 shadow-lift">
-                    <p className="editorial-kicker text-muted-foreground">Seguro</p>
-                    <p className="mt-3 font-display text-4xl text-primary">100%</p>
+                    <p className="editorial-kicker text-muted-foreground">Pagos</p>
+                    <p className="mt-3 font-display text-4xl text-primary">Protegidos</p>
                   </div>
                   <div className="rounded-[1.6rem] border border-border/80 bg-card/88 p-5 shadow-lift">
                     <p className="editorial-kicker text-muted-foreground">Disponible</p>
                     <p className="mt-3 font-display text-4xl text-secondary">24/7</p>
                   </div>
                   <div className="rounded-[1.6rem] border border-border/80 bg-card/88 p-5 shadow-lift">
-                    <p className="editorial-kicker text-muted-foreground">Comisión al comprar</p>
-                    <p className="mt-3 font-display text-4xl text-primary">0%</p>
+                    <p className="editorial-kicker text-muted-foreground">Saldo</p>
+                    <p className="mt-3 font-display text-4xl text-primary">Interno</p>
                   </div>
                 </div>
               </div>
@@ -82,14 +82,14 @@ export default function HomePage() {
                 <Card className="bg-card/95">
                   <CardHeader className="pb-4">
                     <CardTitle className="text-3xl">
-                      Elegí una rifa, comprá tu ticket y seguí todo el proceso sin vueltas.
+                      Elegí una rifa, cargá saldo y comprá tu ticket con seguimiento claro.
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-5">
                     <div className="grid grid-cols-2 gap-3">
                       <div className="rounded-[1.35rem] border border-border/80 bg-background/70 p-4">
-                        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">Compra</p>
-                        <p className="mt-3 font-display text-3xl text-foreground">Simple</p>
+                        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">Saldo</p>
+                        <p className="mt-3 font-display text-3xl text-foreground">Interno</p>
                       </div>
                       <div className="rounded-[1.35rem] border border-border/80 bg-background/70 p-4">
                         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">Seguimiento</p>
@@ -99,7 +99,7 @@ export default function HomePage() {
                     <div className="rounded-[1.35rem] border border-border/80 bg-primary p-5 text-primary-foreground shadow-lift">
                       <p className="text-xs font-semibold uppercase tracking-[0.22em] text-primary-foreground/80">Transparencia</p>
                       <p className="mt-3 text-base leading-relaxed">
-                        Pagos protegidos, reglas claras y rifas verificables en una sola plataforma.
+                        Pagos protegidos, reglas visibles y movimientos internos claros en una sola plataforma.
                       </p>
                     </div>
                   </CardContent>
@@ -131,30 +131,30 @@ export default function HomePage() {
               </h2>
             </div>
             <p className="max-w-2xl text-lg leading-relaxed text-muted-foreground">
-              Participá por premios reales, seguí el avance de cada rifa y comprá con pagos protegidos de punta a punta.
+              Participá por premios reales, usá saldo interno y seguí cada rifa con pagos protegidos y reglas claras.
             </p>
           </div>
 
           <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
             <FeatureCard
               icon={<Ticket className="h-6 w-6" />}
-              title="Fácil de usar"
-              description="Comprá tickets en segundos con pagos seguros integrados"
+              title="Tickets accesibles"
+              description="Elegí tu rifa y comprá en segundos usando saldo interno."
             />
             <FeatureCard
               icon={<Shield className="h-6 w-6" />}
-              title="100% seguro"
-              description="Todos los pagos están protegidos y los sorteos son verificables"
+              title="Pagos protegidos"
+              description="Tus cargas y consumos quedan dentro de una operatoria clara."
             />
             <FeatureCard
               icon={<Users className="h-6 w-6" />}
-              title="Comunidad activa"
-              description="Conectate con otros usuarios y participá en rifas todos los días"
+              title="Seguimiento claro"
+              description="Consultá avance, tiempos y estado de cada rifa en un solo lugar."
             />
             <FeatureCard
               icon={<Zap className="h-6 w-6" />}
-              title="Sorteos rápidos"
-              description="Resultados instantáneos cuando se venden todos los tickets"
+              title="Rifas verificables"
+              description="Cada publicación mantiene reglas visibles y resultados trazables."
             />
           </div>
         </div>
@@ -174,7 +174,7 @@ export default function HomePage() {
               </Link>
             </div>
             <div className="rounded-[2rem] border border-dashed border-border/80 px-6 py-6 text-sm leading-relaxed text-muted-foreground">
-              Explorá rifas activas con tickets accesibles, progreso visible y tiempos claros.
+              Explorá rifas activas con tickets accesibles, progreso visible y pagos internos protegidos.
             </div>
           </div>
 
@@ -196,7 +196,7 @@ export default function HomePage() {
                     ¿Tenés algo que rifar?
                   </h2>
                   <p className="max-w-2xl text-lg leading-relaxed text-primary-foreground/82">
-                    Creá tu propia rifa, establecé el precio y dejá que nuestra comunidad participe. Recibí los pagos directamente en tu cuenta.
+                    Creá tu propia rifa, definí el valor de cada ticket y administrá la participación desde una operatoria clara y simple.
                   </p>
                 </div>
               </div>
@@ -217,7 +217,7 @@ export default function HomePage() {
               </div>
               <div>
                 <p className="font-semibold text-sm">Pagos seguros</p>
-                <p className="text-sm text-muted-foreground">Pagos seguros integrados</p>
+                <p className="text-sm text-muted-foreground">Protegidos dentro de LUK</p>
               </div>
             </div>
             <div className="flex items-center gap-3">
@@ -225,8 +225,8 @@ export default function HomePage() {
                 <Star className="w-5 h-5 text-secondary" />
               </div>
               <div>
-                <p className="font-semibold text-sm">Sorteos transparentes</p>
-                <p className="text-sm text-muted-foreground">100% verificables</p>
+                <p className="font-semibold text-sm">Seguimiento claro</p>
+                <p className="text-sm text-muted-foreground">Progreso y reglas visibles</p>
               </div>
             </div>
             <div className="flex items-center gap-3">
@@ -235,7 +235,7 @@ export default function HomePage() {
               </div>
               <div>
                 <p className="font-semibold text-sm">Ganadores reales</p>
-                <p className="text-sm text-muted-foreground">Sorteos al azar</p>
+                <p className="text-sm text-muted-foreground">Resultados trazables</p>
               </div>
             </div>
           </div>

@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { ShieldAlert } from 'lucide-react';
+import { Shield } from 'lucide-react';
 import {
   LEGAL_CONTACT_EMAIL,
   LEGAL_OPERATOR_NAME,
@@ -14,7 +14,7 @@ interface ComplianceNoticeProps {
 
 export function ComplianceNotice({
   className,
-  title = 'Aviso legal sobre la operatoria',
+  title = 'Información importante',
   tone = 'default',
 }: ComplianceNoticeProps) {
   const subtle = tone === 'subtle';
@@ -23,8 +23,8 @@ export function ComplianceNotice({
     <div
       className={cn(
         subtle
-          ? 'rounded-xl border border-border/70 bg-muted/30 p-3 text-left shadow-none'
-          : 'rounded-2xl border border-secondary/35 bg-secondary/14 p-4 text-left shadow-sm dark:border-secondary/28 dark:bg-secondary/12',
+          ? 'rounded-xl border border-primary/15 bg-primary/5 p-4 text-left shadow-none'
+          : 'rounded-2xl border border-primary/20 bg-primary/5 p-4 text-left shadow-sm',
         className,
       )}
     >
@@ -33,11 +33,11 @@ export function ComplianceNotice({
           className={cn(
             'mt-0.5 rounded-full p-2',
             subtle
-              ? 'bg-muted text-muted-foreground'
-              : 'bg-secondary/20 text-secondary-foreground dark:bg-secondary/18 dark:text-secondary',
+              ? 'bg-primary/10 text-primary'
+              : 'bg-primary/10 text-primary',
           )}
         >
-          <ShieldAlert className="h-4 w-4" />
+          <Shield className="h-4 w-4" />
         </div>
         <div className="space-y-2">
           <p
@@ -58,9 +58,8 @@ export function ComplianceNotice({
                 : 'text-foreground/86 dark:text-foreground/86',
             )}
           >
-            La publicacion y participacion en rifas estan sujetas a la legalidad
-            aplicable en cada jurisdiccion. Cada organizador debe contar con las
-            autorizaciones, licencias o permisos que correspondan.
+            Las rifas publicadas en LUK deben cumplir con la normativa aplicable
+            en cada jurisdicción.
           </p>
           <p
             className={cn(
@@ -70,11 +69,19 @@ export function ComplianceNotice({
                 : 'text-foreground/86 dark:text-foreground/86',
             )}
           >
-            {LEGAL_OPERATOR_NAME} actua como intermediario tecnologico y no
-            comercializa fichas, saldo, monedas virtuales ni valores
-            utilizables fuera de este sitio. La plataforma puede otorgar
-            bonificaciones promocionales internas, no transferibles y
-            utilizables solo dentro de Luk segun los terminos vigentes.
+            {LEGAL_OPERATOR_NAME} actúa como intermediario tecnológico y
+            gestiona herramientas y pagos internos dentro de la plataforma. El
+            saldo interno y las bonificaciones promocionales se utilizan
+            únicamente dentro de LUK según los términos vigentes.
+          </p>
+          <p
+            className={cn(
+              'text-sm leading-relaxed',
+              subtle
+                ? 'text-muted-foreground'
+                : 'text-foreground/86 dark:text-foreground/86',
+            )}
+          >
             Consulta los{' '}
             <Link
               href="/legal/terminos"
@@ -83,9 +90,9 @@ export function ComplianceNotice({
                 subtle ? 'text-foreground/80' : undefined,
               )}
             >
-              terminos y condiciones
+              términos y condiciones
             </Link>{' '}
-            o escribi a{' '}
+            o escribí a{' '}
             <a
               href={`mailto:${LEGAL_CONTACT_EMAIL}`}
               className={cn(

@@ -114,9 +114,9 @@ export default function RootLayout({
                   <div className="rounded-[2rem] border border-border/80 bg-card/90 px-6 py-7 shadow-panel backdrop-blur-xl sm:px-8">
                     <div className="mx-auto max-w-5xl text-center">
                       <p className="text-sm leading-relaxed text-muted-foreground sm:text-[15px]">
-                        La participación en rifas está reservada a mayores de 18
-                        años. El juego compulsivo es perjudicial para la salud.
-                        Todos los derechos reservados.{" "}
+                        +18. La participación en rifas puede estar sujeta a
+                        restricciones legales según tu jurisdicción. Aplican
+                        términos y condiciones.{" "}
                         <span className="font-semibold text-foreground">
                           © {new Date().getFullYear()} {BRAND_NAME}.
                         </span>

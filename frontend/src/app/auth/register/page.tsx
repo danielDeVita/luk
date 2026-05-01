@@ -20,7 +20,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, Check, AlertTriangle } from 'lucide-react';
+import { Loader2, Check, Shield } from 'lucide-react';
 import { PasswordInput } from '@/components/ui/password-input';
 import { TurnstileField } from '@/components/auth/turnstile-field';
 import { toast } from 'sonner';
@@ -261,7 +261,7 @@ function RegisterPageContent() {
                   Crear Cuenta
                 </h1>
                 <p className="max-w-lg text-lg leading-relaxed text-muted-foreground">
-                  Unite para participar en rifas y ganar premios
+                  Creá tu cuenta para participar en rifas con saldo interno y pagos protegidos
                 </p>
               </div>
             </div>
@@ -271,15 +271,15 @@ function RegisterPageContent() {
             <CardHeader>
               <CardTitle className="text-3xl">Crear Cuenta</CardTitle>
               <CardDescription className="text-base">
-                Unite para participar en rifas y ganar premios
+                Creá tu cuenta para participar en rifas con saldo interno y pagos protegidos
               </CardDescription>
             </CardHeader>
 
             <CardContent className="space-y-5">
-              <div className="flex items-start gap-3 rounded-[1.35rem] border border-secondary/35 bg-secondary/14 p-4 dark:border-secondary/28 dark:bg-secondary/12">
-                <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-secondary-foreground dark:text-secondary" />
-                <p className="text-sm leading-relaxed text-foreground dark:text-foreground">
-                  La participación en rifas está reservada exclusivamente a mayores de 18 años. Al registrarte, declarás bajo juramento ser mayor de edad.
+              <div className="flex items-start gap-3 rounded-[1.35rem] border border-primary/20 bg-primary/5 p-4">
+                <Shield className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
+                <p className="text-sm leading-relaxed text-foreground">
+                  Para usar LUK debés ser mayor de 18 años. Al registrarte, confirmás tu mayoría de edad y aceptás los términos y condiciones.
                 </p>
               </div>
 
@@ -451,7 +451,7 @@ function RegisterPageContent() {
           </Button>
 
           <p className="text-xs text-center text-muted-foreground">
-            Al registrarte con Google, también aceptás los términos y condiciones y debés ser mayor de 18 años.
+            Al registrarte con Google, también aceptás los términos y condiciones y confirmás que sos mayor de 18 años.
           </p>
             </CardContent>
 

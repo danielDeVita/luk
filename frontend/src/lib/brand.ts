@@ -1,6 +1,6 @@
 export const BRAND_NAME = 'LUK';
-export const BRAND_TAGLINE = 'Tickets accesibles para premios de alto valor';
+export const BRAND_TAGLINE = 'Rifas transparentes con tickets accesibles';
 export const BRAND_DESCRIPTION =
-  'Participá por productos reales con tickets accesibles y seguí cada rifa de principio a fin.';
+  'Participá en rifas transparentes con tickets accesibles, saldo interno y pagos protegidos. Seguí cada etapa con reglas claras y seguimiento simple.';
 export const BRAND_SHORT_DESCRIPTION =
-  'Productos reales, tickets accesibles y rifas digitales claras.';
+  'Rifas transparentes, saldo interno y pagos protegidos.';

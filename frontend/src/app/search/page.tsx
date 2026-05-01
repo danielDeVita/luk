@@ -278,7 +278,7 @@ export default function SearchPage() {
 
       <div className="mx-auto mt-14 max-w-4xl">
         <ComplianceNotice
-          title="Aviso legal antes de participar"
+          title="Antes de participar"
           tone="subtle"
         />
       </div>
