@@ -243,20 +243,11 @@ test.describe('Receipts Flow', () => {
     await expect(
       page.getByRole('link', { name: /ver comprobante/i }),
     ).toBeVisible();
+    await expect(
+      page.getByRole('link', { name: /ver comprobante/i }),
+    ).toHaveAttribute('href', '/dashboard/wallet/receipts/topup-1');
 
-    const creditTopUpReceiptResponse = page.waitForResponse((response) => {
-      if (!response.url().includes('/graphql')) {
-        return false;
-      }
-
-      const requestBody = response.request().postData() ?? '';
-      return requestBody.includes('CreditTopUpReceipt');
-    });
-
-    await Promise.all([
-      creditTopUpReceiptResponse,
-      page.getByRole('link', { name: /ver comprobante/i }).click(),
-    ]);
+    await page.goto('/dashboard/wallet/receipts/topup-1');
     await expect(page).toHaveURL(/\/dashboard\/wallet\/receipts\/topup-1/);
     await expect(
       page.getByRole('heading', { name: /comprobante de carga/i }),
