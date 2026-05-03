@@ -17,6 +17,8 @@ import {
   DocumentType,
   KycStatus,
   SellerPaymentAccountIdentifierType,
+  TicketPurchaseMode,
+  TicketReceiptAcceptanceSource,
   WalletLedgerEntryType,
 } from '@prisma/client';
 
@@ -38,6 +40,8 @@ export {
   DocumentType,
   KycStatus,
   SellerPaymentAccountIdentifierType,
+  TicketPurchaseMode,
+  TicketReceiptAcceptanceSource,
   WalletLedgerEntryType,
 };
 
@@ -48,11 +52,6 @@ export enum RaffleSort {
   END_DATE_DESC = 'END_DATE_DESC',
   CREATED_ASC = 'CREATED_ASC',
   CREATED_DESC = 'CREATED_DESC',
-}
-
-export enum TicketPurchaseMode {
-  RANDOM = 'RANDOM',
-  CHOOSE_NUMBERS = 'CHOOSE_NUMBERS',
 }
 
 export enum PackIneligibilityReason {
@@ -84,6 +83,9 @@ registerEnumType(SellerPaymentAccountIdentifierType, {
 });
 registerEnumType(WalletLedgerEntryType, { name: 'WalletLedgerEntryType' });
 registerEnumType(TicketPurchaseMode, { name: 'TicketPurchaseMode' });
+registerEnumType(TicketReceiptAcceptanceSource, {
+  name: 'TicketReceiptAcceptanceSource',
+});
 registerEnumType(PackIneligibilityReason, {
   name: 'PackIneligibilityReason',
 });

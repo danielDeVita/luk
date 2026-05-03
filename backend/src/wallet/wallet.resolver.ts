@@ -6,6 +6,7 @@ import { User } from '../users/entities/user.entity';
 import { PaymentsService } from '../payments/payments.service';
 import { CreateCreditTopUpInput } from './dto/create-credit-top-up.input';
 import {
+  CreditTopUpReceiptEntity,
   CreditTopUpResult,
   WalletAccountEntity,
   WalletLedgerEntryEntity,
@@ -32,6 +33,15 @@ export class WalletResolver {
     @Args('take', { type: () => Int, nullable: true }) take?: number,
   ) {
     return this.walletService.getLedger(user.id, take ?? 50);
+  }
+
+  @Query(() => CreditTopUpReceiptEntity)
+  @UseGuards(GqlAuthGuard)
+  async creditTopUpReceipt(
+    @CurrentUser() user: User,
+    @Args('topUpSessionId') topUpSessionId: string,
+  ) {
+    return this.walletService.getCreditTopUpReceipt(user.id, topUpSessionId);
   }
 
   @Mutation(() => CreditTopUpResult)

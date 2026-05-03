@@ -142,9 +142,10 @@ La compra de tickets usa Saldo LUK interno. Mercado Pago no procesa rifas ni tic
 2. La carga se procesa con el provider configurado (`mercado_pago` o `mock` en QA/local).
 3. Se crea una `CreditTopUpSession` con referencia del provider y monto solicitado.
 4. Cuando el provider aprueba la operación, LUK acredita el Saldo LUK una sola vez.
-5. La idempotencia se apoya en la sesión/evento del provider y en el estado final de la carga.
-6. Mercado Pago sólo recibe datos de la carga de saldo; no recibe metadata de rifas, tickets, sellers, premios ni números.
-7. Los refunds externos aplican sólo sobre saldo cargado y no usado. Los refunds por tickets, cancelaciones o disputas vuelven al Saldo LUK interno.
+5. En top-ups nuevos aprobados, también fija `receiptVersion` y `receiptIssuedAt` para habilitar el comprobante de wallet.
+6. La idempotencia se apoya en la sesión/evento del provider y en el estado final de la carga.
+7. Mercado Pago sólo recibe datos de la carga de saldo; no recibe metadata de rifas, tickets, sellers, premios ni números.
+8. Los refunds externos aplican sólo sobre saldo cargado y no usado. Los refunds por tickets, cancelaciones o disputas vuelven al Saldo LUK interno.
 
 ### Compra con saldo
 
@@ -159,6 +160,8 @@ La compra de tickets usa Saldo LUK interno. Mercado Pago no procesa rifas ni tic
 4. Se verifica saldo disponible.
 5. Se emiten tickets reales directamente en estado `PAGADO`.
 6. Se debita el Saldo LUK del buyer y se acredita el payable interno del seller.
+7. Se crea un `TicketPurchaseReceipt` inmutable con snapshot de la compra agrupada.
+8. El frontend puede pedir una confirmación explícita del buyer de que visualiza sus números; esa aceptación queda persistida en el receipt.
 
 ### Compra aleatoria vs elegida
 
@@ -448,7 +451,7 @@ Con esto:
 
 ## 9. Seed canónico QA/dev
 
-El seed de desarrollo (`backend/prisma/seed.ts`) está pensado para QA manual determinístico. Incluye sellers con niveles reputacionales distintos, señales internas de compradores para admin, reseñas públicas y moderadas, preguntas/respuestas de rifas, disputas en los estados principales, compras mock, refunds, payouts, social promotion fixtures, escenarios de pack simple y fixtures de paginación para búsqueda y selector de números.
+El seed de desarrollo (`backend/prisma/seed.ts`) está pensado para QA manual determinístico. Incluye sellers con niveles reputacionales distintos, señales internas de compradores para admin, reseñas públicas y moderadas, preguntas/respuestas de rifas, disputas en los estados principales, compras mock, refunds, payouts, social promotion fixtures, escenarios de pack simple, fixtures de paginación para búsqueda y selector de números, comprobantes de wallet para top-ups nuevos y receipts de compra con estados pendiente/confirmado.
 
 No expone reputación de compradores al público ni a sellers; esas señales quedan limitadas al admin.
 

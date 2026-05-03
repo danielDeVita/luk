@@ -4,17 +4,26 @@ import { TicketsService } from './tickets.service';
 import { Ticket } from './entities/ticket.entity';
 import { BuyTicketsResult } from './entities/buy-tickets-result.entity';
 import { TicketNumberAvailabilityPage } from './entities/ticket-number-availability.entity';
+import {
+  TicketPurchaseReceiptEntity,
+  TicketPurchaseReceiptSummaryEntity,
+} from './entities/ticket-purchase-receipt.entity';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { User } from '../users/entities/user.entity';
 import { Public } from '../auth/decorators/public.decorator';
+import { TicketReceiptAcceptanceSource } from '../common/enums';
+import { TicketPurchaseReceiptsService } from './ticket-purchase-receipts.service';
 
 /**
  * GraphQL entrypoints for buying tickets and reading ticket ownership data.
  */
 @Resolver(() => Ticket)
 export class TicketsResolver {
-  constructor(private readonly ticketsService: TicketsService) {}
+  constructor(
+    private readonly ticketsService: TicketsService,
+    private readonly ticketPurchaseReceiptsService: TicketPurchaseReceiptsService,
+  ) {}
 
   /**
    * Reserves tickets for the current user and returns checkout information.
@@ -89,6 +98,47 @@ export class TicketsResolver {
   async myTickets(@CurrentUser() user: User): Promise<Ticket[]> {
     const tickets = await this.ticketsService.findByUser(user.id);
     return tickets as unknown as Ticket[];
+  }
+
+  @Query(() => TicketPurchaseReceiptEntity)
+  @UseGuards(JwtAuthGuard)
+  async ticketPurchaseReceipt(
+    @CurrentUser() user: User,
+    @Args('purchaseReference') purchaseReference: string,
+  ): Promise<TicketPurchaseReceiptEntity> {
+    return this.ticketPurchaseReceiptsService.getReceipt(
+      user.id,
+      purchaseReference,
+    ) as unknown as TicketPurchaseReceiptEntity;
+  }
+
+  @Query(() => [TicketPurchaseReceiptSummaryEntity])
+  @UseGuards(JwtAuthGuard)
+  async myTicketPurchaseReceipts(
+    @CurrentUser() user: User,
+    @Args('take', { type: () => Int, nullable: true }) take?: number,
+    @Args('pendingOnly', { nullable: true }) pendingOnly?: boolean,
+  ): Promise<TicketPurchaseReceiptSummaryEntity[]> {
+    return this.ticketPurchaseReceiptsService.listReceipts(
+      user.id,
+      take ?? 20,
+      pendingOnly ?? false,
+    ) as unknown as TicketPurchaseReceiptSummaryEntity[];
+  }
+
+  @Mutation(() => TicketPurchaseReceiptEntity)
+  @UseGuards(JwtAuthGuard)
+  async acknowledgeTicketPurchaseReceipt(
+    @CurrentUser() user: User,
+    @Args('purchaseReference') purchaseReference: string,
+    @Args('source', { type: () => TicketReceiptAcceptanceSource })
+    source: TicketReceiptAcceptanceSource,
+  ): Promise<TicketPurchaseReceiptEntity> {
+    return this.ticketPurchaseReceiptsService.acknowledgeReceipt(
+      user.id,
+      purchaseReference,
+      source,
+    ) as unknown as TicketPurchaseReceiptEntity;
   }
 
   /**

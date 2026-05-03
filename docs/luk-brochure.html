@@ -20,7 +20,7 @@
 
       @page {
         size: A4;
-        margin: 14mm;
+        margin: 12mm;
       }
 
       html, body {
@@ -29,11 +29,11 @@
         background: var(--paper);
         color: var(--ink);
         font-family: "Avenir Next", "Helvetica Neue", Helvetica, Arial, sans-serif;
-        line-height: 1.45;
+        line-height: 1.42;
       }
 
       body {
-        padding: 18px;
+        padding: 14px;
       }
 
       .sheet {
@@ -49,16 +49,16 @@
           linear-gradient(135deg, #ffffff 0%, #f5f8f6 58%, #eef5f3 100%);
         border: 1px solid var(--line);
         border-radius: 24px;
-        padding: 26px 28px 24px;
+        padding: 24px 26px 22px;
         box-shadow: 0 18px 40px rgba(23, 33, 43, 0.08);
       }
 
       .hero::after {
         content: "";
         position: absolute;
-        inset: auto -50px -70px auto;
-        width: 220px;
-        height: 220px;
+        inset: auto -48px -70px auto;
+        width: 210px;
+        height: 210px;
         border-radius: 50%;
         background: radial-gradient(circle, rgba(15,122,98,.16), rgba(15,122,98,0));
         pointer-events: none;
@@ -87,15 +87,15 @@
       }
 
       h1 {
-        margin: 18px 0 4px;
+        margin: 16px 0 4px;
         font-family: Georgia, "Times New Roman", serif;
-        font-size: 34px;
-        line-height: 1.05;
+        font-size: 33px;
+        line-height: 1.04;
         letter-spacing: -.03em;
       }
 
       .subtitle {
-        margin: 0 0 14px;
+        margin: 0 0 12px;
         color: var(--muted);
         font-size: 14px;
         font-weight: 600;
@@ -103,22 +103,22 @@
 
       .lead {
         margin: 0;
-        max-width: 650px;
-        font-size: 15px;
+        max-width: 690px;
+        font-size: 14px;
         color: #243240;
       }
 
       .grid {
         display: grid;
-        grid-template-columns: 1.18fr .82fr;
-        gap: 18px;
-        margin-top: 18px;
+        grid-template-columns: 1.16fr .84fr;
+        gap: 14px;
+        margin-top: 14px;
       }
 
       .stack {
         display: grid;
-        gap: 18px;
-        margin-top: 18px;
+        gap: 14px;
+        margin-top: 14px;
       }
 
       .card {
@@ -127,20 +127,20 @@
         background: var(--surface);
         border: 1px solid var(--line);
         border-radius: 22px;
-        padding: 18px 20px;
+        padding: 16px 18px;
         box-shadow: 0 10px 24px rgba(23, 33, 43, 0.05);
       }
 
       h2 {
-        margin: 0 0 10px;
+        margin: 0 0 9px;
         font-size: 17px;
-        line-height: 1.2;
+        line-height: 1.18;
         letter-spacing: -.02em;
       }
 
       p {
-        margin: 0 0 10px;
-        font-size: 13.5px;
+        margin: 0 0 9px;
+        font-size: 13px;
         color: #22303d;
       }
 
@@ -151,23 +151,23 @@
       }
 
       .quote {
-        margin: 0 0 12px;
+        margin: 0 0 11px;
         padding-left: 14px;
         border-left: 3px solid #e7be59;
         font-family: Georgia, "Times New Roman", serif;
-        font-size: 18px;
-        line-height: 1.24;
+        font-size: 17.5px;
+        line-height: 1.22;
         color: #5b4020;
       }
 
       .list {
-        margin: 12px 0 0;
+        margin: 10px 0 0;
         padding-left: 18px;
       }
 
       .list li {
-        margin-bottom: 8px;
-        font-size: 13.5px;
+        margin-bottom: 7px;
+        font-size: 13px;
         color: #22303d;
       }
 
@@ -175,33 +175,33 @@
         display: flex;
         flex-wrap: wrap;
         gap: 8px;
-        margin-top: 12px;
+        margin-top: 10px;
       }
 
       .chip {
-        padding: 7px 10px;
+        padding: 6px 10px;
         border-radius: 999px;
         border: 1px solid var(--line);
         background: #f7faf9;
-        font-size: 12px;
+        font-size: 11.5px;
         color: #28463d;
       }
 
       .steps {
         display: grid;
-        gap: 10px;
+        gap: 8px;
       }
 
       .step {
         display: grid;
-        grid-template-columns: 28px 1fr;
+        grid-template-columns: 27px 1fr;
         gap: 10px;
         align-items: start;
       }
 
       .num {
-        width: 28px;
-        height: 28px;
+        width: 27px;
+        height: 27px;
         border-radius: 999px;
         background: var(--accent-soft);
         color: var(--accent);
@@ -212,11 +212,10 @@
       }
 
       .step p {
-        margin: 2px 0 0;
+        margin: 1px 0 0;
       }
 
       .footer-note {
-        margin-top: 18px;
         padding: 14px 16px;
         border-radius: 18px;
         background: linear-gradient(135deg, #132936 0%, #163e4c 100%);
@@ -227,7 +226,7 @@
 
       .footer-note p {
         color: #f7fbfc;
-        font-size: 13px;
+        font-size: 12.8px;
       }
 
       .kicker {
@@ -240,11 +239,19 @@
       }
 
       @media print {
-        body { padding: 0; background: white; }
+        body { padding: 0; background: white; zoom: 0.8; }
         .sheet { max-width: none; }
+        .grid,
+        .stack {
+          gap: 12px;
+          margin-top: 12px;
+        }
+        .card {
+          padding: 14px 16px;
+        }
       }
 
-      @media (max-width: 860px) {
+      @media screen and (max-width: 860px) {
         .grid {
           grid-template-columns: 1fr;
         }
@@ -270,7 +277,8 @@
           LUK es una plataforma pensada para vender rifas de productos reales de forma
           simple, abierta y medible. Parte de una observación concreta: un ítem caro puede
           frenar la conversión directa, pero una entrada baja puede volver esa misma oferta
-          mucho más accesible.
+          mucho más accesible. La experiencia está diseñada para que participar sea ágil,
+          clara y natural dentro de la propia plataforma.
         </p>
       </section>
 
@@ -289,7 +297,7 @@
           </p>
           <p>
             LUK toma esa intuición y la convierte en un mecanismo comercial concreto.
-            En lugar de depender solo de una venta directa, transforma una oferta de alto
+            En lugar de depender sólo de una venta directa, transforma una oferta de alto
             valor en una demanda fragmentada y más accesible.
           </p>
         </article>
@@ -298,8 +306,8 @@
           <h2>Qué Problema Resuelve</h2>
           <p>
             Hay vendedores y compradores que no se sienten bien servidos por marketplaces
-            generalistas. En esos entornos, el producto suele quedar atado a reglas
-            rígidas, comisiones altas y esquemas de visibilidad que favorecen al que paga más.
+            generalistas. En esos entornos, el producto suele quedar atado a reglas rígidas,
+            comisiones altas y esquemas de visibilidad que favorecen al que paga más.
           </p>
           <ul class="list">
             <li>Sin obligar a un formato determinado para las fotos.</li>
@@ -312,11 +320,10 @@
 
       <section class="grid">
         <article class="card">
-          <h2>Cómo Funciona</h2>
+          <h2>Cómo Fluye Una Operación</h2>
           <p>
-            Desde negocio, LUK combina una experiencia web moderna, backend robusto,
-            pagos integrados con Mercado Pago, base de datos segura, notificaciones por email
-            y seguimiento promocional en redes.
+            La idea es simple: entrar, participar y seguir todo el recorrido dentro del
+            mismo circuito.
           </p>
           <div class="steps">
             <div class="step">
@@ -325,18 +332,22 @@
             </div>
             <div class="step">
               <div class="num">2</div>
-              <p>Los participantes compran tickets.</p>
+              <p>Quien quiere participar carga saldo en su cuenta LUK y elige sus tickets.</p>
             </div>
             <div class="step">
               <div class="num">3</div>
-              <p>La rifa se cierra por fecha o condición definida.</p>
+              <p>La compra queda registrada al instante dentro de la plataforma.</p>
             </div>
             <div class="step">
               <div class="num">4</div>
-              <p>El proceso contempla validación, entrega y resolución de disputas.</p>
+              <p>La rifa se cierra por fecha o por objetivo cumplido.</p>
             </div>
             <div class="step">
               <div class="num">5</div>
+              <p>El proceso contempla seguimiento, entrega y soporte si surge un problema.</p>
+            </div>
+            <div class="step">
+              <div class="num">6</div>
               <p>El pago al vendedor se consolida cuando la operación se completa correctamente.</p>
             </div>
           </div>
@@ -344,9 +355,18 @@
 
         <article class="card">
           <h2>Propuesta de Valor</h2>
-          <p>Para vendedores, LUK ofrece una salida comercial distinta para productos que pueden ser difíciles de vender al precio completo.</p>
-          <p>Para compradores, ofrece una forma de participar con desembolso bajo y una experiencia más liviana que la compra directa.</p>
-          <p>Para el mercado, propone un mecanismo alternativo y especializado para conectar oferta de alto valor con demanda fragmentada.</p>
+          <p>
+            Para vendedores, LUK ofrece una salida comercial distinta para productos que
+            pueden ser difíciles de vender al precio completo.
+          </p>
+          <p>
+            Para compradores, ofrece una forma de participar con desembolso bajo y una
+            experiencia más liviana que la compra directa.
+          </p>
+          <p>
+            Para el mercado, propone un mecanismo alternativo y especializado para conectar
+            oferta de alto valor con demanda fragmentada.
+          </p>
           <div class="chip-grid">
             <span class="chip">Accesibilidad</span>
             <span class="chip">Transparencia</span>
@@ -360,16 +380,14 @@
         <article class="card">
           <h2>Promoción Orgánica Verificable</h2>
           <p>
-            Uno de los diferenciales más fuertes de LUK es que no depende solo de pauta
+            Uno de los diferenciales más fuertes de LUK es que no depende sólo de pauta
             o tráfico pago. El vendedor tiene un incentivo natural a mover su propia rifa:
             cuanto más gente llegue, más probable es completar la venta de tickets.
           </p>
           <p>
             Por eso, compartir la rifa en redes no es un gesto accesorio, sino parte del
-            motor comercial de la plataforma. LUK ya incorpora una capa de promoción
-            orgánica verificable: el vendedor comparte su rifa, la plataforma puede validar
-            que esa publicación siga activa, capturar interacciones visibles y atribuir
-            tráfico y conversiones generadas desde ese contenido.
+            motor comercial de la plataforma. LUK puede seguir esa circulación, reconocer
+            su impacto y premiar la promoción genuina con beneficios para volver a participar.
           </p>
           <div class="steps">
             <div class="step">
@@ -386,7 +404,7 @@
             </div>
             <div class="step">
               <div class="num">D</div>
-              <p>LUK puede reconocer y recompensar esa promoción genuina con bonificaciones para participar en otras rifas.</p>
+              <p>LUK puede reconocer y recompensar esa promoción genuina para mantener el movimiento de la comunidad.</p>
             </div>
           </div>
         </article>
@@ -394,14 +412,13 @@
         <article class="footer-note">
           <div class="kicker">Cierre</div>
           <p>
-            LUK no busca ser una versión menor de un marketplace tradicional. Busca ser una
-            alternativa más honesta, más flexible y más alineada con un comportamiento real:
-            hay productos cuyo precio total enfría la venta directa, pero cuya rifa puede
-            activar interés, participación y circulación orgánica.
+            LUK propone una alternativa más simple, más flexible y más alineada con un
+            comportamiento real: hay productos cuyo precio total enfría la venta directa,
+            pero cuya rifa puede activar interés, participación y circulación orgánica.
           </p>
           <p>
             La combinación de accesibilidad, transparencia y promoción verificable es lo que
-            vuelve a LUK un modelo especialmente interesante.
+            vuelve a LUK un modelo especialmente atractivo tanto para sellers como para buyers.
           </p>
         </article>
       </section>

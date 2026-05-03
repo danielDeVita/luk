@@ -29,6 +29,10 @@ interface MercadoPagoErrorPayload {
   message?: string;
 }
 
+type PreferenceRequestWithStatementDescriptor = PreferenceRequest & {
+  statement_descriptor?: string;
+};
+
 @Injectable()
 export class MercadoPagoTopUpProvider {
   private readonly logger = new Logger(MercadoPagoTopUpProvider.name);
@@ -81,13 +85,12 @@ export class MercadoPagoTopUpProvider {
       !/localhost|127\.0\.0\.1/i.test(statusUrl);
 
     const preference = new Preference(this.getClient());
-    const body: PreferenceRequest = {
+    const body: PreferenceRequestWithStatementDescriptor = {
       items: [
         {
           id: data.topUpSessionId,
-          title: 'Carga de Saldo LUK',
-          description:
-            'Saldo interno para usar dentro de LUK. No corresponde a una rifa ni a tickets específicos.',
+          title: 'Carga de saldo LUK',
+          description: 'Saldo para tu wallet en LUK.',
           quantity: 1,
           unit_price: data.amount,
           currency_id: 'ARS',
@@ -101,6 +104,7 @@ export class MercadoPagoTopUpProvider {
       ...(shouldAutoReturn ? { auto_return: 'approved' as const } : {}),
       external_reference: data.providerReference,
       notification_url: `${backendUrl}/payments/webhook`,
+      statement_descriptor: 'LUK SALDO',
       payer: this.buildPayer(data),
     };
 

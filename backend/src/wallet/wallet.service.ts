@@ -1,4 +1,8 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { Prisma, WalletLedgerEntryType } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -23,11 +27,73 @@ export class WalletService {
   async getLedger(userId: string, take = 50) {
     const entries = await this.prisma.walletLedgerEntry.findMany({
       where: { userId },
+      include: {
+        creditTopUpSession: {
+          select: {
+            receiptVersion: true,
+          },
+        },
+      },
       orderBy: { createdAt: 'desc' },
       take: Math.min(Math.max(take, 1), 100),
     });
 
     return entries.map((entry) => this.toLedgerEntity(entry));
+  }
+
+  async getCreditTopUpReceipt(userId: string, topUpSessionId: string) {
+    const topUp = await this.prisma.creditTopUpSession.findFirst({
+      where: {
+        id: topUpSessionId,
+        userId,
+        receiptVersion: 1,
+      },
+    });
+
+    if (!topUp) {
+      throw new NotFoundException('Comprobante de carga no encontrado');
+    }
+
+    const [ledgerEntry, transaction] = await Promise.all([
+      this.prisma.walletLedgerEntry.findFirst({
+        where: {
+          userId,
+          creditTopUpSessionId: topUp.id,
+          type: WalletLedgerEntryType.CREDIT_TOP_UP,
+        },
+        orderBy: { createdAt: 'desc' },
+      }),
+      topUp.providerPaymentId
+        ? this.prisma.transaction.findFirst({
+            where: {
+              userId,
+              tipo: 'CARGA_SALDO',
+              providerPaymentId: topUp.providerPaymentId,
+            },
+            orderBy: { createdAt: 'desc' },
+          })
+        : Promise.resolve(null),
+    ]);
+
+    return {
+      topUpSessionId: topUp.id,
+      provider: topUp.provider,
+      amount: Number(transaction?.monto ?? topUp.amount),
+      creditedAmount: Number(topUp.creditedAmount || topUp.amount),
+      status: topUp.status,
+      statusDetail: topUp.statusDetail,
+      providerPaymentId: topUp.providerPaymentId,
+      providerOrderId: topUp.providerOrderId,
+      receiptVersion: topUp.receiptVersion ?? 1,
+      createdAt: topUp.createdAt,
+      approvedAt: topUp.approvedAt,
+      receiptIssuedAt: topUp.receiptIssuedAt,
+      creditBalanceAfter:
+        ledgerEntry?.creditBalanceAfter === null ||
+        ledgerEntry?.creditBalanceAfter === undefined
+          ? null
+          : Number(ledgerEntry.creditBalanceAfter),
+    };
   }
 
   async ensureWalletAccount(tx: PrismaClientLike, userId: string) {
@@ -227,6 +293,9 @@ export class WalletService {
     raffleId: string | null;
     creditTopUpSessionId: string | null;
     createdAt: Date;
+    creditTopUpSession?: {
+      receiptVersion: number | null;
+    } | null;
   }) {
     return {
       ...entry,
@@ -239,6 +308,8 @@ export class WalletService {
         entry.sellerPayableBalanceAfter === null
           ? null
           : Number(entry.sellerPayableBalanceAfter),
+      topUpReceiptAvailable:
+        entry.creditTopUpSession?.receiptVersion === 1 ? true : null,
     };
   }
 }

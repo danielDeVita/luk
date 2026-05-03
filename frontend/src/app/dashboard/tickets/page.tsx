@@ -114,6 +114,25 @@ const FAVORITES_ENDING_SOON = gql`
   }
 `;
 
+const MY_TICKET_PURCHASE_RECEIPTS = gql`
+  query MyTicketPurchaseReceipts($take: Int, $pendingOnly: Boolean) {
+    myTicketPurchaseReceipts(take: $take, pendingOnly: $pendingOnly) {
+      id
+      purchaseReference
+      raffleId
+      raffleTitleSnapshot
+      ticketNumbers
+      chargedAmount
+      baseQuantity
+      bonusQuantity
+      grantedQuantity
+      buyerAcceptedAt
+      acceptancePending
+      createdAt
+    }
+  }
+`;
+
 const CONFIRM_DELIVERY = gql`
   mutation ConfirmDelivery($raffleId: String!) {
     confirmDelivery(raffleId: $raffleId) {
@@ -177,6 +196,21 @@ interface MyTicketsResult {
   myTickets: TicketData[];
 }
 
+interface TicketPurchaseReceiptSummary {
+  id: string;
+  purchaseReference: string;
+  raffleId: string;
+  raffleTitleSnapshot: string;
+  ticketNumbers: number[];
+  chargedAmount: number;
+  baseQuantity: number;
+  bonusQuantity: number;
+  grantedQuantity: number;
+  buyerAcceptedAt?: string | null;
+  acceptancePending: boolean;
+  createdAt: string;
+}
+
 type TicketStatus = "ALL" | "PAGADO" | "RESERVADO" | "REEMBOLSADO";
 type RaffleStatus = "ALL" | "ACTIVA" | "SORTEADA" | "FINALIZADA" | "CANCELADA";
 
@@ -235,6 +269,12 @@ export default function MyTicketsPage() {
     skip: !isAuthenticated,
     variables: { hoursThreshold: 48 },
   });
+  const { data: purchaseReceiptsData } = useQuery<{
+    myTicketPurchaseReceipts: TicketPurchaseReceiptSummary[];
+  }>(MY_TICKET_PURCHASE_RECEIPTS, {
+    skip: !isAuthenticated,
+    variables: { take: 10, pendingOnly: false },
+  });
 
   const [confirmDelivery, { loading: confirming }] = useMutation(
     CONFIRM_DELIVERY,
@@ -276,6 +316,8 @@ export default function MyTicketsPage() {
   const stats = statsData?.buyerStats;
   const recommendations = recommendedData?.recommendedRaffles || [];
   const favoritesEndingSoon = endingSoonData?.favoritesEndingSoon || [];
+  const purchaseReceipts =
+    purchaseReceiptsData?.myTicketPurchaseReceipts || [];
 
   // Filter tickets (useMemo before early return)
   const filteredTickets = useMemo(() => {
@@ -664,6 +706,79 @@ export default function MyTicketsPage() {
                     </div>
                   </div>
                 </Link>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {purchaseReceipts.length > 0 && (
+        <Card className="mb-8 border-primary/15">
+          <CardHeader className="pb-3">
+            <CardTitle>Comprobantes de compra</CardTitle>
+            <CardDescription>
+              Revisá tus compras recientes y confirmá las que siguen pendientes.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {purchaseReceipts.map((receipt) => (
+                <div
+                  key={receipt.id}
+                  className="flex flex-col gap-4 rounded-xl border bg-background/80 p-4 lg:flex-row lg:items-center lg:justify-between"
+                >
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="font-semibold">
+                        {receipt.raffleTitleSnapshot}
+                      </p>
+                      <span
+                        className={`rounded-full px-2.5 py-1 text-xs font-medium ${
+                          receipt.acceptancePending
+                            ? "bg-amber-500/15 text-amber-700"
+                            : "bg-emerald-500/15 text-emerald-700"
+                        }`}
+                      >
+                        {receipt.acceptancePending
+                          ? "Pendiente"
+                          : "Confirmado"}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Referencia{" "}
+                      <span className="font-mono">
+                        {receipt.purchaseReference}
+                      </span>
+                    </p>
+                    <p className="mt-2 text-sm text-muted-foreground">
+                      Números: {receipt.ticketNumbers.join(", ")}
+                    </p>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      Emitido el{" "}
+                      {new Date(receipt.createdAt).toLocaleString("es-AR")}
+                    </p>
+                  </div>
+                  <div className="flex flex-col gap-2 lg:items-end">
+                    <p className="font-semibold">
+                      ${receipt.chargedAmount.toFixed(2)}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {receipt.grantedQuantity} ticket(s) emitido(s)
+                    </p>
+                    <Link
+                      href={`/dashboard/tickets/receipts/${receipt.purchaseReference}`}
+                    >
+                      <Button
+                        variant={
+                          receipt.acceptancePending ? "default" : "outline"
+                        }
+                        size="sm"
+                      >
+                        Ver comprobante
+                      </Button>
+                    </Link>
+                  </div>
+                </div>
               ))}
             </div>
           </CardContent>

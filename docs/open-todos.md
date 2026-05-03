@@ -12,7 +12,7 @@ No intenta reemplazar esos documentos. Sirve como checklist única para ordenar 
 ## P0. Bloqueantes Antes Del Primer Entorno Real
 
 - [ ] Definir el dominio principal del proyecto.
-  Impacta en `Route 53`, `ACM`, subdominios `app.<dominio>` y `api.<dominio>`, approval request de Mercado Pago y configuración real de Turnstile.
+  Impacta en `Route 53`, `ACM`, subdominios `app.<dominio>` y `api.<dominio>`, consulta formal wallet-only a Mercado Pago y configuración real de Turnstile.
   Fuente: [aws-migration-plan.md](./aws-migration-plan.md), [mercado-pago-approval-request.md](./mercado-pago-approval-request.md)
 
 - [ ] Definir si habrá hostname de `staging` antes de producción.
@@ -50,8 +50,8 @@ No intenta reemplazar esos documentos. Sirve como checklist única para ordenar 
   `DATABASE_URL`, `JWT_SECRET`, `ENCRYPTION_KEY`, `GOOGLE_CLIENT_SECRET`, `MP_ACCESS_TOKEN`, `TURNSTILE_SECRET_KEY` y demás secretos deben venir desde `SSM Parameter Store`, no del repo ni de imágenes.
   Fuente: [aws-migration-plan.md](./aws-migration-plan.md)
 
-- [ ] Preparar la aprobación formal de Mercado Pago con datos reales.
-  Falta reemplazar el placeholder `https://[tu-dominio]` por dominio real y adjuntar URLs reales de rifas, capturas y datos societarios/fiscales aplicables.
+- [ ] Preparar la consulta formal wallet-only a Mercado Pago con datos reales.
+  Falta reemplazar el placeholder `https://[tu-dominio]` por dominio real y adjuntar capturas del flujo de carga de saldo, URLs reales del sitio, payload técnico relevante y datos societarios/fiscales aplicables.
   Fuente: [mercado-pago-approval-request.md](./mercado-pago-approval-request.md)
 
 ## P1. Infraestructura AWS Para El Primer Deploy Real
@@ -178,6 +178,6 @@ Si hubiera que elegir un único orden de ejecución hoy, sería este:
 2. Restaurar Prisma Migrate y alinear arranque sin `db push`.
 3. Modelar la infraestructura base en AWS (`CDK` + `ECR` + `ECS` + `RDS` + `SSM`).
 4. Crear widget real de Turnstile y cargar keys.
-5. Preparar aprobación de Mercado Pago con URLs reales.
+5. Preparar consulta formal wallet-only a Mercado Pago con URLs reales.
 6. Migrar `Cloudinary -> S3` y `Brevo -> SES`.
 7. Hacer validación end-to-end en entorno real.

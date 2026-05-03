@@ -296,7 +296,12 @@ export class NotificationsService {
 
   async sendCreditTopUpApprovedNotification(
     email: string,
-    data: { amount: number; topUpSessionId: string },
+    data: {
+      amount: number;
+      topUpSessionId: string;
+      providerPaymentId?: string | null;
+      providerOrderId?: string | null;
+    },
   ) {
     const html = getCreditTopUpApprovedContent(data, this.configService);
     return this.sendEmail({
@@ -336,6 +341,7 @@ export class NotificationsService {
     email: string,
     data: {
       raffleName: string;
+      purchaseReference: string;
       ticketNumbers: number[];
       amount: number;
       packApplied?: boolean;

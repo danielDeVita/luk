@@ -11,6 +11,9 @@ export class BuyTicketsResult {
   tickets!: Ticket[];
 
   @Field()
+  purchaseReference!: string;
+
+  @Field()
   paidWithCredit!: boolean;
 
   @Field(() => Float)

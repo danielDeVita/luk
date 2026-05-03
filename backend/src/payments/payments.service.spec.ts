@@ -272,6 +272,19 @@ describe('PaymentsService', () => {
         providerOrderId: 'preference-1',
       }),
     });
+    expect(prisma.creditTopUpSession.update).toHaveBeenCalledWith({
+      where: { id: 'topup-1' },
+      data: expect.objectContaining({
+        status: CreditTopUpStatus.APPROVED,
+        creditedAmount: 500,
+        providerPaymentId: 'mp-payment-1',
+        providerOrderId: 'preference-1',
+        processedAt: expect.any(Date),
+        approvedAt: expect.any(Date),
+        receiptVersion: 1,
+        receiptIssuedAt: expect.any(Date),
+      }),
+    });
     expect(activityService.logCreditTopUpApproved).toHaveBeenCalledWith(
       'user-1',
       'topup-1',
@@ -293,6 +306,8 @@ describe('PaymentsService', () => {
     ).toHaveBeenCalledWith('buyer@luk.test', {
       amount: 500,
       topUpSessionId: 'topup-1',
+      providerPaymentId: 'mp-payment-1',
+      providerOrderId: 'preference-1',
     });
   });
 

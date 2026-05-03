@@ -36,6 +36,8 @@ const WALLET_LEDGER = gql`
       id
       type
       amount
+      creditTopUpSessionId
+      topUpReceiptAvailable
       creditBalanceAfter
       sellerPayableBalanceAfter
       createdAt
@@ -66,6 +68,8 @@ interface LedgerEntry {
   id: string;
   type: string;
   amount: number;
+  creditTopUpSessionId?: string | null;
+  topUpReceiptAvailable?: boolean | null;
   creditBalanceAfter?: number | null;
   sellerPayableBalanceAfter?: number | null;
   createdAt: string;
@@ -247,6 +251,16 @@ export default function WalletPage() {
                                 "es-AR",
                               )}
                             </p>
+                            {entry.type === "CREDIT_TOP_UP" &&
+                            entry.creditTopUpSessionId &&
+                            entry.topUpReceiptAvailable ? (
+                              <Link
+                                href={`/dashboard/wallet/receipts/${entry.creditTopUpSessionId}`}
+                                className="mt-1 inline-flex text-xs font-medium text-primary hover:underline"
+                              >
+                                Ver comprobante
+                              </Link>
+                            ) : null}
                           </div>
                         </div>
                         <div className="text-right">

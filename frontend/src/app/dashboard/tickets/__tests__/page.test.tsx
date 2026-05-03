@@ -274,4 +274,67 @@ describe('MyTicketsPage', () => {
       screen.getByRole('button', { name: /reseña enviada/i }),
     ).toBeInTheDocument();
   });
+
+  it('shows purchase receipts section with pending receipts', async () => {
+    mockUseQuery.mockImplementation((operation) => {
+      const operationName = getOperationName(operation);
+
+      if (operationName === 'MyTickets') {
+        return {
+          data: { myTickets: [] },
+          loading: false,
+          error: undefined,
+          refetch: vi.fn(),
+        } as unknown as ReturnType<typeof useQuery>;
+      }
+
+      if (operationName === 'MyTicketPurchaseReceipts') {
+        return {
+          data: {
+            myTicketPurchaseReceipts: [
+              {
+                id: 'receipt-1',
+                purchaseReference: 'purchase-ref-1',
+                raffleId: 'raffle-1',
+                raffleTitleSnapshot: 'Rifa QA',
+                ticketNumbers: [3, 7],
+                chargedAmount: 210,
+                baseQuantity: 2,
+                bonusQuantity: 0,
+                grantedQuantity: 2,
+                buyerAcceptedAt: null,
+                acceptancePending: true,
+                createdAt: '2026-04-01T12:00:00.000Z',
+              },
+            ],
+          },
+          loading: false,
+          error: undefined,
+          refetch: vi.fn(),
+        } as unknown as ReturnType<typeof useQuery>;
+      }
+
+      return {
+        data: undefined,
+        loading: false,
+        error: undefined,
+        refetch: vi.fn(),
+      } as unknown as ReturnType<typeof useQuery>;
+    });
+    mockUseMutation.mockReturnValue([
+      vi.fn(),
+      { data: undefined, loading: false, error: undefined },
+    ] as unknown as ReturnType<typeof useMutation>);
+
+    render(<MyTicketsPage />);
+
+    expect(
+      await screen.findByText('Comprobantes de compra'),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Rifa QA')).toBeInTheDocument();
+    expect(screen.getByText('Pendiente')).toBeInTheDocument();
+    expect(
+      screen.getByRole('link', { name: /ver comprobante/i }),
+    ).toHaveAttribute('href', '/dashboard/tickets/receipts/purchase-ref-1');
+  });
 });

@@ -16,6 +16,13 @@ describe('WalletService', () => {
     walletLedgerEntry: {
       create: jest.fn(),
       findMany: jest.fn(),
+      findFirst: jest.fn(),
+    },
+    creditTopUpSession: {
+      findFirst: jest.fn(),
+    },
+    transaction: {
+      findFirst: jest.fn(),
     },
   };
 
@@ -130,5 +137,81 @@ describe('WalletService', () => {
 
     expect(prisma.walletAccount.update).not.toHaveBeenCalled();
     expect(prisma.walletLedgerEntry.create).not.toHaveBeenCalled();
+  });
+
+  it('marks top-up ledger entries with receipt availability when the receipt exists', async () => {
+    prisma.walletLedgerEntry.findMany.mockResolvedValue([
+      {
+        id: 'ledger-1',
+        userId: 'user-1',
+        type: WalletLedgerEntryType.CREDIT_TOP_UP,
+        amount: new Prisma.Decimal(50),
+        creditBalanceAfter: new Prisma.Decimal(150),
+        sellerPayableBalanceAfter: new Prisma.Decimal(25),
+        raffleId: null,
+        creditTopUpSessionId: 'topup-1',
+        createdAt: new Date('2026-01-02T00:00:00.000Z'),
+        creditTopUpSession: { receiptVersion: 1 },
+      },
+    ]);
+
+    const result = await service.getLedger('user-1', 10);
+
+    expect(result).toEqual([
+      expect.objectContaining({
+        id: 'ledger-1',
+        amount: 50,
+        creditTopUpSessionId: 'topup-1',
+        topUpReceiptAvailable: true,
+      }),
+    ]);
+  });
+
+  it('returns the wallet receipt only for the owner and eligible top-ups', async () => {
+    prisma.creditTopUpSession.findFirst.mockResolvedValue({
+      id: 'topup-1',
+      userId: 'user-1',
+      provider: 'MERCADO_PAGO',
+      amount: new Prisma.Decimal(3000),
+      creditedAmount: new Prisma.Decimal(3000),
+      providerPaymentId: 'mp-payment-1',
+      providerOrderId: 'preference-1',
+      status: 'APPROVED',
+      statusDetail: 'accredited',
+      receiptVersion: 1,
+      createdAt: new Date('2026-01-02T10:00:00.000Z'),
+      approvedAt: new Date('2026-01-02T10:01:00.000Z'),
+      receiptIssuedAt: new Date('2026-01-02T10:01:00.000Z'),
+    });
+    prisma.walletLedgerEntry.findFirst.mockResolvedValue({
+      id: 'ledger-1',
+      creditBalanceAfter: new Prisma.Decimal(4100),
+    });
+    prisma.transaction.findFirst.mockResolvedValue({
+      id: 'tx-1',
+      monto: new Prisma.Decimal(3000),
+    });
+
+    const result = await service.getCreditTopUpReceipt('user-1', 'topup-1');
+
+    expect(prisma.creditTopUpSession.findFirst).toHaveBeenCalledWith({
+      where: {
+        id: 'topup-1',
+        userId: 'user-1',
+        receiptVersion: 1,
+      },
+    });
+    expect(result).toEqual(
+      expect.objectContaining({
+        topUpSessionId: 'topup-1',
+        provider: 'MERCADO_PAGO',
+        amount: 3000,
+        creditedAmount: 3000,
+        providerPaymentId: 'mp-payment-1',
+        providerOrderId: 'preference-1',
+        receiptVersion: 1,
+        creditBalanceAfter: 4100,
+      }),
+    );
   });
 });

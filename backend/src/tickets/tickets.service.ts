@@ -710,6 +710,27 @@ export class TicketsService {
           },
         });
 
+        await tx.ticketPurchaseReceipt.create({
+          data: {
+            purchaseReference,
+            buyerId: userId,
+            raffleId,
+            raffleTitleSnapshot: raffle.titulo,
+            ticketNumbers: reservedNumbers,
+            grossSubtotal,
+            packDiscountAmount: packDiscountApplied,
+            promotionDiscountAmount: promotionDiscountApplied,
+            selectionPremiumPercent,
+            selectionPremiumAmount,
+            chargedAmount: totalChargeAmount,
+            baseQuantity: requestedCount,
+            bonusQuantity: packEvaluation.bonusQuantity,
+            grantedQuantity: reservedTicketCount,
+            packApplied: packEvaluation.packApplied,
+            purchaseMode,
+          },
+        });
+
         if (packDiscountApplied > 0) {
           await tx.transaction.create({
             data: {
@@ -775,6 +796,7 @@ export class TicketsService {
 
         return {
           tickets: normalizedTickets,
+          purchaseReference,
           paidWithCredit: true,
           creditDebited: totalChargeAmount,
           creditBalanceAfter: Number(buyerWallet.creditBalance),
@@ -848,6 +870,7 @@ export class TicketsService {
         buyer.email,
         {
           raffleName: raffle.titulo,
+          purchaseReference: result.purchaseReference,
           ticketNumbers,
           amount: result.chargedAmount,
           packApplied: purchaseIncludesPack,
@@ -871,7 +894,7 @@ export class TicketsService {
         purchaseIncludesPack
           ? `Usaste Saldo LUK para pagar ${result.baseQuantity} ticket(s) de "${raffle.titulo}" y recibiste ${result.grantedQuantity} en total. Números: ${ticketNumbers.join(', ')}.`
           : `Usaste Saldo LUK para comprar ${ticketNumbers.length} ticket(s) de "${raffle.titulo}". Números: ${ticketNumbers.join(', ')}`,
-        '/dashboard/tickets',
+        `/dashboard/tickets/receipts/${result.purchaseReference}`,
       );
 
       if (raffle.seller) {
@@ -922,7 +945,7 @@ export class TicketsService {
         raffleId,
         ticketNumbers,
         result.chargedAmount,
-        null,
+        result.purchaseReference,
       );
 
       if (raffle.seller) {

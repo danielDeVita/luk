@@ -143,7 +143,7 @@ In that mode:
 
 ### Canonical QA/dev seed
 
-`prisma/seed.ts` is the canonical manual-QA dataset. It includes deterministic users, seller reputation tiers, admin-only buyer reputation flags, public seller reviews, raffle Q&A threads, disputes in every major status, mock purchases, refunds, payouts, social promotion fixtures, and simple-pack scenarios.
+`prisma/seed.ts` is the canonical manual-QA dataset. It includes deterministic users, seller reputation tiers, admin-only buyer reputation flags, public seller reviews, raffle Q&A threads, disputes in every major status, mock purchases, refunds, payouts, wallet top-up receipts, ticket purchase receipts, social promotion fixtures, and simple-pack scenarios.
 
 ### Random purchase packs
 
@@ -238,10 +238,13 @@ Ticket purchases do not open an external checkout. Buyers first load Saldo LUK t
 
 - `1 Saldo LUK = $1 ARS`.
 - Mercado Pago is used only for `CreditTopUpSession`.
+- The provider-facing copy is wallet-only (`Carga de saldo LUK`, descriptor `LUK SALDO`).
 - Mercado Pago does not receive raffle, ticket-number, prize, seller, or raffle metadata.
 - Ticket refunds and dispute refunds credit Saldo LUK.
 - External Mercado Pago refunds apply only to loaded balance that has not been used.
 - Seller payable balance is internal and separate from buyer spendable balance.
+- Approved top-ups mark `receiptVersion` / `receiptIssuedAt` and expose a wallet receipt.
+- Ticket purchases persist an immutable `TicketPurchaseReceipt` snapshot plus buyer acknowledgement state.
 
 REST routes under `/payments/*` now refer to top-ups:
 
@@ -262,6 +265,7 @@ For random pack purchases, the backend still calculates seller economics on the 
    - credits Saldo LUK once
    - creates `CARGA_SALDO`
    - stores provider ids on `CreditTopUpSession`
+   - emits wallet-receipt fields for new top-ups
 
 ### Self-Healing Sync
 
@@ -675,6 +679,7 @@ The Prisma schema is at `prisma/schema.prisma`. Key models:
 | WalletAccount         | Buyer spendable balance and seller payable balance         |
 | WalletLedgerEntry     | Immutable Saldo LUK/payable movements                      |
 | CreditTopUpSession    | Mercado Pago/mock loads of Saldo LUK                       |
+| TicketPurchaseReceipt | Immutable receipt snapshot for grouped ticket purchases    |
 | Transaction           | Internal accounting records                                |
 | Dispute               | Buyer protection disputes                                  |
 | Notification          | In-app notifications                                       |

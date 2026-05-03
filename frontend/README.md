@@ -51,10 +51,12 @@ npm run dev
 | `/raffle/[id]` | Raffle details + ticket purchase + random pack incentive + public Q&A | Public |
 | `/checkout/mock/[mockPaymentId]` | Local QA checkout used when `PAYMENTS_PROVIDER=mock` | Public |
 | `/checkout/status` | Payment result handler | Public |
+| `/dashboard/wallet/receipts/[topUpSessionId]` | Wallet top-up receipt view | User |
 | `/auth/login` | Login (email + Google) with inline email verification and 2FA continuation | Public |
 | `/auth/register` | Registration with email verification (two-step flow) | Public |
 | `/dashboard/create` | Create new raffle | User |
-| `/dashboard/tickets` | Buyer dashboard (stats, recommendations, favorites ending soon, tickets, seller review CTA for confirmed wins) | User |
+| `/dashboard/tickets` | Buyer dashboard (stats, recommendations, receipts, favorites ending soon, tickets, seller review CTA for confirmed wins) | User |
+| `/dashboard/tickets/receipts/[purchaseReference]` | Ticket purchase receipt + buyer acknowledgement | User |
 | `/dashboard/sales` | Seller dashboard (revenue chart, analytics, bulk actions, CSV export) | User |
 | `/dashboard/favorites` | Saved raffles wishlist (with price drop alerts) | User |
 | `/dashboard/settings` | Profile (Avatar), payment account, Security, and 2FA management | User |
@@ -196,8 +198,11 @@ Sellers must configure their payment account before creating raffles:
 1. User loads Saldo LUK from `/dashboard/wallet`
 2. Mercado Pago/mock redirects back to `/checkout/status`
 3. The status page syncs and shows whether the top-up was credited
-4. User buys tickets on `/raffle/[id]` with available internal balance
-5. Refunds of ticket purchases return to Saldo LUK
+4. New approved top-ups expose a wallet receipt at `/dashboard/wallet/receipts/[topUpSessionId]`
+5. User buys tickets on `/raffle/[id]` with available internal balance
+6. After purchase, LUK opens a receipt dialog and can ask the buyer to confirm they see their numbers
+7. Detailed ticket receipts live under `/dashboard/tickets/receipts/[purchaseReference]`
+8. Refunds of ticket purchases return to Saldo LUK
 
 ### Random Pack Incentive
 
@@ -251,6 +256,7 @@ Enhanced seller panel at `/dashboard/sales`:
 ### Buyer Dashboard
 Enhanced buyer panel at `/dashboard/tickets`:
 - **Stats Overview** - Tickets purchased, raffles won, win rate, total spent
+- **Purchase Receipts** - Recent receipts with pending/confirmed state and links to the detailed receipt page
 - **Personalized Recommendations** - Based on purchase history and favorites
 - **Favorites Ending Soon** - Alert for favorited raffles ending within 48 hours
 - **Advanced Filtering** - Filter by ticket status, raffle status, date range, wins only
@@ -361,11 +367,12 @@ npx playwright test --debug
 
 ### Current E2E Tests
 
-**174 E2E tests** across 17 spec files in `e2e/`:
+The E2E suite in `e2e/` covers:
 
 - **auth.spec.ts** - Login/register pages, authentication flow, protected routes
 - **raffle.spec.ts** - Homepage, search, raffle details, ticket purchase
 - **dashboard-*.spec.ts** - All dashboard pages (favorites, settings, sales, messages, etc.)
+- **receipts-flow.spec.ts** - Wallet receipt and ticket purchase receipt flow
 - **admin-disputes.spec.ts** - Admin dispute management
 - **email-verification.spec.ts** - Email verification flow
 - **kyc-submission.spec.ts** - KYC verification
@@ -377,7 +384,7 @@ npx playwright test --debug
 
 ### Component Tests (Vitest)
 
-**50 component tests** across 7 test files:
+The component/unit suite covers:
 
 ```bash
 npm run test:unit         # Run component tests
@@ -459,6 +466,8 @@ test('should create a raffle', async ({ page }) => {
 | `src/components/ui/progress.tsx` | Progress bar component |
 | `src/app/auth/register/page.tsx` | Two-step registration with email verification |
 | `src/app/dashboard/sales/page.tsx` | Seller dashboard with onboarding checklist |
+| `src/app/dashboard/wallet/receipts/[topUpSessionId]/wallet-receipt-page-client.tsx` | Wallet receipt detail view |
+| `src/app/dashboard/tickets/receipts/[purchaseReference]/ticket-receipt-page-client.tsx` | Ticket receipt detail + acknowledgement |
 | `src/app/seller/[id]/page.tsx` | Public seller profile with verified badge |
 | `src/app/raffle/[id]/raffle-content.tsx` | Raffle detail with price history |
 

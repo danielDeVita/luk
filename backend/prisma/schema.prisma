@@ -58,6 +58,17 @@ enum TicketStatus {
   REEMBOLSADO
 }
 
+enum TicketPurchaseMode {
+  RANDOM
+  CHOOSE_NUMBERS
+}
+
+enum TicketReceiptAcceptanceSource {
+  POST_PURCHASE_MODAL
+  RECEIPT_PAGE
+  TICKETS_DASHBOARD
+}
+
 enum TransactionType {
   COMPRA_TICKET
   CARGA_SALDO
@@ -280,6 +291,7 @@ model User {
   walletAccount     WalletAccount?
   walletLedgerEntries WalletLedgerEntry[]
   creditTopUpSessions CreditTopUpSession[]
+  ticketPurchaseReceipts TicketPurchaseReceipt[]
   rafflesCreated    Raffle[]      @relation("SellerRaffles")
   rafflesWon        Raffle[]      @relation("WinnerRaffles")
   ticketsPurchased  Ticket[]
@@ -391,6 +403,7 @@ model Raffle {
   socialPromotionPosts SocialPromotionPost[]
   promotionScoreSettlements PromotionScoreSettlement[]
   promotionBonusRedemptions PromotionBonusRedemption[]
+  ticketPurchaseReceipts TicketPurchaseReceipt[]
 
   @@index([sellerId])
   @@index([estado])
@@ -682,10 +695,12 @@ model CreditTopUpSession {
   statusDetail      String?           @map("status_detail")
   externalReference String?           @map("external_reference") @db.Text
   metadata          Json?
+  receiptVersion    Int?              @map("receipt_version")
   approvedAt        DateTime?         @map("approved_at")
   processedAt       DateTime?         @map("processed_at")
   expiresAt         DateTime?         @map("expires_at")
   refundedAt        DateTime?         @map("refunded_at")
+  receiptIssuedAt   DateTime?         @map("receipt_issued_at")
   createdAt         DateTime          @default(now()) @map("created_at")
   updatedAt         DateTime          @updatedAt @map("updated_at")
 
@@ -697,6 +712,40 @@ model CreditTopUpSession {
   @@index([providerPaymentId])
   @@index([status, createdAt])
   @@map("credit_top_up_sessions")
+}
+
+model TicketPurchaseReceipt {
+  id                      String                        @id @default(cuid())
+  purchaseReference       String                        @unique @map("purchase_reference")
+  buyerId                 String                        @map("buyer_id")
+  raffleId                String                        @map("raffle_id")
+  receiptVersion          Int                           @default(1) @map("receipt_version")
+  currencyCode            String                        @default("ARS") @map("currency_code")
+  raffleTitleSnapshot     String                        @map("raffle_title_snapshot")
+  ticketNumbers           Int[]                         @map("ticket_numbers")
+  grossSubtotal           Decimal                       @map("gross_subtotal") @db.Decimal(10, 2)
+  packDiscountAmount      Decimal                       @default(0) @map("pack_discount_amount") @db.Decimal(10, 2)
+  promotionDiscountAmount Decimal                       @default(0) @map("promotion_discount_amount") @db.Decimal(10, 2)
+  selectionPremiumPercent Decimal                       @default(0) @map("selection_premium_percent") @db.Decimal(10, 2)
+  selectionPremiumAmount  Decimal                       @default(0) @map("selection_premium_amount") @db.Decimal(10, 2)
+  chargedAmount           Decimal                       @map("charged_amount") @db.Decimal(10, 2)
+  baseQuantity            Int                           @map("base_quantity")
+  bonusQuantity           Int                           @map("bonus_quantity")
+  grantedQuantity         Int                           @map("granted_quantity")
+  packApplied             Boolean                       @default(false) @map("pack_applied")
+  purchaseMode            TicketPurchaseMode            @map("purchase_mode")
+  buyerAcceptedAt         DateTime?                     @map("buyer_accepted_at")
+  acceptanceSource        TicketReceiptAcceptanceSource? @map("acceptance_source")
+  createdAt               DateTime                      @default(now()) @map("created_at")
+  updatedAt               DateTime                      @updatedAt @map("updated_at")
+
+  buyer                   User                          @relation(fields: [buyerId], references: [id], onDelete: Cascade)
+  raffle                  Raffle                        @relation(fields: [raffleId], references: [id], onDelete: Cascade)
+
+  @@index([buyerId, createdAt])
+  @@index([raffleId, createdAt])
+  @@index([buyerAcceptedAt])
+  @@map("ticket_purchase_receipts")
 }
 
 // Reports for moderation (flag potentially fraudulent raffles)

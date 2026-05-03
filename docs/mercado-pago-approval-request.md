@@ -19,8 +19,10 @@ Modelo operativo:
 - Mercado Pago sólo procesa cargas de `Saldo LUK`.
 - `1 Saldo LUK = $1 ARS`.
 - El saldo sólo puede usarse dentro de LUK.
+- En el checkout el concepto visible es `Carga de saldo LUK` y el descriptor corto es `LUK SALDO`.
 - Mercado Pago no procesa compras directas de tickets, rifas, sorteos, premios ni vendedores.
-- El checkout de Mercado Pago no recibe metadata de rifas, números de tickets, premios, sellers ni links a sorteos.
+- El checkout de Mercado Pago no recibe metadata de rifas, números de tickets, premios ni sellers.
+- Mercado Pago sólo recibe las URLs técnicas de retorno/notificación del sitio; no recibe links profundos a sorteos ni a tickets específicos.
 - Las compras de tickets se hacen después, dentro de LUK, debitando saldo interno ya acreditado.
 - Los reembolsos de tickets vuelven al Saldo LUK.
 - Los reintegros externos por Mercado Pago sólo aplican sobre saldo cargado y no usado.

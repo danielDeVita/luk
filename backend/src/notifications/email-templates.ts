@@ -340,6 +340,7 @@ export const getPromotionBonusGrantIssuedContent = (
 export const getTicketPurchaseConfirmationContent = (
   data: {
     raffleName: string;
+    purchaseReference: string;
     ticketNumbers: number[];
     amount: number;
     packApplied?: boolean;
@@ -387,6 +388,7 @@ export const getTicketPurchaseConfirmationContent = (
       <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px;">
         <p style="color: #4B5563; font-size: 14px; margin: 0;"><strong>Números:</strong> ${data.ticketNumbers.join(', ')}</p>
       </div>
+      <p style="color: #64748B; font-size: 12px; margin: 0 0 16px 0;"><strong>Referencia:</strong> ${escapeHtml(data.purchaseReference)}</p>
       <div style="background: #ECFDF5; border-radius: 8px; padding: 12px; text-align: center;">
         <p style="color: #059669; font-size: 20px; font-weight: 700; margin: 0;">Total cobrado: $${data.amount.toFixed(2)}</p>
       </div>
@@ -397,8 +399,8 @@ export const getTicketPurchaseConfirmationContent = (
   `;
   return wrapEmailTemplate(content, configService, {
     showButton: true,
-    buttonText: 'Ver mis tickets',
-    buttonUrl: `${frontendUrl}/dashboard/tickets`,
+    buttonText: 'Ver comprobante',
+    buttonUrl: `${frontendUrl}/dashboard/tickets/receipts/${encodeURIComponent(data.purchaseReference)}`,
   });
 };
 
@@ -496,26 +498,39 @@ export const getRefundNotificationContent = (
 };
 
 export const getCreditTopUpApprovedContent = (
-  data: { amount: number; topUpSessionId: string },
+  data: {
+    amount: number;
+    topUpSessionId: string;
+    providerPaymentId?: string | null;
+    providerOrderId?: string | null;
+  },
   configService: ConfigService,
 ) => {
   const frontendUrl = getFrontendUrl(configService);
+  const providerPaymentId = data.providerPaymentId
+    ? `<p style="color: #64748B; font-size: 12px; margin: 8px 0 0 0;">Pago proveedor: ${escapeHtml(data.providerPaymentId)}</p>`
+    : '';
+  const providerOrderId = data.providerOrderId
+    ? `<p style="color: #64748B; font-size: 12px; margin: 8px 0 0 0;">Orden proveedor: ${escapeHtml(data.providerOrderId)}</p>`
+    : '';
   const content = `
     <h2 style="color: #10B981; font-family: 'Fraunces', serif; font-size: 24px; font-weight: 700; margin: 0 0 16px 0;">Saldo acreditado ✅</h2>
     <p style="color: #4B5563; font-size: 15px; line-height: 1.6; margin: 0 0 20px 0;">
-      Tu carga de Saldo LUK fue aprobada y ya está disponible para comprar tickets.
+      Tu carga de Saldo LUK fue aprobada y ya está disponible en tu wallet.
     </p>
     <div style="background: #F0FDFA; border: 1px solid #99F6E4; border-radius: 12px; padding: 24px; margin: 24px 0;">
       <p style="color: #0F766E; font-size: 14px; margin: 0 0 8px 0;"><strong>Monto acreditado:</strong></p>
       <p style="color: #059669; font-size: 28px; font-weight: 800; margin: 0;">$${formatAmountEsAr(data.amount)}</p>
       <p style="color: #64748B; font-size: 12px; margin: 12px 0 0 0;">Operación: ${escapeHtml(data.topUpSessionId)}</p>
+      ${providerPaymentId}
+      ${providerOrderId}
     </div>
   `;
 
   return wrapEmailTemplate(content, configService, {
     showButton: true,
-    buttonText: 'Ver mi wallet',
-    buttonUrl: `${frontendUrl}/dashboard/wallet`,
+    buttonText: 'Ver comprobante',
+    buttonUrl: `${frontendUrl}/dashboard/wallet/receipts/${encodeURIComponent(data.topUpSessionId)}`,
   });
 };
 

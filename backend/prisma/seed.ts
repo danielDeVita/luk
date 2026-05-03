@@ -25,6 +25,8 @@ import {
   CreditTopUpEventType,
   WalletLedgerEntryType,
   ActivityType,
+  TicketPurchaseMode,
+  TicketReceiptAcceptanceSource,
 } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 
@@ -236,6 +238,10 @@ function creditTopUpEventId(topUpId: string, key: string): string {
 
 function notificationId(key: string): string {
   return `qa_notification_${key}`;
+}
+
+function ticketPurchaseReceiptId(key: string): string {
+  return `qa_ticket_receipt_${key}`;
 }
 
 function activityLogId(key: string): string {
@@ -1132,6 +1138,100 @@ async function upsertTransaction(params: {
   });
 }
 
+async function upsertTicketPurchaseReceipt(params: {
+  purchaseReference: string;
+  buyerId: string;
+  raffleId: string;
+  raffleTitleSnapshot: string;
+  ticketNumbers: number[];
+  grossSubtotal: number;
+  packDiscountAmount?: number;
+  promotionDiscountAmount?: number;
+  selectionPremiumPercent?: number;
+  selectionPremiumAmount?: number;
+  chargedAmount: number;
+  baseQuantity: number;
+  bonusQuantity: number;
+  grantedQuantity: number;
+  packApplied: boolean;
+  purchaseMode: TicketPurchaseMode;
+  buyerAcceptedAt?: Date | null;
+  acceptanceSource?: TicketReceiptAcceptanceSource | null;
+  createdAt?: Date;
+  updatedAt?: Date;
+}) {
+  const {
+    purchaseReference,
+    buyerId,
+    raffleId,
+    raffleTitleSnapshot,
+    ticketNumbers,
+    grossSubtotal,
+    packDiscountAmount = 0,
+    promotionDiscountAmount = 0,
+    selectionPremiumPercent = 0,
+    selectionPremiumAmount = 0,
+    chargedAmount,
+    baseQuantity,
+    bonusQuantity,
+    grantedQuantity,
+    packApplied,
+    purchaseMode,
+    buyerAcceptedAt = null,
+    acceptanceSource = null,
+    createdAt = new Date(),
+    updatedAt = createdAt,
+  } = params;
+
+  await prisma.ticketPurchaseReceipt.upsert({
+    where: { purchaseReference },
+    update: {
+      buyerId,
+      raffleId,
+      raffleTitleSnapshot,
+      ticketNumbers,
+      grossSubtotal,
+      packDiscountAmount,
+      promotionDiscountAmount,
+      selectionPremiumPercent,
+      selectionPremiumAmount,
+      chargedAmount,
+      baseQuantity,
+      bonusQuantity,
+      grantedQuantity,
+      packApplied,
+      purchaseMode,
+      buyerAcceptedAt,
+      acceptanceSource,
+      createdAt,
+      updatedAt,
+    },
+    create: {
+      id: ticketPurchaseReceiptId(purchaseReference),
+      purchaseReference,
+      buyerId,
+      raffleId,
+      raffleTitleSnapshot,
+      ticketNumbers,
+      grossSubtotal,
+      packDiscountAmount,
+      promotionDiscountAmount,
+      selectionPremiumPercent,
+      selectionPremiumAmount,
+      chargedAmount,
+      baseQuantity,
+      bonusQuantity,
+      grantedQuantity,
+      packApplied,
+      purchaseMode,
+      buyerAcceptedAt,
+      acceptanceSource,
+      createdAt,
+      updatedAt,
+    },
+  });
+}
+
 async function upsertSellerPaymentAccount(params: {
   id: string;
   userId: string;
@@ -1279,6 +1379,8 @@ async function upsertCreditTopUpSession(params: {
   redirectUrl?: string | null;
   approvedAt?: Date | null;
   processedAt?: Date | null;
+  receiptVersion?: number | null;
+  receiptIssuedAt?: Date | null;
   expiresAt?: Date | null;
   refundedAt?: Date | null;
   metadata?: Prisma.InputJsonValue;
@@ -1307,6 +1409,8 @@ async function upsertCreditTopUpSession(params: {
     redirectUrl = null,
     approvedAt = null,
     processedAt = null,
+    receiptVersion = null,
+    receiptIssuedAt = null,
     expiresAt = null,
     refundedAt = null,
     metadata = undefined,
@@ -1330,6 +1434,8 @@ async function upsertCreditTopUpSession(params: {
       redirectUrl,
       approvedAt,
       processedAt,
+      receiptVersion,
+      receiptIssuedAt,
       expiresAt,
       refundedAt,
       metadata,
@@ -1350,6 +1456,8 @@ async function upsertCreditTopUpSession(params: {
       redirectUrl,
       approvedAt,
       processedAt,
+      receiptVersion,
+      receiptIssuedAt,
       expiresAt,
       refundedAt,
       metadata,
@@ -1821,10 +1929,13 @@ async function seedWalletFixtures(params: {
       creditedAmount: 120000,
       status: CreditTopUpStatus.APPROVED,
       statusDetail: 'Carga mock aprobada para QA',
+      providerPaymentId: 'qa_mock_payment_buyer_approved',
       providerOrderId: 'qa_mock_order_buyer_approved',
       providerReference: 'qa_topup_ref_buyer_approved',
       approvedAt: daysAgo(10),
       processedAt: daysAgo(10),
+      receiptVersion: 1,
+      receiptIssuedAt: daysAgo(10),
       metadata: { qaCase: 'approved_top_up_with_ticket_debits' },
       events: [
         {
@@ -1887,10 +1998,13 @@ async function seedWalletFixtures(params: {
       refundedAmount: 10000,
       status: CreditTopUpStatus.REFUNDED_FULL,
       statusDetail: 'Carga reintegrada completamente',
+      providerPaymentId: 'qa_mock_payment_refund_full',
       providerOrderId: 'qa_mock_order_refund_full',
       providerReference: 'qa_topup_ref_refund_full',
       approvedAt: daysAgo(8),
       processedAt: daysAgo(8),
+      receiptVersion: 1,
+      receiptIssuedAt: daysAgo(8),
       refundedAt: daysAgo(6),
       metadata: { qaCase: 'full_external_top_up_refund' },
       events: [
@@ -1919,10 +2033,13 @@ async function seedWalletFixtures(params: {
       refundedAmount: 12000,
       status: CreditTopUpStatus.REFUNDED_PARTIAL,
       statusDetail: 'Carga reintegrada parcialmente',
+      providerPaymentId: 'qa_mock_payment_refund_partial',
       providerOrderId: 'qa_mock_order_refund_partial',
       providerReference: 'qa_topup_ref_refund_partial',
       approvedAt: daysAgo(5),
       processedAt: daysAgo(5),
+      receiptVersion: 1,
+      receiptIssuedAt: daysAgo(5),
       refundedAt: daysAgo(4),
       metadata: { qaCase: 'partial_external_top_up_refund' },
       events: [
@@ -1972,10 +2089,13 @@ async function seedWalletFixtures(params: {
       creditedAmount: 80000,
       status: CreditTopUpStatus.APPROVED,
       statusDetail: 'Carga aprobada para probar packs',
+      providerPaymentId: 'qa_mock_payment_pack_buyer',
       providerOrderId: 'qa_mock_order_pack_buyer',
       providerReference: 'qa_topup_ref_pack_buyer',
       approvedAt: daysAgo(6),
       processedAt: daysAgo(6),
+      receiptVersion: 1,
+      receiptIssuedAt: daysAgo(6),
       metadata: { qaCase: 'pack_purchase_balance' },
       events: [
         {
@@ -1995,10 +2115,13 @@ async function seedWalletFixtures(params: {
       creditedAmount: 70000,
       status: CreditTopUpStatus.APPROVED,
       statusDetail: 'Carga aprobada para probar promociones',
+      providerPaymentId: 'qa_mock_payment_promo_buyer',
       providerOrderId: 'qa_mock_order_promo_buyer',
       providerReference: 'qa_topup_ref_promo_buyer',
       approvedAt: daysAgo(7),
       processedAt: daysAgo(7),
+      receiptVersion: 1,
+      receiptIssuedAt: daysAgo(7),
       metadata: { qaCase: 'social_promotion_bonus_balance' },
       events: [
         {
@@ -2018,10 +2141,13 @@ async function seedWalletFixtures(params: {
       creditedAmount: 12000,
       status: CreditTopUpStatus.APPROVED,
       statusDetail: 'Carga aprobada con saldo casi agotado',
+      providerPaymentId: 'qa_mock_payment_heavy_buyer',
       providerOrderId: 'qa_mock_order_heavy_buyer',
       providerReference: 'qa_topup_ref_heavy_buyer',
       approvedAt: daysAgo(9),
       processedAt: daysAgo(9),
+      receiptVersion: 1,
+      receiptIssuedAt: daysAgo(9),
       metadata: { qaCase: 'low_balance_after_many_purchases' },
       events: [
         {
@@ -2042,6 +2168,7 @@ async function seedWalletFixtures(params: {
       userId: params.buyerId,
       monto: 120000,
       cashChargedAmount: 120000,
+      providerPaymentId: 'qa_mock_payment_buyer_approved',
       providerOrderId: 'qa_mock_order_buyer_approved',
       estado: TransactionStatus.COMPLETADO,
       metadata: {
@@ -2107,6 +2234,7 @@ async function seedWalletFixtures(params: {
       userId: params.buyerPackId,
       monto: 80000,
       cashChargedAmount: 80000,
+      providerPaymentId: 'qa_mock_payment_pack_buyer',
       providerOrderId: 'qa_mock_order_pack_buyer',
       estado: TransactionStatus.COMPLETADO,
       metadata: {
@@ -2120,6 +2248,7 @@ async function seedWalletFixtures(params: {
       userId: params.buyerPromoId,
       monto: 70000,
       cashChargedAmount: 70000,
+      providerPaymentId: 'qa_mock_payment_promo_buyer',
       providerOrderId: 'qa_mock_order_promo_buyer',
       estado: TransactionStatus.COMPLETADO,
       metadata: {
@@ -4823,6 +4952,63 @@ async function main() {
       metadata: {
         payoutStatus: 'COMPLETED',
       },
+    }),
+  ]);
+
+  await Promise.all([
+    upsertTicketPurchaseReceipt({
+      purchaseReference: 'qa_wallet_active_1',
+      buyerId: buyer.id,
+      raffleId: IDS.raffleActive,
+      raffleTitleSnapshot: `${QA_PREFIX} iPhone 15 Pro - Activa`,
+      ticketNumbers: [1],
+      grossSubtotal: 1500,
+      chargedAmount: 1500,
+      baseQuantity: 1,
+      bonusQuantity: 0,
+      grantedQuantity: 1,
+      packApplied: false,
+      purchaseMode: TicketPurchaseMode.RANDOM,
+      createdAt: daysAgo(1),
+      updatedAt: daysAgo(1),
+    }),
+    upsertTicketPurchaseReceipt({
+      purchaseReference: 'qa_wallet_choose_numbers_2',
+      buyerId: buyer.id,
+      raffleId: IDS.raffleChooseNumbers,
+      raffleTitleSnapshot: `${QA_PREFIX} Elegir números premium`,
+      ticketNumbers: [2],
+      grossSubtotal: 700,
+      selectionPremiumPercent: 5,
+      selectionPremiumAmount: 35,
+      chargedAmount: 735,
+      baseQuantity: 1,
+      bonusQuantity: 0,
+      grantedQuantity: 1,
+      packApplied: false,
+      purchaseMode: TicketPurchaseMode.CHOOSE_NUMBERS,
+      buyerAcceptedAt: daysAgo(2),
+      acceptanceSource: TicketReceiptAcceptanceSource.TICKETS_DASHBOARD,
+      createdAt: daysAgo(3),
+      updatedAt: daysAgo(2),
+    }),
+    upsertTicketPurchaseReceipt({
+      purchaseReference: 'qa_wallet_final_review_1',
+      buyerId: buyerWinner.id,
+      raffleId: IDS.raffleFinalizedReviewed,
+      raffleTitleSnapshot: `${QA_PREFIX} Finalizada con review`,
+      ticketNumbers: [1],
+      grossSubtotal: 1320,
+      chargedAmount: 1320,
+      baseQuantity: 1,
+      bonusQuantity: 0,
+      grantedQuantity: 1,
+      packApplied: false,
+      purchaseMode: TicketPurchaseMode.RANDOM,
+      buyerAcceptedAt: daysAgo(18),
+      acceptanceSource: TicketReceiptAcceptanceSource.RECEIPT_PAGE,
+      createdAt: daysAgo(19),
+      updatedAt: daysAgo(18),
     }),
   ]);
 

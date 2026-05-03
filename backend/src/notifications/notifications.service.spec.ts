@@ -330,6 +330,7 @@ describe('NotificationsService', () => {
           'test@example.com',
           {
             raffleName: 'iPhone 15 Pro',
+            purchaseReference: 'purchase-ref-1',
             ticketNumbers: [1, 2, 3],
             amount: 1500,
           },
@@ -345,6 +346,7 @@ describe('NotificationsService', () => {
           'test@example.com',
           {
             raffleName: 'iPhone 15 Pro',
+            purchaseReference: 'purchase-ref-1',
             ticketNumbers: [1, 2, 3, 4, 5, 6],
             amount: 2500,
             packApplied: true,
@@ -371,6 +373,13 @@ describe('NotificationsService', () => {
             html: expect.stringMatching(/LUK subsidió[\s\S]*\$500\.00/),
           }),
         );
+        expect(sendEmailSpy).toHaveBeenCalledWith(
+          expect.objectContaining({
+            html: expect.stringContaining(
+              '/dashboard/tickets/receipts/purchase-ref-1',
+            ),
+          }),
+        );
       });
 
       it('should not render pack details when the purchase is normal', async () => {
@@ -378,6 +387,7 @@ describe('NotificationsService', () => {
 
         await service.sendTicketPurchaseConfirmation('test@example.com', {
           raffleName: 'iPhone 15 Pro',
+          purchaseReference: 'purchase-ref-1',
           ticketNumbers: [1, 2, 3],
           amount: 1500,
         });
@@ -385,6 +395,40 @@ describe('NotificationsService', () => {
         expect(sendEmailSpy).toHaveBeenCalledWith(
           expect.objectContaining({
             html: expect.not.stringContaining('Pack simple aplicado'),
+          }),
+        );
+      });
+    });
+
+    describe('sendCreditTopUpApprovedNotification', () => {
+      it('should render the wallet receipt CTA and provider identifiers', async () => {
+        const sendEmailSpy = getSendEmailSpy().mockResolvedValue(true);
+
+        const result = await service.sendCreditTopUpApprovedNotification(
+          'test@example.com',
+          {
+            amount: 3000,
+            topUpSessionId: 'topup-1',
+            providerPaymentId: 'mp-payment-1',
+            providerOrderId: 'preference-1',
+          },
+        );
+
+        expect(result).toBe(true);
+        expect(sendEmailSpy).toHaveBeenCalledWith(
+          expect.objectContaining({
+            subject: '✅ Saldo LUK acreditado',
+            html: expect.stringContaining('/dashboard/wallet/receipts/topup-1'),
+          }),
+        );
+        expect(sendEmailSpy).toHaveBeenCalledWith(
+          expect.objectContaining({
+            html: expect.stringContaining('mp-payment-1'),
+          }),
+        );
+        expect(sendEmailSpy).toHaveBeenCalledWith(
+          expect.objectContaining({
+            html: expect.stringContaining('preference-1'),
           }),
         );
       });

@@ -44,6 +44,7 @@ MP_ACCESS_TOKEN=""
 ```
 
 That enables the internal QA flow for Saldo LUK top-ups under `/checkout/mock/...`.
+Las cargas aprobadas nuevas también exponen comprobantes en `/dashboard/wallet/receipts/:topUpSessionId`, y las compras seeded muestran comprobantes en `/dashboard/tickets/receipts/:purchaseReference`.
 
 ### Optional Social Worker
 
@@ -77,6 +78,7 @@ MP_ACCESS_TOKEN=""
 ```
 
 Con eso, la carga de Saldo LUK abre una pantalla interna de QA en `/checkout/mock/...` y permite aprobar, dejar pendiente, rechazar y reintegrar cargas sin tocar Mercado Pago.
+Después de aprobar una carga nueva, podés revisar su comprobante desde la wallet; las compras con saldo exponen comprobantes agrupados en `Mis tickets`.
 
 ---
 

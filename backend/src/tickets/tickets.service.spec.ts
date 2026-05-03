@@ -150,6 +150,9 @@ describe('TicketsService', () => {
       estado: string;
       purchaseReference: string;
     }> = [];
+    const ticketPurchaseReceiptCreate = jest.fn().mockResolvedValue({
+      id: 'receipt-1',
+    });
 
     prisma.$transaction.mockImplementation(async (callback) => {
       const tx = {
@@ -167,6 +170,9 @@ describe('TicketsService', () => {
           }),
         },
         transaction: { create: jest.fn().mockResolvedValue({ id: 'tx-1' }) },
+        ticketPurchaseReceipt: {
+          create: ticketPurchaseReceiptCreate,
+        },
         userReputation: {
           upsert: jest.fn().mockResolvedValue({ userId: 'buyer-1' }),
         },
@@ -174,7 +180,7 @@ describe('TicketsService', () => {
       return callback(tx);
     });
 
-    return createdTickets;
+    return { createdTickets, ticketPurchaseReceiptCreate };
   }
 
   it('fails before reserving tickets when the buyer has no shipping address', async () => {
@@ -189,11 +195,13 @@ describe('TicketsService', () => {
   });
 
   it('buys random tickets with Saldo LUK and applies the 5 -> 6 pack', async () => {
-    const createdTickets = mockPurchaseTransaction();
+    const { createdTickets, ticketPurchaseReceiptCreate } =
+      mockPurchaseTransaction();
 
     const result = await service.buyTickets('buyer-1', 'raffle-1', 5);
 
     expect(result.paidWithCredit).toBe(true);
+    expect(result.purchaseReference).toEqual(expect.any(String));
     expect(result.baseQuantity).toBe(5);
     expect(result.bonusQuantity).toBe(1);
     expect(result.grantedQuantity).toBe(6);
@@ -216,10 +224,42 @@ describe('TicketsService', () => {
       576,
       expect.objectContaining({ raffleId: 'raffle-1' }),
     );
+    expect(ticketPurchaseReceiptCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        buyerId: 'buyer-1',
+        raffleId: 'raffle-1',
+        raffleTitleSnapshot: 'Rifa QA',
+        ticketNumbers: createdTickets.map((ticket) => ticket.numeroTicket),
+        grossSubtotal: 600,
+        packDiscountAmount: 100,
+        promotionDiscountAmount: 0,
+        chargedAmount: 500,
+        baseQuantity: 5,
+        bonusQuantity: 1,
+        grantedQuantity: 6,
+        packApplied: true,
+        purchaseMode: TicketPurchaseMode.RANDOM,
+      }),
+    });
+    expect(
+      notificationsService.sendTicketPurchaseConfirmation,
+    ).toHaveBeenCalledWith(
+      'buyer@luk.test',
+      expect.objectContaining({
+        purchaseReference: result.purchaseReference,
+      }),
+    );
+    expect(activityService.logTicketsPurchased).toHaveBeenCalledWith(
+      'buyer-1',
+      'raffle-1',
+      createdTickets.map((ticket) => ticket.numeroTicket),
+      500,
+      result.purchaseReference,
+    );
   });
 
   it('keeps choose-numbers premium and does not apply simple pack', async () => {
-    mockPurchaseTransaction();
+    const { ticketPurchaseReceiptCreate } = mockPurchaseTransaction();
 
     const result = await service.buySelectedTickets(
       'buyer-1',
@@ -238,6 +278,18 @@ describe('TicketsService', () => {
       WalletLedgerEntryType.TICKET_PURCHASE_DEBIT,
       expect.any(Object),
     );
+    expect(ticketPurchaseReceiptCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        raffleId: 'raffle-1',
+        ticketNumbers: [3, 7],
+        grossSubtotal: 200,
+        selectionPremiumPercent: 5,
+        selectionPremiumAmount: 10,
+        chargedAmount: 210,
+        packApplied: false,
+        purchaseMode: TicketPurchaseMode.CHOOSE_NUMBERS,
+      }),
+    });
   });
 
   it('does not reserve a social promotion bonus when the simple pack applies', async () => {

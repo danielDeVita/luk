@@ -40,6 +40,10 @@ import { ComplianceNotice } from "@/components/legal/compliance-notice";
 import { PromotionBonusSelector } from "@/components/social-promotions/promotion-bonus-selector";
 import { SocialPromotionManager } from "@/components/social-promotions/social-promotion-manager";
 import {
+  TicketPurchaseReceiptDialog,
+  type TicketPurchaseReceiptDialogData,
+} from "@/components/tickets/ticket-purchase-receipt-dialog";
+import {
   evaluateSimpleRandomPack,
   type PackIneligibilityReason,
 } from "@/lib/tickets/pack-simple";
@@ -94,37 +98,12 @@ const BUY_TICKETS = gql`
       bonusGrantId: $bonusGrantId
       promotionToken: $promotionToken
     ) {
-      paidWithCredit
-      creditDebited
-      creditBalanceAfter
-      totalAmount
-      grossSubtotal
-      discountApplied
-      chargedAmount
-      bonusGrantId
-      cantidadComprada
-      baseQuantity
-      bonusQuantity
-      grantedQuantity
-      packApplied
-      packIneligibilityReason
-    }
-  }
-`;
-
-const BUY_SELECTED_TICKETS = gql`
-  mutation BuySelectedTickets(
-    $raffleId: String!
-    $selectedNumbers: [Int!]!
-    $bonusGrantId: String
-    $promotionToken: String
-  ) {
-    buySelectedTickets(
-      raffleId: $raffleId
-      selectedNumbers: $selectedNumbers
-      bonusGrantId: $bonusGrantId
-      promotionToken: $promotionToken
-    ) {
+      tickets {
+        id
+        numeroTicket
+        purchaseReference
+      }
+      purchaseReference
       paidWithCredit
       creditDebited
       creditBalanceAfter
@@ -142,6 +121,62 @@ const BUY_SELECTED_TICKETS = gql`
       purchaseMode
       selectionPremiumPercent
       selectionPremiumAmount
+    }
+  }
+`;
+
+const BUY_SELECTED_TICKETS = gql`
+  mutation BuySelectedTickets(
+    $raffleId: String!
+    $selectedNumbers: [Int!]!
+    $bonusGrantId: String
+    $promotionToken: String
+  ) {
+    buySelectedTickets(
+      raffleId: $raffleId
+      selectedNumbers: $selectedNumbers
+      bonusGrantId: $bonusGrantId
+      promotionToken: $promotionToken
+    ) {
+      tickets {
+        id
+        numeroTicket
+        purchaseReference
+      }
+      purchaseReference
+      paidWithCredit
+      creditDebited
+      creditBalanceAfter
+      totalAmount
+      grossSubtotal
+      discountApplied
+      chargedAmount
+      bonusGrantId
+      cantidadComprada
+      baseQuantity
+      bonusQuantity
+      grantedQuantity
+      packApplied
+      packIneligibilityReason
+      purchaseMode
+      selectionPremiumPercent
+      selectionPremiumAmount
+    }
+  }
+`;
+
+const ACKNOWLEDGE_TICKET_PURCHASE_RECEIPT = gql`
+  mutation AcknowledgeTicketPurchaseReceipt(
+    $purchaseReference: String!
+    $source: TicketReceiptAcceptanceSource!
+  ) {
+    acknowledgeTicketPurchaseReceipt(
+      purchaseReference: $purchaseReference
+      source: $source
+    ) {
+      purchaseReference
+      buyerAcceptedAt
+      acceptancePending
     }
   }
 `;
@@ -260,6 +295,12 @@ interface RaffleResult {
 
 interface BuyTicketsResult {
   buyTickets: {
+    tickets: {
+      id: string;
+      numeroTicket: number;
+      purchaseReference: string;
+    }[];
+    purchaseReference: string;
     paidWithCredit: boolean;
     creditDebited: number;
     creditBalanceAfter: number;
@@ -274,11 +315,20 @@ interface BuyTicketsResult {
     grantedQuantity: number;
     packApplied: boolean;
     packIneligibilityReason?: PackIneligibilityReason;
+    purchaseMode: "RANDOM";
+    selectionPremiumPercent: number;
+    selectionPremiumAmount: number;
   };
 }
 
 interface BuySelectedTicketsResult {
   buySelectedTickets: {
+    tickets: {
+      id: string;
+      numeroTicket: number;
+      purchaseReference: string;
+    }[];
+    purchaseReference: string;
     paidWithCredit: boolean;
     creditDebited: number;
     creditBalanceAfter: number;
@@ -296,6 +346,14 @@ interface BuySelectedTicketsResult {
     purchaseMode: "CHOOSE_NUMBERS";
     selectionPremiumPercent: number;
     selectionPremiumAmount: number;
+  };
+}
+
+interface AcknowledgeTicketPurchaseReceiptResult {
+  acknowledgeTicketPurchaseReceipt: {
+    purchaseReference: string;
+    buyerAcceptedAt?: string | null;
+    acceptancePending: boolean;
   };
 }
 
@@ -403,6 +461,30 @@ interface RaffleContentProps {
   id: string;
 }
 
+function buildTicketPurchaseReceiptDialogData(
+  raffle: RaffleData,
+  result:
+    | BuyTicketsResult["buyTickets"]
+    | BuySelectedTicketsResult["buySelectedTickets"],
+): TicketPurchaseReceiptDialogData {
+  return {
+    purchaseReference: result.purchaseReference,
+    raffleId: raffle.id,
+    raffleTitle: raffle.titulo,
+    ticketNumbers: [...result.tickets]
+      .map((ticket) => ticket.numeroTicket)
+      .sort((left, right) => left - right),
+    chargedAmount: result.chargedAmount,
+    grossSubtotal: result.grossSubtotal,
+    baseQuantity: result.baseQuantity,
+    bonusQuantity: result.bonusQuantity,
+    grantedQuantity: result.grantedQuantity,
+    packApplied: result.packApplied,
+    discountApplied: result.discountApplied,
+    selectionPremiumAmount: result.selectionPremiumAmount,
+  };
+}
+
 export function RaffleContent({ id }: RaffleContentProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -421,6 +503,11 @@ export function RaffleContent({ id }: RaffleContentProps) {
   >(null);
   const [bonusPreview, setBonusPreview] =
     useState<PromotionBonusPreview | null>(null);
+  const [receiptDialogOpen, setReceiptDialogOpen] = useState(false);
+  const [pendingPurchaseReceipt, setPendingPurchaseReceipt] =
+    useState<TicketPurchaseReceiptDialogData | null>(null);
+  const [acknowledgedPurchaseReference, setAcknowledgedPurchaseReference] =
+    useState<string | null>(null);
   const confirm = useConfirmDialog();
   const deferredSearchNumberInput = useDeferredValue(searchNumberInput);
 
@@ -596,9 +683,13 @@ export function RaffleContent({ id }: RaffleContentProps) {
     {
       onCompleted: async (mutationData) => {
         const result = mutationData.buyTickets;
-        toast.success(
-          `Compra confirmada. Se debitaron $${result.creditDebited.toFixed(2)} de tu Saldo LUK.`,
-        );
+        if (data?.raffle) {
+          setPendingPurchaseReceipt(
+            buildTicketPurchaseReceiptDialogData(data.raffle, result),
+          );
+          setAcknowledgedPurchaseReference(null);
+          setReceiptDialogOpen(true);
+        }
         await Promise.all([refetchWallet(), refetchRaffle()]);
       },
       onError: (mutationError) => {
@@ -610,19 +701,40 @@ export function RaffleContent({ id }: RaffleContentProps) {
     useMutation<BuySelectedTicketsResult>(BUY_SELECTED_TICKETS, {
       onCompleted: async (mutationData) => {
         const result = mutationData.buySelectedTickets;
-        toast.success(
-          `Compra confirmada. Se debitaron $${result.creditDebited.toFixed(2)} de tu Saldo LUK.`,
-        );
+        if (data?.raffle) {
+          setPendingPurchaseReceipt(
+            buildTicketPurchaseReceiptDialogData(data.raffle, result),
+          );
+          setAcknowledgedPurchaseReference(null);
+          setReceiptDialogOpen(true);
+        }
+        resetSelectedNumberPurchaseState();
         await Promise.all([
           refetchWallet(),
           refetchRaffle(),
           refetchTicketAvailability(),
+          parsedSearchNumber !== undefined
+            ? refetchTicketSearch()
+            : Promise.resolve(),
         ]);
       },
       onError: (mutationError) => {
         handlePurchaseMutationError(mutationError.message);
       },
     });
+  const [acknowledgeTicketPurchaseReceipt, { loading: acknowledgingReceipt }] =
+    useMutation<AcknowledgeTicketPurchaseReceiptResult>(
+      ACKNOWLEDGE_TICKET_PURCHASE_RECEIPT,
+      {
+        onCompleted: ({ acknowledgeTicketPurchaseReceipt: receipt }) => {
+          setAcknowledgedPurchaseReference(receipt.purchaseReference);
+          toast.success("Confirmaste que ves tus números en tu cuenta.");
+        },
+        onError: (mutationError) => {
+          toast.error(mutationError.message);
+        },
+      },
+    );
   const [incrementViews] = useMutation(INCREMENT_VIEWS);
 
   // Favorite mutations
@@ -905,6 +1017,19 @@ export function RaffleContent({ id }: RaffleContentProps) {
         selectedNumbers: selectedNumbersSorted,
         bonusGrantId: selectedBonusGrantId,
         promotionToken,
+      },
+    });
+  };
+
+  const handleAcknowledgePurchaseReceipt = () => {
+    if (!pendingPurchaseReceipt) {
+      return;
+    }
+
+    void acknowledgeTicketPurchaseReceipt({
+      variables: {
+        purchaseReference: pendingPurchaseReceipt.purchaseReference,
+        source: "POST_PURCHASE_MODAL",
       },
     });
   };
@@ -1871,6 +1996,18 @@ export function RaffleContent({ id }: RaffleContentProps) {
         </div>
       </div>
 
+      <TicketPurchaseReceiptDialog
+        open={receiptDialogOpen}
+        receipt={pendingPurchaseReceipt}
+        acknowledging={acknowledgingReceipt}
+        acknowledged={
+          pendingPurchaseReceipt !== null &&
+          acknowledgedPurchaseReference ===
+            pendingPurchaseReceipt.purchaseReference
+        }
+        onOpenChange={setReceiptDialogOpen}
+        onAcknowledge={handleAcknowledgePurchaseReceipt}
+      />
     </div>
   );
 }

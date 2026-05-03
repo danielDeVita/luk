@@ -538,6 +538,8 @@ export class PaymentsService {
       return;
     }
 
+    const processedAt = new Date();
+
     await this.prisma.$transaction(async (tx) => {
       await this.walletService.creditUserBalance(
         tx,
@@ -563,8 +565,10 @@ export class PaymentsService {
           feeAmount: providerTopUp.processingFee ?? 0,
           status: CreditTopUpStatus.APPROVED,
           statusDetail: providerTopUp.statusDetail,
-          approvedAt: new Date(),
-          processedAt: new Date(),
+          receiptVersion: 1,
+          approvedAt: processedAt,
+          processedAt,
+          receiptIssuedAt: processedAt,
         },
       });
 
@@ -675,6 +679,8 @@ export class PaymentsService {
           {
             amount: context.amount,
             topUpSessionId: context.topUpSessionId,
+            providerPaymentId: context.providerPaymentId,
+            providerOrderId: context.providerOrderId,
           },
         ),
       ]);

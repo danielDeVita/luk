@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { TicketsResolver } from './tickets.resolver';
 import { TicketsService } from './tickets.service';
+import { TicketPurchaseReceiptsService } from './ticket-purchase-receipts.service';
 import {
   UserRole,
   SellerPaymentAccountStatus,
@@ -19,6 +20,11 @@ describe('TicketsResolver', () => {
     getUserTicketCount: jest.fn(),
     findByUser: jest.fn(),
     findOne: jest.fn(),
+  };
+  const mockTicketPurchaseReceiptsService = {
+    getReceipt: jest.fn(),
+    listReceipts: jest.fn(),
+    acknowledgeReceipt: jest.fn(),
   };
 
   const createTestUser = (overrides = {}) => ({
@@ -56,6 +62,10 @@ describe('TicketsResolver', () => {
       providers: [
         TicketsResolver,
         { provide: TicketsService, useValue: mockTicketsService },
+        {
+          provide: TicketPurchaseReceiptsService,
+          useValue: mockTicketPurchaseReceiptsService,
+        },
       ],
     }).compile();
 
@@ -357,6 +367,52 @@ describe('TicketsResolver', () => {
         'specific-user-id',
         user.role,
       );
+    });
+  });
+
+  describe('ticketPurchaseReceipt', () => {
+    it('should return the requested receipt for the current user', async () => {
+      const user = createTestUser();
+      const receipt = {
+        id: 'receipt-1',
+        purchaseReference: 'purchase-ref-1',
+      };
+
+      mockTicketPurchaseReceiptsService.getReceipt.mockResolvedValue(receipt);
+
+      await expect(
+        resolver.ticketPurchaseReceipt(user, 'purchase-ref-1'),
+      ).resolves.toEqual(receipt);
+      expect(mockTicketPurchaseReceiptsService.getReceipt).toHaveBeenCalledWith(
+        user.id,
+        'purchase-ref-1',
+      );
+    });
+  });
+
+  describe('acknowledgeTicketPurchaseReceipt', () => {
+    it('should delegate receipt acknowledgement to the receipts service', async () => {
+      const user = createTestUser();
+      const receipt = {
+        id: 'receipt-1',
+        purchaseReference: 'purchase-ref-1',
+        acceptancePending: false,
+      };
+
+      mockTicketPurchaseReceiptsService.acknowledgeReceipt.mockResolvedValue(
+        receipt,
+      );
+
+      await expect(
+        resolver.acknowledgeTicketPurchaseReceipt(
+          user,
+          'purchase-ref-1',
+          'RECEIPT_PAGE' as any,
+        ),
+      ).resolves.toEqual(receipt);
+      expect(
+        mockTicketPurchaseReceiptsService.acknowledgeReceipt,
+      ).toHaveBeenCalledWith(user.id, 'purchase-ref-1', 'RECEIPT_PAGE');
     });
   });
 });
