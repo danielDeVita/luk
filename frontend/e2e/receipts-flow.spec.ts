@@ -23,7 +23,8 @@ test.describe('Receipts Flow', () => {
               apellido: 'QA',
               role: 'USER',
             },
-            token: 'test-token',
+            token:
+              'eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0=.eyJzdWIiOiJidXllci0xIiwiZXhwIjo0MTAyNDQ0ODAwfQ==.e2e',
             isAuthenticated: true,
           },
           version: 0,
