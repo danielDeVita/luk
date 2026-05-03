@@ -21,6 +21,7 @@ test.describe('Receipts Flow', () => {
               email: 'comprador@test.com',
               nombre: 'Comprador',
               apellido: 'QA',
+              role: 'USER',
             },
             token: 'test-token',
             isAuthenticated: true,
@@ -76,85 +77,45 @@ test.describe('Receipts Flow', () => {
             __typename: 'CreditTopUpReceiptEntity',
           },
         },
-        GetRaffle: {
-          raffle: {
-            id: 'raffle-1',
-            titulo: 'Rifa QA',
-            descripcion: 'Probando comprobantes de compra.',
-            totalTickets: 100,
-            precioPorTicket: 100,
-            estado: 'ACTIVA',
-            fechaLimiteSorteo: '2026-12-31T23:00:00.000Z',
-            winnerId: null,
-            winningTicketNumber: null,
-            product: {
-              nombre: 'Producto QA',
-              descripcionDetallada: 'Detalle QA',
-              imagenes: [],
-              categoria: 'ELECTRONICA',
-              condicion: 'NUEVO',
-              __typename: 'Product',
-            },
-            seller: {
-              id: 'seller-1',
-              nombre: 'Seller',
-              apellido: 'QA',
-              email: 'seller@test.com',
-              __typename: 'User',
-            },
-            tickets: [],
-            __typename: 'Raffle',
+        AcknowledgeTicketPurchaseReceiptFromPage: {
+          acknowledgeTicketPurchaseReceipt: {
+            purchaseReference: 'purchase-ref-1',
+            buyerAcceptedAt: '2026-04-01T12:05:00.000Z',
+            acceptanceSource: 'RECEIPT_PAGE',
+            acceptancePending: false,
+            updatedAt: '2026-04-01T12:05:00.000Z',
+            __typename: 'TicketPurchaseReceiptEntity',
           },
         },
-        IsFavorite: {
-          isFavorite: false,
-        },
-        GetPriceHistory: {
-          priceHistory: [],
-        },
-        MyTicketCountInRaffle: {
-          myTicketCountInRaffle: 0,
-        },
-        IncrementRaffleViews: {
-          incrementRaffleViews: true,
-        },
-        BuyTickets: {
-          buyTickets: {
-            tickets: [
-              {
-                id: 'ticket-1',
-                numeroTicket: 12,
-                purchaseReference: 'purchase-ref-1',
-                __typename: 'Ticket',
-              },
-            ],
+        TicketPurchaseReceipt: {
+          ticketPurchaseReceipt: {
+            id: 'receipt-1',
             purchaseReference: 'purchase-ref-1',
-            paidWithCredit: true,
-            creditDebited: 100,
-            creditBalanceAfter: 2900,
-            totalAmount: 100,
+            raffleId: 'raffle-1',
+            raffleTitleSnapshot: 'Rifa QA',
+            receiptVersion: 1,
+            currencyCode: 'ARS',
+            ticketNumbers: [12],
             grossSubtotal: 100,
-            discountApplied: 0,
+            packDiscountAmount: 0,
+            promotionDiscountAmount: 0,
+            selectionPremiumPercent: 0,
+            selectionPremiumAmount: 0,
             chargedAmount: 100,
-            bonusGrantId: null,
-            cantidadComprada: 1,
             baseQuantity: 1,
             bonusQuantity: 0,
             grantedQuantity: 1,
             packApplied: false,
-            packIneligibilityReason: null,
-            ticketsRestantesQuePuedeComprar: 49,
             purchaseMode: 'RANDOM',
-            selectionPremiumPercent: 0,
-            selectionPremiumAmount: 0,
-            __typename: 'BuyTicketsResult',
-          },
-        },
-        AcknowledgeTicketPurchaseReceipt: {
-          acknowledgeTicketPurchaseReceipt: {
-            purchaseReference: 'purchase-ref-1',
-            buyerAcceptedAt: '2026-04-01T12:05:00.000Z',
-            acceptancePending: false,
+            buyerAcceptedAt: receiptAcknowledged
+              ? '2026-04-01T12:05:00.000Z'
+              : null,
+            acceptanceSource: receiptAcknowledged ? 'RECEIPT_PAGE' : null,
+            acceptancePending: !receiptAcknowledged,
+            createdAt: '2026-04-01T12:00:00.000Z',
+            updatedAt: receiptAcknowledged
+              ? '2026-04-01T12:05:00.000Z'
+              : '2026-04-01T12:00:00.000Z',
             __typename: 'TicketPurchaseReceiptEntity',
           },
         },
@@ -226,7 +187,7 @@ test.describe('Receipts Flow', () => {
         },
       };
 
-      if (operationName === 'AcknowledgeTicketPurchaseReceipt') {
+      if (operationName === 'AcknowledgeTicketPurchaseReceiptFromPage') {
         receiptAcknowledged = true;
       }
 
@@ -247,15 +208,25 @@ test.describe('Receipts Flow', () => {
       page.getByRole('link', { name: /ver comprobante/i }),
     ).toHaveAttribute('href', '/dashboard/wallet/receipts/topup-1');
 
-    await page.goto('/raffle/raffle-1');
-    await page.getByRole('button', { name: /comprar 1 ticket/i }).click();
-
+    await page.goto('/dashboard/wallet/receipts/topup-1');
     await expect(
-      page.getByRole('heading', { name: /comprobante de compra emitido/i }),
+      page.getByRole('heading', { name: /comprobante de carga/i }),
     ).toBeVisible();
+    await expect(page.getByText('mp-payment-1')).toBeVisible();
+
+    await page.goto('/dashboard/tickets/receipts/purchase-ref-1');
+    await expect(
+      page.getByRole('heading', { name: /comprobante de compra/i }),
+    ).toBeVisible();
+    await expect(page.getByText('#12')).toBeVisible();
+    await expect(page.getByText('Pendiente de confirmación')).toBeVisible();
+
     await page.getByRole('button', {
       name: /confirmar que veo mis números/i,
     }).click();
+    await expect(
+      page.getByText('Ya confirmaste este comprobante.'),
+    ).toBeVisible();
 
     await page.goto('/dashboard/tickets');
     await expect(page.getByText('Comprobantes de compra')).toBeVisible();
