@@ -244,9 +244,26 @@ test.describe('Receipts Flow', () => {
       page.getByRole('link', { name: /ver comprobante/i }),
     ).toBeVisible();
 
-    await page.getByRole('link', { name: /ver comprobante/i }).click();
+    const creditTopUpReceiptResponse = page.waitForResponse((response) => {
+      if (!response.url().includes('/graphql')) {
+        return false;
+      }
+
+      const requestBody = response.request().postData() ?? '';
+      return requestBody.includes('CreditTopUpReceipt');
+    });
+
+    await Promise.all([
+      creditTopUpReceiptResponse,
+      page.getByRole('link', { name: /ver comprobante/i }).click(),
+    ]);
     await expect(page).toHaveURL(/\/dashboard\/wallet\/receipts\/topup-1/);
-    await expect(page.getByText('mp-payment-1')).toBeVisible();
+    await expect(
+      page.getByRole('heading', { name: /comprobante de carga/i }),
+    ).toBeVisible();
+    await expect(page.getByText('mp-payment-1')).toBeVisible({
+      timeout: 10000,
+    });
 
     await page.goto('/raffle/raffle-1');
     await page.getByRole('button', { name: /comprar 1 ticket/i }).click();
