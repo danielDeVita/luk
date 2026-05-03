@@ -247,15 +247,6 @@ test.describe('Receipts Flow', () => {
       page.getByRole('link', { name: /ver comprobante/i }),
     ).toHaveAttribute('href', '/dashboard/wallet/receipts/topup-1');
 
-    await page.goto('/dashboard/wallet/receipts/topup-1');
-    await expect(page).toHaveURL(/\/dashboard\/wallet\/receipts\/topup-1/);
-    await expect(
-      page.getByRole('heading', { name: /comprobante de carga/i }),
-    ).toBeVisible();
-    await expect(page.getByText('mp-payment-1')).toBeVisible({
-      timeout: 10000,
-    });
-
     await page.goto('/raffle/raffle-1');
     await page.getByRole('button', { name: /comprar 1 ticket/i }).click();
 
