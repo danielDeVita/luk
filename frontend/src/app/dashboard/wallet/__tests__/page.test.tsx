@@ -42,6 +42,7 @@ describe('WalletPage', () => {
       forward: vi.fn(),
     });
     mockUseAuthStore.mockReturnValue({
+      hasHydrated: true,
       isAuthenticated: true,
     } as unknown as ReturnType<typeof useAuthStore>);
     mockUseMutation.mockReturnValue([

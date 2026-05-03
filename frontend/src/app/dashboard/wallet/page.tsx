@@ -110,14 +110,16 @@ function formatLedgerType(type: string): string {
 
 export default function WalletPage() {
   const router = useRouter();
-  const { isAuthenticated } = useAuthStore();
+  const { isAuthenticated, hasHydrated } = useAuthStore();
   const [amount, setAmount] = useState("3000");
   const { data: walletData, loading: walletLoading } =
-    useQuery<WalletQueryResult>(MY_WALLET, { skip: !isAuthenticated });
+    useQuery<WalletQueryResult>(MY_WALLET, {
+      skip: !hasHydrated || !isAuthenticated,
+    });
   const { data: ledgerData, loading: ledgerLoading } =
     useQuery<LedgerQueryResult>(WALLET_LEDGER, {
       variables: { take: 30 },
-      skip: !isAuthenticated,
+      skip: !hasHydrated || !isAuthenticated,
     });
   const [createCreditTopUp, { loading: creatingTopUp }] =
     useMutation<CreateCreditTopUpResult>(CREATE_CREDIT_TOP_UP, {
@@ -130,12 +132,12 @@ export default function WalletPage() {
     });
 
   useEffect(() => {
-    if (!isAuthenticated) {
+    if (hasHydrated && !isAuthenticated) {
       router.push("/auth/login");
     }
-  }, [isAuthenticated, router]);
+  }, [hasHydrated, isAuthenticated, router]);
 
-  if (!isAuthenticated) {
+  if (!hasHydrated || !isAuthenticated) {
     return null;
   }
 
