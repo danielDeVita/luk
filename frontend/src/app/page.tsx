@@ -13,7 +13,7 @@ import {
 } from '@/lib/brand';
 
 export const metadata: Metadata = {
-  title: 'Rifas transparentes con pagos protegidos',
+  title: 'Premios reales con pagos protegidos',
   description: BRAND_DESCRIPTION,
   alternates: {
     canonical: '/',
@@ -49,14 +49,11 @@ export default function HomePage() {
 
                 <div className="space-y-5">
                   <h1 className="font-display text-5xl leading-[0.92] tracking-[-0.07em] text-balance text-foreground sm:text-6xl lg:text-[6.3rem] animate-fade-up delay-2">
-                    <span className="block">Rifas claras,</span>
-                    <span className="block text-primary">premios reales</span>
+                    <span className="block">Todo claro,</span>
+                    <span className="block text-primary">desde el inicio</span>
                   </h1>
                   <p className="max-w-2xl text-lg leading-relaxed text-muted-foreground sm:text-xl animate-fade-up delay-3">
-                    {BRAND_DESCRIPTION}{' '}
-                    <span className="font-semibold text-foreground">
-                      Todo desde una sola cuenta.
-                    </span>
+                    Descubrí publicaciones con premios, cargá saldo cuando lo necesites y seguí cada movimiento con información visible de punta a punta.
                   </p>
                 </div>
 
@@ -72,8 +69,8 @@ export default function HomePage() {
                     <p className="mt-3 font-display text-4xl text-secondary">24/7</p>
                   </div>
                   <div className="rounded-[1.6rem] border border-border/80 bg-card/88 p-5 shadow-lift">
-                    <p className="editorial-kicker text-muted-foreground">Saldo</p>
-                    <p className="mt-3 font-display text-4xl text-primary">Interno</p>
+                    <p className="editorial-kicker text-muted-foreground">Movimientos</p>
+                    <p className="mt-3 font-display text-4xl text-primary">Visibles</p>
                   </div>
                 </div>
               </div>
@@ -82,14 +79,14 @@ export default function HomePage() {
                 <Card className="bg-card/95">
                   <CardHeader className="pb-4">
                     <CardTitle className="text-3xl">
-                      Elegí una rifa, cargá saldo y comprá tu ticket con seguimiento claro.
+                      Cargá saldo, conseguí tus tickets y seguí cada paso sin vueltas.
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-5">
                     <div className="grid grid-cols-2 gap-3">
                       <div className="rounded-[1.35rem] border border-border/80 bg-background/70 p-4">
-                        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">Saldo</p>
-                        <p className="mt-3 font-display text-3xl text-foreground">Interno</p>
+                        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">Carga</p>
+                        <p className="mt-3 font-display text-3xl text-foreground">Simple</p>
                       </div>
                       <div className="rounded-[1.35rem] border border-border/80 bg-background/70 p-4">
                         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">Seguimiento</p>
@@ -99,7 +96,7 @@ export default function HomePage() {
                     <div className="rounded-[1.35rem] border border-border/80 bg-primary p-5 text-primary-foreground shadow-lift">
                       <p className="text-xs font-semibold uppercase tracking-[0.22em] text-primary-foreground/80">Transparencia</p>
                       <p className="mt-3 text-base leading-relaxed">
-                        Pagos protegidos, reglas visibles y movimientos internos claros en una sola plataforma.
+                        Pagos protegidos, reglas visibles y un historial fácil de entender en cada etapa.
                       </p>
                     </div>
                   </CardContent>
@@ -112,7 +109,7 @@ export default function HomePage() {
                   </div>
                   <div className="rounded-[1.6rem] border border-border/80 bg-accent p-5 text-accent-foreground shadow-lift">
                     <Sparkles className="h-5 w-5" />
-                    <p className="mt-5 font-display text-2xl">Premios reales</p>
+                    <p className="mt-5 font-display text-2xl">Selección cuidada</p>
                   </div>
                 </div>
               </div>
@@ -131,7 +128,7 @@ export default function HomePage() {
               </h2>
             </div>
             <p className="max-w-2xl text-lg leading-relaxed text-muted-foreground">
-              Participá por premios reales, usá saldo interno y seguí cada rifa con pagos protegidos y reglas claras.
+              Compará opciones, revisá tiempos y participá con una operatoria que te deja ver qué está pasando en cada momento.
             </p>
           </div>
 
@@ -139,22 +136,22 @@ export default function HomePage() {
             <FeatureCard
               icon={<Ticket className="h-6 w-6" />}
               title="Tickets accesibles"
-              description="Elegí tu rifa y comprá en segundos usando saldo interno."
+              description="Entrás en pocos pasos y el saldo queda listo para usar cuando quieras."
             />
             <FeatureCard
               icon={<Shield className="h-6 w-6" />}
               title="Pagos protegidos"
-              description="Tus cargas y consumos quedan dentro de una operatoria clara."
+              description="Tus cargas y consumos quedan registrados con una operatoria clara."
             />
             <FeatureCard
               icon={<Users className="h-6 w-6" />}
               title="Seguimiento claro"
-              description="Consultá avance, tiempos y estado de cada rifa en un solo lugar."
+              description="Consultá avance, tiempos y cambios de estado sin perderte nada."
             />
             <FeatureCard
               icon={<Zap className="h-6 w-6" />}
-              title="Rifas verificables"
-              description="Cada publicación mantiene reglas visibles y resultados trazables."
+              title="Reglas visibles"
+              description="Cada publicación muestra condiciones claras y resultados trazables."
             />
           </div>
         </div>
@@ -164,8 +161,8 @@ export default function HomePage() {
         <div className="container mx-auto px-4">
           <div className="mb-12 grid gap-6 lg:grid-cols-[320px_minmax(0,1fr)] lg:items-end">
             <div className="rounded-[2rem] border border-border/80 bg-card/90 p-6 shadow-panel">
-              <p className="editorial-kicker text-primary">Rifas destacadas</p>
-              <h2 className="mt-4 font-display text-4xl leading-none">Los premios más codiciados de esta semana</h2>
+              <p className="editorial-kicker text-primary">Destacados</p>
+              <h2 className="mt-4 font-display text-4xl leading-none">Lo más buscado de la semana</h2>
               <Link href="/search" className="mt-6 inline-flex">
                 <Button variant="outline" className="group btn-press">
                   Ver todas
@@ -174,7 +171,7 @@ export default function HomePage() {
               </Link>
             </div>
             <div className="rounded-[2rem] border border-dashed border-border/80 px-6 py-6 text-sm leading-relaxed text-muted-foreground">
-              Explorá rifas activas con tickets accesibles, progreso visible y pagos internos protegidos.
+              Explorá publicaciones activas, compará avance y encontrá opciones con tickets accesibles.
             </div>
           </div>
 
@@ -193,10 +190,10 @@ export default function HomePage() {
                 </div>
                 <div className="space-y-4">
                   <h2 className="font-display text-4xl leading-none text-balance sm:text-5xl">
-                    ¿Tenés algo que rifar?
+                    ¿Tenés algo para vender?
                   </h2>
                   <p className="max-w-2xl text-lg leading-relaxed text-primary-foreground/82">
-                    Creá tu propia rifa, definí el valor de cada ticket y administrá la participación desde una operatoria clara y simple.
+                    Publicalo, definí el valor de cada ticket y administrá la participación con una operatoria clara y simple.
                   </p>
                 </div>
               </div>

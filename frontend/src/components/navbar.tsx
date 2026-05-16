@@ -127,8 +127,7 @@ export function Navbar() {
           <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[1.2rem] border border-primary/20 bg-primary text-primary-foreground shadow-lift transition-transform group-hover:-translate-y-0.5 sm:h-12 sm:w-12">
             <Ticket className="h-5 w-5" />
           </div>
-          <div className="min-w-0 space-y-1">
-            <p className="editorial-kicker text-primary">Rifas digitales</p>
+          <div className="min-w-0">
             <span className="block truncate font-display text-xl leading-none text-foreground sm:text-2xl">
               {BRAND_NAME}
             </span>
@@ -141,7 +140,7 @@ export function Navbar() {
           <NavLink href="/search">Explorar</NavLink>
           {isAuthenticated && (
             <NavLink href="/dashboard/create" icon={<Sparkles className="w-3.5 h-3.5" />}>
-              Crear rifa
+              Publicar
             </NavLink>
           )}
         </nav>
@@ -220,7 +219,7 @@ export function Navbar() {
                             icon={<PlusCircle className="h-4 w-4" />}
                             ref={(el) => { menuItemsRef.current[menuIndex++] = el; }}
                           >
-                            Mis rifas
+                            Mis publicaciones
                           </DropdownLink>
                         );
                         items.push(
@@ -385,7 +384,7 @@ export function Navbar() {
           {isAuthenticated ? (
             <>
               <MobileNavLink href="/dashboard/create" onClick={closeMobileMenu} icon={<Sparkles className="h-4 w-4" />}>
-                Crear rifa
+                Publicar
               </MobileNavLink>
 
               <div className="divider my-4" />
@@ -397,7 +396,7 @@ export function Navbar() {
                 Saldo LUK
               </MobileNavLink>
               <MobileNavLink href="/dashboard/sales" onClick={closeMobileMenu} icon={<PlusCircle className="h-4 w-4" />}>
-                Mis rifas
+                Mis publicaciones
               </MobileNavLink>
               <MobileNavLink href="/dashboard/favorites" onClick={closeMobileMenu} icon={<Heart className="h-4 w-4" />}>
                 Favoritos

@@ -102,7 +102,7 @@ function EmptyStateCard() {
       </div>
       <CardHeader className="pb-2">
         <CardTitle className="line-clamp-1 transition-colors group-hover:text-primary">
-          Nuevas rifas pronto...
+          Nuevos destacados pronto...
         </CardTitle>
         <p className="text-sm text-muted-foreground">Volvé más tarde</p>
       </CardHeader>
