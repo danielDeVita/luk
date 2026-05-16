@@ -80,7 +80,7 @@ This file is the repo-wide source of truth for OpenAI/Codex-style agents working
 - `COMMANDS.md`: root commands, Docker workflow, QA helpers
 - `backend/README.md`: backend modules, endpoints, environment, testing
 - `frontend/README.md`: frontend routes, UI architecture, E2E coverage
-- `docs/social-promotions-implementation.md`: social promotion design details
+- `docs/social-promotions.md`: social promotion design details
 
 ## MCP And Skills
 

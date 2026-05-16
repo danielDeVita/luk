@@ -1,8 +1,8 @@
-# Social Promotions: Estado Actual
+# Social Promotions
 
 ## Resumen
 
-La feature de promoción social verificable ya está implementada en el proyecto.
+La promoción social verificable permite que sellers publiquen una rifa en redes, registren el permalink y obtengan una bonificación promocional interna si la publicación cumple las reglas.
 
 Hoy permite:
 
@@ -179,34 +179,12 @@ El log admin de reversiones muestra:
 - `redemptionId`;
 - tipo de refund.
 
-## Qué ya funciona bien
-
-- seller CTA `Promocionar y medir`;
-- flujo de draft + permalink;
-- assets descargables para publicaciones sociales;
-- soporte visual especial para Instagram;
-- métricas visibles en seller dashboard;
-- revalidación manual y automática por worker;
-- extracción bilingüe de señales visibles en español e inglés;
-- notificación activa al seller cuando gana un grant;
-- reversión robusta de grants en refunds completos;
-- no reversión de grants en refunds parciales;
-- log admin explícito de reversiones de grants.
-
 ## Limitaciones actuales
 
 - se usan señales públicas, no métricas internas oficiales de las redes;
 - `X` y `Facebook` pueden exigir `Playwright` para conseguir métricas visibles;
 - algunas métricas pueden seguir viniendo como `null` si la red no las expone públicamente;
 - el admin muestra cola de `TECHNICAL_REVIEW` y log de reversiones, pero no un historial completo de todos los posts promocionales.
-
-## Pendientes abiertos
-
-Los pendientes operativos, legales o de producto que sigan abiertos ya no se documentan en un plan separado.
-
-Ver:
-
-- [open-todos.md](./open-todos.md)
 
 ## Comandos útiles
 

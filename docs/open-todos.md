@@ -17,7 +17,7 @@ No intenta reemplazar esos documentos. Sirve como checklist única para ordenar 
 
 - [ ] Definir si habrá hostname de `staging` antes de producción.
   Si no existe `staging`, Turnstile debe seguir apagado fuera de QA local con test keys.
-  Fuente: [frontend/README.md](../frontend/README.md), [aws-migration-plan.md](./aws-migration-plan.md)
+  Fuente: [turnstile-production.md](./turnstile-production.md), [aws-migration-plan.md](./aws-migration-plan.md)
 
 - [ ] Crear el widget real de Cloudflare Turnstile cuando exista un hostname real o estable.
   Cargar:
@@ -26,7 +26,7 @@ No intenta reemplazar esos documentos. Sirve como checklist única para ordenar 
   `TURNSTILE_ENABLED`
   `TURNSTILE_SECRET_KEY`
   Hasta entonces, mantenerlo desactivado o usar test keys sólo para QA local.
-  Fuente: [frontend/README.md](../frontend/README.md), [backend/README.md](../backend/README.md)
+  Fuente: [turnstile-production.md](./turnstile-production.md), [frontend/README.md](../frontend/README.md), [backend/README.md](../backend/README.md)
 
 - [ ] Restaurar Prisma Migrate para un flujo productivo real.
   Incluye:
@@ -106,11 +106,11 @@ No intenta reemplazar esos documentos. Sirve como checklist única para ordenar 
 
 - [ ] Actualizar términos, privacidad y copy legal para social promotions.
   Debe quedar explícito que Luk monitorea publicaciones públicas y que la bonificación promocional no es dinero ni saldo retirable.
-  Fuente: [social-promotions-implementation.md](./social-promotions-implementation.md)
+  Fuente: [social-promotions.md](./social-promotions.md)
 
 - [ ] Revisar wording de producto para usar consistentemente `bonificación promocional`.
   En social promotions, evitar llamar `saldo` o `créditos` a los grants. `Saldo LUK` sí queda como término de producto para el balance interno cargado con Mercado Pago o mock.
-  Fuente: [social-promotions-implementation.md](./social-promotions-implementation.md)
+  Fuente: [social-promotions.md](./social-promotions.md)
 
 - [ ] Probar login por email/password en entorno real.
   Fuente: [aws-migration-plan.md](./aws-migration-plan.md)
@@ -135,7 +135,7 @@ No intenta reemplazar esos documentos. Sirve como checklist única para ordenar 
 
 - [ ] Revalidar Turnstile con hostname real.
   Verificar que el widget esté creado en Cloudflare con el hostname final y que frontend/backend usen el par site key/secret key correcto.
-  Fuente: [frontend/README.md](../frontend/README.md), [backend/README.md](../backend/README.md)
+  Fuente: [turnstile-production.md](./turnstile-production.md), [frontend/README.md](../frontend/README.md), [backend/README.md](../backend/README.md)
 
 ## P4. Para Después De Tener Tracción
 

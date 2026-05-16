@@ -123,7 +123,7 @@ GOOGLE_CLIENT_SECRET="GOCSPX-xxx"
 GOOGLE_CALLBACK_URL="http://localhost:3001/auth/google/callback"
 ```
 
-If Cloudflare Turnstile is enabled for auth, production should set both backend vars above and the matching frontend vars `NEXT_PUBLIC_TURNSTILE_ENABLED` + `NEXT_PUBLIC_TURNSTILE_SITE_KEY`. The site key is public; `TURNSTILE_SECRET_KEY` must stay backend-only.
+If Cloudflare Turnstile is enabled for auth, production should set both backend vars above and the matching frontend vars `NEXT_PUBLIC_TURNSTILE_ENABLED` + `NEXT_PUBLIC_TURNSTILE_SITE_KEY`. The site key is public; `TURNSTILE_SECRET_KEY` must stay backend-only. See the production guide: [docs/turnstile-production.md](../docs/turnstile-production.md).
 
 ### Mock top-ups for local QA
 
@@ -743,7 +743,7 @@ Seller onboarding uses internal payout data, not payment-provider OAuth.
 | `FRONTEND_URL`         | Frontend URL for redirects                                                                                                                   |
 | `BACKEND_URL`          | Backend URL for webhooks                                                                                                                     |
 | `TURNSTILE_ENABLED`    | Enables Cloudflare Turnstile validation for email/password login and register                                                                |
-| `TURNSTILE_SECRET_KEY` | Cloudflare Turnstile secret key (backend only)                                                                                               |
+| `TURNSTILE_SECRET_KEY` | Cloudflare Turnstile secret key (backend only). See [docs/turnstile-production.md](../docs/turnstile-production.md)                         |
 | `SENTRY_DSN`           | Backend/worker Sentry DSN (optional)                                                                                                         |
 | `SENTRY_RELEASE`       | Backend/worker release identifier (optional, recommended in prod/staging)                                                                    |
 | `ENCRYPTION_KEY`       | **64 hex chars** - Encrypts PII: KYC data (DNI, CUIT, addresses, phone) + seller payout account identifiers using AES-256-GCM. Generate with: `openssl rand -hex 32` |

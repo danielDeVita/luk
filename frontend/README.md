@@ -88,7 +88,7 @@ Keep the Sentry DSNs empty in local development if you do not want browser/serve
 
 Turnstile is optional in local/dev. When `NEXT_PUBLIC_TURNSTILE_ENABLED="true"`, the frontend requires `NEXT_PUBLIC_TURNSTILE_SITE_KEY`. The site key is public and must never be confused with the backend secret key.
 
-Real Turnstile keys require a widget configured with a real or stable hostname in Cloudflare. Until LUK has a real domain or at least a staging hostname, keep Turnstile disabled in normal local development or use Cloudflare test keys only for local QA.
+Real Turnstile keys require a widget configured with a real or stable hostname in Cloudflare. Until LUK has a real domain or at least a staging hostname, keep Turnstile disabled in normal local development or use Cloudflare test keys only for local QA. See the production guide: [docs/turnstile-production.md](../docs/turnstile-production.md).
 
 ## Project Structure
 
