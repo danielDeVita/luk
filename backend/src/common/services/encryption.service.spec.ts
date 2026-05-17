@@ -376,6 +376,8 @@ describe('EncryptionService', () => {
     it('should contain all expected PII fields', () => {
       const expectedFields = [
         'accountIdentifierEncrypted',
+        'providerAccessTokenEncrypted',
+        'providerRefreshTokenEncrypted',
         'documentNumber',
         'cuitCuil',
         'street',
@@ -390,8 +392,8 @@ describe('EncryptionService', () => {
       expect(PII_FIELDS).toEqual(expectedFields);
     });
 
-    it('should have 10 PII fields defined', () => {
-      expect(PII_FIELDS.length).toBe(10);
+    it('should have 12 PII fields defined', () => {
+      expect(PII_FIELDS.length).toBe(12);
     });
   });
 });
