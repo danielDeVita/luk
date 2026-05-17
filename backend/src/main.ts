@@ -11,6 +11,37 @@ import { WINSTON_MODULE_NEST_PROVIDER } from 'nest-winston';
 import helmet from 'helmet';
 import * as cookieParser from 'cookie-parser';
 
+const LOCAL_DEV_CORS_ORIGINS = [
+  'http://localhost:3000',
+  'http://127.0.0.1:3000',
+];
+
+function parseUrlList(value: string | undefined): string[] {
+  return (
+    value
+      ?.split(',')
+      .map((origin) => origin.trim())
+      .filter(Boolean) ?? []
+  );
+}
+
+function resolveCorsOrigins(): string[] {
+  const configuredOrigins = parseUrlList(process.env.CORS_ORIGIN);
+  const frontendOrigins = parseUrlList(process.env.FRONTEND_URL);
+  const localDevOrigins =
+    process.env.NODE_ENV === 'development' ? LOCAL_DEV_CORS_ORIGINS : [];
+
+  const origins = [
+    ...configuredOrigins,
+    ...frontendOrigins,
+    ...localDevOrigins,
+  ];
+
+  return Array.from(
+    new Set(origins.length > 0 ? origins : LOCAL_DEV_CORS_ORIGINS),
+  );
+}
+
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
     rawBody: true, // Required for MP/Stripe webhooks signature verification
@@ -84,7 +115,7 @@ async function bootstrap() {
 
   // CORS configuration
   app.enableCors({
-    origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
+    origin: resolveCorsOrigins(),
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: [
       'Authorization',
