@@ -42,6 +42,7 @@ export class PaymentsController {
   async connectSellerPaymentAccount(
     @Req() req: AuthenticatedRequest,
     @Res() res: Response,
+    @Query('response') responseType?: string,
   ) {
     if (!req.user?.id) {
       return res
@@ -51,6 +52,11 @@ export class PaymentsController {
 
     const authorizationUrl =
       this.paymentsService.startSellerPaymentAccountConnection(req.user.id);
+
+    if (responseType === 'json') {
+      return res.status(HttpStatus.OK).json({ authorizationUrl });
+    }
+
     return res.redirect(authorizationUrl);
   }
 

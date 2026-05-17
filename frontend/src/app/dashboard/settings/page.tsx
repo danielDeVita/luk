@@ -23,6 +23,7 @@ import Image from 'next/image';
 import { getOptimizedImageUrl, CLOUDINARY_PRESETS } from '@/lib/cloudinary';
 import { TwoFactorSettingsCard } from '@/components/auth/two-factor-settings-card';
 import { OnboardingNudge } from '@/components/onboarding/onboarding-nudge';
+import { getSellerPaymentAccountAuthorizationUrl } from '@/lib/payment-account-connect';
 
 // Types
 interface SettingsUserData {
@@ -259,7 +260,7 @@ function KycStatusBadge({ status }: { status: string }) {
 
 function SettingsContent() {
   const router = useRouter();
-  const { user, isAuthenticated, hasHydrated, updateUser } =
+  const { user, token, isAuthenticated, hasHydrated, updateUser, setToken } =
     useAuthStore();
   const searchParams = useSearchParams();
   const backendUrl =
@@ -514,9 +515,24 @@ function SettingsContent() {
     updateKyc({ variables: { input: data } });
   };
 
-  const handleConnectPaymentAccount = () => {
+  const handleConnectPaymentAccount = async () => {
     setIsConnectingPaymentAccount(true);
-    window.location.href = `${backendUrl}/payments/account`;
+    try {
+      const authorizationUrl = await getSellerPaymentAccountAuthorizationUrl({
+        backendUrl,
+        token,
+        setToken,
+      });
+
+      window.location.href = authorizationUrl;
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : 'No pudimos conectar Mercado Pago. Intentá de nuevo.',
+      );
+      setIsConnectingPaymentAccount(false);
+    }
   };
 
   const handleDisconnectPaymentAccount = async () => {

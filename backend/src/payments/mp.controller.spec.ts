@@ -65,6 +65,26 @@ describe('PaymentsController', () => {
       );
     });
 
+    it('should return the Mercado Pago OAuth URL as JSON when requested by the frontend', async () => {
+      const req = mockRequest('seller-1');
+      const res = mockResponse();
+      mockPaymentsService.startSellerPaymentAccountConnection.mockReturnValue(
+        'https://auth.mercadopago.com.ar/authorization?state=signed',
+      );
+
+      await controller.connectSellerPaymentAccount(req, res, 'json');
+
+      expect(
+        mockPaymentsService.startSellerPaymentAccountConnection,
+      ).toHaveBeenCalledWith('seller-1');
+      expect(res.status).toHaveBeenCalledWith(HttpStatus.OK);
+      expect(res.json).toHaveBeenCalledWith({
+        authorizationUrl:
+          'https://auth.mercadopago.com.ar/authorization?state=signed',
+      });
+      expect(res.redirect).not.toHaveBeenCalled();
+    });
+
     it('should reject account connection without an authenticated user', async () => {
       const req = mockRequest();
       const res = mockResponse();
