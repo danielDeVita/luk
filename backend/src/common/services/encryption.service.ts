@@ -8,6 +8,8 @@ import { encrypt, decrypt, isEncrypted } from '../utils/encryption.util';
  */
 export const PII_FIELDS = [
   'accountIdentifierEncrypted',
+  'providerAccessTokenEncrypted',
+  'providerRefreshTokenEncrypted',
   'documentNumber',
   'cuitCuil',
   'street',

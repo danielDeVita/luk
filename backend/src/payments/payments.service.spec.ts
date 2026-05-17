@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import {
   CreditTopUpStatus,
+  KycStatus,
   PaymentsProvider,
   Prisma,
   WalletLedgerEntryType,
@@ -11,8 +12,10 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { WalletService } from '../wallet/wallet.service';
 import { MercadoPagoTopUpProvider } from './providers/mercado-pago-topup.provider';
+import { MercadoPagoSellerProvider } from './providers/mercado-pago-seller.provider';
 import { MockPaymentProvider } from './providers/mock-payment.provider';
 import { PaymentsService } from './payments.service';
+import { EncryptionService } from '../common/services/encryption.service';
 
 describe('PaymentsService', () => {
   let service: PaymentsService;
@@ -21,6 +24,11 @@ describe('PaymentsService', () => {
     $transaction: jest.fn(),
     user: {
       findUnique: jest.fn(),
+      update: jest.fn(),
+    },
+    sellerPaymentAccount: {
+      upsert: jest.fn(),
+      deleteMany: jest.fn(),
     },
     creditTopUpSession: {
       create: jest.fn(),
@@ -55,6 +63,11 @@ describe('PaymentsService', () => {
     refundTopUp: jest.fn(),
   };
 
+  const mercadoPagoSellerProvider = {
+    buildAuthorizationUrl: jest.fn(),
+    completeOAuth: jest.fn(),
+  };
+
   const mockPaymentProvider = {
     createCreditTopUp: jest.fn(),
     getTopUpStatus: jest.fn(),
@@ -78,6 +91,12 @@ describe('PaymentsService', () => {
     logCreditTopUpApproved: jest.fn(),
     logCreditTopUpFailed: jest.fn(),
     logCreditTopUpRefunded: jest.fn(),
+    logSellerPaymentAccountConnected: jest.fn(),
+    logSellerPaymentAccountDisconnected: jest.fn(),
+  };
+
+  const encryptionService = {
+    encrypt: jest.fn((value: string | null) => value),
   };
 
   const configService = {
@@ -89,6 +108,10 @@ describe('PaymentsService', () => {
       };
       return values[key];
     }),
+    getOrThrow: jest.fn((key: string) => {
+      if (key === 'JWT_SECRET') return 'test-jwt-secret';
+      throw new Error(`Missing config ${key}`);
+    }),
   };
 
   beforeEach(async () => {
@@ -97,10 +120,23 @@ describe('PaymentsService', () => {
       callback(prisma),
     );
     prisma.user.findUnique.mockResolvedValue({
+      id: 'user-1',
       email: 'buyer@luk.test',
       nombre: 'Buyer',
       apellido: 'QA',
     });
+    prisma.user.update.mockResolvedValue({
+      id: 'seller-1',
+      sellerPaymentAccountStatus: 'CONNECTED',
+      sellerPaymentAccountId: 'spa-1',
+      sellerPaymentAccount: null,
+    });
+    prisma.sellerPaymentAccount.upsert.mockResolvedValue({
+      id: 'spa-1',
+      userId: 'seller-1',
+      status: 'CONNECTED',
+    });
+    prisma.sellerPaymentAccount.deleteMany.mockResolvedValue({ count: 1 });
     prisma.creditTopUpSession.create.mockResolvedValue({
       id: 'topup-1',
       userId: 'user-1',
@@ -114,6 +150,7 @@ describe('PaymentsService', () => {
     prisma.raffle.findUnique.mockResolvedValue({
       deliveryStatus: 'CONFIRMED',
       paymentReleasedAt: null,
+      confirmedAt: new Date('2026-01-01T00:00:00.000Z'),
       dispute: null,
     });
     walletService.creditUserBalance.mockResolvedValue({
@@ -133,6 +170,17 @@ describe('PaymentsService', () => {
     mockPaymentProvider.getActionType.mockImplementation(
       (action: string) => action,
     );
+    mercadoPagoSellerProvider.buildAuthorizationUrl.mockReturnValue(
+      'https://auth.mercadopago.com.ar/authorization?state=signed',
+    );
+    mercadoPagoSellerProvider.completeOAuth.mockResolvedValue({
+      providerAccountId: 'mp-seller-1',
+      providerEmail: 'seller@mp.test',
+      accessToken: 'access-token',
+      refreshToken: 'refresh-token',
+      tokenExpiresAt: new Date('2026-05-16T15:00:00.000Z'),
+      metadata: { scope: 'offline_access', siteId: 'MLA' },
+    });
     notificationsService.create.mockResolvedValue({ id: 'notification-1' });
     notificationsService.sendCreditTopUpApprovedNotification.mockResolvedValue(
       true,
@@ -163,9 +211,14 @@ describe('PaymentsService', () => {
         { provide: PrismaService, useValue: prisma },
         { provide: WalletService, useValue: walletService },
         { provide: MercadoPagoTopUpProvider, useValue: mercadoPagoProvider },
+        {
+          provide: MercadoPagoSellerProvider,
+          useValue: mercadoPagoSellerProvider,
+        },
         { provide: MockPaymentProvider, useValue: mockPaymentProvider },
         { provide: NotificationsService, useValue: notificationsService },
         { provide: ActivityService, useValue: activityService },
+        { provide: EncryptionService, useValue: encryptionService },
       ],
     }).compile();
 
@@ -242,9 +295,14 @@ describe('PaymentsService', () => {
         { provide: PrismaService, useValue: prisma },
         { provide: WalletService, useValue: walletService },
         { provide: MercadoPagoTopUpProvider, useValue: mercadoPagoProvider },
+        {
+          provide: MercadoPagoSellerProvider,
+          useValue: mercadoPagoSellerProvider,
+        },
         { provide: MockPaymentProvider, useValue: mockPaymentProvider },
         { provide: NotificationsService, useValue: notificationsService },
         { provide: ActivityService, useValue: activityService },
+        { provide: EncryptionService, useValue: encryptionService },
       ],
     }).compile();
     const mercadoPagoService = module.get(PaymentsService);
@@ -344,9 +402,14 @@ describe('PaymentsService', () => {
         { provide: PrismaService, useValue: prisma },
         { provide: WalletService, useValue: walletService },
         { provide: MercadoPagoTopUpProvider, useValue: mercadoPagoProvider },
+        {
+          provide: MercadoPagoSellerProvider,
+          useValue: mercadoPagoSellerProvider,
+        },
         { provide: MockPaymentProvider, useValue: mockPaymentProvider },
         { provide: NotificationsService, useValue: notificationsService },
         { provide: ActivityService, useValue: activityService },
+        { provide: EncryptionService, useValue: encryptionService },
       ],
     }).compile();
     const mercadoPagoService = module.get(PaymentsService);
@@ -459,6 +522,69 @@ describe('PaymentsService', () => {
       amount: 40,
       fullRefund: false,
     });
+  });
+
+  it('connects a seller Mercado Pago account from a signed OAuth state', async () => {
+    let signedState = '';
+    mercadoPagoSellerProvider.buildAuthorizationUrl.mockImplementation(
+      (state: string) => {
+        signedState = state;
+        return `https://auth.mercadopago.com.ar/authorization?state=${state}`;
+      },
+    );
+    prisma.user.findUnique.mockResolvedValueOnce({
+      id: 'seller-1',
+      kycStatus: KycStatus.VERIFIED,
+      cuitCuil: '20-12345678-9',
+      defaultSenderAddressId: 'addr-1',
+      shippingAddresses: [],
+    });
+
+    const authorizationUrl =
+      service.startSellerPaymentAccountConnection('seller-1');
+    await service.completeSellerPaymentAccountConnection(
+      'oauth-code',
+      signedState,
+    );
+
+    expect(authorizationUrl).toContain('https://auth.mercadopago.com.ar');
+    expect(mercadoPagoSellerProvider.completeOAuth).toHaveBeenCalledWith(
+      'oauth-code',
+    );
+    expect(prisma.sellerPaymentAccount.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { userId: 'seller-1' },
+        create: expect.objectContaining({
+          provider: PaymentsProvider.MERCADO_PAGO,
+          status: 'CONNECTED',
+          providerAccountId: 'mp-seller-1',
+          providerEmail: 'seller@mp.test',
+        }),
+      }),
+    );
+    expect(
+      activityService.logSellerPaymentAccountConnected,
+    ).toHaveBeenCalledWith('seller-1', 'spa-1');
+  });
+
+  it('disconnects a seller Mercado Pago account', async () => {
+    await service.disconnectSellerPaymentAccount('seller-1');
+
+    expect(prisma.sellerPaymentAccount.deleteMany).toHaveBeenCalledWith({
+      where: { userId: 'seller-1' },
+    });
+    expect(prisma.user.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'seller-1' },
+        data: expect.objectContaining({
+          sellerPaymentAccountStatus: 'NOT_CONNECTED',
+          sellerPaymentAccountId: null,
+        }),
+      }),
+    );
+    expect(
+      activityService.logSellerPaymentAccountDisconnected,
+    ).toHaveBeenCalledWith('seller-1');
   });
 
   it('keeps payout release checks provider-neutral', async () => {

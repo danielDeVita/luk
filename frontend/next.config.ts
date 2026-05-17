@@ -1,5 +1,9 @@
 import type { NextConfig } from "next";
 import { withSentryConfig } from "@sentry/nextjs";
+import { dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const frontendRoot = dirname(fileURLToPath(import.meta.url));
 
 function getAllowedConnectOrigins(): string[] {
   const allowedOrigins = new Set<string>(["'self'"]);
@@ -31,8 +35,9 @@ function getAllowedConnectOrigins(): string[] {
 const nextConfig: NextConfig = {
   output: 'standalone',
   reactCompiler: true,
-  // Note: turbopack.root: '..' causes module resolution issues with frontend deps
-  // The lockfile warning is harmless - ignore it
+  turbopack: {
+    root: frontendRoot,
+  },
   images: {
     remotePatterns: [
       {

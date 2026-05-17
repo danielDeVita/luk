@@ -64,28 +64,56 @@ export class RaffleTasksService {
         },
       });
 
+      let failedCount = 0;
+
       for (const raffle of expiredRaffles) {
-        if (raffle.estado === 'COMPLETADA') {
-          await this.executeRaffleDraw(raffle.id);
-          continue;
-        }
+        try {
+          if (raffle.estado === 'COMPLETADA') {
+            await this.executeRaffleDraw(raffle.id);
+            continue;
+          }
 
-        const paidTickets = raffle.tickets.filter((t) => t.estado === 'PAGADO');
-        const percentSold = paidTickets.length / raffle.totalTickets;
+          const paidTickets = raffle.tickets.filter(
+            (t) => t.estado === 'PAGADO',
+          );
+          const percentSold = paidTickets.length / raffle.totalTickets;
 
-        this.logger.log(
-          `Raffle ${raffle.id}: ${(percentSold * 100).toFixed(1)}% sold (${paidTickets.length}/${raffle.totalTickets})`,
-        );
+          this.logger.log(
+            `Raffle ${raffle.id}: ${(percentSold * 100).toFixed(1)}% sold (${paidTickets.length}/${raffle.totalTickets})`,
+          );
 
-        if (percentSold >= this.MIN_SALE_THRESHOLD) {
-          await this.executeRaffleDraw(raffle.id);
-        } else {
-          await this.cancelAndRefundRaffle(raffle.id, percentSold);
+          if (percentSold >= this.MIN_SALE_THRESHOLD) {
+            await this.executeRaffleDraw(raffle.id);
+          } else {
+            await this.cancelAndRefundRaffle(raffle.id, percentSold);
+          }
+        } catch (error) {
+          failedCount += 1;
+          this.logger.error(
+            `Error processing expired raffle ${raffle.id}:`,
+            error instanceof Error ? error.stack : error,
+          );
+          captureException(
+            error instanceof Error
+              ? error
+              : new Error('Error processing expired raffle'),
+            {
+              tags: {
+                service: 'luk-backend',
+                domain: 'raffles',
+                stage: 'cron',
+              },
+              extra: {
+                raffleId: raffle.id,
+                raffleStatus: raffle.estado,
+              },
+            },
+          );
         }
       }
 
       this.logger.log(
-        `Finished: Processed ${expiredRaffles.length} expired raffles`,
+        `Finished: Processed ${expiredRaffles.length} expired raffles (${failedCount} failed)`,
       );
     } catch (error) {
       this.logger.error(

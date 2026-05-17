@@ -2,12 +2,15 @@ import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
   CreditTopUpStatus,
+  KycStatus,
   PaymentsProvider,
   Prisma,
+  SellerPaymentAccountStatus,
   WalletLedgerEntryType,
 } from '@prisma/client';
-import { randomUUID } from 'crypto';
+import { createHmac, randomUUID, timingSafeEqual } from 'crypto';
 import { getPlatformFeeRate } from '../common/config/platform-fee.util';
+import { EncryptionService } from '../common/services/encryption.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { WalletService } from '../wallet/wallet.service';
 import { ActivityService } from '../activity/activity.service';
@@ -17,6 +20,7 @@ import {
   MercadoPagoTopUpProvider,
   MercadoPagoWebhookPayload,
 } from './providers/mercado-pago-topup.provider';
+import { MercadoPagoSellerProvider } from './providers/mercado-pago-seller.provider';
 import { captureException } from '../sentry';
 import type {
   MockTopUpAction,
@@ -31,6 +35,12 @@ interface CreditTopUpReference {
   userId: string;
 }
 
+interface SellerOAuthState {
+  userId: string;
+  nonce: string;
+  expiresAt: number;
+}
+
 @Injectable()
 export class PaymentsService {
   private readonly logger = new Logger(PaymentsService.name);
@@ -42,9 +52,11 @@ export class PaymentsService {
     private readonly prisma: PrismaService,
     private readonly walletService: WalletService,
     private readonly mercadoPagoProvider: MercadoPagoTopUpProvider,
+    private readonly mercadoPagoSellerProvider: MercadoPagoSellerProvider,
     private readonly mockPaymentProvider: MockPaymentProvider,
     private readonly notificationsService: NotificationsService,
     private readonly activityService: ActivityService,
+    private readonly encryptionService: EncryptionService,
   ) {
     const explicitProvider = (
       this.configService.get<string>('PAYMENTS_PROVIDER') || ''
@@ -68,6 +80,153 @@ export class PaymentsService {
     }
 
     this.platformFeeRate = getPlatformFeeRate(this.configService);
+  }
+
+  startSellerPaymentAccountConnection(userId: string): string {
+    const state = this.signSellerOAuthState({
+      userId,
+      nonce: randomUUID(),
+      expiresAt: Date.now() + 10 * 60 * 1000,
+    });
+
+    return this.mercadoPagoSellerProvider.buildAuthorizationUrl(state);
+  }
+
+  async completeSellerPaymentAccountConnection(code: string, state: string) {
+    const oauthState = this.verifySellerOAuthState(state);
+    const connectedAccount =
+      await this.mercadoPagoSellerProvider.completeOAuth(code);
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: oauthState.userId },
+      select: {
+        id: true,
+        kycStatus: true,
+        cuitCuil: true,
+        defaultSenderAddressId: true,
+        shippingAddresses: { take: 1, select: { id: true } },
+      },
+    });
+
+    if (!user) {
+      throw new BadRequestException('Usuario no encontrado');
+    }
+
+    const accessTokenEncrypted = this.encryptionService.encrypt(
+      connectedAccount.accessToken,
+    );
+    if (!accessTokenEncrypted) {
+      throw new BadRequestException(
+        'Mercado Pago no devolvió credenciales válidas',
+      );
+    }
+
+    const status = this.computeSellerPaymentAccountStatus({
+      kycStatus: user.kycStatus,
+      cuitCuil: user.cuitCuil,
+      defaultSenderAddressId: user.defaultSenderAddressId,
+      shippingAddresses: user.shippingAddresses,
+      providerAccountId: connectedAccount.providerAccountId,
+      providerAccessTokenEncrypted: accessTokenEncrypted,
+    });
+    const providerMetadata = JSON.parse(
+      JSON.stringify(connectedAccount.metadata),
+    ) as Prisma.InputJsonValue;
+
+    const account = await this.prisma.sellerPaymentAccount.upsert({
+      where: { userId: user.id },
+      create: {
+        userId: user.id,
+        provider: PaymentsProvider.MERCADO_PAGO,
+        status,
+        providerAccountId: connectedAccount.providerAccountId,
+        providerEmail: connectedAccount.providerEmail,
+        providerAccessTokenEncrypted: accessTokenEncrypted,
+        providerRefreshTokenEncrypted: this.encryptionService.encrypt(
+          connectedAccount.refreshToken,
+        ),
+        providerTokenExpiresAt: connectedAccount.tokenExpiresAt,
+        accountHolderName: connectedAccount.providerEmail,
+        providerMetadata,
+        lastSyncedAt: new Date(),
+      },
+      update: {
+        provider: PaymentsProvider.MERCADO_PAGO,
+        status,
+        providerAccountId: connectedAccount.providerAccountId,
+        providerEmail: connectedAccount.providerEmail,
+        providerAccessTokenEncrypted: accessTokenEncrypted,
+        providerRefreshTokenEncrypted: this.encryptionService.encrypt(
+          connectedAccount.refreshToken,
+        ),
+        providerTokenExpiresAt: connectedAccount.tokenExpiresAt,
+        accountHolderName: connectedAccount.providerEmail,
+        accountIdentifierType: null,
+        accountIdentifierEncrypted: null,
+        providerMetadata,
+        lastSyncedAt: new Date(),
+      },
+    });
+
+    const updatedUser = await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        sellerPaymentAccountStatus: status,
+        sellerPaymentAccountId: account.id,
+      },
+      include: { sellerPaymentAccount: true },
+    });
+
+    await this.activityService.logSellerPaymentAccountConnected(
+      user.id,
+      account.id,
+    );
+
+    return updatedUser;
+  }
+
+  async disconnectSellerPaymentAccount(userId: string) {
+    await this.prisma.sellerPaymentAccount.deleteMany({ where: { userId } });
+    const updatedUser = await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        sellerPaymentAccountStatus: SellerPaymentAccountStatus.NOT_CONNECTED,
+        sellerPaymentAccountId: null,
+      },
+      include: { sellerPaymentAccount: true },
+    });
+
+    await this.activityService.logSellerPaymentAccountDisconnected(userId);
+
+    return updatedUser;
+  }
+
+  async getSellerPaymentAccountStatus(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        sellerPaymentAccountStatus: true,
+        sellerPaymentAccount: {
+          select: {
+            id: true,
+            provider: true,
+            status: true,
+            providerAccountId: true,
+            providerEmail: true,
+            lastSyncedAt: true,
+          },
+        },
+      },
+    });
+
+    if (!user) {
+      throw new BadRequestException('Usuario no encontrado');
+    }
+
+    return {
+      status: user.sellerPaymentAccountStatus,
+      account: user.sellerPaymentAccount,
+    };
   }
 
   async createCreditTopUp(userId: string, amount: number) {
@@ -412,6 +571,7 @@ export class PaymentsService {
       select: {
         deliveryStatus: true,
         paymentReleasedAt: true,
+        confirmedAt: true,
         dispute: { select: { estado: true } },
       },
     });
@@ -424,6 +584,17 @@ export class PaymentsService {
     }
     if (raffle.deliveryStatus !== 'CONFIRMED') {
       return { canRelease: false, reason: 'Entrega no confirmada' };
+    }
+    if (!raffle.confirmedAt) {
+      return { canRelease: false, reason: 'Entrega sin fecha de confirmación' };
+    }
+    const releaseDate = new Date(raffle.confirmedAt);
+    releaseDate.setDate(releaseDate.getDate() + 7);
+    if (releaseDate > new Date()) {
+      return {
+        canRelease: false,
+        reason: 'La protección al comprador todavía está vigente',
+      };
     }
     if (
       raffle.dispute &&
@@ -872,6 +1043,89 @@ export class PaymentsService {
 
   private isMockTopUpId(paymentId: string): boolean {
     return paymentId.startsWith('mock_') || paymentId.startsWith('cm');
+  }
+
+  private computeSellerPaymentAccountStatus(input: {
+    kycStatus: KycStatus;
+    cuitCuil?: string | null;
+    defaultSenderAddressId?: string | null;
+    shippingAddresses?: Array<{ id: string }> | null;
+    providerAccountId?: string | null;
+    providerAccessTokenEncrypted?: string | null;
+  }): SellerPaymentAccountStatus {
+    const hasAddress =
+      Boolean(input.defaultSenderAddressId) ||
+      Boolean(input.shippingAddresses && input.shippingAddresses.length > 0);
+    const hasCuit = Boolean(input.cuitCuil);
+    const hasConnectedProvider = Boolean(
+      input.providerAccountId && input.providerAccessTokenEncrypted,
+    );
+
+    return input.kycStatus === KycStatus.VERIFIED &&
+      hasAddress &&
+      hasCuit &&
+      hasConnectedProvider
+      ? SellerPaymentAccountStatus.CONNECTED
+      : SellerPaymentAccountStatus.PENDING;
+  }
+
+  private signSellerOAuthState(payload: SellerOAuthState): string {
+    const serializedPayload = Buffer.from(JSON.stringify(payload)).toString(
+      'base64url',
+    );
+    const signature = this.signSellerOAuthPayload(serializedPayload);
+    return `${serializedPayload}.${signature}`;
+  }
+
+  private verifySellerOAuthState(state: string): SellerOAuthState {
+    const [serializedPayload, signature] = state.split('.');
+    if (!serializedPayload || !signature) {
+      throw new BadRequestException('Estado OAuth inválido');
+    }
+
+    const expectedSignature = this.signSellerOAuthPayload(serializedPayload);
+    const received = Buffer.from(signature);
+    const expected = Buffer.from(expectedSignature);
+    if (
+      received.length !== expected.length ||
+      !timingSafeEqual(received, expected)
+    ) {
+      throw new BadRequestException('Estado OAuth inválido');
+    }
+
+    let payload: Partial<SellerOAuthState>;
+    try {
+      payload = JSON.parse(
+        Buffer.from(serializedPayload, 'base64url').toString('utf8'),
+      ) as Partial<SellerOAuthState>;
+    } catch {
+      throw new BadRequestException('Estado OAuth inválido');
+    }
+
+    if (
+      typeof payload.userId !== 'string' ||
+      typeof payload.nonce !== 'string' ||
+      typeof payload.expiresAt !== 'number'
+    ) {
+      throw new BadRequestException('Estado OAuth inválido');
+    }
+
+    if (payload.expiresAt < Date.now()) {
+      throw new BadRequestException('Estado OAuth expirado');
+    }
+
+    return {
+      userId: payload.userId,
+      nonce: payload.nonce,
+      expiresAt: payload.expiresAt,
+    };
+  }
+
+  private signSellerOAuthPayload(serializedPayload: string): string {
+    const secret = this.configService.getOrThrow<string>('JWT_SECRET');
+    return createHmac('sha256', secret)
+      .update(serializedPayload)
+      .digest('base64url');
   }
 
   private normalizeAmount(amount: number): number {

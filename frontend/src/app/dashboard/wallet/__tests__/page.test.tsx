@@ -33,6 +33,7 @@ describe('WalletPage', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    window.localStorage.clear();
     mockUseRouter.mockReturnValue({
       push: vi.fn(),
       replace: vi.fn(),
@@ -49,6 +50,43 @@ describe('WalletPage', () => {
       vi.fn(),
       { data: undefined, loading: false, error: undefined },
     ] as unknown as ReturnType<typeof useMutation>);
+  });
+
+  it('shows first top-up onboarding nudge for an empty wallet', async () => {
+    mockUseAuthStore.mockReturnValue({
+      hasHydrated: true,
+      isAuthenticated: true,
+      user: { id: 'buyer-1', email: 'buyer@test.com' },
+    } as unknown as ReturnType<typeof useAuthStore>);
+    mockUseQuery.mockImplementation((operation) => {
+      const operationName = getOperationName(operation);
+
+      if (operationName === 'MyWallet') {
+        return {
+          data: {
+            myWallet: {
+              id: 'wallet-1',
+              creditBalance: 0,
+              sellerPayableBalance: 0,
+            },
+          },
+          loading: false,
+          error: undefined,
+        } as unknown as ReturnType<typeof useQuery>;
+      }
+
+      return {
+        data: { walletLedger: [] },
+        loading: false,
+        error: undefined,
+      } as unknown as ReturnType<typeof useQuery>;
+    });
+
+    render(<WalletPage />);
+
+    expect(
+      await screen.findByText('Cargá saldo para participar'),
+    ).toBeInTheDocument();
   });
 
   it('shows receipt links only for eligible credit top-ups', async () => {

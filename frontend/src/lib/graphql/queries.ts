@@ -285,6 +285,8 @@ export const GET_MY_PAYOUTS = gql`
       processingFee
       netAmount
       status
+      providerPayoutStatus
+      providerPayoutStatusDetail
       scheduledFor
       processedAt
       createdAt
@@ -302,6 +304,8 @@ export const GET_RAFFLE_PAYOUT = gql`
       processingFee
       netAmount
       status
+      providerPayoutStatus
+      providerPayoutStatusDetail
       scheduledFor
       processedAt
     }

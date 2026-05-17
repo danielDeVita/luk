@@ -59,6 +59,7 @@ import {
   SocialPromotionManager,
   SocialPromotionPostsSummary,
 } from '@/components/social-promotions/social-promotion-manager';
+import { useOnboardingDismissals } from '@/hooks/use-onboarding-dismissals';
 
 const MY_RAFFLES = gql`
   query MyRaffles {
@@ -315,7 +316,8 @@ function getChartLabelDensity(chartWidth: number | null): 'full' | 'compact' | '
 function SalesDashboardContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { isAuthenticated, hasHydrated, token } = useAuthStore();
+  const { isAuthenticated, hasHydrated, token, user } = useAuthStore();
+  const { dismiss, isDismissed } = useOnboardingDismissals(user?.id);
   const [selectedRaffle, setSelectedRaffle] = useState<string | null>(null);
   const [trackingNumber, setTrackingNumber] = useState('');
   const [isShipDialogOpen, setIsShipDialogOpen] = useState(false);
@@ -659,8 +661,8 @@ function SalesDashboardContent() {
       },
       {
         id: 'payments',
-        label: 'Cargar datos de cobro',
-        description: 'Cuenta interna operativa',
+        label: 'Conectar Mercado Pago',
+        description: 'Cuenta de liquidaciones',
         completed: userData?.sellerPaymentAccountStatus === 'CONNECTED',
         href: '/dashboard/settings?tab=payments',
         icon: CreditCard,
@@ -843,6 +845,10 @@ function SalesDashboardContent() {
   const activeRafflesForSelection = raffles.filter((r) => r.estado === 'ACTIVA');
   const allActiveSelected =
     activeRafflesForSelection.length > 0 && activeRafflesForSelection.every((r) => selectedRaffleIds.includes(r.id));
+  const shouldShowSellerOnboarding =
+    !onboardingLoading &&
+    !onboardingSteps.allComplete &&
+    !isDismissed('sales-seller-checklist');
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -863,10 +869,10 @@ function SalesDashboardContent() {
       </div>
 
       {/* Onboarding Checklist - only show when data is loaded and onboarding is incomplete */}
-      {!onboardingLoading && !onboardingSteps.allComplete && (
+      {shouldShowSellerOnboarding && (
         <Card className="mb-8 border-primary/20 bg-gradient-to-r from-primary/5 to-transparent">
           <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <CardTitle className="text-lg">Primeros pasos para vender</CardTitle>
                 <CardDescription>
@@ -874,13 +880,23 @@ function SalesDashboardContent() {
                 </CardDescription>
                 {onboardingData?.me?.sellerPaymentAccountStatus !== 'CONNECTED' && (
                   <p className="mt-2 text-sm text-muted-foreground">
-                    Tus cobros se activan desde Configuración cargando datos de cobro internos.
+                    Tus cobros se activan desde Configuración conectando Mercado Pago para liquidaciones.
                   </p>
                 )}
               </div>
-              <span className="text-sm font-medium text-primary">
-                {onboardingSteps.completedCount}/{onboardingSteps.steps.length} completados
-              </span>
+              <div className="flex shrink-0 flex-col items-start gap-2 sm:items-end">
+                <span className="text-sm font-medium text-primary">
+                  {onboardingSteps.completedCount}/{onboardingSteps.steps.length} completados
+                </span>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => dismiss('sales-seller-checklist')}
+                >
+                  Ocultar por ahora
+                </Button>
+              </div>
             </div>
             <Progress value={onboardingSteps.progress} className="h-2 mt-3" />
           </CardHeader>

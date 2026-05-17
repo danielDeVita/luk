@@ -67,7 +67,7 @@ MP_ACCESS_TOKEN=""
 | `raffles/`           | Raffle CRUD, state management, seller dashboard, buyer experience, analytics  |
 | `tickets/`           | Ticket reservation and purchase                                               |
 | `wallet/`            | Saldo LUK accounts, ledger entries, buyer credits, and seller payable balances |
-| `payments/`          | Mercado Pago/mock top-up orchestration for Saldo LUK loads |
+| `payments/`          | Mercado Pago/mock Saldo LUK top-ups and Mercado Pago seller payout connections |
 | `disputes/`          | Buyer protection system                                                       |
 | `notifications/`     | Email (Brevo) + in-app notifications                                          |
 | `uploads/`           | Cloudinary upload signatures                                                  |
@@ -102,6 +102,10 @@ DATABASE_URL="postgresql://..."
 JWT_SECRET="..."
 PLATFORM_FEE_PERCENT="4"
 MP_ACCESS_TOKEN="TEST-..."
+MP_OAUTH_CLIENT_ID=""
+MP_OAUTH_CLIENT_SECRET=""
+MP_OAUTH_REDIRECT_URI="http://localhost:3001/payments/account/callback"
+MP_PAYOUTS_ENABLED="false"
 BACKEND_URL="http://localhost:3001"
 FRONTEND_URL="http://localhost:3000"
 PAYMENTS_PROVIDER="mercado_pago"  # or "mock" for local QA
@@ -237,20 +241,25 @@ docker compose -f docker-compose.dev.yml logs -f social-worker
 Ticket purchases do not open an external checkout. Buyers first load Saldo LUK through Mercado Pago or the local mock provider, then buy tickets with internal balance.
 
 - `1 Saldo LUK = $1 ARS`.
-- Mercado Pago is used only for `CreditTopUpSession`.
-- The provider-facing copy is wallet-only (`Carga de saldo LUK`, descriptor `LUK SALDO`).
-- Mercado Pago does not receive raffle, ticket-number, prize, seller, or raffle metadata.
+- Mercado Pago is used for `CreditTopUpSession` and, when enabled, seller payouts from Luk to connected seller MP wallets.
+- The provider-facing top-up copy is Saldo LUK only (`Carga de saldo LUK`, descriptor `LUK SALDO`).
+- Mercado Pago does not process ticket purchases and does not receive raffle, ticket-number, prize, or winner metadata.
 - Ticket refunds and dispute refunds credit Saldo LUK.
 - External Mercado Pago refunds apply only to loaded balance that has not been used.
-- Seller payable balance is internal and separate from buyer spendable balance.
+- Seller payable balance is internal and separate from buyer spendable balance until Luk runs a payout.
 - Approved top-ups mark `receiptVersion` / `receiptIssuedAt` and expose a wallet receipt.
 - Ticket purchases persist an immutable `TicketPurchaseReceipt` snapshot plus buyer acknowledgement state.
+- Seller liquidations require a connected Mercado Pago seller account, confirmed delivery, and the seven-day buyer-protection window with no active dispute.
 
-REST routes under `/payments/*` now refer to top-ups:
+REST routes under `/payments/*` are split by responsibility:
 
 - `POST /payments/webhook` - Mercado Pago top-up webhooks
 - `GET /payments/status?payment_id=X` - top-up status check
 - `GET /payments/sync/:id` - force top-up sync
+- `GET /payments/account` - start seller Mercado Pago OAuth
+- `GET /payments/account/callback` - complete seller Mercado Pago OAuth
+- `GET /payments/account/status` - read connected seller payout account status
+- `POST /payments/account/disconnect` - disconnect the seller payout account
 
 For local QA, set `PAYMENTS_PROVIDER="mock"` and use `/checkout/mock/:id` to approve, reject, expire, or refund a top-up without hitting Mercado Pago.
 
@@ -510,7 +519,7 @@ src/
 ├── raffles/               # Core raffle logic
 ├── tickets/               # Ticket management
 ├── wallet/                # Saldo LUK accounts and ledger
-├── payments/              # Mercado Pago/mock top-up orchestration
+├── payments/              # Mercado Pago/mock top-ups and seller payout connections
 ├── disputes/              # Dispute system
 ├── notifications/         # Email + in-app
 ├── uploads/               # Cloudinary
@@ -679,6 +688,7 @@ The Prisma schema is at `prisma/schema.prisma`. Key models:
 | WalletAccount         | Buyer spendable balance and seller payable balance         |
 | WalletLedgerEntry     | Immutable Saldo LUK/payable movements                      |
 | CreditTopUpSession    | Mercado Pago/mock loads of Saldo LUK                       |
+| SellerPaymentAccount  | Connected Mercado Pago seller account for payouts          |
 | TicketPurchaseReceipt | Immutable receipt snapshot for grouped ticket purchases    |
 | Transaction           | Internal accounting records                                |
 | Dispute               | Buyer protection disputes                                  |
@@ -721,13 +731,15 @@ All personally identifiable information (KYC data) is encrypted at rest using AE
 
 ## Seller Payment Accounts And Payouts
 
-Seller onboarding uses internal payout data, not payment-provider OAuth.
+Seller onboarding uses Mercado Pago OAuth for payout readiness.
 
-- sellers load payout data from `Configuración > Pagos`;
-- KYC verified, address, CUIT/CUIL, and payout data are required before `sellerPaymentAccountStatus` becomes `CONNECTED`;
+- sellers connect Mercado Pago from `Configuración > Pagos`;
+- KYC verified, address, CUIT/CUIL, and a connected Mercado Pago account are required before `sellerPaymentAccountStatus` becomes `CONNECTED`;
 - ticket purchases credit an internal seller payable balance;
-- payout processing debits seller payable after delivery/dispute release rules pass;
-- external settlement to the seller is manual/provider-neutral in this phase.
+- payout processing runs only after delivery is confirmed and `confirmedAt + 7 days` has passed with no active dispute;
+- when `MP_PAYOUTS_ENABLED=true`, payout processing calls Mercado Pago and transfers from Luk to the seller MP wallet;
+- seller payable is debited only after Mercado Pago accepts the payout request;
+- if Mercado Pago returns `pending` or `in_process`, the payout remains `PROCESSING` and can be synced until it becomes `COMPLETED` or `FAILED`.
 
 ## Environment Variables
 
@@ -736,7 +748,11 @@ Seller onboarding uses internal payout data, not payment-provider OAuth.
 | `DATABASE_URL`         | PostgreSQL connection string                                                                                                                 |
 | `JWT_SECRET`           | Secret for JWT tokens (min 32 chars)                                                                                                         |
 | `PLATFORM_FEE_PERCENT` | Luk platform fee percentage applied to ticket sales                                                                                          |
-| `MP_ACCESS_TOKEN`     | Mercado Pago access token used only for Saldo LUK top-ups                                                                                    |
+| `MP_ACCESS_TOKEN`     | Mercado Pago access token for Saldo LUK top-ups and Luk seller payout execution                                                             |
+| `MP_OAUTH_CLIENT_ID`  | Mercado Pago OAuth app client id for seller payout-account connections                                                                       |
+| `MP_OAUTH_CLIENT_SECRET` | Mercado Pago OAuth app client secret for seller payout-account connections                                                               |
+| `MP_OAUTH_REDIRECT_URI` | Mercado Pago OAuth callback URL, usually `${BACKEND_URL}/payments/account/callback`                                                       |
+| `MP_PAYOUTS_ENABLED`  | Enables live seller payouts through Mercado Pago. When `true`, missing MP payout/OAuth credentials fail backend bootstrap                    |
 | `PAYMENTS_PROVIDER`   | `mercado_pago` for live top-ups or `mock` for local QA                                                                                       |
 | `BREVO_API_KEY`        | Brevo email API key (must be REST API key `xkeysib-...`, not SMTP key)                                                                       |
 | `CLOUDINARY_*`         | Cloudinary credentials                                                                                                                       |

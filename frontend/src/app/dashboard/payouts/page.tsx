@@ -20,6 +20,8 @@ interface Payout {
   processingFee: number;
   netAmount: number;
   status: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
+  providerPayoutStatus?: string | null;
+  providerPayoutStatusDetail?: string | null;
   scheduledFor?: string;
   processedAt?: string;
   createdAt: string;
@@ -185,6 +187,11 @@ export default function PayoutsPage() {
                             locale: es,
                           })}
                         </div>
+                        {payout.providerPayoutStatusDetail && (
+                          <div className="text-xs text-muted-foreground">
+                            Mercado Pago: {payout.providerPayoutStatusDetail}
+                          </div>
+                        )}
                       </div>
                     </div>
 
@@ -225,14 +232,14 @@ export default function PayoutsPage() {
             <strong>Comisión de plataforma:</strong> 10% del monto bruto recaudado
           </p>
           <p>
-            <strong>Comisión de procesamiento:</strong> ~3% (varía según el proveedor de pagos)
+            <strong>Comisión de procesamiento:</strong> costo operativo interno aplicado al balance a liquidar
           </p>
           <p>
             <strong>Pago neto:</strong> Lo que recibís después de comisiones
           </p>
           <p className="pt-2">
-            Los pagos se liberan automáticamente 7 días después de que el ganador confirme la
-            recepción del producto, o 7 días después del envío si no hay confirmación.
+            Los pagos se liberan 7 días después de que el ganador confirme la recepción del
+            producto, siempre que no haya una disputa abierta.
           </p>
         </CardContent>
       </Card>

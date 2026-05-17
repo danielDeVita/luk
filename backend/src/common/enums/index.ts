@@ -20,6 +20,7 @@ import {
   TicketPurchaseMode,
   TicketReceiptAcceptanceSource,
   WalletLedgerEntryType,
+  PaymentsProvider,
 } from '@prisma/client';
 
 export {
@@ -43,6 +44,7 @@ export {
   TicketPurchaseMode,
   TicketReceiptAcceptanceSource,
   WalletLedgerEntryType,
+  PaymentsProvider,
 };
 
 export enum RaffleSort {
@@ -82,6 +84,7 @@ registerEnumType(SellerPaymentAccountIdentifierType, {
   name: 'SellerPaymentAccountIdentifierType',
 });
 registerEnumType(WalletLedgerEntryType, { name: 'WalletLedgerEntryType' });
+registerEnumType(PaymentsProvider, { name: 'PaymentsProvider' });
 registerEnumType(TicketPurchaseMode, { name: 'TicketPurchaseMode' });
 registerEnumType(TicketReceiptAcceptanceSource, {
   name: 'TicketReceiptAcceptanceSource',

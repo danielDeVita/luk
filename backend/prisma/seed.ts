@@ -1239,6 +1239,10 @@ async function upsertSellerPaymentAccount(params: {
   accountHolderName?: string | null;
   accountIdentifierType?: SellerPaymentAccountIdentifierType | null;
   accountIdentifierEncrypted?: string | null;
+  providerAccountId?: string | null;
+  providerEmail?: string | null;
+  providerAccessTokenEncrypted?: string | null;
+  providerRefreshTokenEncrypted?: string | null;
   providerMetadata?: Prisma.InputJsonValue;
 }) {
   const {
@@ -1248,13 +1252,23 @@ async function upsertSellerPaymentAccount(params: {
     accountHolderName = null,
     accountIdentifierType = null,
     accountIdentifierEncrypted = null,
+    providerAccountId = `qa_mp_${userId}`,
+    providerEmail = null,
+    providerAccessTokenEncrypted = `qa_mp_access_${userId}`,
+    providerRefreshTokenEncrypted = `qa_mp_refresh_${userId}`,
     providerMetadata = undefined,
   } = params;
 
   await prisma.sellerPaymentAccount.upsert({
     where: { userId },
     update: {
+      provider: PaymentsProvider.MERCADO_PAGO,
       status,
+      providerAccountId,
+      providerEmail,
+      providerAccessTokenEncrypted,
+      providerRefreshTokenEncrypted,
+      providerTokenExpiresAt: new Date('2027-01-01T00:00:00.000Z'),
       accountHolderName,
       accountIdentifierType,
       accountIdentifierEncrypted,
@@ -1264,7 +1278,13 @@ async function upsertSellerPaymentAccount(params: {
     create: {
       id,
       userId,
+      provider: PaymentsProvider.MERCADO_PAGO,
       status,
+      providerAccountId,
+      providerEmail,
+      providerAccessTokenEncrypted,
+      providerRefreshTokenEncrypted,
+      providerTokenExpiresAt: new Date('2027-01-01T00:00:00.000Z'),
       accountHolderName,
       accountIdentifierType,
       accountIdentifierEncrypted,
@@ -2527,6 +2547,15 @@ async function seedWalletFixtures(params: {
       createdAt: hoursAgo(2),
     }),
     upsertWalletLedgerEntry({
+      id: walletLedgerEntryId('seller_growth_cron_refund_buffer'),
+      userId: params.sellerGrowthId,
+      type: WalletLedgerEntryType.SELLER_PAYABLE_CREDIT,
+      amount: 25000,
+      sellerPayableBalanceAfter: 50000,
+      metadata: { qaCase: 'cron_refund_buffer' },
+      createdAt: hoursAgo(1),
+    }),
+    upsertWalletLedgerEntry({
       id: walletLedgerEntryId('other_seller_payable'),
       userId: params.otherSellerId,
       type: WalletLedgerEntryType.SELLER_PAYABLE_CREDIT,
@@ -2535,6 +2564,15 @@ async function seedWalletFixtures(params: {
       raffleId: IDS.raffleBonusTargetOther,
       metadata: { qaCase: 'promotion_bonus_seller_payable' },
       createdAt: hoursAgo(14),
+    }),
+    upsertWalletLedgerEntry({
+      id: walletLedgerEntryId('other_seller_cron_refund_buffer'),
+      userId: params.otherSellerId,
+      type: WalletLedgerEntryType.SELLER_PAYABLE_CREDIT,
+      amount: 5000,
+      sellerPayableBalanceAfter: 12000,
+      metadata: { qaCase: 'cron_refund_buffer' },
+      createdAt: hoursAgo(1),
     }),
   ]);
 
@@ -2557,7 +2595,7 @@ async function seedWalletFixtures(params: {
     }),
     ensureWalletAccount({
       userId: params.otherSellerId,
-      sellerPayableBalance: 7000,
+      sellerPayableBalance: 12000,
     }),
     ensureWalletAccount({
       userId: params.sellerProId,
@@ -2565,7 +2603,7 @@ async function seedWalletFixtures(params: {
     }),
     ensureWalletAccount({
       userId: params.sellerGrowthId,
-      sellerPayableBalance: 25000,
+      sellerPayableBalance: 50000,
     }),
     ensureWalletAccount({ userId: params.sellerNoPayoutId }),
     ensureWalletAccount({ userId: params.sellerPendingPayoutId }),
@@ -3097,9 +3135,10 @@ async function main() {
       accountHolderName: 'Vendedor Test',
       accountIdentifierType: SellerPaymentAccountIdentifierType.CVU,
       accountIdentifierEncrypted: '0000003100000000000001',
+      providerEmail: 'seller-default@mp.test',
       providerMetadata: {
         source: 'canonical-seed',
-        settlementMode: 'manual_internal_payable',
+        settlementMode: 'mercado_pago_payout',
       },
     }),
     upsertSellerPaymentAccount({
@@ -3109,9 +3148,10 @@ async function main() {
       accountHolderName: 'Otro Seller',
       accountIdentifierType: SellerPaymentAccountIdentifierType.ALIAS,
       accountIdentifierEncrypted: 'otro.seller.qa',
+      providerEmail: 'seller-other@mp.test',
       providerMetadata: {
         source: 'canonical-seed',
-        settlementMode: 'manual_internal_payable',
+        settlementMode: 'mercado_pago_payout',
       },
     }),
     upsertSellerPaymentAccount({
@@ -3121,9 +3161,10 @@ async function main() {
       accountHolderName: 'Sofía Premium',
       accountIdentifierType: SellerPaymentAccountIdentifierType.CBU,
       accountIdentifierEncrypted: '0170000120000000000002',
+      providerEmail: 'seller-pro@mp.test',
       providerMetadata: {
         source: 'canonical-seed',
-        settlementMode: 'manual_internal_payable',
+        settlementMode: 'mercado_pago_payout',
       },
     }),
     upsertSellerPaymentAccount({
@@ -3133,9 +3174,10 @@ async function main() {
       accountHolderName: 'Martín Growth',
       accountIdentifierType: SellerPaymentAccountIdentifierType.CVU,
       accountIdentifierEncrypted: '0000003100000000000003',
+      providerEmail: 'seller-growth@mp.test',
       providerMetadata: {
         source: 'canonical-seed',
-        settlementMode: 'manual_internal_payable',
+        settlementMode: 'mercado_pago_payout',
       },
     }),
     upsertSellerPaymentAccount({
@@ -3145,9 +3187,10 @@ async function main() {
       accountHolderName: 'Diego Sin Dirección',
       accountIdentifierType: SellerPaymentAccountIdentifierType.ALIAS,
       accountIdentifierEncrypted: 'diego.sin.direccion.qa',
+      providerEmail: 'seller-no-address@mp.test',
       providerMetadata: {
         source: 'canonical-seed',
-        qaCase: 'connected_payout_data_missing_shipping_address',
+        qaCase: 'connected_mp_missing_shipping_address',
       },
     }),
     upsertSellerPaymentAccount({
@@ -3157,9 +3200,13 @@ async function main() {
       accountHolderName: 'Valentina Cobro Pendiente',
       accountIdentifierType: SellerPaymentAccountIdentifierType.CVU,
       accountIdentifierEncrypted: null,
+      providerAccountId: null,
+      providerEmail: null,
+      providerAccessTokenEncrypted: null,
+      providerRefreshTokenEncrypted: null,
       providerMetadata: {
         source: 'canonical-seed',
-        qaCase: 'missing_account_identifier',
+        qaCase: 'missing_mercado_pago_connection',
       },
     }),
   ]);

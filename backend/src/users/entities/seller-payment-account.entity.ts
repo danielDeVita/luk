@@ -2,6 +2,7 @@ import { Field, ID, ObjectType } from '@nestjs/graphql';
 import {
   SellerPaymentAccountIdentifierType,
   SellerPaymentAccountStatus,
+  PaymentsProvider,
 } from '../../common/enums';
 
 @ObjectType()
@@ -11,6 +12,15 @@ export class SellerPaymentAccount {
 
   @Field(() => SellerPaymentAccountStatus)
   status!: SellerPaymentAccountStatus;
+
+  @Field(() => PaymentsProvider)
+  provider!: PaymentsProvider;
+
+  @Field(() => String, { nullable: true })
+  providerAccountId?: string | null;
+
+  @Field(() => String, { nullable: true })
+  providerEmail?: string | null;
 
   @Field(() => String, { nullable: true })
   accountHolderName?: string | null;

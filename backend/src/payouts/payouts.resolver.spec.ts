@@ -1,4 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { UserRole } from '@prisma/client';
 import { PayoutsResolver } from './payouts.resolver';
 import { PayoutsService } from './payouts.service';
 
@@ -8,6 +9,7 @@ type MockPayoutsService = {
   getPendingPayouts: jest.Mock;
   releasePayoutManually: jest.Mock;
   processDuePayouts: jest.Mock;
+  syncProviderPayoutStatus: jest.Mock;
 };
 
 describe('PayoutsResolver', () => {
@@ -20,6 +22,7 @@ describe('PayoutsResolver', () => {
     getPendingPayouts: jest.fn(),
     releasePayoutManually: jest.fn(),
     processDuePayouts: jest.fn(),
+    syncProviderPayoutStatus: jest.fn(),
   });
 
   beforeEach(async () => {
@@ -86,14 +89,14 @@ describe('PayoutsResolver', () => {
       service.getPayoutByRaffleForUser.mockResolvedValue(mockPayout);
 
       const result = await resolver.rafflePayout(
-        { id: 'seller-1', role: 'SELLER' as any },
+        { id: 'seller-1', role: UserRole.USER },
         'raffle-1',
       );
 
       expect(service.getPayoutByRaffleForUser).toHaveBeenCalledWith(
         'raffle-1',
         'seller-1',
-        'SELLER',
+        UserRole.USER,
       );
       expect(result).toEqual(mockPayout);
     });
@@ -102,14 +105,14 @@ describe('PayoutsResolver', () => {
       service.getPayoutByRaffleForUser.mockResolvedValue(null);
 
       const result = await resolver.rafflePayout(
-        { id: 'seller-1', role: 'SELLER' as any },
+        { id: 'seller-1', role: UserRole.USER },
         'raffle-unknown',
       );
 
       expect(service.getPayoutByRaffleForUser).toHaveBeenCalledWith(
         'raffle-unknown',
         'seller-1',
-        'SELLER',
+        UserRole.USER,
       );
       expect(result).toBeNull();
     });
@@ -187,6 +190,24 @@ describe('PayoutsResolver', () => {
 
       expect(service.processDuePayouts).toHaveBeenCalled();
       expect(result).toBe(true);
+    });
+  });
+
+  describe('syncProviderPayout', () => {
+    it('should sync a processing provider payout', async () => {
+      const mockPayout = {
+        id: 'payout-1',
+        raffleId: 'raffle-1',
+        sellerId: 'seller-1',
+        status: 'COMPLETED',
+        netAmount: 4550,
+      };
+      service.syncProviderPayoutStatus.mockResolvedValue(mockPayout);
+
+      const result = await resolver.syncProviderPayout('payout-1');
+
+      expect(service.syncProviderPayoutStatus).toHaveBeenCalledWith('payout-1');
+      expect(result).toEqual(mockPayout);
     });
   });
 });

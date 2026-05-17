@@ -82,6 +82,22 @@ export class EnvironmentVariables {
   @IsOptional()
   MP_ACCESS_TOKEN: string = '';
 
+  @IsString()
+  @IsOptional()
+  MP_OAUTH_CLIENT_ID: string = '';
+
+  @IsString()
+  @IsOptional()
+  MP_OAUTH_CLIENT_SECRET: string = '';
+
+  @IsString()
+  @IsOptional()
+  MP_OAUTH_REDIRECT_URI: string = '';
+
+  @IsBoolean()
+  @IsOptional()
+  MP_PAYOUTS_ENABLED: boolean = false;
+
   @IsNumber()
   @Min(0)
   PLATFORM_FEE_PERCENT!: number;
@@ -217,6 +233,7 @@ export class EnvironmentVariables {
 const BOOLEAN_ENV_KEYS = [
   'TURNSTILE_ENABLED',
   'ALLOW_MOCK_PAYMENTS',
+  'MP_PAYOUTS_ENABLED',
   'ENABLE_CRON_JOBS',
   'GRAPHQL_PLAYGROUND',
   'GRAPHQL_DEBUG',
@@ -286,6 +303,23 @@ export function validate(config: Record<string, unknown>) {
     throw new Error(
       '\n\n❌ Missing required environment variable: TURNSTILE_SECRET_KEY when TURNSTILE_ENABLED=true.\n\nPlease check your .env file.\n',
     );
+  }
+
+  if (validatedConfig.MP_PAYOUTS_ENABLED) {
+    const missingMercadoPagoPayoutVars = [
+      ['MP_ACCESS_TOKEN', validatedConfig.MP_ACCESS_TOKEN],
+      ['MP_OAUTH_CLIENT_ID', validatedConfig.MP_OAUTH_CLIENT_ID],
+      ['MP_OAUTH_CLIENT_SECRET', validatedConfig.MP_OAUTH_CLIENT_SECRET],
+      ['MP_OAUTH_REDIRECT_URI', validatedConfig.MP_OAUTH_REDIRECT_URI],
+    ].filter(([, value]) => !String(value || '').trim());
+
+    if (missingMercadoPagoPayoutVars.length > 0) {
+      throw new Error(
+        `\n\n❌ Missing Mercado Pago payout configuration while MP_PAYOUTS_ENABLED=true:\n${missingMercadoPagoPayoutVars
+          .map(([key]) => `  - ${key}`)
+          .join('\n')}\n\nPlease check your .env file.\n`,
+      );
+    }
   }
 
   return validatedConfig;

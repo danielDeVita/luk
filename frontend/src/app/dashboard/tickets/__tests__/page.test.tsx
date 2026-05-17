@@ -54,6 +54,7 @@ describe('MyTicketsPage', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    window.localStorage.clear();
     mockUseRouter.mockReturnValue({
       push: vi.fn(),
       replace: vi.fn(),
@@ -70,6 +71,7 @@ describe('MyTicketsPage', () => {
   });
 
   it('shows wallet onboarding when the buyer has no tickets yet', async () => {
+    const user = userEvent.setup();
     mockUseQuery.mockImplementation((operation) => {
       const operationName = getOperationName(operation);
 
@@ -121,6 +123,12 @@ describe('MyTicketsPage', () => {
     expect(
       screen.getAllByRole('link', { name: /cargar saldo luk/i })[0],
     ).toHaveAttribute('href', '/dashboard/wallet');
+
+    await user.click(screen.getByRole('button', { name: /ocultar por ahora/i }));
+
+    expect(
+      screen.queryByText('Primeros pasos para participar'),
+    ).not.toBeInTheDocument();
   });
 
   it('shows review CTA only after confirmed delivery and submits seller review', async () => {

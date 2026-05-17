@@ -110,7 +110,7 @@ Estados principales en `RaffleStatus`:
    - `deliveryStatus` pasa a `SHIPPED`.
 6. El ganador confirma recepción:
    - `deliveryStatus` pasa a `CONFIRMED`;
-   - se intenta procesar el payout;
+   - se agenda el payout para la ventana de protección;
    - cuando el payout se completa, la rifa pasa a `FINALIZADA`.
 
 ### Flujo por vencimiento
@@ -144,7 +144,7 @@ La compra de tickets usa Saldo LUK interno. Mercado Pago no procesa rifas ni tic
 4. Cuando el provider aprueba la operación, LUK acredita el Saldo LUK una sola vez.
 5. En top-ups nuevos aprobados, también fija `receiptVersion` y `receiptIssuedAt` para habilitar el comprobante de wallet.
 6. La idempotencia se apoya en la sesión/evento del provider y en el estado final de la carga.
-7. Mercado Pago sólo recibe datos de la carga de saldo; no recibe metadata de rifas, tickets, sellers, premios ni números.
+7. Mercado Pago sólo recibe datos de la carga de saldo; no recibe metadata de rifas, tickets, premios ni números.
 8. Los refunds externos aplican sólo sobre saldo cargado y no usado. Los refunds por tickets, cancelaciones o disputas vuelven al Saldo LUK interno.
 
 ### Compra con saldo
@@ -277,21 +277,29 @@ Si el ganador confirma recepción:
 
 1. `deliveryStatus -> CONFIRMED`
 2. se incrementa reputación del seller
-3. se intenta procesar payout
+3. se agenda el payout para `confirmedAt + 7 días`
 
 El payout sólo puede liberarse si:
 
 - no se liberó antes;
 - no hay disputa activa incompatible;
 - la entrega está confirmada;
-- la rifa está en un estado válido para release.
+- pasaron 7 días desde `confirmedAt`;
+- el seller tiene cuenta Mercado Pago conectada.
+
+La liquidación se ejecuta como payout posterior desde la cuenta Mercado Pago de LUK hacia la billetera Mercado Pago conectada del seller. Mercado Pago no participa en la compra de tickets; sólo recibe el monto de liquidación, la referencia del payout y el identificador de la cuenta MP del vendedor.
 
 Cuando el payout termina bien:
 
 - `Payout.status -> COMPLETED`
 - `raffle.paymentReleasedAt` se completa
-- se debita el payable interno del seller y la liquidación externa queda como proceso manual/provider-neutral en esta fase
+- se debita el payable interno del seller
+- se guarda `providerPayoutId` y estado provider
 - `raffle.estado -> FINALIZADA`
+
+Si Mercado Pago deja la liquidación en proceso, `Payout.status -> PROCESSING` y se sincroniza hasta `COMPLETED` o `FAILED`. Si falla antes de ser aceptada, no se descuenta el payable. Si falla después de estar en proceso, LUK revierte el débito interno.
+
+Después de un payout completado no hay refund automático de tickets; cualquier devolución tardía queda como caso administrativo excepcional porque los fondos ya salieron hacia el seller.
 
 ### Auto-confirmación
 
@@ -445,7 +453,7 @@ Con esto:
 - La DB no permite duplicar un mismo número dentro de una rifa.
 - El payout no debe liberarse si la entrega no está confirmada o si hay disputa activa incompatible.
 - La bonificación de social promotion no es un wallet general: es un grant con ciclo propio.
-- Mercado Pago sólo carga Saldo LUK; no recibe metadata de rifas, tickets, sellers, premios ni números.
+- Mercado Pago carga Saldo LUK y liquida payouts a sellers conectados; no recibe metadata de rifas, tickets, premios ni números.
 - La reputación pública se expone para sellers; las señales de comprador son admin-only.
 - `ENCRYPTION_KEY` debe mantenerse estable entre entornos porque protege PII y tokens sensibles.
 

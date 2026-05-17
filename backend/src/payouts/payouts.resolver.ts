@@ -74,4 +74,14 @@ export class PayoutsResolver {
     await this.payoutsService.processDuePayouts();
     return true;
   }
+
+  /**
+   * Syncs a Mercado Pago payout that is still processing.
+   */
+  @Mutation(() => Payout)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  async syncProviderPayout(@Args('payoutId') payoutId: string) {
+    return this.payoutsService.syncProviderPayoutStatus(payoutId);
+  }
 }

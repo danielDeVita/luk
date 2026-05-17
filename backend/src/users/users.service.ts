@@ -209,8 +209,8 @@ export class UsersService {
     defaultSenderAddressId?: string | null;
     shippingAddresses?: Array<{ id: string }> | null;
     sellerPaymentAccount?: {
-      accountHolderName?: string | null;
-      accountIdentifierEncrypted?: string | null;
+      providerAccountId?: string | null;
+      providerAccessTokenEncrypted?: string | null;
     } | null;
   }): SellerPaymentAccountStatus {
     if (!user.sellerPaymentAccount) {
@@ -222,12 +222,12 @@ export class UsersService {
       Boolean(user.shippingAddresses && user.shippingAddresses.length > 0);
     const hasCuit = Boolean(user.cuitCuil);
     const kycVerified = user.kycStatus === KycStatus.VERIFIED;
-    const hasPayoutData = Boolean(
-      user.sellerPaymentAccount.accountHolderName &&
-      user.sellerPaymentAccount.accountIdentifierEncrypted,
+    const hasConnectedProvider = Boolean(
+      user.sellerPaymentAccount.providerAccountId &&
+      user.sellerPaymentAccount.providerAccessTokenEncrypted,
     );
 
-    return hasAddress && hasCuit && kycVerified && hasPayoutData
+    return hasAddress && hasCuit && kycVerified && hasConnectedProvider
       ? SellerPaymentAccountStatus.CONNECTED
       : SellerPaymentAccountStatus.PENDING;
   }
@@ -250,8 +250,8 @@ export class UsersService {
         sellerPaymentAccount: {
           select: {
             id: true,
-            accountHolderName: true,
-            accountIdentifierEncrypted: true,
+            providerAccountId: true,
+            providerAccessTokenEncrypted: true,
           },
         },
       },
@@ -274,8 +274,9 @@ export class UsersService {
     const status = this.computeSellerPaymentAccountStatus({
       ...user,
       sellerPaymentAccount: {
-        accountHolderName: input.accountHolderName.trim(),
-        accountIdentifierEncrypted: encryptedAccountIdentifier,
+        providerAccountId: user.sellerPaymentAccount?.providerAccountId,
+        providerAccessTokenEncrypted:
+          user.sellerPaymentAccount?.providerAccessTokenEncrypted,
       },
     });
 

@@ -38,6 +38,7 @@ describe('SettingsPage payments tab', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    window.localStorage.clear();
 
     mockUseRouter.mockReturnValue({
       push: vi.fn(),
@@ -84,7 +85,47 @@ describe('SettingsPage payments tab', () => {
     ] as unknown as ReturnType<typeof useMutation>);
   });
 
-  it('renders pending internal payout data state with prerequisites and form CTA', async () => {
+  it('shows the next settings onboarding nudge from current account data', async () => {
+    mockUseQuery.mockReturnValue({
+      data: {
+        me: {
+          id: 'seller-1',
+          avatarUrl: null,
+          sellerPaymentAccountStatus: 'NOT_CONNECTED',
+          sellerPaymentAccountId: null,
+          sellerPaymentAccount: null,
+          kycStatus: 'NOT_SUBMITTED',
+          documentType: null,
+          documentNumber: null,
+          street: null,
+          streetNumber: null,
+          apartment: null,
+          city: null,
+          province: null,
+          postalCode: null,
+          phone: '+54 11 1234-5678',
+          cuitCuil: null,
+          termsAcceptedAt: null,
+          termsVersion: null,
+          kycRejectedReason: null,
+          twoFactorEnabled: false,
+          twoFactorEnabledAt: null,
+        },
+      },
+      loading: false,
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof useQuery>);
+
+    render(<SettingsPage />);
+
+    expect(await screen.findByText('Verificá tu identidad')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /completar kyc/i })).toHaveAttribute(
+      'href',
+      '/dashboard/settings?tab=kyc',
+    );
+  });
+
+  it('renders pending Mercado Pago payout state with prerequisites and connect CTA', async () => {
     mockUseQuery.mockReturnValue({
       data: {
         me: {
@@ -94,10 +135,13 @@ describe('SettingsPage payments tab', () => {
           sellerPaymentAccountId: null,
           sellerPaymentAccount: {
             id: 'spa-1',
+            provider: 'MERCADO_PAGO',
             status: 'PENDING',
-            accountHolderName: 'Juan Pérez',
-            accountIdentifierType: 'ALIAS',
-            maskedAccountIdentifier: 'ju***as',
+            providerAccountId: 'mp-seller-1',
+            providerEmail: 'seller@mp.test',
+            accountHolderName: null,
+            accountIdentifierType: null,
+            maskedAccountIdentifier: null,
             lastSyncedAt: null,
           },
           kycStatus: 'PENDING_REVIEW',
@@ -125,18 +169,18 @@ describe('SettingsPage payments tab', () => {
     render(<SettingsPage />);
 
     expect(
-      await screen.findByText(/datos de cobro pendientes/i),
+      await screen.findByText(/mercado pago conectado, faltan requisitos/i),
     ).toBeInTheDocument();
     expect(
-      screen.getByText(/completá kyc, cuit\/cuil y dirección/i),
+      screen.getByText(/faltan kyc verificado, cuit\/cuil o dirección/i),
     ).toBeInTheDocument();
     expect(screen.getByText(/requisitos para activar cobros/i)).toBeInTheDocument();
     expect(
-      screen.getByRole('button', { name: /guardar datos de cobro/i }),
+      screen.getByRole('button', { name: /reconectar mercado pago/i }),
     ).toBeInTheDocument();
   });
 
-  it('renders connected internal payout account details and disconnect action', async () => {
+  it('renders connected Mercado Pago payout account details and disconnect action', async () => {
     mockUseQuery.mockReturnValue({
       data: {
         me: {
@@ -146,10 +190,13 @@ describe('SettingsPage payments tab', () => {
           sellerPaymentAccountId: 'entity-1',
           sellerPaymentAccount: {
             id: 'spa-1',
+            provider: 'MERCADO_PAGO',
             status: 'CONNECTED',
-            accountHolderName: 'Seller QA',
-            accountIdentifierType: 'CBU',
-            maskedAccountIdentifier: '2850****5201',
+            providerAccountId: 'mp-seller-1',
+            providerEmail: 'seller@mp.test',
+            accountHolderName: null,
+            accountIdentifierType: null,
+            maskedAccountIdentifier: null,
             lastSyncedAt: '2026-04-14T15:00:00.000Z',
           },
           kycStatus: 'VERIFIED',
@@ -176,14 +223,14 @@ describe('SettingsPage payments tab', () => {
 
     render(<SettingsPage />);
 
-    expect(await screen.findAllByText(/datos de cobro activos/i)).toHaveLength(
-      2,
-    );
-    expect(screen.getByText(/titular: seller qa/i)).toBeInTheDocument();
-    expect(screen.getByText(/2850\*\*\*\*5201/i)).toBeInTheDocument();
+    expect(await screen.findAllByText(/mercado pago conectado/i)).not.toHaveLength(0);
+    expect(screen.getByText(/cuenta mp: seller@mp.test/i)).toBeInTheDocument();
+    expect(screen.getByText(/id mercado pago: mp-seller-1/i)).toBeInTheDocument();
     expect(
-      screen.getByRole('button', { name: /guardar datos de cobro/i }),
+      screen.getByRole('button', { name: /reconectar mercado pago/i }),
     ).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /desactivar datos/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /desconectar mercado pago/i }),
+    ).toBeInTheDocument();
   });
 });

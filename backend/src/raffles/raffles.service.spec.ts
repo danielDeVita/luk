@@ -91,6 +91,9 @@ describe('RafflesService', () => {
   const mockPayoutsService = {
     createPayout: jest.fn().mockResolvedValue({ id: 'payout-1' }),
     processPayoutForRaffle: jest.fn().mockResolvedValue({ id: 'payout-1' }),
+    schedulePayoutAfterDelivery: jest
+      .fn()
+      .mockResolvedValue({ id: 'payout-1' }),
   };
 
   const mockEventEmitter = {
@@ -233,7 +236,7 @@ describe('RafflesService', () => {
         BadRequestException,
       );
       await expect(service.create('user-123', validInput)).rejects.toThrow(
-        'configurar tu cuenta de cobros',
+        'conectar Mercado Pago',
       );
     });
 
@@ -588,9 +591,9 @@ describe('RafflesService', () => {
       expect(result.estado).toBe('EN_ENTREGA');
       expect(result.deliveryStatus).toBe('CONFIRMED');
       expect(mockPrismaService.userReputation.upsert).toHaveBeenCalled();
-      expect(mockPayoutsService.processPayoutForRaffle).toHaveBeenCalledWith(
-        'raffle-123',
-      );
+      expect(
+        mockPayoutsService.schedulePayoutAfterDelivery,
+      ).toHaveBeenCalledWith('raffle-123');
       expect(mockEventEmitter.emit).toHaveBeenCalledWith(
         RaffleEvents.DELIVERY_CONFIRMED,
         expect.any(Object),

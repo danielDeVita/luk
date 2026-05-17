@@ -41,6 +41,7 @@ import Image from "next/image";
 import { useConfirmDialog } from "@/hooks/use-confirm-dialog";
 import { getOptimizedImageUrl, CLOUDINARY_PRESETS } from "@/lib/cloudinary";
 import { PromotionBonusGrantsCard } from "@/components/social-promotions/promotion-bonus-grants-card";
+import { useOnboardingDismissals } from "@/hooks/use-onboarding-dismissals";
 
 const MY_TICKETS = gql`
   query MyTickets {
@@ -231,6 +232,7 @@ function formatTimeRemaining(deadline: string): string {
 export default function MyTicketsPage() {
   const router = useRouter();
   const { isAuthenticated, hasHydrated, user } = useAuthStore();
+  const { dismiss, isDismissed } = useOnboardingDismissals(user?.id);
 
   // Filter states
   const [ticketStatus, setTicketStatus] = useState<TicketStatus>("ALL");
@@ -388,7 +390,8 @@ export default function MyTicketsPage() {
     showWinsOnly ||
     dateFrom ||
     dateTo;
-  const shouldShowBuyerOnboarding = !loading && tickets.length === 0;
+  const shouldShowBuyerOnboarding =
+    !loading && tickets.length === 0 && !isDismissed("tickets-buyer-empty");
 
   const clearFilters = () => {
     setTicketStatus("ALL");
@@ -429,14 +432,27 @@ export default function MyTicketsPage() {
       {shouldShowBuyerOnboarding && (
         <Card className="mb-8 border-primary/20 bg-primary/5">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Wallet className="h-5 w-5 text-primary" />
-              Primeros pasos para participar
-            </CardTitle>
-            <CardDescription>
-              Ahora las compras usan Saldo LUK. Cargás saldo una vez y lo usás
-              en cualquier rifa sin pagar cada número directo con Mercado Pago.
-            </CardDescription>
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <Wallet className="h-5 w-5 text-primary" />
+                  Primeros pasos para participar
+                </CardTitle>
+                <CardDescription className="mt-2">
+                  Ahora las compras usan Saldo LUK. Cargás saldo una vez y lo
+                  usás en cualquier rifa sin pagar cada número directo con
+                  Mercado Pago.
+                </CardDescription>
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => dismiss("tickets-buyer-empty")}
+              >
+                Ocultar por ahora
+              </Button>
+            </div>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">

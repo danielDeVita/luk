@@ -14,6 +14,7 @@ import {
   Wallet,
 } from "lucide-react";
 import { toast } from "sonner";
+import { OnboardingNudge } from "@/components/onboarding/onboarding-nudge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -110,7 +111,7 @@ function formatLedgerType(type: string): string {
 
 export default function WalletPage() {
   const router = useRouter();
-  const { isAuthenticated, hasHydrated } = useAuthStore();
+  const { isAuthenticated, hasHydrated, user } = useAuthStore();
   const [amount, setAmount] = useState("3000");
   const { data: walletData, loading: walletLoading } =
     useQuery<WalletQueryResult>(MY_WALLET, {
@@ -146,6 +147,8 @@ export default function WalletPage() {
     Number.isFinite(parsedAmount) && parsedAmount >= 100 && !creatingTopUp;
   const creditBalance = walletData?.myWallet.creditBalance ?? 0;
   const ledger = ledgerData?.walletLedger ?? [];
+  const hasCompletedWalletOnboarding =
+    creditBalance > 0 || ledger.some((entry) => entry.type === "CREDIT_TOP_UP");
 
   const handleCreateTopUp = () => {
     if (!canCreateTopUp) {
@@ -179,6 +182,15 @@ export default function WalletPage() {
           directamente.
         </p>
       </div>
+
+      <OnboardingNudge
+        id="wallet-first-top-up"
+        userId={user?.id}
+        title="Cargá saldo para participar"
+        description="Primero cargás Saldo LUK con Mercado Pago. Después comprás tickets dentro de LUK sin abrir Mercado Pago por cada rifa."
+        completed={hasCompletedWalletOnboarding}
+        icon={<Wallet className="h-5 w-5" />}
+      />
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_420px]">
         <section className="space-y-6">

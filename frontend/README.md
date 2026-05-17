@@ -190,7 +190,7 @@ try {
 ### Seller Payment Account Onboarding
 Sellers must configure their payment account before creating raffles:
 1. Go to Settings → Payments tab
-2. Load internal payout account holder and CBU/CVU/alias data
+2. Connect Mercado Pago for seller liquidations
 3. Complete KYC, CUIT/CUIL and address prerequisites
 4. The seller account becomes ready when all requirements are complete
 
@@ -314,7 +314,7 @@ If a user tries to log in before verifying the email, the login page resumes the
 ### Seller Onboarding
 New sellers see a visual progress checklist at the top of their dashboard:
 1. **Complete profile** - Name and phone number
-2. **Load payout data** - Internal account holder and CBU/CVU/alias
+2. **Connect Mercado Pago** - Authorize the seller payout account for liquidations
 3. **Verify identity (KYC)** - Submit identity documents and address; admin approval required
 4. **Add shipping address** - Full address details
 5. **Create first raffle** - Start selling
@@ -452,6 +452,7 @@ test('should create a raffle', async ({ page }) => {
 
 - For payment QA without Mercado Pago, set `PAYMENTS_PROVIDER="mock"` and `ALLOW_MOCK_PAYMENTS="true"`.
 - Use `/dashboard/wallet` to create a top-up, then approve/reject/refund it from `/checkout/mock/:id`.
+- Use `/dashboard/settings?tab=payments` to test the seller Mercado Pago connection state.
 - Ticket purchases should stay inside the app and fail before emission if Saldo LUK is insufficient.
 
 ## Key Files

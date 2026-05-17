@@ -42,6 +42,12 @@ export class Payout {
   providerPayoutId?: string;
 
   @Field({ nullable: true })
+  providerPayoutStatus?: string;
+
+  @Field({ nullable: true })
+  providerPayoutStatusDetail?: string;
+
+  @Field({ nullable: true })
   scheduledFor?: Date;
 
   @Field({ nullable: true })

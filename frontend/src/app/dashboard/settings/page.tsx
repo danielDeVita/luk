@@ -22,6 +22,7 @@ import { useConfirmDialog } from '@/hooks/use-confirm-dialog';
 import Image from 'next/image';
 import { getOptimizedImageUrl, CLOUDINARY_PRESETS } from '@/lib/cloudinary';
 import { TwoFactorSettingsCard } from '@/components/auth/two-factor-settings-card';
+import { OnboardingNudge } from '@/components/onboarding/onboarding-nudge';
 
 // Types
 interface SettingsUserData {
@@ -32,7 +33,10 @@ interface SettingsUserData {
     sellerPaymentAccountId?: string;
     sellerPaymentAccount?: {
       id: string;
+      provider?: string | null;
       status: string;
+      providerAccountId?: string | null;
+      providerEmail?: string | null;
       accountHolderName?: string | null;
       accountIdentifierType?: string | null;
       maskedAccountIdentifier?: string | null;
@@ -81,7 +85,10 @@ const GET_USER_DATA = gql`
       sellerPaymentAccountId
       sellerPaymentAccount {
         id
+        provider
         status
+        providerAccountId
+        providerEmail
         accountHolderName
         accountIdentifierType
         maskedAccountIdentifier
@@ -164,24 +171,6 @@ const DELETE_AVATAR = gql`
   }
 `;
 
-const UPSERT_SELLER_PAYMENT_ACCOUNT = gql`
-  mutation UpsertSellerPaymentAccount($input: UpsertSellerPaymentAccountInput!) {
-    upsertSellerPaymentAccount(input: $input) {
-      id
-      sellerPaymentAccountStatus
-      sellerPaymentAccountId
-      sellerPaymentAccount {
-        id
-        status
-        accountHolderName
-        accountIdentifierType
-        maskedAccountIdentifier
-        lastSyncedAt
-      }
-    }
-  }
-`;
-
 const DISCONNECT_SELLER_PAYMENT_ACCOUNT = gql`
   mutation DisconnectSellerPaymentAccount {
     disconnectSellerPaymentAccount {
@@ -224,16 +213,9 @@ const kycSchema = z.object({
   cuitCuil: z.string().regex(/^\d{2}-\d{8}-\d$/, 'Formato: XX-XXXXXXXX-X').optional().or(z.literal('')),
 });
 
-const paymentAccountSchema = z.object({
-  accountHolderName: z.string().min(2, 'Ingresá el titular de la cuenta'),
-  accountIdentifierType: z.enum(['CBU', 'CVU', 'ALIAS']),
-  accountIdentifier: z.string().min(4, 'Ingresá un CBU, CVU o alias válido'),
-});
-
 type ProfileForm = z.infer<typeof profileSchema>;
 type PasswordForm = z.infer<typeof passwordSchema>;
 type KycForm = z.infer<typeof kycSchema>;
-type PaymentAccountForm = z.infer<typeof paymentAccountSchema>;
 
 const PROVINCIAS_ARGENTINA = [
   'Buenos Aires', 'CABA', 'Catamarca', 'Chaco', 'Chubut', 'Cordoba', 'Corrientes',
@@ -282,7 +264,7 @@ function SettingsContent() {
   const searchParams = useSearchParams();
   const backendUrl =
     process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
-  const [isSavingPaymentAccount, setIsSavingPaymentAccount] =
+  const [isConnectingPaymentAccount, setIsConnectingPaymentAccount] =
     useState(false);
   const [isDisconnecting, setIsDisconnecting] = useState(false);
   const [avatarUploading, setAvatarUploading] = useState(false);
@@ -329,27 +311,6 @@ function SettingsContent() {
       cuitCuil: userData?.me?.cuitCuil || '',
     },
   });
-  const {
-    register: registerPaymentAccount,
-    handleSubmit: handlePaymentAccountSubmit,
-    setValue: setPaymentAccountValue,
-    formState: {
-      errors: paymentAccountErrors,
-      isSubmitting: isPaymentAccountSubmitting,
-    },
-  } = useForm<PaymentAccountForm>({
-    resolver: zodResolver(paymentAccountSchema),
-    defaultValues: {
-      accountHolderName:
-        userData?.me?.sellerPaymentAccount?.accountHolderName || '',
-      accountIdentifierType:
-        (userData?.me?.sellerPaymentAccount
-          ?.accountIdentifierType as PaymentAccountForm['accountIdentifierType']) ||
-        'CBU',
-      accountIdentifier: '',
-    },
-  });
-
   const [updateProfile] = useMutation(UPDATE_PROFILE, {
     onCompleted: () => {
       toast.success('Perfil actualizado correctamente');
@@ -403,27 +364,15 @@ function SettingsContent() {
       toast.error(error.message || 'Error al eliminar avatar');
     }
   });
-  const [upsertSellerPaymentAccount] = useMutation(
-    UPSERT_SELLER_PAYMENT_ACCOUNT,
-    {
-      onCompleted: () => {
-        toast.success('Datos de cobro guardados');
-        refetchUserData();
-      },
-      onError: (error) => {
-        toast.error(error.message || 'Error al guardar datos de cobro');
-      },
-    },
-  );
   const [disconnectSellerPaymentAccount] = useMutation(
     DISCONNECT_SELLER_PAYMENT_ACCOUNT,
     {
       onCompleted: () => {
-        toast.success('Datos de cobro desactivados');
+        toast.success('Mercado Pago desconectado');
         refetchUserData();
       },
       onError: (error) => {
-        toast.error(error.message || 'Error al desactivar datos de cobro');
+        toast.error(error.message || 'Error al desconectar Mercado Pago');
       },
     },
   );
@@ -442,6 +391,19 @@ function SettingsContent() {
     }
   }, [searchParams]);
 
+  useEffect(() => {
+    const mpAccountStatus = searchParams.get('mp_account');
+    if (mpAccountStatus === 'connected') {
+      toast.success('Mercado Pago conectado correctamente');
+      refetchUserData();
+      router.replace('/dashboard/settings?tab=payments');
+    }
+    if (mpAccountStatus === 'error' || mpAccountStatus === 'missing') {
+      toast.error('No pudimos conectar Mercado Pago. Probá de nuevo.');
+      router.replace('/dashboard/settings?tab=payments');
+    }
+  }, [searchParams, refetchUserData, router]);
+
   // Update KYC form when data loads
   useEffect(() => {
     if (userData?.me) {
@@ -456,21 +418,8 @@ function SettingsContent() {
       if (me.postalCode) setKycValue('postalCode', me.postalCode);
       if (me.phone) setKycValue('phone', me.phone);
       if (me.cuitCuil) setKycValue('cuitCuil', me.cuitCuil);
-      if (me.sellerPaymentAccount?.accountHolderName) {
-        setPaymentAccountValue(
-          'accountHolderName',
-          me.sellerPaymentAccount.accountHolderName,
-        );
-      }
-      if (me.sellerPaymentAccount?.accountIdentifierType) {
-        setPaymentAccountValue(
-          'accountIdentifierType',
-          me.sellerPaymentAccount
-            .accountIdentifierType as PaymentAccountForm['accountIdentifierType'],
-        );
-      }
     }
-  }, [userData, setKycValue, setPaymentAccountValue]);
+  }, [userData, setKycValue]);
 
   // Now the early return check (after all hooks are declared)
   if (!hasHydrated || !isAuthenticated) return null;
@@ -492,7 +441,63 @@ function SettingsContent() {
       userData?.me?.postalCode,
   );
   const hasCuit = Boolean(userData?.me?.cuitCuil);
-  const canActivatePaymentAccount = isKycVerified && hasAddress && hasCuit;
+  const canActivatePaymentAccount =
+    isKycVerified && hasAddress && hasCuit && isConnected;
+  const hasProfileBasics = Boolean(
+    user?.nombre && user?.apellido && userData?.me?.phone,
+  );
+  const settingsNudge = (() => {
+    if (!hasProfileBasics) {
+      return {
+        id: 'settings-complete-profile' as const,
+        title: 'Completá tus datos básicos',
+        description:
+          'Agregá tu teléfono y mantené tu nombre actualizado para operar con menos fricción.',
+        href: '/dashboard/settings?tab=profile',
+        cta: 'Completar perfil',
+        icon: <User className="h-5 w-5" />,
+      };
+    }
+
+    if (!isKycVerified) {
+      return {
+        id: 'settings-complete-kyc' as const,
+        title: isKycPending ? 'Tu verificación está en revisión' : 'Verificá tu identidad',
+        description: isKycPending
+          ? 'Cuando el KYC quede aprobado vas a poder operar con todas las funciones habilitadas.'
+          : 'El KYC aprobado es necesario para comprar, vender y cumplir los requisitos legales.',
+        href: '/dashboard/settings?tab=kyc',
+        cta: isKycPending ? 'Ver estado' : 'Completar KYC',
+        icon: <Shield className="h-5 w-5" />,
+      };
+    }
+
+    if (!hasAddress || !hasCuit) {
+      return {
+        id: 'settings-complete-tax-address' as const,
+        title: 'Completá domicilio y CUIT/CUIL',
+        description:
+          'Estos datos habilitan la publicación de rifas y la trazabilidad de futuras liquidaciones.',
+        href: '/dashboard/settings?tab=kyc',
+        cta: 'Completar datos',
+        icon: <FileCheck className="h-5 w-5" />,
+      };
+    }
+
+    if (!isConnected) {
+      return {
+        id: 'settings-connect-payments' as const,
+        title: 'Conectá Mercado Pago para vender',
+        description:
+          'LUK usa Mercado Pago sólo para transferirte liquidaciones cuando una venta queda liberada.',
+        href: '/dashboard/settings?tab=payments',
+        cta: 'Conectar MP',
+        icon: <CreditCard className="h-5 w-5" />,
+      };
+    }
+
+    return null;
+  })();
 
   const watchedDocType = watchKyc('documentType');
   const watchedProvince = watchKyc('province');
@@ -509,21 +514,17 @@ function SettingsContent() {
     updateKyc({ variables: { input: data } });
   };
 
-  const onPaymentAccountSubmit = async (data: PaymentAccountForm) => {
-    setIsSavingPaymentAccount(true);
-    try {
-      await upsertSellerPaymentAccount({ variables: { input: data } });
-    } finally {
-      setIsSavingPaymentAccount(false);
-    }
+  const handleConnectPaymentAccount = () => {
+    setIsConnectingPaymentAccount(true);
+    window.location.href = `${backendUrl}/payments/account`;
   };
 
   const handleDisconnectPaymentAccount = async () => {
     const confirmed = await confirmDialog({
-      title: '¿Desactivar datos de cobro?',
+      title: '¿Desconectar Mercado Pago?',
       description:
-        'No vas a poder crear rifas nuevas hasta volver a cargar datos de cobro válidos.',
-      confirmText: 'Desactivar',
+        'No vas a poder crear rifas nuevas hasta volver a conectar una cuenta Mercado Pago para liquidaciones.',
+      confirmText: 'Desconectar',
       cancelText: 'Cancelar',
       variant: 'destructive',
     });
@@ -640,6 +641,18 @@ function SettingsContent() {
         <p className="editorial-kicker text-primary">Dashboard / Configuración</p>
         <h1 className="mt-4 font-display text-4xl leading-none sm:text-5xl">Configuración de Cuenta</h1>
       </div>
+
+      {settingsNudge && (
+        <OnboardingNudge
+          id={settingsNudge.id}
+          userId={user?.id}
+          title={settingsNudge.title}
+          description={settingsNudge.description}
+          href={settingsNudge.href}
+          cta={settingsNudge.cta}
+          icon={settingsNudge.icon}
+        />
+      )}
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <TabsList className="grid w-full grid-cols-2 md:grid-cols-4">
@@ -977,9 +990,9 @@ function SettingsContent() {
         <TabsContent value="payments">
           <Card>
             <CardHeader>
-              <CardTitle>Datos de cobro</CardTitle>
+              <CardTitle>Mercado Pago para liquidaciones</CardTitle>
               <CardDescription>
-                Cargá los datos internos que LUK usa para liquidaciones manuales. No hay conexión con una pasarela para ventas de tickets.
+                Conectá tu cuenta Mercado Pago para recibir las liquidaciones de tus ventas. Mercado Pago no procesa tickets ni rifas; sólo recibe la transferencia cuando la liquidación está aprobada.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
@@ -995,27 +1008,26 @@ function SettingsContent() {
                   <div className="space-y-1">
                     <p className="font-medium">
                       {isConnected
-                        ? 'Datos de cobro activos'
+                        ? 'Mercado Pago conectado'
                         : isPendingPaymentAccount
-                          ? 'Datos de cobro pendientes'
-                          : 'Datos de cobro no cargados'}
+                          ? 'Mercado Pago conectado, faltan requisitos'
+                          : 'Mercado Pago no conectado'}
                     </p>
                     <p className="text-sm text-muted-foreground">
                       {isConnected
-                        ? 'Ya podés crear rifas y recibir liquidaciones internas cuando se cumplan las reglas de protección al comprador.'
+                        ? 'Ya podés crear rifas. Las liquidaciones se transfieren a tu billetera Mercado Pago después de la protección al comprador.'
                         : isPendingPaymentAccount
-                          ? 'Completá KYC, CUIT/CUIL y dirección para que la cuenta quede operativa.'
-                          : 'Cargá tus datos de cobro para habilitar rifas y futuras liquidaciones.'}
+                          ? 'La conexión existe, pero faltan KYC verificado, CUIT/CUIL o dirección para habilitar rifas.'
+                          : 'Conectá Mercado Pago para habilitar rifas y recibir futuras liquidaciones.'}
                     </p>
-                    {sellerPaymentAccount?.accountHolderName && (
+                    {sellerPaymentAccount?.providerEmail && (
                       <p className="text-sm text-muted-foreground">
-                        Titular: {sellerPaymentAccount.accountHolderName}
+                        Cuenta MP: {sellerPaymentAccount.providerEmail}
                       </p>
                     )}
-                    {sellerPaymentAccount?.maskedAccountIdentifier && (
+                    {sellerPaymentAccount?.providerAccountId && (
                       <p className="text-sm text-muted-foreground">
-                        {sellerPaymentAccount.accountIdentifierType}:{' '}
-                        {sellerPaymentAccount.maskedAccountIdentifier}
+                        ID Mercado Pago: {sellerPaymentAccount.providerAccountId}
                       </p>
                     )}
                     {sellerPaymentAccount?.lastSyncedAt && (
@@ -1067,7 +1079,7 @@ function SettingsContent() {
                   )}
                 </div>
                 <div className="flex items-center justify-between gap-3">
-                  <span>Datos de cobro activos</span>
+                  <span>Mercado Pago conectado</span>
                   {isConnected ? (
                     <CheckCircle2 className="h-4 w-4 text-success" />
                   ) : (
@@ -1076,90 +1088,26 @@ function SettingsContent() {
                 </div>
               </div>
 
-              <form
-                onSubmit={handlePaymentAccountSubmit(onPaymentAccountSubmit)}
-                className="rounded-[1.35rem] border border-border/80 p-5 space-y-4"
-              >
+              <div className="rounded-[1.35rem] border border-border/80 p-5 space-y-4">
                 <div className="space-y-2">
-                  <p className="font-medium">Cuenta para liquidaciones</p>
+                  <p className="font-medium">Cuenta Mercado Pago de liquidaciones</p>
                   <p className="text-sm text-muted-foreground">
-                    El saldo a liquidar del vendedor es interno y separado del Saldo LUK gastable del comprador.
+                    LUK acumula tu saldo a liquidar internamente y lo transfiere a tu billetera Mercado Pago cuando la entrega queda confirmada y pasan 7 días sin disputa.
                   </p>
-                </div>
-
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="space-y-2 sm:col-span-2">
-                    <Label htmlFor="accountHolderName">Titular</Label>
-                    <Input
-                      id="accountHolderName"
-                      placeholder="Nombre y apellido o razón social"
-                      {...registerPaymentAccount('accountHolderName')}
-                    />
-                    {paymentAccountErrors.accountHolderName && (
-                      <p className="text-xs text-destructive">
-                        {paymentAccountErrors.accountHolderName.message}
-                      </p>
-                    )}
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="accountIdentifierType">Tipo</Label>
-                    <Select
-                      defaultValue={
-                        sellerPaymentAccount?.accountIdentifierType || 'CBU'
-                      }
-                      onValueChange={(value) =>
-                        setPaymentAccountValue(
-                          'accountIdentifierType',
-                          value as PaymentAccountForm['accountIdentifierType'],
-                        )
-                      }
-                    >
-                      <SelectTrigger id="accountIdentifierType">
-                        <SelectValue placeholder="Tipo de cuenta" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="CBU">CBU</SelectItem>
-                        <SelectItem value="CVU">CVU</SelectItem>
-                        <SelectItem value="ALIAS">Alias</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    {paymentAccountErrors.accountIdentifierType && (
-                      <p className="text-xs text-destructive">
-                        {paymentAccountErrors.accountIdentifierType.message}
-                      </p>
-                    )}
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="accountIdentifier">CBU/CVU/Alias</Label>
-                    <Input
-                      id="accountIdentifier"
-                      placeholder={
-                        sellerPaymentAccount?.maskedAccountIdentifier ||
-                        'Ingresá el dato completo'
-                      }
-                      {...registerPaymentAccount('accountIdentifier')}
-                    />
-                    {paymentAccountErrors.accountIdentifier && (
-                      <p className="text-xs text-destructive">
-                        {paymentAccountErrors.accountIdentifier.message}
-                      </p>
-                    )}
-                  </div>
                 </div>
 
                 <div className="flex flex-col gap-3 sm:flex-row">
                   <Button
-                    type="submit"
-                    disabled={
-                      isSavingPaymentAccount || isPaymentAccountSubmitting
-                    }
+                    type="button"
+                    onClick={handleConnectPaymentAccount}
+                    disabled={isConnectingPaymentAccount}
                   >
-                    {(isSavingPaymentAccount || isPaymentAccountSubmitting) && (
+                    {isConnectingPaymentAccount && (
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     )}
-                    Guardar datos de cobro
+                    {sellerPaymentAccount
+                      ? 'Reconectar Mercado Pago'
+                      : 'Conectar Mercado Pago'}
                   </Button>
                   {sellerPaymentAccount && (
                     <Button
@@ -1171,19 +1119,19 @@ function SettingsContent() {
                       {isDisconnecting && (
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                       )}
-                      Desactivar datos
+                      Desconectar Mercado Pago
                     </Button>
                   )}
                 </div>
-              </form>
+              </div>
 
               <div className="text-sm text-muted-foreground space-y-2">
                 <p>
-                  Los cobros se liberan después de la confirmación de entrega y respetan las reglas de protección al comprador.
+                  Los cobros se liberan después de la confirmación de entrega y 7 días sin disputas abiertas.
                 </p>
                 {!canActivatePaymentAccount && (
                   <p>
-                    Para dejarla operativa completá primero la verificación KYC, el CUIT/CUIL y la dirección desde la pestaña de Verificación.
+                    Para dejarla operativa completá primero la verificación KYC, el CUIT/CUIL, la dirección y la conexión Mercado Pago.
                   </p>
                 )}
               </div>

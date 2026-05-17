@@ -308,7 +308,7 @@ export class RafflesService {
 
     if (seller.sellerPaymentAccountStatus !== 'CONNECTED') {
       throw new BadRequestException(
-        'Debes configurar tu cuenta de cobros antes de crear una rifa. Ve a tu perfil para conectarla.',
+        'Debes conectar Mercado Pago para liquidaciones antes de crear una rifa. Ve a tu perfil para conectarlo.',
       );
     }
 
@@ -976,13 +976,13 @@ export class RafflesService {
       include: { product: true, seller: true, winner: true },
     });
 
-    // Process payout now that delivery is confirmed. If payout fails, raffle stays EN_ENTREGA.
+    // Schedule payout after buyer-protection window. Processing happens later if no dispute is open.
     try {
-      await this.payoutsService.processPayoutForRaffle(raffleId);
+      await this.payoutsService.schedulePayoutAfterDelivery(raffleId);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
       this.logger.error(
-        `Failed to process payout for confirmed delivery (${raffleId}): ${message}`,
+        `Failed to schedule payout for confirmed delivery (${raffleId}): ${message}`,
       );
     }
 

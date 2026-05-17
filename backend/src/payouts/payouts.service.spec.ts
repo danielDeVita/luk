@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { BadRequestException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { PayoutStatus, Prisma } from '@prisma/client';
 import { ActivityService } from '../activity/activity.service';
 import { AuditService } from '../audit/audit.service';
@@ -7,12 +8,14 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { PaymentsService } from '../payments/payments.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { WalletService } from '../wallet/wallet.service';
+import { MercadoPagoSellerProvider } from '../payments/providers/mercado-pago-seller.provider';
 import { PayoutsService } from './payouts.service';
 
 describe('PayoutsService', () => {
   let service: PayoutsService;
 
   const prisma = {
+    $transaction: jest.fn(),
     raffle: { findUnique: jest.fn(), update: jest.fn() },
     payout: {
       findUnique: jest.fn(),
@@ -20,7 +23,8 @@ describe('PayoutsService', () => {
       update: jest.fn(),
       findMany: jest.fn(),
     },
-    transaction: { aggregate: jest.fn() },
+    transaction: { aggregate: jest.fn(), create: jest.fn() },
+    walletLedgerEntry: { findFirst: jest.fn() },
   };
 
   const notifications = {
@@ -40,11 +44,25 @@ describe('PayoutsService', () => {
     canReleaseFunds: jest.fn(),
   };
   const walletService = {
+    ensureWalletAccount: jest.fn(),
     debitSellerPayable: jest.fn(),
+    creditSellerPayable: jest.fn(),
+  };
+  const configService = {
+    get: jest.fn((key: string) =>
+      key === 'PAYMENTS_PROVIDER' ? 'mock' : undefined,
+    ),
+  };
+  const mercadoPagoSellerProvider = {
+    createSellerPayout: jest.fn(),
+    getSellerPayoutStatus: jest.fn(),
   };
 
   beforeEach(async () => {
     jest.clearAllMocks();
+    prisma.$transaction.mockImplementation(async (callback) =>
+      callback(prisma),
+    );
     paymentsService.calculateCommissions.mockReturnValue({
       platformFee: 4,
       processingFee: 0,
@@ -57,6 +75,8 @@ describe('PayoutsService', () => {
     prisma.transaction.aggregate.mockResolvedValue({
       _sum: { monto: new Prisma.Decimal(0) },
     });
+    prisma.transaction.create.mockResolvedValue({ id: 'tx-1' });
+    prisma.walletLedgerEntry.findFirst.mockResolvedValue(null);
     prisma.raffle.findUnique.mockResolvedValue({
       id: 'raffle-1',
       sellerId: 'seller-1',
@@ -86,7 +106,13 @@ describe('PayoutsService', () => {
         seller: {
           id: 'seller-1',
           email: 'seller@luk.test',
-          sellerPaymentAccount: { id: 'spa-1', status: 'CONNECTED' },
+          sellerPaymentAccount: {
+            id: 'spa-1',
+            provider: 'MERCADO_PAGO',
+            status: 'CONNECTED',
+            providerAccountId: 'mp-seller-1',
+            providerEmail: 'seller@mp.test',
+          },
         },
       },
     });
@@ -94,6 +120,12 @@ describe('PayoutsService', () => {
     prisma.raffle.update.mockResolvedValue({ id: 'raffle-1' });
     walletService.debitSellerPayable.mockResolvedValue({
       sellerPayableBalance: new Prisma.Decimal(0),
+    });
+    walletService.ensureWalletAccount.mockResolvedValue({
+      sellerPayableBalance: new Prisma.Decimal(120),
+    });
+    walletService.creditSellerPayable.mockResolvedValue({
+      sellerPayableBalance: new Prisma.Decimal(96),
     });
     notifications.create.mockResolvedValue({ id: 'notification-1' });
     notifications.sendPaymentWillBeReleasedNotification.mockResolvedValue(true);
@@ -112,6 +144,11 @@ describe('PayoutsService', () => {
         { provide: ActivityService, useValue: activity },
         { provide: PaymentsService, useValue: paymentsService },
         { provide: WalletService, useValue: walletService },
+        { provide: ConfigService, useValue: configService },
+        {
+          provide: MercadoPagoSellerProvider,
+          useValue: mercadoPagoSellerProvider,
+        },
       ],
     }).compile();
 
@@ -135,7 +172,7 @@ describe('PayoutsService', () => {
     });
   });
 
-  it('processes payout by debiting seller payable, without provider payout calls', async () => {
+  it('processes payout by debiting seller payable after mock provider acceptance', async () => {
     await service.processPayout('payout-1');
 
     expect(walletService.debitSellerPayable).toHaveBeenCalledWith(
@@ -148,7 +185,7 @@ describe('PayoutsService', () => {
       where: { id: 'payout-1' },
       data: expect.objectContaining({
         status: PayoutStatus.COMPLETED,
-        providerPayoutId: 'internal_payout-1',
+        providerPayoutId: 'mock_payout_payout-1',
       }),
     });
     expect(notifications.create).toHaveBeenCalledWith(
@@ -174,11 +211,15 @@ describe('PayoutsService', () => {
       scheduledFor: new Date('2026-05-05T00:00:00.000Z'),
     };
     prisma.payout.update.mockResolvedValueOnce(scheduled);
-    prisma.raffle.findUnique.mockResolvedValueOnce({
-      sellerId: 'seller-1',
-      titulo: 'Rifa QA',
-      seller: { email: 'seller@luk.test' },
-    });
+    prisma.raffle.findUnique
+      .mockResolvedValueOnce({
+        confirmedAt: new Date('2026-04-28T00:00:00.000Z'),
+      })
+      .mockResolvedValueOnce({
+        sellerId: 'seller-1',
+        titulo: 'Rifa QA',
+        seller: { email: 'seller@luk.test' },
+      });
 
     await service.schedulePayoutAfterDelivery('raffle-1');
 

@@ -528,7 +528,7 @@ describe('UsersService', () => {
   });
 
   describe('upsertSellerPaymentAccount', () => {
-    it('should create a CONNECTED seller payment account when readiness requirements are met', async () => {
+    it('should keep manual payout data pending even when readiness requirements are met', async () => {
       prisma.user.findUnique.mockResolvedValue({
         id: 'seller-1',
         kycStatus: KycStatus.VERIFIED,
@@ -540,14 +540,14 @@ describe('UsersService', () => {
       prisma.sellerPaymentAccount.upsert.mockResolvedValue({
         id: 'spa-1',
         userId: 'seller-1',
-        status: 'CONNECTED',
+        status: 'PENDING',
         accountHolderName: 'Juan Perez',
         accountIdentifierType: 'CBU',
         accountIdentifierEncrypted: 'encrypted-account-id',
       });
       prisma.user.update.mockResolvedValue({
         id: 'seller-1',
-        sellerPaymentAccountStatus: 'CONNECTED',
+        sellerPaymentAccountStatus: 'PENDING',
         sellerPaymentAccountId: null,
       });
 
@@ -564,13 +564,13 @@ describe('UsersService', () => {
         where: { userId: 'seller-1' },
         create: expect.objectContaining({
           userId: 'seller-1',
-          status: 'CONNECTED',
+          status: 'PENDING',
           accountHolderName: 'Juan Perez',
           accountIdentifierType: 'CBU',
           accountIdentifierEncrypted: 'encrypted-account-id',
         }),
         update: expect.objectContaining({
-          status: 'CONNECTED',
+          status: 'PENDING',
           accountHolderName: 'Juan Perez',
           accountIdentifierType: 'CBU',
           accountIdentifierEncrypted: 'encrypted-account-id',
@@ -579,12 +579,12 @@ describe('UsersService', () => {
       expect(prisma.user.update).toHaveBeenCalledWith({
         where: { id: 'seller-1' },
         data: {
-          sellerPaymentAccountStatus: 'CONNECTED',
+          sellerPaymentAccountStatus: 'PENDING',
           sellerPaymentAccountId: 'spa-1',
         },
         include: { sellerPaymentAccount: true },
       });
-      expect(result.sellerPaymentAccountStatus).toBe('CONNECTED');
+      expect(result.sellerPaymentAccountStatus).toBe('PENDING');
     });
 
     it('should keep seller payment account in PENDING when readiness requirements are missing', async () => {

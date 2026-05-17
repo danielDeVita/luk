@@ -131,8 +131,6 @@ type AuditLog {
 }
 
 type AuthPayload {
-  """Refresh token for cross-subdomain deployments"""
-  refreshToken: String
   token: String
   user: User!
 }
@@ -166,6 +164,7 @@ type BuyTicketsResult {
   packIneligibilityReason: PackIneligibilityReason
   paidWithCredit: Boolean!
   purchaseMode: TicketPurchaseMode!
+  purchaseReference: String!
   selectionPremiumAmount: Float!
   selectionPremiumPercent: Float!
   tickets: [Ticket!]!
@@ -251,6 +250,22 @@ input CreateShippingAddressInput {
   province: String!
   recipientName: String!
   street: String!
+}
+
+type CreditTopUpReceiptEntity {
+  amount: Float!
+  approvedAt: DateTime
+  createdAt: DateTime!
+  creditBalanceAfter: Float
+  creditedAmount: Float!
+  provider: String!
+  providerOrderId: String
+  providerPaymentId: String
+  receiptIssuedAt: DateTime
+  receiptVersion: Int!
+  status: String!
+  statusDetail: String
+  topUpSessionId: ID!
 }
 
 type CreditTopUpResult {
@@ -385,9 +400,6 @@ input LoginInput {
 
 type LoginPayload {
   message: String
-
-  """Refresh token for cross-subdomain deployments"""
-  refreshToken: String
   requiresTwoFactor: Boolean!
   requiresVerification: Boolean!
   token: String
@@ -415,6 +427,7 @@ type MonthlyRevenue {
 
 type Mutation {
   acceptTerms(input: AcceptTermsInput!): User!
+  acknowledgeTicketPurchaseReceipt(purchaseReference: String!, source: TicketReceiptAcceptanceSource!): TicketPurchaseReceiptEntity!
   addFavorite(raffleId: String!): Favorite!
   adminDisqualifySocialPromotionPost(postId: String!, reason: String!): SocialPromotionPost!
   adminRetrySocialPromotionPost(postId: String!): SocialPromotionPost!
@@ -482,6 +495,7 @@ type Mutation {
   startConversation(input: StartConversationInput!): Conversation!
   startSocialPromotionDraft(network: SocialPromotionNetwork!, raffleId: String!): SocialPromotionDraft!
   submitSocialPromotionPost(draftId: String!, permalink: String!): SocialPromotionPost!
+  syncProviderPayout(payoutId: String!): Payout!
   testEmail: Boolean!
 
   """Unban a user"""
@@ -568,6 +582,11 @@ type PaymentProviderEventList {
   total: Float!
 }
 
+enum PaymentsProvider {
+  MERCADO_PAGO
+  MOCK
+}
+
 type Payout {
   createdAt: DateTime!
   failureReason: String
@@ -578,6 +597,8 @@ type Payout {
   processedAt: DateTime
   processingFee: Float!
   providerPayoutId: String
+  providerPayoutStatus: String
+  providerPayoutStatusDetail: String
   raffleId: String!
   raffleTitulo: String
   scheduledFor: DateTime
@@ -725,6 +746,7 @@ type Query {
   categories: [Category!]!
   category(id: String!): Category!
   conversation(id: String!): Conversation!
+  creditTopUpReceipt(topUpSessionId: String!): CreditTopUpReceiptEntity!
   dispute(id: String!): Dispute!
   favoritesEndingSoon(hoursThreshold: Int = 48): [Raffle!]!
   getPriceReduction(priceReductionId: String!): PriceReduction
@@ -742,6 +764,7 @@ type Query {
   myShippingAddresses: [ShippingAddress!]!
   mySocialPromotionPosts(raffleId: String): [SocialPromotionPost!]!
   myTicketCountInRaffle(raffleId: String!): Int!
+  myTicketPurchaseReceipts(pendingOnly: Boolean, take: Int): [TicketPurchaseReceiptSummaryEntity!]!
   myTickets: [Ticket!]!
   myWallet: WalletAccountEntity!
 
@@ -776,6 +799,7 @@ type Query {
   socialPromotionReviewQueue: [SocialPromotionPost!]!
   ticket(id: String!): Ticket!
   ticketNumberAvailability(page: Int!, pageSize: Int!, raffleId: String!, searchNumber: Int): TicketNumberAvailabilityPage!
+  ticketPurchaseReceipt(purchaseReference: String!): TicketPurchaseReceiptEntity!
   walletLedger(take: Int): [WalletLedgerEntryEntity!]!
 }
 
@@ -928,6 +952,9 @@ type SellerPaymentAccount {
   id: ID!
   lastSyncedAt: DateTime
   maskedAccountIdentifier: String
+  provider: PaymentsProvider!
+  providerAccountId: String
+  providerEmail: String
   status: SellerPaymentAccountStatus!
 }
 
@@ -1113,6 +1140,54 @@ enum TicketPurchaseMode {
   RANDOM
 }
 
+type TicketPurchaseReceiptEntity {
+  acceptancePending: Boolean!
+  acceptanceSource: TicketReceiptAcceptanceSource
+  baseQuantity: Int!
+  bonusQuantity: Int!
+  buyerAcceptedAt: DateTime
+  chargedAmount: Float!
+  createdAt: DateTime!
+  currencyCode: String!
+  grantedQuantity: Int!
+  grossSubtotal: Float!
+  id: ID!
+  packApplied: Boolean!
+  packDiscountAmount: Float!
+  promotionDiscountAmount: Float!
+  purchaseMode: TicketPurchaseMode!
+  purchaseReference: String!
+  raffleId: String!
+  raffleTitleSnapshot: String!
+  receiptVersion: Int!
+  selectionPremiumAmount: Float!
+  selectionPremiumPercent: Float!
+  ticketNumbers: [Int!]!
+  updatedAt: DateTime!
+}
+
+type TicketPurchaseReceiptSummaryEntity {
+  acceptancePending: Boolean!
+  baseQuantity: Int!
+  bonusQuantity: Int!
+  buyerAcceptedAt: DateTime
+  chargedAmount: Float!
+  createdAt: DateTime!
+  currencyCode: String!
+  grantedQuantity: Int!
+  id: ID!
+  purchaseReference: String!
+  raffleId: String!
+  raffleTitleSnapshot: String!
+  ticketNumbers: [Int!]!
+}
+
+enum TicketReceiptAcceptanceSource {
+  POST_PURCHASE_MODAL
+  RECEIPT_PAGE
+  TICKETS_DASHBOARD
+}
+
 enum TicketStatus {
   PAGADO
   REEMBOLSADO
@@ -1269,6 +1344,7 @@ type WalletLedgerEntryEntity {
   id: ID!
   raffleId: String
   sellerPayableBalanceAfter: Float
+  topUpReceiptAvailable: Boolean
   type: WalletLedgerEntryType!
   userId: String!
 }

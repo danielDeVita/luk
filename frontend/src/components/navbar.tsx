@@ -23,6 +23,7 @@ import {
   ChevronDown,
   ShieldCheck,
   Wallet,
+  LayoutDashboard,
 } from 'lucide-react';
 import { NotificationsBell } from './notifications-bell';
 import { ThemeToggle } from './ui/theme-toggle';
@@ -139,9 +140,14 @@ export function Navbar() {
           <NavLink href="/">Inicio</NavLink>
           <NavLink href="/search">Explorar</NavLink>
           {isAuthenticated && (
-            <NavLink href="/dashboard/create" icon={<Sparkles className="w-3.5 h-3.5" />}>
-              Publicar
-            </NavLink>
+            <>
+              <NavLink href="/dashboard" icon={<LayoutDashboard className="w-3.5 h-3.5" />}>
+                Mi panel
+              </NavLink>
+              <NavLink href="/dashboard/create" icon={<Sparkles className="w-3.5 h-3.5" />}>
+                Publicar
+              </NavLink>
+            </>
           )}
         </nav>
 
@@ -212,6 +218,16 @@ export function Navbar() {
                         let menuIndex = 0;
                         const items = [];
 
+                        items.push(
+                          <DropdownLink
+                            key="dashboard"
+                            href="/dashboard"
+                            icon={<LayoutDashboard className="h-4 w-4" />}
+                            ref={(el) => { menuItemsRef.current[menuIndex++] = el; }}
+                          >
+                            Mi panel
+                          </DropdownLink>
+                        );
                         items.push(
                           <DropdownLink
                             key="sales"
@@ -383,6 +399,9 @@ export function Navbar() {
 
           {isAuthenticated ? (
             <>
+              <MobileNavLink href="/dashboard" onClick={closeMobileMenu} icon={<LayoutDashboard className="h-4 w-4" />}>
+                Mi panel
+              </MobileNavLink>
               <MobileNavLink href="/dashboard/create" onClick={closeMobileMenu} icon={<Sparkles className="h-4 w-4" />}>
                 Publicar
               </MobileNavLink>

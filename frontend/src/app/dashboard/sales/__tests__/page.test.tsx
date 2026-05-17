@@ -1,6 +1,7 @@
 /* eslint-disable @next/next/no-img-element */
 
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useLazyQuery, useMutation, useQuery } from '@apollo/client/react';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -45,6 +46,7 @@ describe('Sales dashboard onboarding', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    window.localStorage.clear();
 
     global.ResizeObserver = class ResizeObserver {
       observe() {}
@@ -101,7 +103,8 @@ describe('Sales dashboard onboarding', () => {
     ] as unknown as ReturnType<typeof useLazyQuery>);
   });
 
-  it('shows the internal payout-data onboarding note when seller payments are not connected', async () => {
+  it('shows the Mercado Pago onboarding note when seller payments are not connected', async () => {
+    const user = userEvent.setup();
     mockUseQuery.mockImplementation((operation) => {
       const body = getOperationText(operation);
 
@@ -176,8 +179,12 @@ describe('Sales dashboard onboarding', () => {
 
     expect(await screen.findByText(/primeros pasos para vender/i)).toBeInTheDocument();
     expect(
-      screen.getByText(/tus cobros se activan desde configuración cargando datos de cobro internos/i),
+      screen.getByText(/tus cobros se activan desde configuración conectando mercado pago/i),
     ).toBeInTheDocument();
-    expect(screen.getByText(/cargar datos de cobro/i)).toBeInTheDocument();
+    expect(screen.getByText(/conectar mercado pago/i)).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /ocultar por ahora/i }));
+
+    expect(screen.queryByText(/primeros pasos para vender/i)).not.toBeInTheDocument();
   });
 });

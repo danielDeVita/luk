@@ -12,9 +12,35 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { AuditService } from '../audit/audit.service';
 import { ActivityService } from '../activity/activity.service';
 import { PaymentsService } from '../payments/payments.service';
-import { PayoutStatus, UserRole } from '@prisma/client';
+import {
+  PayoutStatus,
+  Prisma,
+  UserRole,
+  WalletLedgerEntryType,
+} from '@prisma/client';
 import { captureException } from '../sentry';
 import { WalletService } from '../wallet/wallet.service';
+import { ConfigService } from '@nestjs/config';
+import {
+  MercadoPagoSellerProvider,
+  MercadoPagoSellerPayoutResult,
+} from '../payments/providers/mercado-pago-seller.provider';
+
+interface PayoutProcessingContext {
+  id: string;
+  raffleId: string;
+  sellerId: string;
+  netAmount: Prisma.Decimal;
+  platformFee: Prisma.Decimal;
+  processingFee: Prisma.Decimal;
+  raffle: {
+    titulo: string;
+    seller: {
+      id: string;
+      email: string;
+    };
+  };
+}
 
 /**
  * Creates, schedules, and processes seller payouts once raffle delivery and release rules are satisfied.
@@ -23,6 +49,7 @@ import { WalletService } from '../wallet/wallet.service';
 export class PayoutsService {
   private readonly logger = new Logger(PayoutsService.name);
   private readonly PAYOUT_DELAY_DAYS = 7; // Days after delivery confirmation to release payment
+  private readonly paymentsProvider: 'mercado_pago' | 'mock';
 
   constructor(
     private prisma: PrismaService,
@@ -32,7 +59,17 @@ export class PayoutsService {
     @Inject(forwardRef(() => PaymentsService))
     private paymentsService: PaymentsService,
     private walletService: WalletService,
-  ) {}
+    private configService: ConfigService,
+    private mercadoPagoSellerProvider: MercadoPagoSellerProvider,
+  ) {
+    const explicitProvider = (
+      this.configService.get<string>('PAYMENTS_PROVIDER') || ''
+    )
+      .trim()
+      .toLowerCase();
+    this.paymentsProvider =
+      explicitProvider === 'mock' ? 'mock' : 'mercado_pago';
+  }
 
   /**
    * Creates the payout record for a raffle once the paid-ticket totals are known.
@@ -105,7 +142,13 @@ export class PayoutsService {
       await this.createPayout(raffleId);
     }
 
-    const scheduledFor = new Date();
+    const raffleForSchedule = await this.prisma.raffle.findUnique({
+      where: { id: raffleId },
+      select: { confirmedAt: true },
+    });
+    const scheduledFor = new Date(
+      raffleForSchedule?.confirmedAt?.getTime() ?? Date.now(),
+    );
     scheduledFor.setDate(scheduledFor.getDate() + this.PAYOUT_DELAY_DAYS);
 
     const updated = await this.prisma.payout.update({
@@ -246,7 +289,10 @@ export class PayoutsService {
                 sellerPaymentAccount: {
                   select: {
                     id: true,
+                    provider: true,
                     status: true,
+                    providerAccountId: true,
+                    providerEmail: true,
                   },
                 },
               },
@@ -283,57 +329,82 @@ export class PayoutsService {
       const sellerPaymentAccount = payout.raffle.seller.sellerPaymentAccount;
       if (
         !sellerPaymentAccount ||
-        sellerPaymentAccount.status !== 'CONNECTED'
+        sellerPaymentAccount.status !== 'CONNECTED' ||
+        !sellerPaymentAccount.providerAccountId
       ) {
-        throw new Error('El vendedor no tiene datos de cobro activos');
+        throw new Error('El vendedor no tiene Mercado Pago conectado');
       }
 
-      await this.walletService.debitSellerPayable(
-        this.prisma,
+      await this.assertSellerPayableCoversPayout(
         payout.raffle.seller.id,
         Number(payout.netAmount),
-        {
-          raffleId: payout.raffleId,
-          metadata: {
-            payoutId,
-            settlement: 'manual_internal',
-          },
-        },
       );
 
-      await this.prisma.payout.update({
-        where: { id: payoutId },
-        data: {
-          status: PayoutStatus.COMPLETED,
-          processedAt: new Date(),
-          providerPayoutId: `internal_${payoutId}`,
-        },
-      });
-
-      await this.prisma.raffle.update({
-        where: { id: payout.raffleId },
-        data: {
-          paymentReleasedAt: new Date(),
-          estado: 'FINALIZADA',
-        },
-      });
-
-      await this.notifyPayoutCompleted({
-        sellerId: payout.raffle.seller.id,
-        sellerEmail: payout.raffle.seller.email,
-        raffleTitle: payout.raffle.titulo,
-        netAmount: Number(payout.netAmount),
-        fees: Number(payout.platformFee) + Number(payout.processingFee),
-      });
-      await this.activity.logPayoutReleased(
-        payout.raffle.seller.id,
+      const providerResult = await this.createProviderPayout({
         payoutId,
-        Number(payout.netAmount),
-      );
+        raffleTitle: payout.raffle.titulo,
+        sellerProviderAccountId: sellerPaymentAccount.providerAccountId,
+        sellerProviderEmail: sellerPaymentAccount.providerEmail,
+        amount: Number(payout.netAmount),
+      });
 
-      this.logger.log(`Payout ${payoutId} processed successfully`);
+      if (providerResult.providerStatus === 'failed') {
+        throw new Error(
+          providerResult.providerStatusDetail ||
+            'Mercado Pago rechazó la liquidación',
+        );
+      }
+
+      await this.recordAcceptedProviderPayout(payout, providerResult);
+
+      if (providerResult.providerStatus === 'completed') {
+        await this.completeAcceptedPayout(payout, providerResult);
+
+        await this.notifyPayoutCompleted({
+          sellerId: payout.raffle.seller.id,
+          sellerEmail: payout.raffle.seller.email,
+          raffleTitle: payout.raffle.titulo,
+          netAmount: Number(payout.netAmount),
+          fees: Number(payout.platformFee) + Number(payout.processingFee),
+        });
+        await this.activity.logPayoutReleased(
+          payout.raffle.seller.id,
+          payoutId,
+          Number(payout.netAmount),
+        );
+
+        this.logger.log(`Payout ${payoutId} processed successfully`);
+      } else {
+        await this.prisma.payout.update({
+          where: { id: payoutId },
+          data: {
+            status: PayoutStatus.PROCESSING,
+            providerPayoutId: providerResult.providerPayoutId,
+            providerPayoutStatus: providerResult.providerStatus,
+            providerPayoutStatusDetail: providerResult.providerStatusDetail,
+            providerMetadata: this.toProviderMetadata(providerResult),
+          },
+        });
+        this.logger.log(`Payout ${payoutId} is processing in Mercado Pago`);
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
+
+      const debitAlreadyRecorded = await this.hasSellerPayableDebit(payoutId);
+      if (debitAlreadyRecorded) {
+        await this.walletService.creditSellerPayable(
+          this.prisma,
+          payout.raffle.seller.id,
+          Number(payout.netAmount),
+          {
+            raffleId: payout.raffleId,
+            payoutId,
+            metadata: {
+              reason: 'payout_failed_reversal',
+            },
+          },
+        );
+      }
 
       await this.prisma.payout.update({
         where: { id: payoutId },
@@ -411,6 +482,225 @@ export class PayoutsService {
     });
 
     return true;
+  }
+
+  async syncProviderPayoutStatus(payoutId: string) {
+    const payout = await this.prisma.payout.findUnique({
+      where: { id: payoutId },
+      include: {
+        raffle: {
+          include: {
+            seller: { select: { id: true, email: true } },
+          },
+        },
+      },
+    });
+
+    if (!payout) {
+      throw new NotFoundException('Payout no encontrado');
+    }
+
+    if (payout.status !== PayoutStatus.PROCESSING) {
+      return payout;
+    }
+
+    if (!payout.providerPayoutId) {
+      throw new BadRequestException('El payout no tiene id de Mercado Pago');
+    }
+
+    const providerResult =
+      this.paymentsProvider === 'mock'
+        ? this.createMockProviderPayoutResult(payout.id, 'completed')
+        : await this.mercadoPagoSellerProvider.getSellerPayoutStatus(
+            payout.providerPayoutId,
+          );
+
+    if (providerResult.providerStatus === 'processing') {
+      return this.prisma.payout.update({
+        where: { id: payout.id },
+        data: {
+          providerPayoutStatus: providerResult.providerStatus,
+          providerPayoutStatusDetail: providerResult.providerStatusDetail,
+          providerMetadata: this.toProviderMetadata(providerResult),
+        },
+      });
+    }
+
+    if (providerResult.providerStatus === 'completed') {
+      await this.completeAcceptedPayout(payout, providerResult);
+      return this.prisma.payout.findUnique({ where: { id: payout.id } });
+    }
+
+    await this.walletService.creditSellerPayable(
+      this.prisma,
+      payout.raffle.seller.id,
+      Number(payout.netAmount),
+      {
+        raffleId: payout.raffleId,
+        payoutId,
+        metadata: { reason: 'payout_failed_reversal' },
+      },
+    );
+
+    return this.prisma.payout.update({
+      where: { id: payout.id },
+      data: {
+        status: PayoutStatus.FAILED,
+        failureReason:
+          providerResult.providerStatusDetail ||
+          'Mercado Pago rechazó la liquidación',
+        providerPayoutStatus: providerResult.providerStatus,
+        providerPayoutStatusDetail: providerResult.providerStatusDetail,
+        providerMetadata: this.toProviderMetadata(providerResult),
+      },
+    });
+  }
+
+  private async createProviderPayout(input: {
+    payoutId: string;
+    raffleTitle: string;
+    sellerProviderAccountId: string;
+    sellerProviderEmail?: string | null;
+    amount: number;
+  }): Promise<MercadoPagoSellerPayoutResult> {
+    if (this.paymentsProvider === 'mock') {
+      return this.createMockProviderPayoutResult(input.payoutId, 'completed');
+    }
+
+    return this.mercadoPagoSellerProvider.createSellerPayout({
+      payoutId: input.payoutId,
+      sellerProviderAccountId: input.sellerProviderAccountId,
+      sellerProviderEmail: input.sellerProviderEmail,
+      amount: input.amount,
+      description: `Liquidación LUK - ${input.raffleTitle}`,
+    });
+  }
+
+  private createMockProviderPayoutResult(
+    payoutId: string,
+    status: 'processing' | 'completed' | 'failed',
+  ): MercadoPagoSellerPayoutResult {
+    return {
+      providerPayoutId: `mock_payout_${payoutId}`,
+      providerStatus: status,
+      providerStatusDetail: 'mock_payout',
+      metadata: {
+        payoutId,
+        transactionId: `mock_payout_tx_${payoutId}`,
+      },
+    };
+  }
+
+  private async recordAcceptedProviderPayout(
+    payout: PayoutProcessingContext,
+    providerResult: MercadoPagoSellerPayoutResult,
+  ) {
+    await this.prisma.$transaction(async (tx) => {
+      await this.walletService.debitSellerPayable(
+        tx,
+        payout.raffle.seller.id,
+        Number(payout.netAmount),
+        {
+          raffleId: payout.raffleId,
+          payoutId: payout.id,
+          metadata: {
+            settlement: 'mercado_pago_payout',
+            providerPayoutId: providerResult.providerPayoutId,
+          },
+        },
+      );
+
+      await tx.payout.update({
+        where: { id: payout.id },
+        data: {
+          providerPayoutId: providerResult.providerPayoutId,
+          providerPayoutStatus: providerResult.providerStatus,
+          providerPayoutStatusDetail: providerResult.providerStatusDetail,
+          providerMetadata: this.toProviderMetadata(providerResult),
+        },
+      });
+    });
+  }
+
+  private async completeAcceptedPayout(
+    payout: PayoutProcessingContext,
+    providerResult: MercadoPagoSellerPayoutResult,
+  ) {
+    await this.prisma.$transaction(async (tx) => {
+      await tx.payout.update({
+        where: { id: payout.id },
+        data: {
+          status: PayoutStatus.COMPLETED,
+          processedAt: new Date(),
+          failureReason: null,
+          providerPayoutId: providerResult.providerPayoutId,
+          providerPayoutStatus: providerResult.providerStatus,
+          providerPayoutStatusDetail: providerResult.providerStatusDetail,
+          providerMetadata: this.toProviderMetadata(providerResult),
+        },
+      });
+
+      await tx.raffle.update({
+        where: { id: payout.raffleId },
+        data: {
+          paymentReleasedAt: new Date(),
+          estado: 'FINALIZADA',
+        },
+      });
+
+      await tx.transaction.create({
+        data: {
+          tipo: 'PAGO_VENDEDOR',
+          userId: payout.raffle.seller.id,
+          raffleId: payout.raffleId,
+          monto: Number(payout.netAmount),
+          comisionPlataforma: Number(payout.platformFee),
+          feeProcesamiento: Number(payout.processingFee),
+          montoNeto: Number(payout.netAmount),
+          providerPaymentId: providerResult.providerPayoutId,
+          estado: 'COMPLETADO',
+          metadata: {
+            provider: 'MERCADO_PAGO',
+            payoutId: payout.id,
+          },
+        },
+      });
+    });
+  }
+
+  private async assertSellerPayableCoversPayout(
+    sellerId: string,
+    amount: number,
+  ) {
+    const wallet = await this.walletService.ensureWalletAccount(
+      this.prisma,
+      sellerId,
+    );
+    if (Number(wallet.sellerPayableBalance) + 0.00001 < amount) {
+      throw new BadRequestException(
+        'El balance interno del vendedor no alcanza para liquidar',
+      );
+    }
+  }
+
+  private async hasSellerPayableDebit(payoutId: string): Promise<boolean> {
+    const ledgerEntry = await this.prisma.walletLedgerEntry.findFirst({
+      where: {
+        payoutId,
+        type: WalletLedgerEntryType.SELLER_PAYABLE_DEBIT,
+      },
+      select: { id: true },
+    });
+
+    return Boolean(ledgerEntry);
+  }
+
+  private toProviderMetadata(
+    providerResult: MercadoPagoSellerPayoutResult,
+  ): Prisma.InputJsonValue {
+    return JSON.parse(
+      JSON.stringify(providerResult.metadata),
+    ) as Prisma.InputJsonValue;
   }
 
   private async notifyPayoutScheduled(context: {

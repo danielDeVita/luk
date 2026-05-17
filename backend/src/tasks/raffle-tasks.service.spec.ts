@@ -309,6 +309,58 @@ describe('RaffleTasksService', () => {
       });
       expect(prisma.priceReduction.create).not.toHaveBeenCalled();
     });
+
+    it('should continue processing remaining raffles when one expired raffle fails', async () => {
+      prisma.raffle.findMany.mockResolvedValue([
+        {
+          id: 'raffle-failing',
+          estado: 'ACTIVA',
+          totalTickets: 10,
+          tickets: Array.from({ length: 4 }, (_, i) => ({
+            id: `f-${i}`,
+            estado: 'PAGADO',
+          })),
+          seller: { id: 'seller-1', email: 'seller@test.com' },
+        },
+        {
+          id: 'raffle-drawable',
+          estado: 'ACTIVA',
+          totalTickets: 10,
+          tickets: Array.from({ length: 8 }, (_, i) => ({
+            id: `d-${i}`,
+            estado: 'PAGADO',
+          })),
+          seller: { id: 'seller-2', email: 'seller2@test.com' },
+        },
+      ]);
+
+      prisma.raffle.findUnique.mockResolvedValue({
+        id: 'raffle-failing',
+        titulo: 'Failing Raffle',
+        precioPorTicket: new Prisma.Decimal(500),
+        tickets: [
+          {
+            id: 'ticket-1',
+            precioPagado: new Prisma.Decimal(500),
+            buyer: { email: 'buyer1@test.com' },
+          },
+        ],
+        seller: { id: 'seller-1', email: 'seller@test.com' },
+      });
+      ticketsService.refundTickets.mockRejectedValue(
+        new Error('refund failed'),
+      );
+      ticketsService.drawRaffleIfEligible.mockResolvedValue(true);
+
+      await service.processExpiredRaffles();
+
+      expect(ticketsService.refundTickets).toHaveBeenCalledWith(
+        'raffle-failing',
+      );
+      expect(ticketsService.drawRaffleIfEligible).toHaveBeenCalledWith(
+        'raffle-drawable',
+      );
+    });
   });
 
   describe('processRemindersAndReleases', () => {

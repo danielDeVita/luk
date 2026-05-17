@@ -36,7 +36,7 @@ describe('MercadoPagoTopUpProvider', () => {
     });
   });
 
-  it('creates a wallet-only checkout payload with a statement descriptor', async () => {
+  it('creates a Saldo LUK top-up checkout payload with a statement descriptor', async () => {
     const provider = new MercadoPagoTopUpProvider(configService);
 
     const result = await provider.createCreditTopUp({

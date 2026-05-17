@@ -10,6 +10,7 @@ import { SocialPromotionsModule } from '../social-promotions/social-promotions.m
 import { WalletModule } from '../wallet/wallet.module';
 import { MercadoPagoTopUpProvider } from './providers/mercado-pago-topup.provider';
 import { MockPaymentProvider } from './providers/mock-payment.provider';
+import { MercadoPagoSellerProvider } from './providers/mercado-pago-seller.provider';
 
 @Module({
   imports: [
@@ -21,7 +22,12 @@ import { MockPaymentProvider } from './providers/mock-payment.provider';
     forwardRef(() => SocialPromotionsModule),
   ],
   controllers: [PaymentsController, MockPaymentsController],
-  providers: [PaymentsService, MercadoPagoTopUpProvider, MockPaymentProvider],
-  exports: [PaymentsService],
+  providers: [
+    PaymentsService,
+    MercadoPagoTopUpProvider,
+    MercadoPagoSellerProvider,
+    MockPaymentProvider,
+  ],
+  exports: [PaymentsService, MercadoPagoSellerProvider],
 })
 export class PaymentsModule {}

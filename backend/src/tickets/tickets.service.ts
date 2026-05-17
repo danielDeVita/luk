@@ -130,10 +130,19 @@ export class TicketsService {
       async (tx) => {
         const raffle = await tx.raffle.findUnique({
           where: { id: raffleId },
-          select: { sellerId: true },
+          select: {
+            sellerId: true,
+            paymentReleasedAt: true,
+            payout: { select: { status: true } },
+          },
         });
         if (!raffle) {
           throw new NotFoundException('Rifa no encontrada');
+        }
+        if (raffle.paymentReleasedAt || raffle.payout?.status === 'COMPLETED') {
+          throw new BadRequestException(
+            'No se pueden reintegrar tickets automáticamente después de liquidar al vendedor',
+          );
         }
 
         const tickets = await tx.ticket.findMany({
