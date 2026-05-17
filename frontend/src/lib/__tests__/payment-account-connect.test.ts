@@ -97,6 +97,30 @@ describe('getSellerPaymentAccountAuthorizationUrl', () => {
     );
   });
 
+  it('surfaces the backend validation message when OAuth configuration is incomplete', async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
+      jsonResponse(
+        {
+          message:
+            'Mercado Pago OAuth no está configurado para conectar vendedores',
+          statusCode: 400,
+        },
+        400,
+      ),
+    );
+
+    await expect(
+      getSellerPaymentAccountAuthorizationUrl({
+        backendUrl: 'https://backend.test',
+        token: 'current-token',
+        setToken: vi.fn(),
+        fetcher,
+      }),
+    ).rejects.toThrow(
+      'Mercado Pago OAuth no está configurado para conectar vendedores',
+    );
+  });
+
   it('throws a clear error when Mercado Pago authorization URL is missing', async () => {
     const fetcher = vi.fn<typeof fetch>().mockResolvedValue(jsonResponse({}));
 

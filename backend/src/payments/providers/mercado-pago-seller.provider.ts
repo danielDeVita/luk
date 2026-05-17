@@ -354,19 +354,39 @@ export class MercadoPagoSellerProvider {
   }
 
   private get clientId(): string {
-    return (this.configService.get<string>('MP_OAUTH_CLIENT_ID') || '').trim();
+    return (
+      this.configService.get<string>('MP_OAUTH_CLIENT_ID') ||
+      this.configService.get<string>('MP_CLIENT_ID') ||
+      ''
+    ).trim();
   }
 
   private get clientSecret(): string {
     return (
-      this.configService.get<string>('MP_OAUTH_CLIENT_SECRET') || ''
+      this.configService.get<string>('MP_OAUTH_CLIENT_SECRET') ||
+      this.configService.get<string>('MP_CLIENT_SECRET') ||
+      ''
     ).trim();
   }
 
   private get oauthRedirectUri(): string {
-    return (
+    const explicitRedirectUri = (
       this.configService.get<string>('MP_OAUTH_REDIRECT_URI') || ''
     ).trim();
+
+    if (explicitRedirectUri) {
+      return explicitRedirectUri;
+    }
+
+    const backendUrl = (
+      this.configService.get<string>('BACKEND_URL') || ''
+    ).trim();
+
+    if (!backendUrl) {
+      return '';
+    }
+
+    return `${backendUrl.replace(/\/$/, '')}/payments/account/callback`;
   }
 
   private get platformAccessToken(): string {

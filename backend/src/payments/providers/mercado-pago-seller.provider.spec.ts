@@ -40,6 +40,25 @@ describe('MercadoPagoSellerProvider', () => {
     expect(url).toContain('state=signed-state');
   });
 
+  it('supports legacy MP client env names and derives the OAuth redirect from BACKEND_URL', () => {
+    jest.spyOn(configService, 'get').mockImplementation((key: string) => {
+      const values: Record<string, string> = {
+        MP_CLIENT_ID: 'legacy-client-id',
+        MP_CLIENT_SECRET: 'legacy-client-secret',
+        BACKEND_URL: 'https://backend.luk.test/',
+      };
+      return values[key];
+    });
+    const provider = new MercadoPagoSellerProvider(configService);
+
+    const url = provider.buildAuthorizationUrl('signed-state');
+
+    expect(url).toContain('client_id=legacy-client-id');
+    expect(url).toContain(
+      'redirect_uri=https%3A%2F%2Fbackend.luk.test%2Fpayments%2Faccount%2Fcallback',
+    );
+  });
+
   it('exchanges an OAuth code and normalizes the connected seller account', async () => {
     const fetchMock = global.fetch as jest.MockedFunction<typeof fetch>;
     fetchMock

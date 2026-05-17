@@ -6,11 +6,37 @@ interface RefreshTokenResponse {
   token?: string;
 }
 
+interface ApiErrorResponse {
+  message?: string | string[];
+  error?: string;
+}
+
 interface GetSellerPaymentAccountAuthorizationUrlParams {
   backendUrl: string;
   token: string | null;
   setToken: (token: string) => void;
   fetcher?: typeof fetch;
+}
+
+async function readApiErrorMessage(response: Response): Promise<string | null> {
+  const payload = (await response.json().catch(() => null)) as
+    | ApiErrorResponse
+    | null;
+  const message = payload?.message;
+
+  if (Array.isArray(message)) {
+    return message.join(' ');
+  }
+
+  if (typeof message === 'string' && message.trim()) {
+    return message;
+  }
+
+  if (typeof payload?.error === 'string' && payload.error.trim()) {
+    return payload.error;
+  }
+
+  return null;
 }
 
 export async function getSellerPaymentAccountAuthorizationUrl({
@@ -55,8 +81,12 @@ export async function getSellerPaymentAccountAuthorizationUrl({
   }
 
   if (!response.ok) {
+    const apiErrorMessage =
+      response.status === 401 ? null : await readApiErrorMessage(response);
+
     throw new Error(
-      'No pudimos iniciar la conexión con Mercado Pago. Volvé a iniciar sesión e intentá de nuevo.',
+      apiErrorMessage ||
+        'No pudimos iniciar la conexión con Mercado Pago. Volvé a iniciar sesión e intentá de nuevo.',
     );
   }
 
