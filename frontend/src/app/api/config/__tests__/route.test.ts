@@ -40,6 +40,9 @@ describe('GET /api/config', () => {
   it('exposes runtime env values without leaking secrets', async () => {
     process.env.NEXT_PUBLIC_SITE_URL = 'https://app.luk.test';
     process.env.NEXT_PUBLIC_GRAPHQL_URL = 'https://api.luk.test/graphql';
+    // Unset on purpose: the route must derive wss:// from the graphql URL.
+    // (CI exports this var pointing to localhost, which would mask derivation.)
+    delete process.env.NEXT_PUBLIC_GRAPHQL_WS_URL;
     process.env.NEXT_PUBLIC_BACKEND_URL = 'https://api.luk.test';
     process.env.NEXT_PUBLIC_TURNSTILE_ENABLED = 'true';
     process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY = 'public-site-key';
