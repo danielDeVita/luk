@@ -1,7 +1,10 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { getRuntimeConfigSnapshot } from '@/lib/runtime-config';
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
+function getBackendUrl(): string {
+  return getRuntimeConfigSnapshot().backendUrl;
+}
 
 interface User {
   id: string;
@@ -14,7 +17,11 @@ interface User {
 
 interface AuthState {
   user: User | null;
-  token: string | null; // Store access token for Authorization header
+  // Access token lives only in memory (never persisted to localStorage).
+  // Long-lived sessions survive reloads through the httpOnly refresh cookie
+  // via restoreSession(). This limits the impact of an XSS injection:
+  // an attacker reading localStorage no longer finds a usable token.
+  token: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
   error: string | null;
@@ -22,6 +29,7 @@ interface AuthState {
   getToken: () => string | null;
   setToken: (token: string) => void;
   logout: () => Promise<void>;
+  restoreSession: () => Promise<boolean>;
   updateUser: (user: Partial<User>) => void;
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
@@ -60,8 +68,8 @@ export const useAuthStore = create<AuthState>()(
 
       logout: async () => {
         try {
-          // Call backend to clear any server-side session
-          await fetch(`${BACKEND_URL}/auth/logout`, {
+          // Call backend to revoke the refresh token and clear cookies
+          await fetch(`${getBackendUrl()}/auth/logout`, {
             method: 'GET',
             credentials: 'include',
           });
@@ -74,6 +82,44 @@ export const useAuthStore = create<AuthState>()(
           isAuthenticated: false,
           error: null,
         });
+      },
+
+      restoreSession: async () => {
+        const { user, token } = get();
+        // Nothing to restore without a persisted user, or token already live
+        if (!user || token) {
+          return !!token;
+        }
+        set({ isLoading: true });
+        try {
+          const response = await fetch(`${getBackendUrl()}/auth/refresh`, {
+            method: 'GET',
+            credentials: 'include',
+          });
+          if (!response.ok) {
+            throw new Error(`refresh failed: ${response.status}`);
+          }
+          const data = await response.json();
+          if (!data?.token) {
+            throw new Error('refresh response without token');
+          }
+          set({
+            token: data.token,
+            isAuthenticated: true,
+            isLoading: false,
+            error: null,
+          });
+          return true;
+        } catch {
+          // Refresh cookie missing/expired: drop the stale persisted user
+          set({
+            user: null,
+            token: null,
+            isAuthenticated: false,
+            isLoading: false,
+          });
+          return false;
+        }
       },
 
       updateUser: (updates) => {
@@ -102,9 +148,9 @@ export const useAuthStore = create<AuthState>()(
     {
       name: 'auth-storage',
       partialize: (state) => ({
-        // Persist user info plus access token needed for Authorization headers.
+        // Persist identity only. The access token stays in memory and is
+        // re-issued via restoreSession() using the httpOnly refresh cookie.
         user: state.user,
-        token: state.token,
         isAuthenticated: state.isAuthenticated,
       }),
       onRehydrateStorage: () => (state) => {

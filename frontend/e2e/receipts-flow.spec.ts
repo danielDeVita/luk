@@ -12,6 +12,8 @@ test.describe('Receipts Flow', () => {
     let receiptAcknowledged = false;
 
     await page.addInitScript(() => {
+      // Identity only: the access token lives in memory and is re-issued
+      // via the mocked /auth/refresh below, like the real boot sequence.
       localStorage.setItem(
         'auth-storage',
         JSON.stringify({
@@ -23,13 +25,19 @@ test.describe('Receipts Flow', () => {
               apellido: 'QA',
               role: 'USER',
             },
-            token:
-              'eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0=.eyJzdWIiOiJidXllci0xIiwiZXhwIjo0MTAyNDQ0ODAwfQ==.e2e',
             isAuthenticated: true,
           },
           version: 0,
         }),
       );
+    });
+
+    await page.route('**/auth/refresh', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ token: 'e2e-restored-token' }),
+      });
     });
 
     await page.route('**/graphql', async (route) => {

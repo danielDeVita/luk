@@ -49,8 +49,13 @@ const LOGIN_MUTATION = `
 `;
 
 /**
- * Authenticate via direct API call and inject tokens into localStorage.
+ * Authenticate via direct API call and restore the browser session.
  * Bypasses the browser login UI entirely — reliable in CI environments.
+ *
+ * Auth cookies (httpOnly refresh token) set by the login response land in
+ * the page's cookie jar (page.request shares storage with the page context).
+ * Only the user identity is written to localStorage — the access token lives
+ * in memory and is re-issued on reload via /auth/refresh, same as real users.
  */
 export async function apiLogin(
   page: Page,
@@ -113,25 +118,34 @@ export async function apiLogin(
   // Use domcontentloaded to avoid waiting for Apollo queries to complete
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
-  // Set Zustand auth state in localStorage (matches persist format in store/auth.ts)
-  // Now that dashboard pages check hasHydrated, they will wait for Zustand to finish
-  // reading from localStorage before checking authentication.
-  await page.evaluate(
-    ({ user, token }) => {
-      localStorage.setItem(
-        'auth-storage',
-        JSON.stringify({
-          state: {
-            user,
-            token,
-            isAuthenticated: true,
-          },
-          version: 0,
-        }),
-      );
-    },
-    { user: userData, token },
-  );
+  // Persist identity only (matches persist format in store/auth.ts).
+  // The access token is NOT stored: on reload the app re-issues it into
+  // memory via /auth/refresh using the httpOnly cookie from the login above.
+  await page.evaluate(({ user }) => {
+    localStorage.setItem(
+      'auth-storage',
+      JSON.stringify({
+        state: {
+          user,
+          isAuthenticated: true,
+        },
+        version: 0,
+      }),
+    );
+  }, { user: userData });
+
+  // Reload so the app boots through the real session-restore path,
+  // then wait for the refresh round-trip (best effort — callers assert UI).
+  const refreshResponse = page
+    .waitForResponse(
+      (response) =>
+        response.url().includes('/auth/refresh') &&
+        response.request().method() === 'GET',
+      { timeout: 15000 },
+    )
+    .catch(() => null);
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await refreshResponse;
 
   return { token, user: userData };
 }

@@ -237,8 +237,7 @@ describe('Auth Store (Zustand)', () => {
   });
 
   describe('Persistence', () => {
-    it('should persist user and access token only', () => {
-      // This test verifies the partialize config
+    it('should keep user and auth flag in memory after login', () => {
       // Set some values
       act(() => {
         useAuthStore.getState().setAuth(
@@ -249,11 +248,71 @@ describe('Auth Store (Zustand)', () => {
         useAuthStore.getState().setError('error');
       });
 
-      // The store should have all values
+      // The store should have all values in memory
       expect(useAuthStore.getState().user).not.toBeNull();
       expect(useAuthStore.getState().token).toBe('token');
       expect(useAuthStore.getState().isAuthenticated).toBe(true);
-      // Note: isLoading and error are NOT persisted (partialize excludes them)
+      // Note: only user + isAuthenticated are persisted (partialize excludes
+      // token, isLoading and error). The token is re-issued via restoreSession().
+    });
+  });
+
+  describe('restoreSession', () => {
+    const persistedUser = {
+      id: '1',
+      email: 'test@test.com',
+      nombre: 'Test',
+      apellido: 'User',
+      role: 'USER' as const,
+    };
+
+    it('re-issues the in-memory token from the refresh cookie', async () => {
+      act(() => {
+        useAuthStore.setState({ user: persistedUser, token: null, isAuthenticated: true });
+      });
+
+      (fetch as unknown as Mock).mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ token: 'fresh-token' }),
+      });
+
+      let restored = false;
+      await act(async () => {
+        restored = await useAuthStore.getState().restoreSession();
+      });
+
+      expect(restored).toBe(true);
+      expect(useAuthStore.getState().token).toBe('fresh-token');
+      expect(useAuthStore.getState().isAuthenticated).toBe(true);
+      expect(fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/auth/refresh'),
+        expect.objectContaining({ credentials: 'include' })
+      );
+    });
+
+    it('clears the stale user when refresh fails', async () => {
+      act(() => {
+        useAuthStore.setState({ user: persistedUser, token: null, isAuthenticated: true });
+      });
+
+      (fetch as unknown as Mock).mockResolvedValueOnce({ ok: false, status: 401 });
+
+      let restored = true;
+      await act(async () => {
+        restored = await useAuthStore.getState().restoreSession();
+      });
+
+      expect(restored).toBe(false);
+      expect(useAuthStore.getState().user).toBeNull();
+      expect(useAuthStore.getState().token).toBeNull();
+      expect(useAuthStore.getState().isAuthenticated).toBe(false);
+    });
+
+    it('does nothing without a persisted user', async () => {
+      const restored = await useAuthStore.getState().restoreSession();
+
+      expect(restored).toBe(false);
+      expect(fetch).not.toHaveBeenCalled();
     });
   });
 });

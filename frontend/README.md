@@ -84,6 +84,24 @@ SENTRY_RELEASE=""
 
 If the backend runs with `PAYMENTS_PROVIDER="mock"`, Saldo LUK top-ups redirect to the local mock checkout page instead of Mercado Pago. Ticket purchases never open an external checkout; they debit internal balance.
 
+### Runtime config (`GET /api/config`)
+
+`NEXT_PUBLIC_*` values are baked at build time. To avoid rebuilding the
+Docker image per environment, the browser loads `GET /api/config` once on
+boot (`src/lib/runtime-config.ts`, force-dynamic server route) and uses
+those values for backend/GraphQL URLs, with the build-time values as
+fallback. The same image therefore works in any environment as long as the
+server container has the right env at request time.
+
+### Session restore (memory-only access token)
+
+The access token is kept in memory only (Zustand, not persisted). Identity
+(`user`, `isAuthenticated`) is persisted; on reload the app re-issues the
+token via `GET /auth/refresh` using the httpOnly refresh cookie
+(`restoreSession()` in `src/store/auth.ts`). E2E `apiLogin()` follows the
+same path: API login (cookies land in the page jar), user-only storage,
+reload, wait for the refresh round-trip.
+
 Keep the Sentry DSNs empty in local development if you do not want browser/server events sent from your machine.
 
 Turnstile is optional in local/dev. When `NEXT_PUBLIC_TURNSTILE_ENABLED="true"`, the frontend requires `NEXT_PUBLIC_TURNSTILE_SITE_KEY`. The site key is public and must never be confused with the backend secret key.
