@@ -75,6 +75,7 @@ describe('ForgotPasswordPage', () => {
       getToken: vi.fn(),
       setToken: vi.fn(),
       logout: vi.fn(),
+      restoreSession: vi.fn().mockResolvedValue(false),
       updateUser: vi.fn(),
       setLoading: vi.fn(),
       setError: vi.fn(),

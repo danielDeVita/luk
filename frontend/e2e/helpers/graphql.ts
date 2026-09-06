@@ -166,24 +166,6 @@ export async function createTestDispute(
 }
 
 /**
- * Get user token from localStorage after login
- */
-export async function getUserToken(
-  page: Page,
-): Promise<string | null> {
-  return await page.evaluate(() => {
-    const raw = localStorage.getItem('auth-storage');
-    if (!raw) return null;
-    try {
-      const parsed = JSON.parse(raw);
-      return parsed?.state?.token || null;
-    } catch {
-      return null;
-    }
-  });
-}
-
-/**
  * Wait for GraphQL request to complete
  */
 export async function waitForGraphQL(

@@ -7,7 +7,7 @@ on:
     branches: [main, develop]
 
 env:
-  NODE_VERSION: '20'
+  NODE_VERSION: '22'
 
 jobs:
   # ==================== Backend ====================
@@ -33,6 +33,15 @@ jobs:
           --health-retries 5
         ports:
           - 5432:5432
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
 
     steps:
       - name: Checkout code
@@ -68,6 +77,7 @@ jobs:
         run: npm run test:cov
         env:
           DATABASE_URL: postgresql://raffle_user:raffle_password@localhost:5432/raffle_db
+          REDIS_URL: redis://localhost:6379
           JWT_SECRET: test-jwt-secret-for-ci-pipeline
           ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
           PLATFORM_FEE_PERCENT: '4'
@@ -152,6 +162,15 @@ jobs:
           --health-retries 5
         ports:
           - 5432:5432
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
 
     steps:
       - name: Checkout code
@@ -202,6 +221,7 @@ jobs:
           cat backend.log || true
         env:
           DATABASE_URL: postgresql://raffle_user:raffle_password@localhost:5432/raffle_db
+          REDIS_URL: redis://localhost:6379
           JWT_SECRET: test-jwt-secret-for-ci-pipeline
           ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
           PLATFORM_FEE_PERCENT: '4'

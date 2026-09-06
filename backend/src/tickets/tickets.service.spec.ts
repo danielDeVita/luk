@@ -301,4 +301,67 @@ describe('TicketsService', () => {
       socialPromotionsService.reserveBonusForCheckout,
     ).not.toHaveBeenCalled();
   });
+
+  it('rejects repeated numbers before touching the database', async () => {
+    await expect(
+      service.buySelectedTickets('buyer-1', 'raffle-1', [7, 7]),
+    ).rejects.toThrow('No podés elegir números repetidos');
+
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+    expect(walletService.debitUserBalance).not.toHaveBeenCalled();
+  });
+
+  it('blocks purchases over the 50% buyer cap', async () => {
+    prisma.$transaction.mockImplementation(async (callback) => {
+      const tx = {
+        $queryRaw: jest.fn().mockResolvedValue([activeRaffle]),
+        ticket: {
+          count: jest.fn().mockResolvedValue(50),
+          findMany: jest.fn().mockResolvedValue([]),
+          create: jest.fn(),
+        },
+      };
+      return callback(tx);
+    });
+
+    await expect(service.buyTickets('buyer-1', 'raffle-1', 1)).rejects.toThrow(
+      'límite 50%',
+    );
+
+    expect(walletService.debitUserBalance).not.toHaveBeenCalled();
+  });
+
+  it('rejects a chosen number that is already taken', async () => {
+    prisma.$transaction.mockImplementation(async (callback) => {
+      const tx = {
+        $queryRaw: jest.fn().mockResolvedValue([activeRaffle]),
+        ticket: {
+          count: jest.fn().mockResolvedValue(0),
+          findMany: jest.fn().mockResolvedValue([{ numeroTicket: 3 }]),
+          create: jest.fn(),
+        },
+      };
+      return callback(tx);
+    });
+
+    await expect(
+      service.buySelectedTickets('buyer-1', 'raffle-1', [3, 7]),
+    ).rejects.toThrow('ya no están disponibles');
+
+    expect(walletService.debitUserBalance).not.toHaveBeenCalled();
+  });
+
+  it('emits no receipt when the buyer has insufficient Saldo LUK', async () => {
+    const { ticketPurchaseReceiptCreate } = mockPurchaseTransaction();
+    walletService.debitUserBalance.mockRejectedValueOnce(
+      new BadRequestException('Saldo LUK insuficiente'),
+    );
+
+    await expect(service.buyTickets('buyer-1', 'raffle-1', 1)).rejects.toThrow(
+      'Saldo LUK insuficiente',
+    );
+
+    expect(ticketPurchaseReceiptCreate).not.toHaveBeenCalled();
+    expect(walletService.creditSellerPayable).not.toHaveBeenCalled();
+  });
 });

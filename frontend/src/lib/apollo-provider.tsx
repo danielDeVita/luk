@@ -10,8 +10,7 @@ import { createClient, Client } from 'graphql-ws';
 import { useAuthStore } from '@/store/auth';
 import { ReactNode, useMemo, createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { reportApolloOperationalErrors } from './apollo-error-reporting';
-
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
+import { getRuntimeConfigSnapshot, loadRuntimeConfig } from './runtime-config';
 
 // Token expiry buffer - refresh 2 minutes before expiry
 const TOKEN_REFRESH_BUFFER_MS = 2 * 60 * 1000;
@@ -56,7 +55,7 @@ const resolvePendingRequests = () => {
 const doRefreshToken = async (): Promise<boolean> => {
   try {
     console.log('[Auth] Refreshing access token...');
-    const response = await fetch(`${BACKEND_URL}/auth/refresh`, {
+    const response = await fetch(`${getRuntimeConfigSnapshot().backendUrl}/auth/refresh`, {
       method: 'GET',
       credentials: 'include',
     });
@@ -118,23 +117,26 @@ export function useConnectionStatus() {
   return useContext(ConnectionContext);
 }
 
-function toWsUrl(httpUrl: string) {
-  if (httpUrl.startsWith('https://')) return httpUrl.replace('https://', 'wss://');
-  if (httpUrl.startsWith('http://')) return httpUrl.replace('http://', 'ws://');
-  return httpUrl;
-}
-
 interface ApolloClientWithWs {
   client: ApolloClient;
   wsClient: Client | null;
 }
 
+export interface ApolloEndpointUrls {
+  httpUri: string;
+  wsUri: string;
+}
+
 function createApolloClient(
   isAuthenticated: boolean,
-  onStatusChange: (status: ConnectionStatus) => void
+  onStatusChange: (status: ConnectionStatus) => void,
+  urls?: ApolloEndpointUrls
 ): ApolloClientWithWs {
-  const httpUri = process.env.NEXT_PUBLIC_GRAPHQL_URL || 'http://localhost:3001/graphql';
-  const wsUri = process.env.NEXT_PUBLIC_GRAPHQL_WS_URL || toWsUrl(httpUri);
+  // Endpoints come from the runtime config (/api/config) with build-time
+  // fallback, so the same image works across environments without rebuild.
+  const snapshot = getRuntimeConfigSnapshot();
+  const httpUri = urls?.httpUri ?? snapshot.graphqlUrl;
+  const wsUri = urls?.wsUri ?? snapshot.graphqlWsUrl;
 
   // Auth link - adds Authorization header from localStorage token
   // Also proactively refreshes token if it's about to expire
@@ -326,11 +328,39 @@ export function ApolloWrapper({ children }: { children: ReactNode }) {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('connecting');
   const [retryTrigger, setRetryTrigger] = useState(0);
+  // Boot sequence: runtime config first, then session restore from the
+  // httpOnly refresh cookie (the access token lives only in memory).
+  const [booted, setBooted] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        await loadRuntimeConfig();
+      } catch {
+        // loadRuntimeConfig already falls back to build-time values
+      }
+      try {
+        const { user, token, restoreSession } = useAuthStore.getState();
+        if (user && !token) {
+          await restoreSession();
+        }
+      } catch {
+        // A failed restore just leaves the user logged out
+      }
+      if (!cancelled) {
+        setBooted(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const { client, wsClient } = useMemo(
     () => createApolloClient(isAuthenticated, setConnectionStatus),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [isAuthenticated, retryTrigger]
+    [isAuthenticated, retryTrigger, booted]
   );
 
   const retryConnection = useCallback(() => {
@@ -354,6 +384,10 @@ export function ApolloWrapper({ children }: { children: ReactNode }) {
     () => ({ status: connectionStatus, retryConnection }),
     [connectionStatus, retryConnection]
   );
+
+  if (!booted) {
+    return null;
+  }
 
   return (
     <ConnectionContext.Provider value={contextValue}>
